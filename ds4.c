@@ -8787,6 +8787,12 @@ typedef struct {
     ds4_gpu_tensor *flash_prefill_tokens;
     ds4_gpu_tensor *flash_prefill_selected;
     ds4_gpu_tensor *flash_prefill_weights;
+
+    /* GPU dedup buffers for Flash-MoE prefill (eliminates big CPU readback + qsort) */
+    ds4_gpu_tensor *flash_dedup_token_list;   /* compacted token ids, size prefill_cap*8 */
+    ds4_gpu_tensor *flash_dedup_weight_list;  /* compacted weights, size prefill_cap*8 */
+    ds4_gpu_tensor *flash_dedup_offsets;      /* [DS4_N_EXPERT+1] offsets into the lists */
+
     int32_t *flash_slot_to_expert;
     int32_t *flash_expert_to_slot;
     uint64_t *flash_slot_age;
@@ -8848,6 +8854,9 @@ static void metal_graph_free(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->flash_prefill_up);
     ds4_gpu_tensor_free(g->flash_prefill_gate);
     ds4_gpu_tensor_free(g->flash_prefill_x);
+    ds4_gpu_tensor_free(g->flash_dedup_offsets);
+    ds4_gpu_tensor_free(g->flash_dedup_weight_list);
+    ds4_gpu_tensor_free(g->flash_dedup_token_list);
     ds4_gpu_tensor_free(g->flash_prefill_down_bank);
     ds4_gpu_tensor_free(g->flash_prefill_up_bank);
     ds4_gpu_tensor_free(g->flash_prefill_gate_bank);
@@ -9611,6 +9620,13 @@ static bool metal_graph_enable_flash_moe(
     g->flash_prefill_tokens = ds4_gpu_tensor_alloc(pc * sizeof(int32_t));
     g->flash_prefill_selected = ds4_gpu_tensor_alloc(pc * sizeof(int32_t));
     g->flash_prefill_weights = ds4_gpu_tensor_alloc(pc * sizeof(float));
+
+    /* GPU dedup buffers (one entry per token-expert pair at worst) */
+    const uint64_t dedup_pairs = pc * DS4_N_EXPERT_USED;
+    g->flash_dedup_token_list = ds4_gpu_tensor_alloc(dedup_pairs * sizeof(int32_t));
+    g->flash_dedup_weight_list = ds4_gpu_tensor_alloc(dedup_pairs * sizeof(float));
+    g->flash_dedup_offsets = ds4_gpu_tensor_alloc((DS4_N_EXPERT + 1) * sizeof(uint32_t));
+
     ok = ok &&
          g->flash_prefill_gate_bank &&
          g->flash_prefill_up_bank &&
@@ -9622,7 +9638,10 @@ static bool metal_graph_enable_flash_moe(
          g->flash_prefill_out &&
          g->flash_prefill_tokens &&
          g->flash_prefill_selected &&
-         g->flash_prefill_weights;
+         g->flash_prefill_weights &&
+         g->flash_dedup_token_list &&
+         g->flash_dedup_weight_list &&
+         g->flash_dedup_offsets;
     if (ok) {
         int32_t *zeros = xcalloc((size_t)pc, sizeof(zeros[0]));
         ok = ds4_gpu_tensor_write(g->flash_prefill_selected,
@@ -9922,7 +9941,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     }
 
     const uint64_t n_pairs = (uint64_t)n_tokens * DS4_N_EXPERT_USED;
-    if (n_pairs > SIZE_MAX / sizeof(int32_t)) return false;
+    if (n_pairs > SIZE_MAX / sizeof(int32_t) || n_pairs > UINT32_MAX) return false;
     int32_t *true_ids = xmalloc((size_t)n_pairs * sizeof(true_ids[0]));
     float *pair_weights = xmalloc((size_t)n_pairs * sizeof(pair_weights[0]));
     int32_t *ref_tokens = xmalloc((size_t)n_pairs * sizeof(ref_tokens[0]));
@@ -9935,31 +9954,70 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     for (uint32_t i = 0; i < DS4_N_EXPERT; i++) expert_to_index[i] = -1;
 
     const bool profile = getenv("DS4_FLASH_MOE_PROFILE") != NULL;
+    const bool use_gpu_dedup = getenv("DS4_FLASH_MOE_GPU_DEDUP") == NULL || atoi(getenv("DS4_FLASH_MOE_GPU_DEDUP")) != 0;
+
     const double t0 = profile ? now_sec() : 0.0;
     bool ok = ds4_gpu_end_commands() != 0;
     const double t_sync = profile ? now_sec() : 0.0;
-    if (ok) {
-        ok = ds4_gpu_tensor_read(g->batch_router_selected,
-                                 0,
-                                 true_ids,
-                                 n_pairs * sizeof(true_ids[0])) != 0 &&
-             ds4_gpu_tensor_read(g->batch_router_weights,
-                                 0,
-                                 pair_weights,
-                                 n_pairs * sizeof(pair_weights[0])) != 0;
-    }
 
     uint32_t n_unique = 0;
-    for (uint64_t i = 0; ok && i < n_pairs; i++) {
-        const int32_t expert = true_ids[i];
-        if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) {
-            fprintf(stderr, "ds4: Flash-MoE prefill selected invalid expert id %d in layer %u\n",
-                    expert,
+    bool gpu_compacted = false;
+
+    if (use_gpu_dedup && ok) {
+        uint32_t zeros[DS4_N_EXPERT] = {0};
+        ok = ds4_gpu_tensor_write(g->flash_dedup_offsets, 0, zeros, sizeof(zeros)) != 0;
+
+        if (ok) {
+            ok = ds4_gpu_flash_moe_dedup_histogram(g->batch_router_selected,
+                                                   g->flash_dedup_offsets,
+                                                   (uint32_t)n_pairs) != 0;
+        }
+
+        uint32_t gpu_counts[DS4_N_EXPERT] = {0};
+        if (ok) {
+            ok = ds4_gpu_tensor_read(g->flash_dedup_offsets, 0, gpu_counts, sizeof(gpu_counts)) != 0;
+        }
+
+        uint64_t counted_pairs = 0;
+        for (uint32_t e = 0; ok && e < DS4_N_EXPERT; e++) {
+            counted_pairs += gpu_counts[e];
+            counts[e] = (int32_t)gpu_counts[e];
+            if (counts[e] > 0) {
+                unique[n_unique++] = (int32_t)e;
+            }
+        }
+        if (ok && counted_pairs != n_pairs) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE GPU dedup counted %" PRIu64
+                    " routed refs, expected %" PRIu64 " in layer %u\n",
+                    counted_pairs,
+                    n_pairs,
                     il);
             ok = false;
-            break;
         }
-        if (counts[expert]++ == 0) unique[n_unique++] = expert;
+    } else {
+        /* Legacy CPU path */
+        if (ok) {
+            ok = ds4_gpu_tensor_read(g->batch_router_selected,
+                                     0,
+                                     true_ids,
+                                     n_pairs * sizeof(true_ids[0])) != 0 &&
+                 ds4_gpu_tensor_read(g->batch_router_weights,
+                                     0,
+                                     pair_weights,
+                                     n_pairs * sizeof(pair_weights[0])) != 0;
+        }
+
+        for (uint64_t i = 0; ok && i < n_pairs; i++) {
+            const int32_t expert = true_ids[i];
+            if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) {
+                fprintf(stderr, "ds4: Flash-MoE prefill selected invalid expert id %d in layer %u\n",
+                        expert, il);
+                ok = false;
+                break;
+            }
+            if (counts[expert]++ == 0) unique[n_unique++] = expert;
+        }
     }
     if (ok) {
         g->flash_prefill_refs += n_pairs;
@@ -9974,18 +10032,40 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             offsets[i + 1] = offsets[i] + counts[expert];
             cursor[expert] = offsets[i];
         }
-        for (uint32_t t = 0; t < n_tokens; t++) {
-            for (uint32_t k = 0; k < DS4_N_EXPERT_USED; k++) {
-                const uint64_t pair = (uint64_t)t * DS4_N_EXPERT_USED + k;
-                const int32_t expert = true_ids[pair];
-                const int32_t idx = expert_to_index[expert];
-                if (idx < 0) {
-                    ok = false;
-                    break;
+
+        if (use_gpu_dedup) {
+            uint32_t start_offsets[DS4_N_EXPERT] = {0};
+            for (uint32_t i = 0; i < n_unique; i++) {
+                const int32_t expert = unique[i];
+                start_offsets[expert] = (uint32_t)offsets[i];
+            }
+
+            ok = ds4_gpu_tensor_write(g->flash_dedup_offsets, 0,
+                                      start_offsets, sizeof(start_offsets)) != 0;
+            if (ok) {
+                ok = ds4_gpu_flash_moe_dedup_compact(g->batch_router_selected,
+                                                     g->batch_router_weights,
+                                                     g->flash_dedup_offsets,
+                                                     g->flash_dedup_token_list,
+                                                     g->flash_dedup_weight_list,
+                                                     (uint32_t)n_pairs,
+                                                     DS4_N_EXPERT_USED) != 0;
+            }
+            gpu_compacted = ok;
+        } else {
+            for (uint32_t t = 0; t < n_tokens; t++) {
+                for (uint32_t k = 0; k < DS4_N_EXPERT_USED; k++) {
+                    const uint64_t pair = (uint64_t)t * DS4_N_EXPERT_USED + k;
+                    const int32_t expert = true_ids[pair];
+                    const int32_t idx = expert_to_index[expert];
+                    if (idx < 0) {
+                        ok = false;
+                        break;
+                    }
+                    const int32_t dst = cursor[expert]++;
+                    ref_tokens[dst] = (int32_t)t;
+                    ref_weights[dst] = pair_weights[pair];
                 }
-                const int32_t dst = cursor[expert]++;
-                ref_tokens[dst] = (int32_t)t;
-                ref_weights[dst] = pair_weights[pair];
             }
         }
     }
@@ -10012,23 +10092,47 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         const uint32_t refs = (uint32_t)(end - begin);
         if (refs == 0) continue;
 
-        ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert) &&
-             ds4_gpu_tensor_write(g->flash_prefill_tokens,
-                                  0,
-                                  ref_tokens + begin,
-                                  (uint64_t)refs * sizeof(ref_tokens[0])) != 0 &&
-             ds4_gpu_tensor_write(g->flash_prefill_weights,
-                                  0,
-                                  ref_weights + begin,
-                                  (uint64_t)refs * sizeof(ref_weights[0])) != 0 &&
-             ds4_gpu_begin_commands() != 0;
-        if (!ok) break;
+        ds4_gpu_tensor *tokens_for_refs = g->flash_prefill_tokens;
+        ds4_gpu_tensor *weights_for_refs = g->flash_prefill_weights;
+        ds4_gpu_tensor *token_view = NULL;
+        ds4_gpu_tensor *weight_view = NULL;
+
+        if (gpu_compacted) {
+            token_view = ds4_gpu_tensor_view(g->flash_dedup_token_list,
+                                             (uint64_t)begin * sizeof(int32_t),
+                                             (uint64_t)refs * sizeof(int32_t));
+            weight_view = ds4_gpu_tensor_view(g->flash_dedup_weight_list,
+                                              (uint64_t)begin * sizeof(float),
+                                              (uint64_t)refs * sizeof(float));
+            tokens_for_refs = token_view;
+            weights_for_refs = weight_view;
+            ok = token_view &&
+                 weight_view &&
+                 metal_graph_flash_moe_stage_prefill_expert(g, il, expert) &&
+                 ds4_gpu_begin_commands() != 0;
+        } else {
+            ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert) &&
+                 ds4_gpu_tensor_write(g->flash_prefill_tokens,
+                                      0,
+                                      ref_tokens + begin,
+                                      (uint64_t)refs * sizeof(ref_tokens[0])) != 0 &&
+                 ds4_gpu_tensor_write(g->flash_prefill_weights,
+                                      0,
+                                      ref_weights + begin,
+                                      (uint64_t)refs * sizeof(ref_weights[0])) != 0 &&
+                 ds4_gpu_begin_commands() != 0;
+        }
+        if (!ok) {
+            ds4_gpu_tensor_free(weight_view);
+            ds4_gpu_tensor_free(token_view);
+            break;
+        }
         commands_open = true;
 
         bool mid_is_f16 = false;
         ok = ds4_gpu_gather_rows_f32_tensor(g->flash_prefill_x,
                                             g->batch_ffn_norm,
-                                            g->flash_prefill_tokens,
+                                            tokens_for_refs,
                                             refs,
                                             DS4_N_EMBD) != 0 &&
              ds4_gpu_routed_moe_expert_banked_batch_tensor(g->flash_prefill_out,
@@ -10048,16 +10152,18 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                            expert_mid_dim,
                                                            out_dim,
                                                            g->flash_prefill_selected,
-                                                           g->flash_prefill_weights,
+                                                           weights_for_refs,
                                                            DS4_SWIGLU_CLAMP_EXP,
                                                            g->flash_prefill_x,
                                                            refs,
                                                            &mid_is_f16) != 0 &&
              ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out,
                                                  g->flash_prefill_out,
-                                                 g->flash_prefill_tokens,
+                                                 tokens_for_refs,
                                                  refs,
                                                  DS4_N_EMBD) != 0;
+        ds4_gpu_tensor_free(weight_view);
+        ds4_gpu_tensor_free(token_view);
         if (mid_is_f16) g->batch_routed_mid_is_f16 = true;
     }
     if (!commands_open && ok) {

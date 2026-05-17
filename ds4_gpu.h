@@ -706,6 +706,24 @@ int ds4_gpu_routed_moe_expert_banked_batch_tensor(
         uint32_t                n_tokens,
         bool                   *mid_is_f16);
 
+/* GPU dedup for Flash-MoE prefill (histogram of router top-k over n_pairs) */
+int ds4_gpu_flash_moe_dedup_histogram(const ds4_gpu_tensor *selected,
+                                      ds4_gpu_tensor       *counts256,
+                                      uint32_t              n_pairs);
+
+int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
+                                    const ds4_gpu_tensor *pair_weights,
+                                    ds4_gpu_tensor       *offsets,
+                                    ds4_gpu_tensor       *out_tokens,
+                                    ds4_gpu_tensor       *out_weights,
+                                    uint32_t              n_pairs,
+                                    uint32_t              expert_used);
+
+int ds4_gpu_copy_i32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
+                           ds4_gpu_tensor *dst, uint32_t count);
+int ds4_gpu_copy_f32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
+                           ds4_gpu_tensor *dst, uint32_t count);
+
 int ds4_gpu_routed_moe_batch_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *gate,

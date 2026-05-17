@@ -1736,3 +1736,78 @@ template [[host_name("kernel_mul_mm_id_iq2_xxs_f16")]] kernel mul_mm_id_f16_rhs 
 #undef N_R0_Q2_K
 #undef N_R0_Q4_K
 #undef N_R0_IQ2_XXS
+
+// -----------------------------------------------------------------------------
+// Flash-MoE GPU dedup kernels (for prefill with paged experts from SSD sidecar)
+// Goal: avoid reading the entire router top-k output back to CPU on every chunk.
+// -----------------------------------------------------------------------------
+
+struct FlashDedupHistogramArgs {
+    uint32_t n_pairs;
+    uint32_t _pad;
+};
+
+kernel void kernel_flash_moe_dedup_histogram(
+        constant FlashDedupHistogramArgs & args [[buffer(0)]],
+        device const int32_t * selected [[buffer(1)]],
+        device atomic_uint * counts [[buffer(2)]],
+        uint gid [[thread_position_in_grid]])
+{
+    if (gid >= args.n_pairs) return;
+
+    int32_t e = selected[gid];
+    if (e >= 0 && e < 256) {
+        atomic_fetch_add_explicit(&counts[e], 1u, memory_order_relaxed);
+    }
+}
+
+// Compact kernel: given router selected/weights, and starting offsets,
+// atomically claim slots and write (token_id, weight) into the per-expert sections.
+struct FlashDedupCompactArgs {
+    uint32_t n_pairs;
+    uint32_t expert_used;   // usually 8
+};
+
+kernel void kernel_flash_moe_dedup_compact(
+        constant FlashDedupCompactArgs & args [[buffer(0)]],
+        device const int32_t * selected   [[buffer(1)]],
+        device const float   * pair_weights [[buffer(2)]],
+        device atomic_uint * offsets     [[buffer(3)]],   // starting write pos per expert, mutated atomically
+        device int32_t  * out_tokens  [[buffer(4)]],
+        device float    * out_weights [[buffer(5)]],
+        uint gid [[thread_position_in_grid]])
+{
+    if (gid >= args.n_pairs) return;
+
+    int32_t e = selected[gid];
+    if (e < 0 || e >= 256) return;
+
+    uint32_t slot = atomic_fetch_add_explicit(&offsets[e], 1u, memory_order_relaxed);
+    uint32_t token = gid / args.expert_used;
+
+    out_tokens[slot]  = (int32_t)token;
+    out_weights[slot] = pair_weights[gid];
+}
+
+// Small slice copy helpers (used to feed per-expert working lists from the big compacted dedup buffers)
+kernel void kernel_flash_copy_i32_slice(
+        device const int32_t * src [[buffer(0)]],
+        device int32_t       * dst [[buffer(1)]],
+        constant uint32_t & src_offset [[buffer(2)]],
+        constant uint32_t & count      [[buffer(3)]],
+        uint gid [[thread_position_in_grid]])
+{
+    if (gid >= count) return;
+    dst[gid] = src[src_offset + gid];
+}
+
+kernel void kernel_flash_copy_f32_slice(
+        device const float * src [[buffer(0)]],
+        device float       * dst [[buffer(1)]],
+        constant uint32_t & src_offset [[buffer(2)]],
+        constant uint32_t & count      [[buffer(3)]],
+        uint gid [[thread_position_in_grid]])
+{
+    if (gid >= count) return;
+    dst[gid] = src[src_offset + gid];
+}

@@ -15421,3 +15421,199 @@ int ds4_gpu_matmul_q8_0_hc_expand_tensor(
 
     return 1;
 }
+
+int ds4_gpu_copy_i32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
+                           ds4_gpu_tensor *dst, uint32_t count)
+{
+    if (!src || !dst || count == 0) return 0;
+
+    @autoreleasepool {
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        if (!enc) {
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-i32");
+            return 0;
+        }
+
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_pipeline("kernel_flash_copy_i32_slice");
+        if (!pipeline) {
+            ds4_gpu_end_compute_encoder(cb, enc);
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-i32");
+            return 0;
+        }
+
+        [enc setComputePipelineState:pipeline];
+        [enc setBuffer:ds4_gpu_tensor_buffer(src) offset:ds4_gpu_tensor_offset(src) atIndex:0];
+        [enc setBuffer:ds4_gpu_tensor_buffer(dst) offset:ds4_gpu_tensor_offset(dst) atIndex:1];
+
+        uint32_t off = src_offset;
+        uint32_t cnt = count;
+        [enc setBytes:&off length:sizeof(off) atIndex:2];
+        [enc setBytes:&cnt length:sizeof(cnt) atIndex:3];
+
+        MTLSize grid = MTLSizeMake(count, 1, 1);
+        MTLSize tg = MTLSizeMake(32, 1, 1);
+        [enc dispatchThreads:grid threadsPerThreadgroup:tg];
+
+        ds4_gpu_end_compute_encoder(cb, enc);
+        if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-i32");
+        return 1;
+    }
+}
+
+int ds4_gpu_copy_f32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
+                           ds4_gpu_tensor *dst, uint32_t count)
+{
+    if (!src || !dst || count == 0) return 0;
+
+    @autoreleasepool {
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        if (!enc) {
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-f32");
+            return 0;
+        }
+
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_pipeline("kernel_flash_copy_f32_slice");
+        if (!pipeline) {
+            ds4_gpu_end_compute_encoder(cb, enc);
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-f32");
+            return 0;
+        }
+
+        [enc setComputePipelineState:pipeline];
+        [enc setBuffer:ds4_gpu_tensor_buffer(src) offset:ds4_gpu_tensor_offset(src) atIndex:0];
+        [enc setBuffer:ds4_gpu_tensor_buffer(dst) offset:ds4_gpu_tensor_offset(dst) atIndex:1];
+
+        uint32_t off = src_offset;
+        uint32_t cnt = count;
+        [enc setBytes:&off length:sizeof(off) atIndex:2];
+        [enc setBytes:&cnt length:sizeof(cnt) atIndex:3];
+
+        MTLSize grid = MTLSizeMake(count, 1, 1);
+        MTLSize tg = MTLSizeMake(32, 1, 1);
+        [enc dispatchThreads:grid threadsPerThreadgroup:tg];
+
+        ds4_gpu_end_compute_encoder(cb, enc);
+        if (owned) ds4_gpu_finish_command_buffer(cb, 1, "copy-f32");
+        return 1;
+    }
+}
+
+/* ==========================================================================
+ * Flash-MoE GPU dedup support (histogram for prefill when experts are paged
+ * from SSD sidecar via --moe-sidecar + slot-bank)
+ * ========================================================================== */
+
+struct FlashDedupHistogramArgs {
+    uint32_t n_pairs;
+    uint32_t _pad;
+};
+
+struct FlashDedupCompactArgs {
+    uint32_t n_pairs;
+    uint32_t expert_used;
+};
+
+int ds4_gpu_flash_moe_dedup_histogram(const ds4_gpu_tensor *selected,
+                                      ds4_gpu_tensor       *counts256,
+                                      uint32_t              n_pairs)
+{
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!selected || !counts256 || n_pairs == 0) return 0;
+
+    @autoreleasepool {
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        if (!enc) {
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-hist");
+            return 0;
+        }
+
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_pipeline("kernel_flash_moe_dedup_histogram");
+        if (!pipeline) {
+            ds4_gpu_end_compute_encoder(cb, enc);
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-hist");
+            return 0;
+        }
+
+        [enc setComputePipelineState:pipeline];
+
+        struct FlashDedupHistogramArgs args = { .n_pairs = n_pairs, ._pad = 0 };
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:ds4_gpu_tensor_buffer(selected) offset:ds4_gpu_tensor_offset(selected) atIndex:1];
+        [enc setBuffer:ds4_gpu_tensor_buffer(counts256) offset:ds4_gpu_tensor_offset(counts256) atIndex:2];
+
+        MTLSize grid = MTLSizeMake(n_pairs, 1, 1);
+        MTLSize tg = MTLSizeMake(32, 1, 1);
+
+        [enc dispatchThreads:grid threadsPerThreadgroup:tg];
+
+        ds4_gpu_end_compute_encoder(cb, enc);
+        if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-hist");
+        return 1;
+    }
+}
+
+int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
+                                    const ds4_gpu_tensor *pair_weights,
+                                    ds4_gpu_tensor       *offsets,        // will be advanced atomically
+                                    ds4_gpu_tensor       *out_tokens,
+                                    ds4_gpu_tensor       *out_weights,
+                                    uint32_t              n_pairs,
+                                    uint32_t              expert_used)
+{
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!selected || !pair_weights || !offsets || !out_tokens || !out_weights || n_pairs == 0) return 0;
+
+    @autoreleasepool {
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        if (!enc) {
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-compact");
+            return 0;
+        }
+
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_pipeline("kernel_flash_moe_dedup_compact");
+        if (!pipeline) {
+            ds4_gpu_end_compute_encoder(cb, enc);
+            if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-compact");
+            return 0;
+        }
+
+        [enc setComputePipelineState:pipeline];
+
+        struct FlashDedupCompactArgs args = { .n_pairs = n_pairs, .expert_used = expert_used };
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:ds4_gpu_tensor_buffer(selected)     offset:ds4_gpu_tensor_offset(selected)     atIndex:1];
+        [enc setBuffer:ds4_gpu_tensor_buffer(pair_weights) offset:ds4_gpu_tensor_offset(pair_weights) atIndex:2];
+        [enc setBuffer:ds4_gpu_tensor_buffer(offsets)      offset:ds4_gpu_tensor_offset(offsets)      atIndex:3];
+        [enc setBuffer:ds4_gpu_tensor_buffer(out_tokens)   offset:ds4_gpu_tensor_offset(out_tokens)   atIndex:4];
+        [enc setBuffer:ds4_gpu_tensor_buffer(out_weights)  offset:ds4_gpu_tensor_offset(out_weights)  atIndex:5];
+
+        MTLSize grid = MTLSizeMake(n_pairs, 1, 1);
+        MTLSize tg = MTLSizeMake(32, 1, 1);
+
+        [enc dispatchThreads:grid threadsPerThreadgroup:tg];
+
+        ds4_gpu_end_compute_encoder(cb, enc);
+        if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-compact");
+        return 1;
+    }
+}
