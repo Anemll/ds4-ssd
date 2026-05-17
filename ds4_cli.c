@@ -90,6 +90,12 @@ static void usage(FILE *fp) {
         "      Maximum autoregressive MTP draft tokens per speculative step. Default: 1\n"
         "  --mtp-margin F\n"
         "      Minimum recursive-draft confidence for the fast N=2 verifier. Default: 3\n"
+        "  --moe-sidecar PATH\n"
+        "      Flash-MoE sidecar directory containing manifest.json and expert records.\n"
+        "  --moe-mode NAME\n"
+        "      Routed expert weight source: off or slot-bank. Default: off\n"
+        "  --moe-slot-bank N\n"
+        "      Number of routed expert slots per layer for --moe-mode slot-bank. Default: 32\n"
         "  -c, --ctx N\n"
         "      Context size allocated for the session. Default: 32768\n"
         "  --metal\n"
@@ -230,6 +236,14 @@ static ds4_backend parse_backend(const char *s) {
     if (!strcmp(s, "cpu")) return DS4_BACKEND_CPU;
     fprintf(stderr, "ds4: invalid backend: %s\n", s);
     fprintf(stderr, "ds4: valid backends are: metal, cuda, cpu\n");
+    exit(2);
+}
+
+static ds4_moe_mode parse_moe_mode(const char *s) {
+    if (!strcmp(s, "off")) return DS4_MOE_MODE_OFF;
+    if (!strcmp(s, "slot-bank")) return DS4_MOE_MODE_SLOT_BANK;
+    fprintf(stderr, "ds4: invalid MoE mode: %s\n", s);
+    fprintf(stderr, "ds4: valid MoE modes are: off, slot-bank\n");
     exit(2);
 }
 
@@ -758,7 +772,9 @@ static int run_generation(ds4_engine *engine, const cli_config *cfg) {
             fprintf(stderr, "ds4: diagnostic run completed on the native %s path.\n",
                     ds4_backend_name(cfg->engine.backend));
         }
-    } else if (cfg->gen.temperature > 0.0f || ds4_engine_mtp_draft_tokens(engine) > 1) {
+    } else if (cfg->engine.moe_mode == DS4_MOE_MODE_SLOT_BANK ||
+               cfg->gen.temperature > 0.0f ||
+               ds4_engine_mtp_draft_tokens(engine) > 1) {
         rc = run_sampled_generation(engine, cfg, &prompt);
     } else {
         token_printer printer = {
@@ -1194,6 +1210,8 @@ static cli_config parse_options(int argc, char **argv) {
             .backend = default_backend(),
             .mtp_draft_tokens = 1,
             .mtp_margin = 3.0f,
+            .moe_mode = DS4_MOE_MODE_OFF,
+            .moe_slot_bank = 32,
         },
         .gen = {
             .prompt = NULL,
@@ -1237,6 +1255,12 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.mtp_draft_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {
             c.engine.mtp_margin = parse_float_range(need_arg(&i, argc, argv, arg), arg, 0.0f, 1000.0f);
+        } else if (!strcmp(arg, "--moe-sidecar")) {
+            c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-mode")) {
+            c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--moe-slot-bank")) {
+            c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
             c.gen.n_predict = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
@@ -1322,6 +1346,10 @@ static cli_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !directional_steering_scale_set) {
         c.engine.directional_steering_ffn = 1.0f;
+    }
+    if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
+        fprintf(stderr, "ds4: --moe-sidecar requires --moe-mode slot-bank\n");
+        exit(2);
     }
     if (c.gen.imatrix_output_path && !c.gen.imatrix_dataset_path) {
         fprintf(stderr, "ds4: --imatrix-out requires --imatrix-dataset\n");

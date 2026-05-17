@@ -1500,6 +1500,11 @@ extern "C" int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model
     return 1;
 }
 
+extern "C" void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views) {
+    (void)request_residency;
+    (void)warm_views;
+}
+
 extern "C" int ds4_gpu_set_model_fd(int fd) {
     g_model_fd = fd;
     g_model_fd_host_base = g_model_host_base;
@@ -10335,6 +10340,42 @@ extern "C" int ds4_gpu_routed_moe_one_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor
                              expert_in_dim, expert_mid_dim, out_dim,
                              selected, weights, n_expert, clamp, x, 1);
 }
+
+extern "C" int ds4_gpu_routed_moe_one_banked_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *gate, ds4_gpu_tensor *up, ds4_gpu_tensor *mid, ds4_gpu_tensor *down, ds4_gpu_tensor *gate_bank, ds4_gpu_tensor *up_bank, ds4_gpu_tensor *down_bank, uint32_t n_slots, uint32_t gate_type, uint32_t down_type, uint64_t gate_expert_bytes, uint64_t gate_row_bytes, uint64_t down_expert_bytes, uint64_t down_row_bytes, uint32_t expert_in_dim, uint32_t expert_mid_dim, uint32_t out_dim, const ds4_gpu_tensor *selected, const ds4_gpu_tensor *weights, uint32_t n_expert, float clamp, const ds4_gpu_tensor *x) {
+    (void)out; (void)gate; (void)up; (void)mid; (void)down;
+    (void)gate_bank; (void)up_bank; (void)down_bank; (void)n_slots;
+    (void)gate_type; (void)down_type; (void)gate_expert_bytes;
+    (void)gate_row_bytes; (void)down_expert_bytes; (void)down_row_bytes;
+    (void)expert_in_dim; (void)expert_mid_dim; (void)out_dim;
+    (void)selected; (void)weights; (void)n_expert; (void)clamp; (void)x;
+    fprintf(stderr, "ds4: CUDA Flash-MoE slot-bank routed path is not implemented yet\n");
+    return 0;
+}
+
+extern "C" int ds4_gpu_gather_rows_f32_tensor(ds4_gpu_tensor *out, const ds4_gpu_tensor *src, const ds4_gpu_tensor *rows, uint32_t n_rows, uint32_t width) {
+    (void)out; (void)src; (void)rows; (void)n_rows; (void)width;
+    fprintf(stderr, "ds4: CUDA Flash-MoE prefill gather path is not implemented yet\n");
+    return 0;
+}
+
+extern "C" int ds4_gpu_scatter_add_rows_f32_tensor(ds4_gpu_tensor *dst, const ds4_gpu_tensor *src, const ds4_gpu_tensor *rows, uint32_t n_rows, uint32_t width) {
+    (void)dst; (void)src; (void)rows; (void)n_rows; (void)width;
+    fprintf(stderr, "ds4: CUDA Flash-MoE prefill scatter-add path is not implemented yet\n");
+    return 0;
+}
+
+extern "C" int ds4_gpu_routed_moe_expert_banked_batch_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *gate, ds4_gpu_tensor *up, ds4_gpu_tensor *mid, ds4_gpu_tensor *gate_bank, ds4_gpu_tensor *up_bank, ds4_gpu_tensor *down_bank, uint32_t gate_type, uint32_t down_type, uint64_t gate_expert_bytes, uint64_t gate_row_bytes, uint64_t down_expert_bytes, uint64_t down_row_bytes, uint32_t expert_in_dim, uint32_t expert_mid_dim, uint32_t out_dim, const ds4_gpu_tensor *selected, const ds4_gpu_tensor *weights, float clamp, const ds4_gpu_tensor *x, uint32_t n_tokens, bool *mid_is_f16) {
+    (void)out; (void)gate; (void)up; (void)mid;
+    (void)gate_bank; (void)up_bank; (void)down_bank;
+    (void)gate_type; (void)down_type; (void)gate_expert_bytes;
+    (void)gate_row_bytes; (void)down_expert_bytes; (void)down_row_bytes;
+    (void)expert_in_dim; (void)expert_mid_dim; (void)out_dim;
+    (void)selected; (void)weights; (void)clamp; (void)x; (void)n_tokens;
+    if (mid_is_f16) *mid_is_f16 = false;
+    fprintf(stderr, "ds4: CUDA Flash-MoE prefill expert batch path is not implemented yet\n");
+    return 0;
+}
+
 extern "C" int ds4_gpu_routed_moe_batch_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *gate, ds4_gpu_tensor *up, ds4_gpu_tensor *mid, ds4_gpu_tensor *down, const void *model_map, uint64_t model_size, uint64_t gate_offset, uint64_t up_offset, uint64_t down_offset, uint32_t gate_type, uint32_t down_type, uint64_t gate_expert_bytes, uint64_t gate_row_bytes, uint64_t down_expert_bytes, uint64_t down_row_bytes, uint32_t expert_in_dim, uint32_t expert_mid_dim, uint32_t out_dim, const ds4_gpu_tensor *selected, const ds4_gpu_tensor *weights, uint32_t n_expert, float clamp, const ds4_gpu_tensor *x, uint32_t n_tokens) {
     return routed_moe_launch(out, gate, up, mid, down, model_map, model_size,
                              gate_offset, up_offset, down_offset,

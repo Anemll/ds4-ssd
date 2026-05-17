@@ -11781,6 +11781,12 @@ static void usage(FILE *fp) {
         "      Maximum autoregressive MTP draft tokens per speculative step. Default: 1\n"
         "  --mtp-margin F\n"
         "      Minimum recursive-draft confidence for the fast N=2 verifier. Default: 3\n"
+        "  --moe-sidecar PATH\n"
+        "      Flash-MoE sidecar directory containing manifest.json and expert records.\n"
+        "  --moe-mode NAME\n"
+        "      Routed expert weight source: off or slot-bank. Default: off\n"
+        "  --moe-slot-bank N\n"
+        "      Number of routed expert slots per layer for --moe-mode slot-bank. Default: 32\n"
         "  -c, --ctx N\n"
         "      Context size allocated at startup. Default: 32768\n"
         "  -n, --tokens N\n"
@@ -11869,6 +11875,14 @@ static ds4_backend parse_backend_arg(const char *s, const char *arg) {
     exit(2);
 }
 
+static ds4_moe_mode parse_moe_mode_arg(const char *s, const char *arg) {
+    if (!strcmp(s, "off")) return DS4_MOE_MODE_OFF;
+    if (!strcmp(s, "slot-bank")) return DS4_MOE_MODE_SLOT_BANK;
+    server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
+    server_log(DS4_LOG_DEFAULT, "ds4-server: valid MoE modes are: off, slot-bank");
+    exit(2);
+}
+
 static ds4_backend default_server_backend(void) {
 #ifdef DS4_NO_GPU
     return DS4_BACKEND_CPU;
@@ -11886,6 +11900,8 @@ static server_config parse_options(int argc, char **argv) {
             .backend = default_server_backend(),
             .mtp_draft_tokens = 1,
             .mtp_margin = 3.0f,
+            .moe_mode = DS4_MOE_MODE_OFF,
+            .moe_slot_bank = 32,
         },
         .host = "127.0.0.1",
         .port = 8000,
@@ -11909,6 +11925,12 @@ static server_config parse_options(int argc, char **argv) {
             c.engine.mtp_draft_tokens = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {
             c.engine.mtp_margin = parse_float_arg(need_arg(&i, argc, argv, arg), arg, 0.0f, 1000.0f);
+        } else if (!strcmp(arg, "--moe-sidecar")) {
+            c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-mode")) {
+            c.engine.moe_mode = parse_moe_mode_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--moe-slot-bank")) {
+            c.engine.moe_slot_bank = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.ctx_size = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -11980,6 +12002,10 @@ static server_config parse_options(int argc, char **argv) {
     }
     if (c.engine.directional_steering_file && !directional_steering_scale_set) {
         c.engine.directional_steering_ffn = 1.0f;
+    }
+    if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
+        server_log(DS4_LOG_DEFAULT, "ds4-server: --moe-sidecar requires --moe-mode slot-bank");
+        exit(2);
     }
     return c;
 }

@@ -95,6 +95,36 @@ struct ds4_metal_args_dsv4_directional_steering_project {
     float    scale;
 };
 
+struct ds4_metal_args_dsv4_scatter_add_rows {
+    uint32_t width;
+    uint32_t rows;
+    uint64_t src_row_stride;
+    uint64_t dst_row_stride;
+};
+
+kernel void kernel_dsv4_scatter_add_rows_f32(
+        constant ds4_metal_args_dsv4_scatter_add_rows & args,
+        device const float *src,
+        device const int32_t *rows,
+        device float *dst,
+        uint row [[threadgroup_position_in_grid]],
+        uint tid [[thread_position_in_threadgroup]],
+        uint nth [[threads_per_threadgroup]]) {
+    if (row >= args.rows || args.width == 0) return;
+
+    const int32_t dst_row_i = rows[row];
+    if (dst_row_i < 0) return;
+
+    device const float *src_row = (device const float *)((device const char *)src +
+        (uint64_t)row * args.src_row_stride);
+    device float *dst_row = (device float *)((device char *)dst +
+        (uint64_t)dst_row_i * args.dst_row_stride);
+
+    for (uint col = tid; col < args.width; col += nth) {
+        dst_row[col] += src_row[col];
+    }
+}
+
 // Optional directional steering projection.
 //
 // Each threadgroup owns one 4096-wide token row, computes

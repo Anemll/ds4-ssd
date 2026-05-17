@@ -21,6 +21,11 @@ typedef enum {
 } ds4_backend;
 
 typedef enum {
+    DS4_MOE_MODE_OFF,
+    DS4_MOE_MODE_SLOT_BANK,
+} ds4_moe_mode;
+
+typedef enum {
     DS4_THINK_NONE,
     DS4_THINK_HIGH,
     DS4_THINK_MAX,
@@ -69,6 +74,9 @@ typedef struct {
     const char *directional_steering_file;
     float directional_steering_attn;
     float directional_steering_ffn;
+    const char *moe_sidecar_path;
+    ds4_moe_mode moe_mode;
+    int moe_slot_bank;
     bool warm_weights;
     bool quality;
 } ds4_engine_options;
