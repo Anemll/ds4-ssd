@@ -8779,6 +8779,17 @@ typedef struct {
     ds4_gpu_tensor *flash_prefill_gate_bank;
     ds4_gpu_tensor *flash_prefill_up_bank;
     ds4_gpu_tensor *flash_prefill_down_bank;
+
+    /* Second set for pipelined prefill dedup (#2) — stage N+1 while computing N */
+    ds4_gpu_tensor *flash_prefill_gate_bank2;
+    ds4_gpu_tensor *flash_prefill_up_bank2;
+    ds4_gpu_tensor *flash_prefill_down_bank2;
+    ds4_gpu_tensor *flash_prefill_gate_bank3;
+    ds4_gpu_tensor *flash_prefill_up_bank3;
+    ds4_gpu_tensor *flash_prefill_down_bank3;
+    ds4_gpu_tensor *flash_prefill_gate_bank4;
+    ds4_gpu_tensor *flash_prefill_up_bank4;
+    ds4_gpu_tensor *flash_prefill_down_bank4;
     ds4_gpu_tensor *flash_prefill_x;
     ds4_gpu_tensor *flash_prefill_gate;
     ds4_gpu_tensor *flash_prefill_up;
@@ -8857,6 +8868,15 @@ static void metal_graph_free(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->flash_dedup_offsets);
     ds4_gpu_tensor_free(g->flash_dedup_weight_list);
     ds4_gpu_tensor_free(g->flash_dedup_token_list);
+    ds4_gpu_tensor_free(g->flash_prefill_down_bank4);
+    ds4_gpu_tensor_free(g->flash_prefill_up_bank4);
+    ds4_gpu_tensor_free(g->flash_prefill_gate_bank4);
+    ds4_gpu_tensor_free(g->flash_prefill_down_bank3);
+    ds4_gpu_tensor_free(g->flash_prefill_up_bank3);
+    ds4_gpu_tensor_free(g->flash_prefill_gate_bank3);
+    ds4_gpu_tensor_free(g->flash_prefill_down_bank2);
+    ds4_gpu_tensor_free(g->flash_prefill_up_bank2);
+    ds4_gpu_tensor_free(g->flash_prefill_gate_bank2);
     ds4_gpu_tensor_free(g->flash_prefill_down_bank);
     ds4_gpu_tensor_free(g->flash_prefill_up_bank);
     ds4_gpu_tensor_free(g->flash_prefill_gate_bank);
@@ -9612,6 +9632,17 @@ static bool metal_graph_enable_flash_moe(
     g->flash_prefill_gate_bank = ds4_gpu_tensor_alloc(prefill_gate_bytes);
     g->flash_prefill_up_bank = ds4_gpu_tensor_alloc(prefill_up_bytes);
     g->flash_prefill_down_bank = ds4_gpu_tensor_alloc(prefill_down_bytes);
+
+    /* Second prefill scratch bank set for overlapping sidecar loads with compute */
+    g->flash_prefill_gate_bank2 = ds4_gpu_tensor_alloc(prefill_gate_bytes);
+    g->flash_prefill_up_bank2  = ds4_gpu_tensor_alloc(prefill_up_bytes);
+    g->flash_prefill_down_bank2 = ds4_gpu_tensor_alloc(prefill_down_bytes);
+    g->flash_prefill_gate_bank3 = ds4_gpu_tensor_alloc(prefill_gate_bytes);
+    g->flash_prefill_up_bank3  = ds4_gpu_tensor_alloc(prefill_up_bytes);
+    g->flash_prefill_down_bank3 = ds4_gpu_tensor_alloc(prefill_down_bytes);
+    g->flash_prefill_gate_bank4 = ds4_gpu_tensor_alloc(prefill_gate_bytes);
+    g->flash_prefill_up_bank4  = ds4_gpu_tensor_alloc(prefill_up_bytes);
+    g->flash_prefill_down_bank4 = ds4_gpu_tensor_alloc(prefill_down_bytes);
     g->flash_prefill_x = ds4_gpu_tensor_alloc(pc * DS4_N_EMBD * sizeof(float));
     g->flash_prefill_gate = ds4_gpu_tensor_alloc(pc * DS4_N_FF_EXP * sizeof(float));
     g->flash_prefill_up = ds4_gpu_tensor_alloc(pc * DS4_N_FF_EXP * sizeof(float));
@@ -9631,6 +9662,15 @@ static bool metal_graph_enable_flash_moe(
          g->flash_prefill_gate_bank &&
          g->flash_prefill_up_bank &&
          g->flash_prefill_down_bank &&
+         g->flash_prefill_gate_bank2 &&
+         g->flash_prefill_up_bank2 &&
+         g->flash_prefill_down_bank2 &&
+         g->flash_prefill_gate_bank3 &&
+         g->flash_prefill_up_bank3 &&
+         g->flash_prefill_down_bank3 &&
+         g->flash_prefill_gate_bank4 &&
+         g->flash_prefill_up_bank4 &&
+         g->flash_prefill_down_bank4 &&
          g->flash_prefill_x &&
          g->flash_prefill_gate &&
          g->flash_prefill_up &&
@@ -9651,6 +9691,7 @@ static bool metal_graph_enable_flash_moe(
         free(zeros);
     }
     uint64_t total_bank_bytes = 0;
+
     for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
         const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
         const uint64_t gate_bytes = (uint64_t)sidecar->slot_bank *
@@ -9672,9 +9713,45 @@ static bool metal_graph_enable_flash_moe(
             (uint32_t)DS4_N_LAYER,
             sidecar->slot_bank,
             (double)total_bank_bytes / 1048576.0);
+
+    /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
+    {
+        bool m5_fast = ds4_gpu_use_m5_simdgroup_matrix();
+        int prefetch = get_prefill_dedup_prefetch();
+        fprintf(stderr,
+                "ds4: Flash-MoE banked kernels using %s simdgroup_matrix fast path (prefetch=%d, banks=4)\n",
+                m5_fast ? "M5" : "generic",
+                prefetch);
+    }
+
     return true;
 }
 
+extern int ds4_gpu_use_m5_simdgroup_matrix(void);
+
+static int get_prefill_dedup_prefetch(void)
+{
+    static int cached = -1;
+    if (cached >= 0) return cached;
+
+    const char *env = getenv("DS4_FLASH_MOE_PREFETCH");
+    int dist = 3;   // default to match pipeline depth 4 with 4 banks
+
+    if (env && env[0]) {
+        int v = atoi(env);
+        if (v >= 0) dist = v;
+    }
+
+    // Clamp to what we support with current allocation (4 banks)
+    if (dist > 3) {
+        fprintf(stderr, "ds4: DS4_FLASH_MOE_PREFETCH=%d clamped to 3 (only 4 prefill banks allocated)\n", dist);
+        dist = 3;
+    }
+    if (dist < 0) dist = 0;
+
+    cached = dist;
+    return dist;
+}
 static bool flash_moe_pread_full(int fd, uint64_t offset, uint8_t *dst, uint64_t bytes) {
     uint64_t done = 0;
     while (done < bytes) {
@@ -9813,13 +9890,23 @@ static bool metal_graph_flash_moe_install(
 static bool metal_graph_flash_moe_stage_prefill_expert(
         ds4_gpu_graph *g,
         uint32_t       il,
-        int32_t        true_expert) {
+        int32_t        true_expert,
+        int            bank_set)          /* 0 or 1 for double-buffering (#2) */
+{
     if (!g || !g->flash_moe ||
-        !g->flash_prefill_gate_bank || !g->flash_prefill_up_bank ||
-        !g->flash_prefill_down_bank ||
         il >= DS4_N_LAYER || true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
         return false;
     }
+
+    ds4_gpu_tensor *gate_bank, *up_bank, *down_bank;
+    switch (bank_set) {
+    case 1:  gate_bank = g->flash_prefill_gate_bank2; up_bank = g->flash_prefill_up_bank2; down_bank = g->flash_prefill_down_bank2; break;
+    case 2:  gate_bank = g->flash_prefill_gate_bank3; up_bank = g->flash_prefill_up_bank3; down_bank = g->flash_prefill_down_bank3; break;
+    case 3:  gate_bank = g->flash_prefill_gate_bank4; up_bank = g->flash_prefill_up_bank4; down_bank = g->flash_prefill_down_bank4; break;
+    default: gate_bank = g->flash_prefill_gate_bank;  up_bank = g->flash_prefill_up_bank;  down_bank = g->flash_prefill_down_bank;  break;
+    }
+
+    if (!gate_bank || !up_bank || !down_bank) return false;
 
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
     const uint64_t src = (uint64_t)true_expert * layer->expert_stride;
@@ -9836,25 +9923,23 @@ static bool metal_graph_flash_moe_stage_prefill_expert(
     }
 
     const uint64_t gate_bytes = layer->family_bytes[DS4_FLASH_FAMILY_GATE];
-    const uint64_t up_bytes = layer->family_bytes[DS4_FLASH_FAMILY_UP];
+    const uint64_t up_bytes   = layer->family_bytes[DS4_FLASH_FAMILY_UP];
     const uint64_t down_bytes = layer->family_bytes[DS4_FLASH_FAMILY_DOWN];
+
     const bool ok =
-        ds4_gpu_tensor_write(g->flash_prefill_gate_bank,
-                             0,
+        ds4_gpu_tensor_write(gate_bank, 0,
                              g->flash_install_buf + layer->family_offset[DS4_FLASH_FAMILY_GATE],
                              gate_bytes) != 0 &&
-        ds4_gpu_tensor_write(g->flash_prefill_up_bank,
-                             0,
+        ds4_gpu_tensor_write(up_bank, 0,
                              g->flash_install_buf + layer->family_offset[DS4_FLASH_FAMILY_UP],
                              up_bytes) != 0 &&
-        ds4_gpu_tensor_write(g->flash_prefill_down_bank,
-                             0,
+        ds4_gpu_tensor_write(down_bank, 0,
                              g->flash_install_buf + layer->family_offset[DS4_FLASH_FAMILY_DOWN],
                              down_bytes) != 0;
+
     if (!ok) {
-        fprintf(stderr, "ds4: Flash-MoE failed to stage prefill layer %u expert %d\n",
-                il,
-                true_expert);
+        fprintf(stderr, "ds4: Flash-MoE failed to stage prefill layer %u expert %d (bank %d)\n",
+                il, true_expert, bank_set);
         return false;
     }
 
@@ -10052,6 +10137,16 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                      DS4_N_EXPERT_USED) != 0;
             }
             gpu_compacted = ok;
+
+            /* Pre-stage first few experts so CPU sidecar loads can overlap with GPU compute (#2) */
+            if (ok) {
+                int prefetch = get_prefill_dedup_prefetch();
+                for (int i = 0; i < prefetch && i < (int)n_unique; i++) {
+                    int e = unique[i];
+                    int b = i % 4;
+                    metal_graph_flash_moe_stage_prefill_expert(g, il, e, b);
+                }
+            }
         } else {
             for (uint32_t t = 0; t < n_tokens; t++) {
                 for (uint32_t k = 0; k < DS4_N_EXPERT_USED; k++) {
@@ -10080,23 +10175,25 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
     bool commands_open = false;
     for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
-        if (commands_open) {
-            ok = ds4_gpu_end_commands() != 0;
-            commands_open = false;
-            if (!ok) break;
-        }
-
         const int32_t expert = unique[ui];
         const int32_t begin = offsets[ui];
         const int32_t end = offsets[ui + 1];
         const uint32_t refs = (uint32_t)(end - begin);
         if (refs == 0) continue;
 
+        const int bank_set = ui & 1;   /* alternate between the two prefill bank sets */
+
         ds4_gpu_tensor *tokens_for_refs = g->flash_prefill_tokens;
         ds4_gpu_tensor *weights_for_refs = g->flash_prefill_weights;
         ds4_gpu_tensor *token_view = NULL;
         ds4_gpu_tensor *weight_view = NULL;
 
+        ds4_gpu_tensor *gate_b  = (bank_set == 0) ? g->flash_prefill_gate_bank  : g->flash_prefill_gate_bank2;
+        ds4_gpu_tensor *up_b    = (bank_set == 0) ? g->flash_prefill_up_bank    : g->flash_prefill_up_bank2;
+        ds4_gpu_tensor *down_b  = (bank_set == 0) ? g->flash_prefill_down_bank  : g->flash_prefill_down_bank2;
+
+        // Stage the expert weights first (CPU upload to the chosen bank set).
+        // With two bank sets we can stage N+1 while the GPU is still computing N.
         if (gpu_compacted) {
             token_view = ds4_gpu_tensor_view(g->flash_dedup_token_list,
                                              (uint64_t)begin * sizeof(int32_t),
@@ -10106,27 +10203,33 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                               (uint64_t)refs * sizeof(float));
             tokens_for_refs = token_view;
             weights_for_refs = weight_view;
-            ok = token_view &&
-                 weight_view &&
-                 metal_graph_flash_moe_stage_prefill_expert(g, il, expert) &&
-                 ds4_gpu_begin_commands() != 0;
+
+            ok = token_view && weight_view &&
+                 metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set);
         } else {
-            ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert) &&
-                 ds4_gpu_tensor_write(g->flash_prefill_tokens,
-                                      0,
+            ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set) &&
+                 ds4_gpu_tensor_write(g->flash_prefill_tokens, 0,
                                       ref_tokens + begin,
                                       (uint64_t)refs * sizeof(ref_tokens[0])) != 0 &&
-                 ds4_gpu_tensor_write(g->flash_prefill_weights,
-                                      0,
+                 ds4_gpu_tensor_write(g->flash_prefill_weights, 0,
                                       ref_weights + begin,
-                                      (uint64_t)refs * sizeof(ref_weights[0])) != 0 &&
-                 ds4_gpu_begin_commands() != 0;
+                                      (uint64_t)refs * sizeof(ref_weights[0])) != 0;
         }
         if (!ok) {
             ds4_gpu_tensor_free(weight_view);
             ds4_gpu_tensor_free(token_view);
             break;
         }
+
+        // Synchronize previous work, then run this expert's compute on its bank set.
+        if (commands_open) {
+            ok = ds4_gpu_end_commands() != 0;
+            commands_open = false;
+            if (!ok) break;
+        }
+
+        ok = ds4_gpu_begin_commands() != 0;
+        if (!ok) break;
         commands_open = true;
 
         bool mid_is_f16 = false;
@@ -10139,9 +10242,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                            g->flash_prefill_gate,
                                                            g->flash_prefill_up,
                                                            g->flash_prefill_mid,
-                                                           g->flash_prefill_gate_bank,
-                                                           g->flash_prefill_up_bank,
-                                                           g->flash_prefill_down_bank,
+                                                           gate_b,
+                                                           up_b,
+                                                           down_b,
                                                            layer->ffn_gate_exps->type,
                                                            layer->ffn_down_exps->type,
                                                            gate_expert_bytes,
@@ -10165,6 +10268,17 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         ds4_gpu_tensor_free(weight_view);
         ds4_gpu_tensor_free(token_view);
         if (mid_is_f16) g->batch_routed_mid_is_f16 = true;
+
+        /* Prefetch stage the expert N ahead (#2) so sidecar load overlaps with current matmul */
+        {
+            int prefetch = get_prefill_dedup_prefetch();
+            if (ui + prefetch < n_unique) {
+                int future = ui + prefetch;
+                int future_expert = unique[future];
+                int future_bank = future % 4;
+                metal_graph_flash_moe_stage_prefill_expert(g, il, future_expert, future_bank);
+            }
+        }
     }
     if (!commands_open && ok) {
         ok = ds4_gpu_begin_commands() != 0;
