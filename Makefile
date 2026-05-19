@@ -32,7 +32,7 @@ CPU_CORE_OBJS = ds4_cpu.o
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression moe-batch-bench ane-mlp-bench
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval
@@ -41,6 +41,8 @@ help:
 	@echo "DS4 build targets:"
 	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
 	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
+	@echo "  make moe-batch-bench Build standalone MoE batch GPU/AMX benchmark"
+	@echo "  make ane-mlp-bench Build private-API ANE MLP W-input benchmark"
 	@echo "  make test         Build and run tests"
 	@echo "  make clean        Remove build outputs"
 
@@ -55,6 +57,28 @@ ds4-bench: ds4_bench.o $(CORE_OBJS)
 
 ds4-eval: ds4_eval.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_eval.o $(CORE_OBJS) $(METAL_LDLIBS)
+
+moe-batch-bench: moe-batch-bench/moe-batch-bench
+
+moe-batch-bench/moe-batch-bench: moe-batch-bench/moe_batch_bench.o ds4_metal.o
+	$(CC) $(OBJCFLAGS) -o $@ $^ -framework Foundation -framework Metal -framework MetalPerformanceShaders -framework MetalPerformanceShadersGraph -framework Accelerate -lm
+
+ane-mlp-bench: moe-batch-bench/ane_ds4_mlp_inmem_bench moe-batch-bench/ane_matmul_w_input_probe moe-batch-bench/ane_int8_w_input_probe moe-batch-bench/ane_ds4_mlp_inmem_bench_packed moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3
+
+moe-batch-bench/ane_ds4_mlp_inmem_bench: moe-batch-bench/ane_ds4_mlp_inmem_bench.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
+
+moe-batch-bench/ane_matmul_w_input_probe: moe-batch-bench/ane_matmul_w_input_probe.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
+
+moe-batch-bench/ane_int8_w_input_probe: moe-batch-bench/ane_int8_w_input_probe.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
+
+moe-batch-bench/ane_ds4_mlp_inmem_bench_packed: moe-batch-bench/ane_ds4_mlp_inmem_bench_packed.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
+
+moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3: moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
 
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
@@ -73,8 +97,18 @@ help:
 	@echo "  make cuda-generic        Build CUDA for a generic local CUDA GPU"
 	@echo "  make cuda CUDA_ARCH=sm_N Build CUDA with an explicit nvcc -arch value"
 	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
+	@echo "  make moe-batch-bench     Requires macOS"
+	@echo "  make ane-mlp-bench       Requires macOS private ANE framework"
 	@echo "  make test                Build and run tests"
 	@echo "  make clean               Remove build outputs"
+
+moe-batch-bench:
+	@echo "moe-batch-bench requires macOS Metal, MPS, and Accelerate"
+	@exit 2
+
+ane-mlp-bench:
+	@echo "ane-mlp-bench requires macOS private ANE framework"
+	@exit 2
 
 cuda-spark:
 	$(MAKE) ds4 ds4-server ds4-bench ds4-eval CUDA_ARCH=
@@ -127,6 +161,9 @@ ds4_bench.o: ds4_bench.c ds4.h
 ds4_eval.o: ds4_eval.c ds4.h
 	$(CC) $(CFLAGS) -c -o $@ ds4_eval.c
 
+moe-batch-bench/moe_batch_bench.o: moe-batch-bench/moe_batch_bench.m ds4_gpu.h
+	$(CC) $(OBJCFLAGS) -c -o $@ moe-batch-bench/moe_batch_bench.m
+
 ds4_test.o: tests/ds4_test.c ds4_server.c ds4.h rax.h
 	$(CC) $(CFLAGS) -Wno-unused-function -c -o $@ tests/ds4_test.c
 
@@ -174,4 +211,4 @@ test: ds4_test
 	./ds4_test
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o moe-batch-bench/moe-batch-bench moe-batch-bench/ane_ds4_mlp_inmem_bench moe-batch-bench/ane_matmul_w_input_probe moe-batch-bench/ane_ds4_mlp_inmem_bench_packed moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3 moe-batch-bench/*.o

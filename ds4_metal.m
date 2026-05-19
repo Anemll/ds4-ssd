@@ -601,7 +601,7 @@ static id<MTLBuffer> ds4_gpu_new_transient_buffer(NSUInteger bytes, const char *
     return buffer;
 }
 
-static int ds4_gpu_use_m5_simdgroup_matrix(void);
+int ds4_gpu_use_m5_simdgroup_matrix(void);
 
 static id<MTLComputePipelineState> ds4_gpu_get_mul_mm_pipeline(
         const char *function_name,
@@ -734,7 +734,7 @@ static int ds4_gpu_use_compressor_pair_nr4(void) {
     return enabled;
 }
 
-static int ds4_gpu_use_m5_simdgroup_matrix(void) {
+int ds4_gpu_use_m5_simdgroup_matrix(void) {
     static int initialized;
     static int enabled;
     if (!initialized) {
@@ -13813,6 +13813,62 @@ int ds4_gpu_routed_moe_expert_banked_batch_tensor(
         if (!ok) return 0;
         return ds4_gpu_finish_command_buffer(cb, owned, "Flash-MoE prefill expert batch");
     }
+}
+
+int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        float                   clamp,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens,
+        bool                   *mid_is_f16) {
+    (void)out;
+    (void)gate;
+    (void)up;
+    (void)mid;
+    (void)gate_bank;
+    (void)up_bank;
+    (void)down_bank;
+    (void)gate_type;
+    (void)down_type;
+    (void)gate_expert_bytes;
+    (void)gate_row_bytes;
+    (void)down_expert_bytes;
+    (void)down_row_bytes;
+    (void)expert_in_dim;
+    (void)expert_mid_dim;
+    (void)out_dim;
+    (void)selected;
+    (void)weights;
+    (void)clamp;
+    (void)x;
+    (void)n_tokens;
+    if (mid_is_f16) *mid_is_f16 = false;
+    static bool warned = false;
+    if (!warned) {
+        warned = true;
+        fprintf(stderr,
+                "ds4: DS4_FLASH_MOE_ANE_PREFILL requested, but the ANE prefill "
+                "worker still needs quantized-bank -> fp16 split-packed materialization; "
+                "falling back to Metal GPU expert batches\n");
+    }
+    return 0;
 }
 
 int ds4_gpu_routed_moe_batch_tensor(
