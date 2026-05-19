@@ -10404,6 +10404,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
         bool mid_is_f16 = false;
         const bool try_ane_prefill = getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL;
+        const char *mpp_int8_prefill_env = getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL");
+        const bool try_mpp_int8_prefill =
+            mpp_int8_prefill_env != NULL && atoi(mpp_int8_prefill_env) != 0;
         ok = ds4_gpu_gather_rows_f32_tensor(g->flash_prefill_x,
                                             g->batch_ffn_norm,
                                             tokens_for_refs,
@@ -10412,6 +10415,12 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (ok) {
             bool ane_ok = false;
             if (try_ane_prefill) {
+                const bool ane_debug = getenv("DS4_FLASH_MOE_ANE_DEBUG") != NULL;
+                if (ane_debug) {
+                    fprintf(stderr,
+                            "ds4: ANE prefill try layer=%u unique_idx=%u/%u expert=%d refs=%u bank=%d\n",
+                            il, ui + 1u, n_unique, expert, refs, bank_set);
+                }
                 ane_ok = ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(g->flash_prefill_out,
                                                                            g->flash_prefill_gate,
                                                                            g->flash_prefill_up,
@@ -10434,8 +10443,41 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                            g->flash_prefill_x,
                                                                            refs,
                                                                            &mid_is_f16) != 0;
+                if (ane_debug) {
+                    fprintf(stderr,
+                            "ds4: ANE prefill %s layer=%u expert=%d refs=%u\n",
+                            ane_ok ? "ok" : "failed", il, expert, refs);
+                }
+            }
+            if (!ane_ok && try_mpp_int8_prefill) {
+                ane_ok = ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(g->flash_prefill_out,
+                                                                                g->flash_prefill_gate,
+                                                                                g->flash_prefill_up,
+                                                                                g->flash_prefill_mid,
+                                                                                gate_b,
+                                                                                up_b,
+                                                                                down_b,
+                                                                                layer->ffn_gate_exps->type,
+                                                                                layer->ffn_down_exps->type,
+                                                                                gate_expert_bytes,
+                                                                                gate_row_bytes,
+                                                                                down_expert_bytes,
+                                                                                down_row_bytes,
+                                                                                expert_in_dim,
+                                                                                expert_mid_dim,
+                                                                                out_dim,
+                                                                                g->flash_prefill_selected,
+                                                                                weights_for_refs,
+                                                                                DS4_SWIGLU_CLAMP_EXP,
+                                                                                g->flash_prefill_x,
+                                                                                refs,
+                                                                                &mid_is_f16) != 0;
             }
             if (!ane_ok) {
+                if (try_ane_prefill && getenv("DS4_FLASH_MOE_ANE_DEBUG")) {
+                    fprintf(stderr, "ds4: ANE prefill falling back to fp32 GPU layer=%u expert=%d refs=%u\n",
+                            il, expert, refs);
+                }
                 mid_is_f16 = false;
                 ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(g->flash_prefill_out,
                                                                    g->flash_prefill_gate,
@@ -14738,6 +14780,9 @@ static bool metal_graph_prefill_layer_major(
     if (!ok) return false;
 
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, (uint32_t)n_tokens)) return false;
+    if (getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL) {
+        (void)ds4_gpu_ane_prefill_precompile_from_env();
+    }
 
     const bool split_profile = getenv("DS4_METAL_GRAPH_PREFILL_SPLIT_PROFILE") != NULL;
     /*
@@ -15059,6 +15104,9 @@ static bool metal_graph_prefill_chunked_range(
         }
     }
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, first_chunk)) return false;
+    if (getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL) {
+        (void)ds4_gpu_ane_prefill_precompile_from_env();
+    }
 
     const bool profile = getenv("DS4_METAL_GRAPH_PREFILL_PROFILE") != NULL;
     const double t0 = profile ? now_sec() : 0.0;
@@ -15473,7 +15521,6 @@ static uint32_t metal_graph_raw_cap_for_context(int ctx_size, uint32_t prefill_c
         if (endp != env && v > 0) {
             raw_cap = (uint32_t)v;
             if (raw_cap > (uint32_t)ctx_size) raw_cap = (uint32_t)ctx_size;
-            if (raw_cap > 8192u) raw_cap = 8192u;
             if (raw_cap < raw_window) raw_cap = raw_window;
         }
     }

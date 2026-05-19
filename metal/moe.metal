@@ -110,6 +110,141 @@ struct block_iq2_xxs {
     ushort qs[QK_K/8];
 };
 
+static inline char ds4_mpp_float_to_i8_scaled(float x, float qscale) {
+    int v = int(rint(clamp(x * qscale, -128.0f, 127.0f)));
+    return char(v);
+}
+
+kernel void kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8(
+        device const block_iq2_xxs *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_iq2_xxs *blk = src + r * blocks_per_row + b;
+    const uint ib32 = il0 / 2u;
+    const uint lane = il0 & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = b * QK_K + il0 * 16u;
+    const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+    const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + 8u + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+}
+
+kernel void kernel_dsv4_mpp_dequant_q2_k_transpose_i8(
+        device const block_q2_K *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_q2_K *blk = src + r * blocks_per_row + b;
+    device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+    const uchar sc = blk->scales[il0];
+    const uint il = (il0 / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = b * QK_K + il0 * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(dl * float(q[j] & mask) - ml, qscale);
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_iq2_xxs_transpose_f16(
+        device const block_iq2_xxs *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_iq2_xxs *blk = src + r * blocks_per_row + b;
+    const uint ib32 = il0 / 2u;
+    const uint lane = il0 & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = b * QK_K + il0 * 16u;
+    const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + j) * q_rows + r] = half(v);
+    }
+    const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + 8u + j) * q_rows + r] = half(v);
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_q2_k_transpose_f16(
+        device const block_q2_K *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_q2_K *blk = src + r * blocks_per_row + b;
+    device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+    const uchar sc = blk->scales[il0];
+    const uint il = (il0 / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = b * QK_K + il0 * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = half(dl * float(q[j] & mask) - ml);
+    }
+}
+
 struct ds4_metal_dsv4_moe_swiglu_weight_args {
     uint32_t width;
     uint32_t rows;

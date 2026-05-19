@@ -101,6 +101,178 @@ Note: this is streamed int8 input, but on m3u it is likely still fp16 matmul
 after runtime dequant. On M5 Max, check whether this path maps to faster int8
 compute.
 
+M5 Max result, `H=4096 I=2048`, 2026-05-18. `GPU no quant` is the dense fp16
+MPS proxy with resident weights. `GPU quant` is the real DS4 quantized Metal
+expert backend. `ANE no producer` assumes int8 weights/activation are already
+materialized. `ANE + producer` charges one fused GPU dequant/materialization
+producer at ~0.56 ms/expert.
+
+| B   | GPU no quant TFLOP/s | GPU quant TFLOP/s | ANE no producer ms | ANE no producer TFLOP/s | ANE + producer ms | ANE + producer TFLOP/s |
+|----:|---------------------:|------------------:|-------------------:|------------------------:|------------------:|-----------------------:|
+| 1   | 0.16                 | 0.22              | 0.388              | 0.13                    | 0.949             | 0.05                   |
+| 8   | 1.39                 | 1.21              | 0.388              | 1.04                    | 0.949             | 0.42                   |
+| 16  | 2.30                 | 1.90              | 0.390              | 2.06                    | 0.951             | 0.85                   |
+| 32  | 3.99                 | 3.46              | 0.403              | 4.00                    | 0.964             | 1.67                   |
+| 64  | 8.19                 | 5.26              | 0.411              | 7.83                    | 0.972             | 3.31                   |
+| 96  | 9.55                 | 7.11              | 0.428              | 11.30                   | 0.989             | 4.89                   |
+| 128 | 14.53                | 7.92              | 0.442              | 14.56                   | 1.003             | 6.42                   |
+| 192 | 19.21                | 9.64              | 0.733              | 13.19                   | 1.294             | 7.47                   |
+| 256 | 26.01                | 9.99              | 0.755              | 17.07                   | 1.316             | 9.79                   |
+| 384 | 29.66                | 10.86             | 1.122              | 17.22                   | 1.683             | 11.48                  |
+| 512 | 36.36                | 11.28             | 1.389              | 18.55                   | 1.950             | 13.21                  |
+
+Interpretation: M5 Max gets a useful raw ANE curve, but the producer cost is
+large enough that small ANE batches are not useful once quantized-bank
+materialization is charged. Against the real quantized DS4 GPU path, B384-B512
+are the first points where `ANE + producer` exceeds GPU DS4 throughput on a
+per-expert TFLOP/s basis. Against the dense no-quant GPU proxy, ANE remains
+below the GPU ceiling.
+
+### M5 Max GPU dequant accounting
+
+The ANE eval numbers above exclude the GPU producer that turns quantized
+`IQ2_XXS`/`Q2_K` expert banks into streamed int8 gate/up/down inputs. On M5 Max,
+single-tensor Metal dequant is:
+
+| tensor | source quant | int8 output MB | Metal dequant ms |
+|--------|--------------|---------------:|-----------------:|
+| W_gate | IQ2_XXS      | 8.39           | 0.314            |
+| W_up   | IQ2_XXS      | 8.39           | 0.320            |
+| W_down | Q2_K         | 8.39           | 0.282            |
+
+Separate kernels therefore cost about **0.916 ms/expert**. The fused batched
+producer is the production-relevant estimate:
+
+| experts/batch | total ms | ms/expert | output GB/s |
+|--------------:|---------:|----------:|------------:|
+| 1             | 0.783    | 0.783     | 32.15       |
+| 2             | 1.267    | 0.633     | 39.74       |
+| 4             | 2.358    | 0.589     | 42.70       |
+| 8             | 4.566    | 0.571     | 44.09       |
+| 16            | 8.977    | 0.561     | 44.85       |
+| 32            | 17.782   | 0.556     | 45.29       |
+| 64            | 35.255   | 0.551     | 45.69       |
+
+For rough scheduling, use the fused producer's **~0.56 ms per ANE expert**
+number from the table above. Whether that becomes an end-to-end prefill win
+depends on keeping the GPU dequant producer overlapped with the main GPU expert
+path without stealing too much bandwidth.
+
+### MPP GPU int8 option
+
+Apple's newer **Metal Performance Primitives (MPP)** tensor-op matmul is a
+separate path from the older `MPSMatrixMultiplication`/MPSGraph proxy used in
+the table above. The local macOS SDK header
+`MetalPerformancePrimitives.framework/Headers/MPPTensorOpsMatMul2d.h` lists
+the supported matmul type combinations explicitly. Relevant combinations:
+
+```text
+Left    Right   Destination
+half    int8    half
+half    int8    float
+int8    half    half
+int8    half    float
+float   int8    float
+int8    float   float
+int8    int8    int32
+uint8   uint8   int32
+half    int4    half/float
+int8    int4    int32
+```
+
+So yes, M5-class GPU kernels can multiply fp16 activations by int8 weights via
+MPP, and can also do true W8A8 `int8 x int8 -> int32`. MPP matmul does not
+understand DS4 quantization scales by itself, though: the operands are raw
+numeric tensor elements. A production MoE-DeDup MPP path therefore needs one of
+these accounting models:
+
+1. **fp16 activation x int8 weight -> fp16/float output**: avoid activation
+   quantization, but apply the expert/block scale either before or after the
+   matmul. This is probably the easiest first prototype.
+2. **int8 activation x int8 weight -> int32 output**: true integer GEMM, but
+   requires activation quantization and a post-scale path before SiLU/mul/down.
+3. **int8 activation x int4 weight -> int32 output**: attractive for bandwidth,
+   but needs an int4 packing/layout experiment and the same post-scale handling.
+
+The next useful benchmark is a synthetic MPP backend for the same
+`H=4096 I=2048` MLP shape, starting with `half x int8 -> half/float`. If that
+beats the current DS4 quantized Metal backend after scale handling is charged,
+then the MoE-DeDup replacement point is the same per-expert call site used by
+the existing GPU expert block.
+
+Probe build/run:
+
+```sh
+make mpp-int8-bench
+./moe-batch-bench/mpp_int8_matmul_probe \
+  --shape 128 4096 2048 \
+  --warmup 5 \
+  --iters 200
+```
+
+The probe measures one raw MPP matmul, not the full fused MLP. Shape is
+`M=B, K=4096, N=2048`, matching the gate/up projection orientation:
+
+| B   | half x int8 -> half | half x int8 -> float | int8 x half -> half | int8 x half -> float | int8 x int8 -> int32 |
+|----:|--------------------:|---------------------:|--------------------:|---------------------:|---------------------:|
+| 1   | 0.14 TF/s           | 0.25 TF/s            | 0.25 TF/s           | 0.25 TF/s            | 0.40 TF/s            |
+| 8   | 2.27 TF/s           | 2.29 TF/s            | 2.02 TF/s           | 2.07 TF/s            | 3.52 TF/s            |
+| 16  | 4.60 TF/s           | 4.44 TF/s            | 4.25 TF/s           | 4.06 TF/s            | 6.57 TF/s            |
+| 32  | 9.16 TF/s           | 8.95 TF/s            | 8.21 TF/s           | 8.38 TF/s            | 11.65 TF/s           |
+| 64  | 17.77 TF/s          | 17.92 TF/s           | 16.35 TF/s          | 16.46 TF/s           | 23.15 TF/s           |
+| 96  | 18.40 TF/s          | 18.04 TF/s           | 17.66 TF/s          | 17.99 TF/s           | 33.13 TF/s           |
+| 128 | 24.18 TF/s          | 23.59 TF/s           | 23.93 TF/s          | 23.81 TF/s           | 44.22 TF/s           |
+| 192 | 25.21 TF/s          | 24.84 TF/s           | 24.62 TF/s          | 24.90 TF/s           | 49.60 TF/s           |
+| 256 | 26.17 TF/s          | 26.02 TF/s           | 26.51 TF/s          | 26.26 TF/s           | 45.33 TF/s           |
+| 384 | 27.21 TF/s          | 26.97 TF/s           | 27.12 TF/s          | 27.16 TF/s           | 46.56 TF/s           |
+| 512 | 28.94 TF/s          | 29.06 TF/s           | 29.56 TF/s          | 29.28 TF/s           | 48.04 TF/s           |
+
+Down-projection orientation (`M=B, K=2048, N=4096`) spot checks:
+
+| B   | half x int8 -> float | int8 x half -> float | int8 x int8 -> int32 |
+|----:|---------------------:|---------------------:|---------------------:|
+| 128 | 24.98 TF/s           | 24.29 TF/s           | 43.43 TF/s           |
+| 256 | 29.04 TF/s           | 28.62 TF/s           | 50.48 TF/s           |
+| 512 | 28.72 TF/s           | 29.26 TF/s           | 50.44 TF/s           |
+
+Takeaway: MPP mixed `half/int8` matmul is already well above the current DS4
+quantized backend's dense-equivalent throughput once batches are large enough,
+and true W8A8 integer matmul is roughly 45-50 TFLOP/s on this M5 Max. The open
+question is not raw GEMM speed; it is the end-to-end cost of scale handling,
+activation quantization for W8A8, SiLU/mul fusion, and conversion back into the
+existing scatter-add contract.
+
+First full-MLP synthetic MPP path, still with fp/half activations:
+
+```text
+gate:  half activation x int8 weight -> float
+up:    half activation x int8 weight -> float
+mid:   SiLU(gate) * up in float
+down:  float mid x int8 weight -> float
+```
+
+This matches the first production-adjacent DeDup plan: keep router/top-k/dedup
+in the existing FP32 path, gather compacted expert rows as FP32, then cast only
+that compacted per-expert batch to half at the actual DeDup execution point.
+It does **not** quantize activations to int8 yet.
+
+| B   | full MLP ms | full MLP TFLOP/s |
+|----:|------------:|-----------------:|
+| 32  | 0.405       | 3.97             |
+| 64  | 0.257       | 12.54            |
+| 96  | 0.362       | 13.35            |
+| 128 | 0.361       | 17.83            |
+| 192 | 0.510       | 18.93            |
+| 256 | 0.669       | 19.27            |
+| 384 | 0.981       | 19.70            |
+| 512 | 1.271       | 20.27            |
+
+This path avoids the W8A8 activation quantization cost and is therefore the
+cleaner first correctness experiment. The remaining production cost to charge
+is DS4 quantized-bank -> int8 MPP weight materialization plus any scale
+correction needed to make the int8 weights numerically match the existing
+expert output closely enough.
+
 ## 5. GPU + ANE Coexistence
 
 Run the existing GPU backend and ANE worker concurrently:
@@ -188,3 +360,173 @@ On M5 Max, answer these questions:
 
 If M5 Max reaches true int8 ANE throughput for the streamed-input path, the
 combined path should show a stronger win than m3u.
+
+## 8. M5 Max MPP Int8 Prefill Smoke
+
+Experimental GPU MPP int8 prefill is gated by:
+
+```sh
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64
+```
+
+Smoke command used on the M5 Max SSD copy:
+
+```sh
+DS4_LOCK_FILE=/tmp/ds4-codex.lock \
+DS4_METAL_PREFILL_CHUNK=16384 \
+DS4_FLASH_MOE_PREFETCH=3 \
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1 \
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64 \
+./ds4 \
+  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf \
+  --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+  --moe-mode slot-bank \
+  --metal \
+  --ctx 32768 \
+  --tokens 100 \
+  --temp 0 \
+  --prompt-file /Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+```
+
+Real 8K prefill/generation comparison:
+
+| Mode | Tokens | Prefill t/s | Generation t/s | Dedup unique | Reuse | Output |
+|---|---:|---:|---:|---:|---:|---|
+| Baseline GPU | 100 | 200.83 | 11.43 | 17,981 | 120.86x | Coherent plan text |
+| MPP int8 prefill | 1 | 190.31 | 2.41 | 15,499 | 140.21x | Smoke pass |
+| MPP int8 prefill | 100 | 170.32 | 14.10 | 15,499 | 140.21x | Diverges immediately; repetitive pattern |
+
+The default qscale is experimental. A quick real-prompt qscale sweep with
+16 generated tokens showed that the earlier qscale=8 result was a bad numeric
+point, not a failure of MPP half/int8 arithmetic:
+
+| Qscale | Tokens | Prefill t/s | Generation t/s | Dedup unique | Reuse | Output preview |
+|---:|---:|---:|---:|---:|---:|---|
+| 1 | 16 | 193.17 | 7.10 | 15,426 | 140.87x | Readable but drifted |
+| 2 | 16 | 188.95 | 8.04 | 15,430 | 140.84x | Odd punctuation |
+| 4 | 16 | 188.09 | 7.75 | 15,416 | 140.97x | Odd punctuation |
+| 8 | 16 | 188.31 | 8.54 | 15,499 | 140.21x | Repetitive pattern |
+| 16 | 16 | 177.80 | 7.58 | 17,945 | 121.10x | Coherent |
+| 32 | 16 | 171.65 | 7.66 | 18,777 | 115.73x | Coherent |
+
+100-token follow-up:
+
+| Qscale | Tokens | Prefill t/s | Generation t/s | Dedup unique | Reuse | Output |
+|---:|---:|---:|---:|---:|---:|---|
+| 16 | 100 | 178.23 | 9.76 | 17,945 | 121.10x | Coherent DFlash plan; not exact baseline wording |
+| 32 | 100 | 189.92 | 11.20 | 18,777 | 115.73x | Coherent DFlash plan |
+| 64 | 100 | 189.15 | 10.97 | 18,893 | 115.02x | Coherent DFlash plan |
+| 128 | 100 | 176.85 | 10.78 | 18,839 | 115.35x | Coherent DFlash plan, more drift |
+| 256 | 100 | 188.26 | 11.42 | 18,930 | 114.80x | Coherent DFlash plan |
+
+Status: the guarded path runs full prefill and generation. Correctness is now
+scale-sensitive rather than simply broken. qscale=32 through qscale=256 are all
+coherent in this prompt; qscale=64 is a good current default candidate because
+it stays coherent while avoiding the lower-scale collapse. qscale=8 should not
+be used for correctness testing.
+
+## 9. M5 Max MPP Int8 x Int8 Prefill
+
+Full int8 x int8 prefill is a separate experimental mode layered under the MPP
+int8 gate:
+
+```sh
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1
+DS4_FLASH_MOE_MPP_I8I8_PREFILL=1
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64
+DS4_FLASH_MOE_MPP_INT8_X_QSCALE=16
+DS4_FLASH_MOE_MPP_INT8_MID_QSCALE=2
+```
+
+This mode quantizes gathered FP32 activations to int8, runs gate/up as
+int8 x int8 -> int32, rescales into the SwiGLU, quantizes the routed SwiGLU
+mid activation to int8, runs down as int8 x int8 -> int32, then rescales back
+to FP32 for the existing scatter-add.
+
+Current test command:
+
+```sh
+DS4_LOCK_FILE=/tmp/ds4-codex.lock \
+DS4_METAL_PREFILL_CHUNK=16384 \
+DS4_FLASH_MOE_PREFETCH=3 \
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1 \
+DS4_FLASH_MOE_MPP_I8I8_PREFILL=1 \
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64 \
+DS4_FLASH_MOE_MPP_INT8_X_QSCALE=16 \
+DS4_FLASH_MOE_MPP_INT8_MID_QSCALE=2 \
+./ds4 \
+  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf \
+  --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+  --moe-mode slot-bank \
+  --metal \
+  --ctx 32768 \
+  --tokens 100 \
+  --temp 0 \
+  --prompt-file /Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+```
+
+Mid-scale sweep at weight qscale=64 and x qscale=16:
+
+| Weight qscale | X qscale | Mid qscale | Tokens | Prefill t/s | Generation t/s | Dedup unique | Reuse | Output preview |
+|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 64 | 16 | 0.25 | 16 | 186.88 | 7.34 | 16,552 | 131.29x | Coherent but drifted |
+| 64 | 16 | 0.5 | 16 | 186.92 | 7.64 | 17,333 | 125.38x | Coherent |
+| 64 | 16 | 1 | 16 | 185.85 | 7.68 | 17,962 | 120.99x | Readable, odd drift |
+| 64 | 16 | 2 | 16 | 184.68 | 7.69 | 18,357 | 118.38x | Coherent |
+| 64 | 16 | 4 | 16 | 185.55 | 7.87 | 18,330 | 118.56x | Coherent |
+| 64 | 16 | 2 | 100 | 184.64 | 10.11 | 18,357 | 118.38x | Coherent DFlash plan; not exact baseline |
+
+Status: the full int8 x int8 path is wired and can run real 8K prefill plus
+generation. It is useful for scale search, but not yet faster than the current
+baseline and still diverges from exact baseline wording.
+
+### Experimental fused int8 x int8 mid path
+
+The int8 x int8 path also has a separately gated fused mid step:
+
+```sh
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1
+DS4_FLASH_MOE_MPP_I8I8_PREFILL=1
+DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL=1
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64
+DS4_FLASH_MOE_MPP_INT8_X_QSCALE=16
+DS4_FLASH_MOE_MPP_INT8_MID_QSCALE=2
+```
+
+This fuses the post-MPP gate/up stage:
+
+```text
+gate_i32 + up_i32 -> weighted SwiGLU -> mid_i8
+```
+
+The MPP gate/up matmuls still materialize `int32` intermediates, and the down
+projection remains a separate MPP `int8 x int8 -> int32` matmul followed by an
+`int32 -> f32` scale kernel. This is the largest safe fused step in the current
+MPP implementation because the MPP matmul epilogue is not customized here.
+
+Tiny compile/runtime smoke used during bring-up:
+
+```sh
+DS4_LOCK_FILE=/tmp/ds4-codex.lock \
+DS4_METAL_PREFILL_CHUNK=256 \
+DS4_FLASH_MOE_PREFETCH=1 \
+DS4_FLASH_MOE_MPP_INT8_PREFILL=1 \
+DS4_FLASH_MOE_MPP_I8I8_PREFILL=1 \
+DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL=1 \
+DS4_FLASH_MOE_MPP_INT8_QSCALE=64 \
+DS4_FLASH_MOE_MPP_INT8_X_QSCALE=16 \
+DS4_FLASH_MOE_MPP_INT8_MID_QSCALE=2 \
+./ds4 \
+  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf \
+  --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+  --moe-mode slot-bank \
+  --metal \
+  --ctx 1024 \
+  --tokens 1 \
+  --temp 0 \
+  -p "hello"
+```
+
+Smoke result: build passed with `make ds4`; tiny runtime completed with
+`prefill: 4.20 t/s`, `generation: 2.38 t/s`, `unique=1528`, `reuse=1.69x`.

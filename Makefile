@@ -14,8 +14,8 @@ LDLIBS ?= -lm -pthread
 METAL_SRCS := $(wildcard metal/*.metal)
 
 ifeq ($(UNAME_S),Darwin)
-METAL_LDLIBS := $(LDLIBS) -framework Foundation -framework Metal
-CORE_OBJS = ds4.o ds4_metal.o
+METAL_LDLIBS := $(LDLIBS) -framework Foundation -framework Metal -framework IOSurface
+CORE_OBJS = ds4.o ds4_metal.o moe-batch-bench/ane_ds4_mlp_int8w.o
 CPU_CORE_OBJS = ds4_cpu.o
 else
 CFLAGS += -D_GNU_SOURCE -fno-finite-math-only
@@ -32,7 +32,7 @@ CPU_CORE_OBJS = ds4_cpu.o
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression moe-batch-bench ane-mlp-bench
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression moe-batch-bench ane-mlp-bench mpp-int8-bench
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval
@@ -43,6 +43,7 @@ help:
 	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
 	@echo "  make moe-batch-bench Build standalone MoE batch GPU/AMX benchmark"
 	@echo "  make ane-mlp-bench Build private-API ANE MLP W-input benchmark"
+	@echo "  make mpp-int8-bench Build Metal 4 MPP int8 matmul probe"
 	@echo "  make test         Build and run tests"
 	@echo "  make clean        Remove build outputs"
 
@@ -65,6 +66,11 @@ moe-batch-bench/moe-batch-bench: moe-batch-bench/moe_batch_bench.o ds4_metal.o
 
 ane-mlp-bench: moe-batch-bench/ane_ds4_mlp_inmem_bench moe-batch-bench/ane_matmul_w_input_probe moe-batch-bench/ane_int8_w_input_probe moe-batch-bench/ane_ds4_mlp_inmem_bench_packed moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3
 
+mpp-int8-bench: moe-batch-bench/mpp_int8_matmul_probe
+
+moe-batch-bench/mpp_int8_matmul_probe: moe-batch-bench/mpp_int8_matmul_probe.m
+	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework Metal
+
 moe-batch-bench/ane_ds4_mlp_inmem_bench: moe-batch-bench/ane_ds4_mlp_inmem_bench.m
 	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
 
@@ -79,6 +85,9 @@ moe-batch-bench/ane_ds4_mlp_inmem_bench_packed: moe-batch-bench/ane_ds4_mlp_inme
 
 moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3: moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3.m
 	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
+
+moe-batch-bench/ane_ds4_mlp_int8w.o: moe-batch-bench/ane_ds4_mlp_int8w.m moe-batch-bench/ane_ds4_mlp_int8w.h
+	$(CC) $(OBJCFLAGS) -c -o $@ moe-batch-bench/ane_ds4_mlp_int8w.m
 
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
@@ -99,6 +108,7 @@ help:
 	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
 	@echo "  make moe-batch-bench     Requires macOS"
 	@echo "  make ane-mlp-bench       Requires macOS private ANE framework"
+	@echo "  make mpp-int8-bench      Requires macOS 26 / Metal 4"
 	@echo "  make test                Build and run tests"
 	@echo "  make clean               Remove build outputs"
 
