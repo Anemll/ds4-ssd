@@ -9771,6 +9771,347 @@ static int get_prefill_slot_cache_topk(uint32_t slot_bank)
     return topk > (int)slot_bank ? (int)slot_bank : topk;
 }
 
+static bool env_flag_enabled(const char *name) {
+    const char *env = getenv(name);
+    return env && env[0] && atoi(env) != 0;
+}
+
+static uint32_t get_prefill_hybrid_ane_min_refs(void) {
+    static int cached = -1;
+    if (cached >= 0) return (uint32_t)cached;
+
+    uint32_t min_refs = 129u;
+    const char *env = getenv("DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS");
+    if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_ANE_MIN_REFS");
+    if (env && env[0]) {
+        char *end = NULL;
+        unsigned long parsed = strtoul(env, &end, 10);
+        if (end != env && parsed <= 4096ul) min_refs = (uint32_t)parsed;
+    }
+    cached = (int)min_refs;
+    return min_refs;
+}
+
+static uint32_t get_prefill_concurrent_min_gpu_groups(void) {
+    static int cached = -1;
+    if (cached >= 0) return (uint32_t)cached;
+
+    uint32_t min_groups = 1u;
+    const char *env = getenv("DS4_FLASH_MOE_CONCURRENT_MIN_GPU_GROUPS");
+    if (env && env[0]) {
+        char *end = NULL;
+        unsigned long parsed = strtoul(env, &end, 10);
+        if (end != env && parsed <= 32ul) min_groups = (uint32_t)parsed;
+    }
+    cached = (int)min_groups;
+    return min_groups;
+}
+
+typedef enum {
+    DS4_PREFILL_LANE_GPU = 0,
+    DS4_PREFILL_LANE_ANE = 1,
+} ds4_prefill_lane;
+
+typedef struct {
+    uint32_t ui;
+    uint32_t begin;
+    uint32_t refs;
+    int32_t expert;
+    ds4_prefill_lane lane;
+    bool tail_slice;
+    double gpu_cost;
+    double ane_cost;
+    double ssd_cost;
+    bool slot_cached;
+    bool ane_eligible;
+} ds4_flash_prefill_plan_item;
+
+static double get_env_double_clamped(const char *name,
+                                     double      fallback,
+                                     double      min_value,
+                                     double      max_value) {
+    const char *env = getenv(name);
+    if (!env || !env[0]) return fallback;
+    char *end = NULL;
+    double v = strtod(env, &end);
+    if (end == env || !isfinite(v)) return fallback;
+    if (v < min_value) v = min_value;
+    if (v > max_value) v = max_value;
+    return v;
+}
+
+static uint32_t get_env_u32_clamped(const char *name,
+                                    uint32_t    fallback,
+                                    uint32_t    min_value,
+                                    uint32_t    max_value) {
+    const char *env = getenv(name);
+    if (!env || !env[0]) return fallback;
+    char *end = NULL;
+    unsigned long v = strtoul(env, &end, 10);
+    if (end == env) return fallback;
+    if (v < (unsigned long)min_value) v = min_value;
+    if (v > (unsigned long)max_value) v = max_value;
+    return (uint32_t)v;
+}
+
+static uint32_t prefill_ane_default_batch(void) {
+    return get_env_u32_clamped("DS4_FLASH_MOE_ANE_BATCH", 256u, 1u, 4096u);
+}
+
+static uint32_t prefill_ane_select_batch_for_refs(uint32_t refs) {
+    uint32_t fallback = prefill_ane_default_batch();
+    uint32_t batches[16];
+    uint32_t n = 0;
+    const char *env = getenv("DS4_FLASH_MOE_ANE_BATCHES");
+    if (env && env[0]) {
+        const char *p = env;
+        while (*p && n < (uint32_t)(sizeof(batches) / sizeof(batches[0]))) {
+            while (*p == ',' || *p == ':' || *p == ';' || isspace((unsigned char)*p)) p++;
+            if (!*p) break;
+            char *end = NULL;
+            unsigned long v = strtoul(p, &end, 10);
+            if (end == p) break;
+            if (v > 0 && v <= 4096ul) batches[n++] = (uint32_t)v;
+            p = end;
+        }
+    }
+    if (n == 0) batches[n++] = fallback;
+    for (uint32_t i = 1; i < n; i++) {
+        uint32_t key = batches[i];
+        uint32_t j = i;
+        while (j > 0 && batches[j - 1] > key) {
+            batches[j] = batches[j - 1];
+            j--;
+        }
+        batches[j] = key;
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        if (refs <= batches[i]) return batches[i];
+    }
+    return batches[n - 1];
+}
+
+static uint32_t prefill_ane_chunk_refs_for_group(uint32_t refs, uint32_t *batch_out, bool *can_chunk_out) {
+    uint32_t batch = prefill_ane_select_batch_for_refs(refs);
+    uint32_t max_refs = batch;
+    const char *max_refs_env = getenv("DS4_FLASH_MOE_ANE_MAX_REFS");
+    if (max_refs_env && max_refs_env[0]) {
+        char *end = NULL;
+        unsigned long parsed = strtoul(max_refs_env, &end, 10);
+        if (end != max_refs_env && parsed > 0 && parsed <= 4096ul) max_refs = (uint32_t)parsed;
+    }
+    uint32_t chunk_refs = max_refs < batch ? max_refs : batch;
+    if (chunk_refs == 0) chunk_refs = 1;
+    const bool chunk_big_refs = env_flag_enabled("DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS");
+    if (batch_out) *batch_out = batch;
+    if (can_chunk_out) *can_chunk_out = chunk_big_refs || refs <= max_refs;
+    return chunk_refs;
+}
+
+static void prefill_plan_sort_by_work(ds4_flash_prefill_plan_item *items, uint32_t n) {
+    for (uint32_t i = 1; i < n; i++) {
+        ds4_flash_prefill_plan_item key = items[i];
+        const double key_cost = key.ane_eligible ?
+            (key.gpu_cost > key.ane_cost ? key.gpu_cost : key.ane_cost) :
+            key.gpu_cost;
+        uint32_t j = i;
+        while (j > 0) {
+            const double prev_cost = items[j - 1].ane_eligible ?
+                (items[j - 1].gpu_cost > items[j - 1].ane_cost ? items[j - 1].gpu_cost : items[j - 1].ane_cost) :
+                items[j - 1].gpu_cost;
+            if (prev_cost > key_cost ||
+                (prev_cost == key_cost && items[j - 1].refs >= key.refs)) {
+                break;
+            }
+            items[j] = items[j - 1];
+            j--;
+        }
+        items[j] = key;
+    }
+}
+
+static uint32_t build_flash_prefill_overlap_plan(
+        ds4_flash_prefill_plan_item *exec,
+        uint32_t                     n_unique,
+        const int32_t               *unique,
+        const int32_t               *offsets,
+        const bool                  *slot_cache_expert,
+        uint32_t                     hybrid_ane_min_refs,
+        double                     *planned_gpu_cost_out,
+        double                     *planned_ane_cost_out,
+        uint32_t                   *planned_ane_groups_out,
+        uint32_t                   *planned_gpu_groups_out,
+        uint64_t                   *planned_ane_refs_out,
+        uint64_t                   *planned_gpu_refs_out,
+        uint32_t                   *planned_ssd_groups_out,
+        uint32_t                   *planned_tail_gpu_groups_out,
+        uint64_t                   *planned_tail_gpu_refs_out) {
+    if (planned_gpu_cost_out) *planned_gpu_cost_out = 0.0;
+    if (planned_ane_cost_out) *planned_ane_cost_out = 0.0;
+    if (planned_ane_groups_out) *planned_ane_groups_out = 0;
+    if (planned_gpu_groups_out) *planned_gpu_groups_out = 0;
+    if (planned_ane_refs_out) *planned_ane_refs_out = 0;
+    if (planned_gpu_refs_out) *planned_gpu_refs_out = 0;
+    if (planned_ssd_groups_out) *planned_ssd_groups_out = 0;
+    if (planned_tail_gpu_groups_out) *planned_tail_gpu_groups_out = 0;
+    if (planned_tail_gpu_refs_out) *planned_tail_gpu_refs_out = 0;
+    if (!exec || !unique || !offsets || n_unique == 0) return 0;
+
+    ds4_flash_prefill_plan_item *work =
+        (ds4_flash_prefill_plan_item *)xcalloc((size_t)n_unique * 2u, sizeof(work[0]));
+    ds4_flash_prefill_plan_item *ane =
+        (ds4_flash_prefill_plan_item *)xcalloc((size_t)n_unique * 2u, sizeof(ane[0]));
+    ds4_flash_prefill_plan_item *gpu =
+        (ds4_flash_prefill_plan_item *)xcalloc((size_t)n_unique * 2u, sizeof(gpu[0]));
+
+    const double ane_rel_speed =
+        get_env_double_clamped("DS4_FLASH_MOE_SCHED_ANE_REL_SPEED", 0.55, 0.05, 4.0);
+    const double ane_call_refs =
+        get_env_double_clamped("DS4_FLASH_MOE_SCHED_ANE_CALL_REFS", 96.0, 0.0, 8192.0);
+    const double ssd_refs =
+        get_env_double_clamped("DS4_FLASH_MOE_SCHED_SSD_REFS", 64.0, 0.0, 8192.0);
+    const double ane_min_util =
+        get_env_double_clamped("DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL", 0.75, 0.0, 1.0);
+
+    double gpu_load = 0.0;
+    double ane_load = 0.0;
+    uint32_t work_n = 0;
+    for (uint32_t i = 0; i < n_unique; i++) {
+        const int32_t expert = unique[i];
+        if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) continue;
+        const uint32_t begin = (uint32_t)offsets[i];
+        const uint32_t refs = (uint32_t)(offsets[i + 1] - offsets[i]);
+        if (refs == 0) continue;
+        uint32_t ane_batch = 0;
+        bool can_chunk = false;
+        const uint32_t chunk_refs = prefill_ane_chunk_refs_for_group(refs, &ane_batch, &can_chunk);
+        const uint32_t chunks = (refs + chunk_refs - 1u) / chunk_refs;
+        const uint32_t padded_refs = chunks * ane_batch;
+        const double group_util = padded_refs ? (double)refs / (double)padded_refs : 0.0;
+        const bool slot_cached =
+            slot_cache_expert && expert >= 0 && expert < (int32_t)DS4_N_EXPERT && slot_cache_expert[expert];
+        const double stage_cost = slot_cached ? 0.0 : ssd_refs;
+        const bool split_low_util_tail =
+            can_chunk && refs >= hybrid_ane_min_refs && group_util < ane_min_util &&
+            refs > chunk_refs && chunk_refs > 0;
+        const uint32_t ane_refs =
+            split_low_util_tail ? (refs / chunk_refs) * chunk_refs : refs;
+        const uint32_t gpu_tail_refs = split_low_util_tail ? refs - ane_refs : 0;
+        if (ane_refs != 0) {
+            const uint32_t ane_chunks = (ane_refs + chunk_refs - 1u) / chunk_refs;
+            const uint32_t ane_padded_refs = ane_chunks * ane_batch;
+            ds4_flash_prefill_plan_item item = {
+                .ui = i,
+                .begin = begin,
+                .refs = ane_refs,
+                .expert = expert,
+                .lane = DS4_PREFILL_LANE_GPU,
+                .tail_slice = false,
+                .gpu_cost = (double)ane_refs + stage_cost,
+                .ane_cost = ((double)ane_padded_refs / ane_rel_speed) + ane_call_refs + stage_cost,
+                .ssd_cost = stage_cost,
+                .slot_cached = slot_cached,
+                .ane_eligible = can_chunk && ane_refs >= hybrid_ane_min_refs &&
+                                ((double)ane_refs / (double)ane_padded_refs) >= ane_min_util,
+            };
+            work[work_n++] = item;
+        }
+        if (gpu_tail_refs != 0) {
+            ds4_flash_prefill_plan_item tail = {
+                .ui = i,
+                .begin = begin + ane_refs,
+                .refs = gpu_tail_refs,
+                .expert = expert,
+                .lane = DS4_PREFILL_LANE_GPU,
+                .tail_slice = true,
+                .gpu_cost = (double)gpu_tail_refs + stage_cost,
+                .ane_cost = DBL_MAX / 4.0,
+                .ssd_cost = stage_cost,
+                .slot_cached = slot_cached,
+                .ane_eligible = false,
+            };
+            work[work_n++] = tail;
+            if (planned_tail_gpu_groups_out) (*planned_tail_gpu_groups_out)++;
+            if (planned_tail_gpu_refs_out) *planned_tail_gpu_refs_out += tail.refs;
+        } else if (ane_refs == 0) {
+            ds4_flash_prefill_plan_item item = {
+                .ui = i,
+                .begin = begin,
+                .refs = refs,
+                .expert = expert,
+                .lane = DS4_PREFILL_LANE_GPU,
+                .tail_slice = false,
+                .gpu_cost = (double)refs + stage_cost,
+                .ane_cost = DBL_MAX / 4.0,
+                .ssd_cost = stage_cost,
+                .slot_cached = slot_cached,
+                .ane_eligible = false,
+            };
+            work[work_n++] = item;
+        }
+        if (planned_ssd_groups_out && stage_cost > 0.0) (*planned_ssd_groups_out)++;
+    }
+
+    prefill_plan_sort_by_work(work, work_n);
+
+    uint32_t ane_n = 0;
+    uint32_t gpu_n = 0;
+    for (uint32_t i = 0; i < work_n; i++) {
+        ds4_flash_prefill_plan_item item = work[i];
+        if (item.ane_eligible) {
+            const double if_gpu = gpu_load + item.gpu_cost;
+            const double if_ane = ane_load + item.ane_cost;
+            const double make_gpu = if_gpu > ane_load ? if_gpu : ane_load;
+            const double make_ane = gpu_load > if_ane ? gpu_load : if_ane;
+            if (make_ane < make_gpu) {
+                item.lane = DS4_PREFILL_LANE_ANE;
+                ane_load = if_ane;
+                ane[ane_n++] = item;
+                if (planned_ane_groups_out) (*planned_ane_groups_out)++;
+                if (planned_ane_refs_out) *planned_ane_refs_out += item.refs;
+            } else {
+                gpu_load = if_gpu;
+                gpu[gpu_n++] = item;
+                if (planned_gpu_groups_out) (*planned_gpu_groups_out)++;
+                if (planned_gpu_refs_out) *planned_gpu_refs_out += item.refs;
+            }
+        } else {
+            gpu_load += item.gpu_cost;
+            gpu[gpu_n++] = item;
+            if (planned_gpu_groups_out) (*planned_gpu_groups_out)++;
+            if (planned_gpu_refs_out) *planned_gpu_refs_out += item.refs;
+        }
+    }
+
+    uint32_t out_n = 0;
+    uint32_t ai = 0;
+    uint32_t gi = 0;
+    while (ai < ane_n || gi < gpu_n) {
+        double cover = 0.0;
+        if (ai < ane_n) {
+            exec[out_n++] = ane[ai];
+            cover = ane[ai].ane_cost * get_env_double_clamped("DS4_FLASH_MOE_SCHED_GPU_COVER", 0.90, 0.0, 8.0);
+            ai++;
+        }
+        double covered = 0.0;
+        while (gi < gpu_n && (ai >= ane_n || covered < cover || out_n == 0)) {
+            exec[out_n++] = gpu[gi];
+            covered += gpu[gi].gpu_cost;
+            gi++;
+        }
+        if (ai >= ane_n && gi < gpu_n) {
+            while (gi < gpu_n) exec[out_n++] = gpu[gi++];
+        }
+    }
+
+    if (planned_gpu_cost_out) *planned_gpu_cost_out = gpu_load;
+    if (planned_ane_cost_out) *planned_ane_cost_out = ane_load;
+    free(gpu);
+    free(ane);
+    free(work);
+    return out_n;
+}
+
 static bool flash_moe_pread_full(int fd, uint64_t offset, uint8_t *dst, uint64_t bytes) {
     uint64_t done = 0;
     while (done < bytes) {
@@ -10218,18 +10559,6 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             }
             gpu_compacted = ok;
 
-            /* Pre-stage first few experts so CPU sidecar loads can overlap with GPU compute (#2) */
-            if (ok) {
-                int prefetch = get_prefill_dedup_prefetch();
-                for (int i = 0; i < prefetch && i < (int)n_unique; i++) {
-                    int e = unique[i];
-                    if (e >= 0 && e < (int)DS4_N_EXPERT && slot_cache_expert[e]) continue;
-                    int b = i % 4;
-                    ok = metal_graph_flash_moe_stage_prefill_expert(g, il, e, b);
-                    if (!ok) break;
-                    staged_prefill_expert[b] = e;
-                }
-            }
         } else {
             for (uint32_t t = 0; t < n_tokens; t++) {
                 for (uint32_t k = 0; k < DS4_N_EXPERT_USED; k++) {
@@ -10256,15 +10585,168 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                      (uint64_t)n_tokens * DS4_N_EMBD) != 0;
     }
 
+    const bool try_ane_prefill = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const char *mpp_int8_prefill_env = getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL");
+    const bool try_mpp_int8_prefill =
+        mpp_int8_prefill_env != NULL && atoi(mpp_int8_prefill_env) != 0;
+    const bool hybrid_prefill =
+        try_ane_prefill && try_mpp_int8_prefill && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
+    const bool concurrent_prefill =
+        try_ane_prefill && try_mpp_int8_prefill &&
+        (env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_PREFILL") ||
+         env_flag_enabled("DS4_FLASH_MOE_HYBRID_CONCURRENT_PREFILL") ||
+         env_flag_enabled("DS4_FLASH_MOE_OVERLAP_PREFILL"));
+    const bool ane_pipeline_prefill =
+        try_ane_prefill && env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL");
+    const bool split_prefill = hybrid_prefill || concurrent_prefill;
+    const uint32_t hybrid_ane_min_refs = get_prefill_hybrid_ane_min_refs();
+    const uint32_t concurrent_min_gpu_groups = get_prefill_concurrent_min_gpu_groups();
+    const bool overlap_scheduler =
+        concurrent_prefill && ane_pipeline_prefill && gpu_compacted &&
+        env_flag_enabled("DS4_FLASH_MOE_OVERLAP_SCHEDULER");
+    const bool scheduler_stats =
+        profile || getenv("DS4_FLASH_MOE_SCHED_STATS") != NULL ||
+        getenv("DS4_FLASH_MOE_SCHED_DEBUG") != NULL;
+    uint64_t hybrid_ane_refs = 0;
+    uint64_t hybrid_gpu_refs = 0;
+    uint64_t planned_ane_refs = 0;
+    uint64_t planned_gpu_refs = 0;
+    uint32_t planned_ane_groups = 0;
+    uint32_t planned_gpu_groups = 0;
+    uint32_t planned_ssd_groups = 0;
+    uint32_t planned_tail_gpu_groups = 0;
+    uint64_t planned_tail_gpu_refs = 0;
+    uint32_t hybrid_ane_groups = 0;
+    uint32_t hybrid_gpu_groups = 0;
+    uint32_t hybrid_fp32_groups = 0;
+    uint32_t concurrent_ane_groups = 0;
+    uint32_t concurrent_gpu_overlap_groups = 0;
+    uint32_t concurrent_finishes = 0;
+    uint32_t concurrent_waits = 0;
+    uint32_t concurrent_gpu_groups_since_ane = 0;
+    double planned_gpu_cost = 0.0;
+    double planned_ane_cost = 0.0;
+    ds4_flash_prefill_plan_item *plan = NULL;
+    uint32_t plan_n = 0;
+    if (overlap_scheduler && ok) {
+        plan = (ds4_flash_prefill_plan_item *)xcalloc((size_t)n_unique * 2u, sizeof(plan[0]));
+        plan_n = build_flash_prefill_overlap_plan(plan,
+                                                  n_unique,
+                                                  unique,
+                                                  offsets,
+                                                  slot_cache_expert,
+                                                  hybrid_ane_min_refs,
+                                                  &planned_gpu_cost,
+                                                  &planned_ane_cost,
+                                                  &planned_ane_groups,
+                                                  &planned_gpu_groups,
+                                                  &planned_ane_refs,
+                                                  &planned_gpu_refs,
+                                                  &planned_ssd_groups,
+                                                  &planned_tail_gpu_groups,
+                                                  &planned_tail_gpu_refs);
+        if (plan_n == 0) {
+            free(plan);
+            plan = NULL;
+        }
+    }
+    const uint32_t exec_n = plan ? plan_n : n_unique;
+    const double t_execute0 = scheduler_stats ? now_sec() : 0.0;
+    if (ok) {
+        int prefetch = get_prefill_dedup_prefetch();
+        for (int i = 0; i < prefetch && i < (int)exec_n; i++) {
+            const uint32_t future = plan ? plan[i].ui : (uint32_t)i;
+            if (future >= n_unique) {
+                ok = false;
+                break;
+            }
+            const int future_expert = unique[future];
+            if (future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
+                slot_cache_expert[future_expert]) {
+                continue;
+            }
+            const int bank = i & 3;
+            ok = metal_graph_flash_moe_stage_prefill_expert(g, il, future_expert, bank);
+            if (!ok) break;
+            staged_prefill_expert[bank] = future_expert;
+        }
+    }
+    ds4_gpu_ane_prefill_job *active_ane_job = NULL;
+    ds4_gpu_tensor *active_ane_tokens = NULL;
+    uint32_t active_ane_refs = 0;
+    ds4_gpu_ane_prefill_job *ready_ane_job = NULL;
+    ds4_gpu_tensor *ready_ane_tokens = NULL;
+    uint32_t ready_ane_refs = 0;
+
     bool commands_open = false;
-    for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
+#define DS4_FINISH_ANE_SLOT(job_var, tokens_var, refs_var) do { \
+        if (job_var) { \
+            concurrent_waits++; \
+            if (ok && commands_open) { \
+                ok = ds4_gpu_end_commands() != 0; \
+                commands_open = false; \
+            } \
+            bool pending_mid_is_f16 = false; \
+            int pending_ok = ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor( \
+                job_var, g->flash_prefill_out, &pending_mid_is_f16); \
+            job_var = NULL; \
+            if (ok && pending_ok) { \
+                concurrent_finishes++; \
+                if (!commands_open) { \
+                    ok = ds4_gpu_begin_commands() != 0; \
+                    commands_open = ok; \
+                } \
+                if (ok) { \
+                    ok = ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out, \
+                                                             g->flash_prefill_out, \
+                                                             tokens_var, \
+                                                             refs_var, \
+                                                             DS4_N_EMBD) != 0; \
+                } \
+                if (pending_mid_is_f16) g->batch_routed_mid_is_f16 = true; \
+            } else { \
+                ok = false; \
+            } \
+            ds4_gpu_tensor_free(tokens_var); \
+            tokens_var = NULL; \
+            refs_var = 0; \
+            concurrent_gpu_groups_since_ane = 0; \
+        } \
+    } while (0)
+#define DS4_WAIT_ACTIVE_ANE_PREDICT(job_out, tokens_out, refs_out) do { \
+        if (active_ane_job) { \
+            concurrent_waits++; \
+            if (ok && commands_open) { \
+                ok = ds4_gpu_end_commands() != 0; \
+                commands_open = false; \
+            } \
+            int predict_ok = ok ? ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(active_ane_job) : 0; \
+            if (!predict_ok) { \
+                ok = false; \
+            } else { \
+                job_out = active_ane_job; \
+                tokens_out = active_ane_tokens; \
+                refs_out = active_ane_refs; \
+                active_ane_job = NULL; \
+                active_ane_tokens = NULL; \
+                active_ane_refs = 0; \
+            } \
+        } \
+    } while (0)
+    for (uint32_t exec_i = 0; ok && exec_i < exec_n; exec_i++) {
+        const uint32_t ui = plan ? plan[exec_i].ui : exec_i;
+        if (ui >= n_unique) {
+            ok = false;
+            break;
+        }
+        const ds4_prefill_lane planned_lane =
+            plan ? plan[exec_i].lane : DS4_PREFILL_LANE_ANE;
         const int32_t expert = unique[ui];
-        const int32_t begin = offsets[ui];
-        const int32_t end = offsets[ui + 1];
-        const uint32_t refs = (uint32_t)(end - begin);
+        const uint32_t begin = plan ? plan[exec_i].begin : (uint32_t)offsets[ui];
+        const uint32_t refs = plan ? plan[exec_i].refs : (uint32_t)(offsets[ui + 1] - offsets[ui]);
         if (refs == 0) continue;
 
-        const int bank_set = ui & 3;   /* rotate across all prefill banks */
+        const int bank_set = exec_i & 3;   /* rotate across all prefill banks */
 
         ds4_gpu_tensor *tokens_for_refs = g->flash_prefill_tokens;
         ds4_gpu_tensor *weights_for_refs = g->flash_prefill_weights;
@@ -10403,18 +10885,122 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         commands_open = true;
 
         bool mid_is_f16 = false;
-        const bool try_ane_prefill = getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL;
-        const char *mpp_int8_prefill_env = getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL");
-        const bool try_mpp_int8_prefill =
-            mpp_int8_prefill_env != NULL && atoi(mpp_int8_prefill_env) != 0;
+        const bool try_ane_for_group = try_ane_prefill &&
+            (!split_prefill || refs >= hybrid_ane_min_refs) &&
+            (!overlap_scheduler || planned_lane == DS4_PREFILL_LANE_ANE);
+        const bool try_mpp_for_group = try_mpp_int8_prefill &&
+            (!overlap_scheduler || planned_lane == DS4_PREFILL_LANE_GPU);
+        const bool try_pipelined_ane_for_group =
+            ane_pipeline_prefill && gpu_compacted && try_ane_for_group;
+        const bool try_concurrent_ane_for_group =
+            !try_pipelined_ane_for_group &&
+            concurrent_prefill && gpu_compacted && try_ane_for_group;
         ok = ds4_gpu_gather_rows_f32_tensor(g->flash_prefill_x,
                                             g->batch_ffn_norm,
                                             tokens_for_refs,
                                             refs,
                                             DS4_N_EMBD) != 0;
+        bool deferred_ane = false;
         if (ok) {
             bool ane_ok = false;
-            if (try_ane_prefill) {
+            bool used_ane = false;
+            bool used_mpp = false;
+            if (try_pipelined_ane_for_group) {
+                ds4_gpu_ane_prefill_job *predicted_ane_job = NULL;
+                ds4_gpu_tensor *predicted_ane_tokens = NULL;
+                uint32_t predicted_ane_refs = 0;
+                DS4_WAIT_ACTIVE_ANE_PREDICT(predicted_ane_job,
+                                            predicted_ane_tokens,
+                                            predicted_ane_refs);
+                if (ok && !commands_open) {
+                    ok = ds4_gpu_begin_commands() != 0;
+                    commands_open = ok;
+                }
+                if (ok) {
+                    active_ane_job =
+                        ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(gate_b,
+                                                                                up_b,
+                                                                                down_b,
+                                                                                layer->ffn_gate_exps->type,
+                                                                                layer->ffn_down_exps->type,
+                                                                                gate_expert_bytes,
+                                                                                gate_row_bytes,
+                                                                                down_expert_bytes,
+                                                                                down_row_bytes,
+                                                                                expert_in_dim,
+                                                                                expert_mid_dim,
+                                                                                out_dim,
+                                                                                weights_for_refs,
+                                                                                g->flash_prefill_x,
+                                                                                refs);
+                    if (active_ane_job) {
+                        active_ane_tokens = tokens_for_refs;
+                        token_view = NULL;
+                        active_ane_refs = refs;
+                        deferred_ane = true;
+                        ane_ok = true;
+                        used_ane = true;
+                        concurrent_ane_groups++;
+                    }
+                }
+                if (predicted_ane_job) {
+                    if (ready_ane_job) {
+                        DS4_FINISH_ANE_SLOT(ready_ane_job, ready_ane_tokens, ready_ane_refs);
+                    }
+                    if (ok) {
+                        ready_ane_job = predicted_ane_job;
+                        ready_ane_tokens = predicted_ane_tokens;
+                        ready_ane_refs = predicted_ane_refs;
+                        predicted_ane_job = NULL;
+                        predicted_ane_tokens = NULL;
+                        predicted_ane_refs = 0;
+                    }
+                }
+                if (predicted_ane_job) {
+                    ds4_gpu_ane_prefill_job *cleanup_job = predicted_ane_job;
+                    ds4_gpu_tensor *cleanup_tokens = predicted_ane_tokens;
+                    uint32_t cleanup_refs = predicted_ane_refs;
+                    DS4_FINISH_ANE_SLOT(cleanup_job, cleanup_tokens, cleanup_refs);
+                    predicted_ane_job = NULL;
+                    predicted_ane_tokens = NULL;
+                    predicted_ane_refs = 0;
+                }
+            } else if (try_concurrent_ane_for_group) {
+                if (active_ane_job &&
+                    concurrent_gpu_groups_since_ane >= concurrent_min_gpu_groups) {
+                    DS4_FINISH_ANE_SLOT(active_ane_job, active_ane_tokens, active_ane_refs);
+                }
+                if (ok && !active_ane_job) {
+                    active_ane_job =
+                        ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(gate_b,
+                                                                                up_b,
+                                                                                down_b,
+                                                                                layer->ffn_gate_exps->type,
+                                                                                layer->ffn_down_exps->type,
+                                                                                gate_expert_bytes,
+                                                                                gate_row_bytes,
+                                                                                down_expert_bytes,
+                                                                                down_row_bytes,
+                                                                                expert_in_dim,
+                                                                                expert_mid_dim,
+                                                                                out_dim,
+                                                                                weights_for_refs,
+                                                                                g->flash_prefill_x,
+                                                                                refs);
+                    if (active_ane_job) {
+                        active_ane_tokens = tokens_for_refs;
+                        token_view = NULL;
+                        active_ane_refs = refs;
+                        deferred_ane = true;
+                        ane_ok = true;
+                        used_ane = true;
+                        concurrent_ane_groups++;
+                    }
+                }
+            }
+            const bool allow_sync_ane =
+                try_ane_for_group && (!concurrent_prefill || !gpu_compacted);
+            if (!deferred_ane && allow_sync_ane) {
                 const bool ane_debug = getenv("DS4_FLASH_MOE_ANE_DEBUG") != NULL;
                 if (ane_debug) {
                     fprintf(stderr,
@@ -10443,13 +11029,14 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                            g->flash_prefill_x,
                                                                            refs,
                                                                            &mid_is_f16) != 0;
+                used_ane = ane_ok;
                 if (ane_debug) {
                     fprintf(stderr,
                             "ds4: ANE prefill %s layer=%u expert=%d refs=%u\n",
                             ane_ok ? "ok" : "failed", il, expert, refs);
                 }
             }
-            if (!ane_ok && try_mpp_int8_prefill) {
+            if (!deferred_ane && !ane_ok && (try_mpp_for_group || try_mpp_int8_prefill)) {
                 ane_ok = ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(g->flash_prefill_out,
                                                                                 g->flash_prefill_gate,
                                                                                 g->flash_prefill_up,
@@ -10472,8 +11059,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                                 g->flash_prefill_x,
                                                                                 refs,
                                                                                 &mid_is_f16) != 0;
+                used_mpp = ane_ok;
             }
-            if (!ane_ok) {
+            if (!deferred_ane && !ane_ok) {
                 if (try_ane_prefill && getenv("DS4_FLASH_MOE_ANE_DEBUG")) {
                     fprintf(stderr, "ds4: ANE prefill falling back to fp32 GPU layer=%u expert=%d refs=%u\n",
                             il, expert, refs);
@@ -10499,16 +11087,32 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                    weights_for_refs,
                                                                    DS4_SWIGLU_CLAMP_EXP,
                                                                    g->flash_prefill_x,
-                                                                   refs,
+                                                                  refs,
                                                                    &mid_is_f16) != 0;
+                if (ok && hybrid_prefill) hybrid_fp32_groups++;
+            }
+            if ((hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) && ane_ok) {
+                if (used_ane) {
+                    hybrid_ane_groups++;
+                    hybrid_ane_refs += refs;
+                } else if (used_mpp) {
+                    hybrid_gpu_groups++;
+                    hybrid_gpu_refs += refs;
+                }
             }
         }
-        ok = ok &&
-             ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out,
-                                                 g->flash_prefill_out,
-                                                 tokens_for_refs,
-                                                 refs,
-                                                 DS4_N_EMBD) != 0;
+        if (!deferred_ane) {
+            ok = ok &&
+                 ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out,
+                                                     g->flash_prefill_out,
+                                                     tokens_for_refs,
+                                                     refs,
+                                                     DS4_N_EMBD) != 0;
+            if (active_ane_job) {
+                concurrent_gpu_groups_since_ane++;
+                concurrent_gpu_overlap_groups++;
+            }
+        }
         ds4_gpu_tensor_free(slot_down_view);
         ds4_gpu_tensor_free(slot_up_view);
         ds4_gpu_tensor_free(slot_gate_view);
@@ -10519,14 +11123,15 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         /* Prefetch stage the expert N ahead (#2) so sidecar load overlaps with current matmul */
         {
             int prefetch = get_prefill_dedup_prefetch();
-            if (ui + prefetch < n_unique) {
-                int future = ui + prefetch;
+            if (exec_i + (uint32_t)prefetch < exec_n) {
+                uint32_t future_exec = exec_i + (uint32_t)prefetch;
+                uint32_t future = plan ? plan[future_exec].ui : future_exec;
                 int future_expert = unique[future];
                 if (future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
                     slot_cache_expert[future_expert]) {
                     continue;
                 }
-                int future_bank = future % 4;
+                int future_bank = future_exec % 4;
                 if (staged_prefill_expert[future_bank] != future_expert &&
                     metal_graph_flash_moe_stage_prefill_expert(g, il, future_expert, future_bank)) {
                     staged_prefill_expert[future_bank] = future_expert;
@@ -10534,12 +11139,47 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             }
         }
     }
+    if (ane_pipeline_prefill && active_ane_job) {
+        ds4_gpu_ane_prefill_job *predicted_ane_job = NULL;
+        ds4_gpu_tensor *predicted_ane_tokens = NULL;
+        uint32_t predicted_ane_refs = 0;
+        DS4_WAIT_ACTIVE_ANE_PREDICT(predicted_ane_job,
+                                    predicted_ane_tokens,
+                                    predicted_ane_refs);
+        if (predicted_ane_job) {
+            if (ready_ane_job) {
+                DS4_FINISH_ANE_SLOT(ready_ane_job, ready_ane_tokens, ready_ane_refs);
+            }
+            if (ok) {
+                ready_ane_job = predicted_ane_job;
+                ready_ane_tokens = predicted_ane_tokens;
+                ready_ane_refs = predicted_ane_refs;
+                predicted_ane_job = NULL;
+                predicted_ane_tokens = NULL;
+                predicted_ane_refs = 0;
+            }
+        }
+        if (predicted_ane_job) {
+            ds4_gpu_ane_prefill_job *cleanup_job = predicted_ane_job;
+            ds4_gpu_tensor *cleanup_tokens = predicted_ane_tokens;
+            uint32_t cleanup_refs = predicted_ane_refs;
+            DS4_FINISH_ANE_SLOT(cleanup_job, cleanup_tokens, cleanup_refs);
+        }
+    }
+    if (active_ane_job) {
+        DS4_FINISH_ANE_SLOT(active_ane_job, active_ane_tokens, active_ane_refs);
+    }
+    if (ready_ane_job) {
+        DS4_FINISH_ANE_SLOT(ready_ane_job, ready_ane_tokens, ready_ane_refs);
+    }
+#undef DS4_WAIT_ACTIVE_ANE_PREDICT
+#undef DS4_FINISH_ANE_SLOT
     if (!commands_open && ok) {
         ok = ds4_gpu_begin_commands() != 0;
         commands_open = ok;
     }
 
-    const double t_done = profile ? now_sec() : 0.0;
+    const double t_done = (profile || scheduler_stats) ? now_sec() : 0.0;
     if (profile) {
         fprintf(stderr,
                 "ds4: Flash-MoE prefill layer=%u tokens=%u unique=%u refs=%" PRIu64
@@ -10553,7 +11193,65 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 (t_done - t_plan) * 1000.0,
                 (uint32_t)(g->flash_misses - miss_before));
     }
+    if ((hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) &&
+        (profile || getenv("DS4_FLASH_MOE_HYBRID_STATS") != NULL ||
+         getenv("DS4_FLASH_MOE_CONCURRENT_STATS") != NULL ||
+         getenv("DS4_FLASH_MOE_ANE_PIPELINE_STATS") != NULL)) {
+        fprintf(stderr,
+                "ds4: Flash-MoE hybrid prefill layer=%u ane_groups=%u ane_refs=%" PRIu64
+                " gpu_i8_groups=%u gpu_i8_refs=%" PRIu64 " fp32_groups=%u ane_min_refs=%u"
+                " concurrent=%u ane_pipeline=%u async_ane=%u gpu_overlap=%u finishes=%u waits=%u\n",
+                il,
+                hybrid_ane_groups,
+                hybrid_ane_refs,
+                hybrid_gpu_groups,
+                hybrid_gpu_refs,
+                hybrid_fp32_groups,
+                hybrid_ane_min_refs,
+                concurrent_prefill ? 1u : 0u,
+                ane_pipeline_prefill ? 1u : 0u,
+                concurrent_ane_groups,
+                concurrent_gpu_overlap_groups,
+                concurrent_finishes,
+                concurrent_waits);
+    }
+    if (scheduler_stats && overlap_scheduler) {
+        const double est_makespan =
+            planned_gpu_cost > planned_ane_cost ? planned_gpu_cost : planned_ane_cost;
+        const double est_idle =
+            est_makespan > 0.0 ? fabs(planned_gpu_cost - planned_ane_cost) / est_makespan : 0.0;
+        fprintf(stderr,
+                "ds4: Flash-MoE overlap plan layer=%u exec_groups=%u"
+                " planned_ane_groups=%u planned_ane_refs=%" PRIu64
+                " planned_gpu_groups=%u planned_gpu_refs=%" PRIu64
+                " tail_gpu_groups=%u tail_gpu_refs=%" PRIu64
+                " planned_ssd_groups=%u est_gpu=%.1f est_ane=%.1f est_idle=%.2f%%"
+                " wall=%.3f ms actual_ane_groups=%u actual_ane_refs=%" PRIu64
+                " actual_gpu_groups=%u actual_gpu_refs=%" PRIu64
+                " finishes=%u waits=%u overlap_gpu_groups=%u\n",
+                il,
+                exec_n,
+                planned_ane_groups,
+                planned_ane_refs,
+                planned_gpu_groups,
+                planned_gpu_refs,
+                planned_tail_gpu_groups,
+                planned_tail_gpu_refs,
+                planned_ssd_groups,
+                planned_gpu_cost,
+                planned_ane_cost,
+                100.0 * est_idle,
+                (t_done - t_execute0) * 1000.0,
+                hybrid_ane_groups,
+                hybrid_ane_refs,
+                hybrid_gpu_groups,
+                hybrid_gpu_refs,
+                concurrent_finishes,
+                concurrent_waits,
+                concurrent_gpu_overlap_groups);
+    }
 
+    free(plan);
     free(ref_weights);
     free(ref_tokens);
     free(pair_weights);
@@ -14780,7 +15478,7 @@ static bool metal_graph_prefill_layer_major(
     if (!ok) return false;
 
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, (uint32_t)n_tokens)) return false;
-    if (getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL) {
+    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL")) {
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 
@@ -15104,7 +15802,7 @@ static bool metal_graph_prefill_chunked_range(
         }
     }
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, first_chunk)) return false;
-    if (getenv("DS4_FLASH_MOE_ANE_PREFILL") != NULL) {
+    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL")) {
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 

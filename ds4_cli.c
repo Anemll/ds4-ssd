@@ -299,6 +299,9 @@ static char *read_prompt_file(const char *path, bool fatal);
 typedef struct {
     int base_tokens;
     int input_tokens;
+    int last_processed;
+    double start_t;
+    double last_t;
     bool use_color;
 } cli_prefill_progress;
 
@@ -313,24 +316,38 @@ static void cli_prefill_progress_cb(void *ud, const char *event, int current, in
     double pct = 100.0 * (double)processed / (double)p->input_tokens;
     if (pct > 100.0) pct = 100.0;
 
+    const double now = cli_now_sec();
+    const double total_dt = now - p->start_t;
+    const double avg_tps = total_dt > 0.0 ? (double)processed / total_dt : 0.0;
+    int batch_tokens = processed - p->last_processed;
+    if (batch_tokens < 0) batch_tokens = 0;
+    const double batch_dt = now - p->last_t;
+    const double batch_tps = batch_dt > 0.0 ? (double)batch_tokens / batch_dt : 0.0;
+    p->last_processed = processed;
+    p->last_t = now;
+
     if (p->use_color) {
         fputc('\r', stderr);
         ds4_log(stderr,
                 DS4_LOG_PREFILL,
-                "processing %d input tokens: %d/%d (%.1f%%)",
+                "processing %d input tokens: %d/%d (%.1f%%) batch=%.2f t/s avg=%.2f t/s",
                 p->input_tokens,
                 processed,
                 p->input_tokens,
-                pct);
+                pct,
+                batch_tps,
+                avg_tps);
         fputs("\x1b[K", stderr);
         if (processed >= p->input_tokens) fputc('\n', stderr);
     } else {
         fprintf(stderr,
-                "processing %d input tokens: %d/%d (%.1f%%)\n",
+                "processing %d input tokens: %d/%d (%.1f%%) batch=%.2f t/s avg=%.2f t/s\n",
                 p->input_tokens,
                 processed,
                 p->input_tokens,
-                pct);
+                pct,
+                batch_tps,
+                avg_tps);
     }
     fflush(stderr);
 }
@@ -490,13 +507,16 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         .use_color = isatty(fileno(stdout)) != 0,
         .last_output_newline = true,
     };
+    const double t_prefill0 = cli_now_sec();
     cli_prefill_progress progress = {
         .base_tokens = 0,
         .input_tokens = prompt->len,
+        .last_processed = 0,
+        .start_t = t_prefill0,
+        .last_t = t_prefill0,
         .use_color = ds4_log_is_tty(stderr),
     };
 
-    const double t_prefill0 = cli_now_sec();
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(session, prompt, err, sizeof(err)) != 0) {
         ds4_session_set_progress(session, NULL, NULL);
@@ -655,9 +675,13 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
     }
 
     char err[160];
+    const double progress_t0 = cli_now_sec();
     cli_prefill_progress progress = {
         .base_tokens = 0,
         .input_tokens = prompt->len,
+        .last_processed = 0,
+        .start_t = progress_t0,
+        .last_t = progress_t0,
         .use_color = ds4_log_is_tty(stderr),
     };
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
@@ -785,9 +809,13 @@ static int run_generation(ds4_engine *engine, const cli_config *cfg) {
             .use_color = isatty(fileno(stdout)) != 0,
             .last_output_newline = true,
         };
+        const double progress_t0 = cli_now_sec();
         cli_prefill_progress progress = {
             .base_tokens = 0,
             .input_tokens = prompt.len,
+            .last_processed = 0,
+            .start_t = progress_t0,
+            .last_t = progress_t0,
             .use_color = ds4_log_is_tty(stderr),
         };
         rc = ds4_engine_generate_argmax(engine, &prompt, cfg->gen.n_predict,
@@ -942,12 +970,15 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
     const int suffix = chat->transcript.len - cached;
 
     char err[160];
+    const double t_prefill0 = cli_now_sec();
     cli_prefill_progress progress = {
         .base_tokens = cached,
         .input_tokens = suffix,
+        .last_processed = 0,
+        .start_t = t_prefill0,
+        .last_t = t_prefill0,
         .use_color = ds4_log_is_tty(stderr),
     };
-    const double t_prefill0 = cli_now_sec();
     ds4_session_set_progress(chat->session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(chat->session, &chat->transcript, err, sizeof(err)) != 0) {
         ds4_session_set_progress(chat->session, NULL, NULL);

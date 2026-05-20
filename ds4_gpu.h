@@ -730,6 +730,33 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
         uint32_t                n_tokens,
         bool                   *mid_is_f16);
 
+typedef struct ds4_gpu_ane_prefill_job ds4_gpu_ane_prefill_job;
+
+ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens);
+
+int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
+        ds4_gpu_ane_prefill_job *job);
+
+int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+        ds4_gpu_ane_prefill_job *job,
+        ds4_gpu_tensor          *out,
+        bool                    *mid_is_f16);
+
 int ds4_gpu_ane_prefill_precompile_from_env(void);
 
 int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
