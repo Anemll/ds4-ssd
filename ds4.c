@@ -10354,7 +10354,7 @@ static bool metal_graph_flash_moe_prepare_decode(ds4_gpu_graph *g, uint32_t il) 
     if (!g || !g->flash_moe) return true;
     if (il >= DS4_N_LAYER || !g->router_slot_selected) return false;
 
-    const bool profile = getenv("DS4_FLASH_MOE_PROFILE") != NULL;
+    const bool profile = env_flag_enabled("DS4_FLASH_MOE_PROFILE");
     const double t0 = profile ? now_sec() : 0.0;
 
     if (ds4_gpu_end_commands() == 0) return false;
@@ -10440,7 +10440,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     int32_t offsets[DS4_N_EXPERT + 1];
     for (uint32_t i = 0; i < DS4_N_EXPERT; i++) expert_to_index[i] = -1;
 
-    const bool profile = getenv("DS4_FLASH_MOE_PROFILE") != NULL;
+    const bool profile = env_flag_enabled("DS4_FLASH_MOE_PROFILE");
     const bool use_gpu_dedup = getenv("DS4_FLASH_MOE_GPU_DEDUP") == NULL || atoi(getenv("DS4_FLASH_MOE_GPU_DEDUP")) != 0;
 
     const double t0 = profile ? now_sec() : 0.0;
@@ -10605,8 +10605,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         concurrent_prefill && ane_pipeline_prefill && gpu_compacted &&
         env_flag_enabled("DS4_FLASH_MOE_OVERLAP_SCHEDULER");
     const bool scheduler_stats =
-        profile || getenv("DS4_FLASH_MOE_SCHED_STATS") != NULL ||
-        getenv("DS4_FLASH_MOE_SCHED_DEBUG") != NULL;
+        profile || env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+        env_flag_enabled("DS4_FLASH_MOE_SCHED_DEBUG");
     uint64_t hybrid_ane_refs = 0;
     uint64_t hybrid_gpu_refs = 0;
     uint64_t planned_ane_refs = 0;
@@ -10679,12 +10679,16 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     uint32_t ready_ane_refs = 0;
 
     bool commands_open = false;
+/* finish_tensor now encodes the writeback as a GPU blit on the live CB; no
+ * CPU/GPU race on flash_prefill_out. We only need flush (commit async) so any
+ * previously encoded scatter_add gets committed ahead of our new work — the
+ * GPU queue serializes the rest. */
 #define DS4_FINISH_ANE_SLOT(job_var, tokens_var, refs_var) do { \
         if (job_var) { \
             concurrent_waits++; \
             if (ok && commands_open) { \
-                ok = ds4_gpu_end_commands() != 0; \
-                commands_open = false; \
+                ok = ds4_gpu_flush_commands() != 0; \
+                /* flush leaves a fresh CB open; commands_open stays true */ \
             } \
             bool pending_mid_is_f16 = false; \
             int pending_ok = ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor( \
@@ -10713,12 +10717,13 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             concurrent_gpu_groups_since_ane = 0; \
         } \
     } while (0)
+/* wait_predict_tensor joins the CPU ANE pthread; the GPU command stream does
+ * not need to be drained for that to be correct. Flush instead. */
 #define DS4_WAIT_ACTIVE_ANE_PREDICT(job_out, tokens_out, refs_out) do { \
         if (active_ane_job) { \
             concurrent_waits++; \
             if (ok && commands_open) { \
-                ok = ds4_gpu_end_commands() != 0; \
-                commands_open = false; \
+                ok = ds4_gpu_flush_commands() != 0; \
             } \
             int predict_ok = ok ? ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(active_ane_job) : 0; \
             if (!predict_ok) { \
@@ -11001,7 +11006,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             const bool allow_sync_ane =
                 try_ane_for_group && (!concurrent_prefill || !gpu_compacted);
             if (!deferred_ane && allow_sync_ane) {
-                const bool ane_debug = getenv("DS4_FLASH_MOE_ANE_DEBUG") != NULL;
+                const bool ane_debug = env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG");
                 if (ane_debug) {
                     fprintf(stderr,
                             "ds4: ANE prefill try layer=%u unique_idx=%u/%u expert=%d refs=%u bank=%d\n",
@@ -11062,7 +11067,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 used_mpp = ane_ok;
             }
             if (!deferred_ane && !ane_ok) {
-                if (try_ane_prefill && getenv("DS4_FLASH_MOE_ANE_DEBUG")) {
+                if (try_ane_prefill && env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG")) {
                     fprintf(stderr, "ds4: ANE prefill falling back to fp32 GPU layer=%u expert=%d refs=%u\n",
                             il, expert, refs);
                 }
@@ -11194,9 +11199,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 (uint32_t)(g->flash_misses - miss_before));
     }
     if ((hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) &&
-        (profile || getenv("DS4_FLASH_MOE_HYBRID_STATS") != NULL ||
-         getenv("DS4_FLASH_MOE_CONCURRENT_STATS") != NULL ||
-         getenv("DS4_FLASH_MOE_ANE_PIPELINE_STATS") != NULL)) {
+        (profile || env_flag_enabled("DS4_FLASH_MOE_HYBRID_STATS") ||
+         env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_STATS") ||
+         env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_STATS"))) {
         fprintf(stderr,
                 "ds4: Flash-MoE hybrid prefill layer=%u ane_groups=%u ane_refs=%" PRIu64
                 " gpu_i8_groups=%u gpu_i8_refs=%" PRIu64 " fp32_groups=%u ane_min_refs=%u"

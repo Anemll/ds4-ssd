@@ -9016,6 +9016,7 @@ static int ds4_gpu_encode_cpy_f16_f32_1d(
     return 1;
 }
 
+
 static int ds4_gpu_encode_fill_f16_1d(
         id<MTLCommandBuffer> cb,
         id<MTLBuffer>        buf,
@@ -14767,6 +14768,9 @@ struct ds4_gpu_ane_prefill_job {
     int post_done;
     int ane_failed;
     int post_failed;
+    int dequant_done_flag;
+    double dequant_submit_t0;
+    double dequant_wait_ms;
     uint32_t n_tokens;
     uint32_t expert_in_dim;
     uint32_t expert_mid_dim;
@@ -14788,6 +14792,10 @@ struct ds4_gpu_ane_prefill_job {
     uint16_t *out_f16_batch;
     uint16_t *out_f16_all;
     float *out_f32;
+    /* MTLBuffer backing out_f32 so the eventual writeback into flash_prefill_out
+     * can be a GPU blit serialized on the queue (rather than a CPU memcpy that
+     * races with the previous scatter_add still in flight). */
+    __strong id<MTLBuffer> out_f32_mtl;
     float *route_weights;
     uint64_t out_elems64;
     uint64_t out_bucket_elems64;
@@ -14811,7 +14819,10 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
     free(job->x_i8_batch);
     free(job->out_f16_batch);
     free(job->out_f16_all);
-    free(job->out_f32);
+    /* out_f32 aliases out_f32_mtl.contents; ARC releases the MTLBuffer when
+     * we drop the __strong reference. */
+    job->out_f32 = NULL;
+    job->out_f32_mtl = nil;
     free(job->route_weights);
     free(job);
 }
@@ -14819,6 +14830,19 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
 static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
     ds4_gpu_ane_prefill_job *job = (ds4_gpu_ane_prefill_job *)arg;
     if (!job) return NULL;
+    /* Wait for GPU dequant of weights+inputs to complete before reading the
+     * shared scratch buffers via job->gate_i8 / up_i8 / down_i8 / x_i8_all. */
+    if (job->sync_initialized) {
+        const double wait_t0 = ds4_gpu_now_ms();
+        pthread_mutex_lock(&job->mu);
+        while (!job->dequant_done_flag && !job->ane_failed) {
+            pthread_cond_wait(&job->cv, &job->mu);
+        }
+        const int failed = job->ane_failed;
+        pthread_mutex_unlock(&job->mu);
+        job->dequant_wait_ms += ds4_gpu_now_ms() - wait_t0;
+        if (failed) return NULL;
+    }
     for (uint32_t chunk_idx = 0; chunk_idx < job->chunk_count; chunk_idx++) {
         const uint32_t begin = chunk_idx * job->ane_chunk_refs;
         const uint32_t chunk = (job->n_tokens - begin) < job->ane_chunk_refs ?
@@ -15006,11 +15030,16 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
 
     int ok = 0;
     int reopened = 0;
+    int dequant_committed = 0;
     id<MTLCommandBuffer> cb = nil;
     int owned = 0;
     ds4_gpu_ane_prefill_job *job = NULL;
 
-    if (ds4_gpu_end_commands() == 0) goto done;
+    /* Commit any in-flight GPU prefill work asynchronously and open a fresh CB
+     * for our dequant kernels. Previously this used the synchronous
+     * end_commands which stalled the main thread waiting for prefill to drain
+     * — that drain was the dominant overhead per ANE submission. */
+    if (ds4_gpu_flush_commands() == 0) goto done;
     if (!ds4_gpu_ensure_mpp_int8_prefill_pipelines()) goto done;
     if (!ds4_gpu_ensure_scratch_buffer(&g_ane_prefill_gate_i8_buffer,
                                        &g_ane_prefill_gate_i8_bytes,
@@ -15031,8 +15060,17 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
         goto done;
     }
 
+    /* Allocate the job + initialize its sync primitives BEFORE we attach a
+     * completion handler that signals through them. */
+    job = (ds4_gpu_ane_prefill_job *)calloc(1, sizeof(*job));
+    if (!job) goto done;
+    if (pthread_mutex_init(&job->mu, NULL) != 0 ||
+        pthread_cond_init(&job->cv, NULL) != 0) {
+        goto done;
+    }
+    job->sync_initialized = 1;
+
     const double dequant_t0 = ds4_gpu_now_ms();
-    if (ds4_gpu_begin_commands() == 0) goto done;
     cb = ds4_gpu_command_buffer(&owned);
     if (!cb) goto done;
     ok = ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
@@ -15062,9 +15100,24 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
                                          g_ane_prefill_x_i8_buffer,
                                          (uint32_t)x_all_elems64,
                                          ane_x_qscale);
-    ok = ds4_gpu_end_commands() != 0 && ok;
-    g_ane_prefill_dequant_ms += ds4_gpu_now_ms() - dequant_t0;
     if (!ok) goto done;
+
+    /* Async drain: when the dequant CB completes on GPU, signal the per-job
+     * flag so the CPU ANE pthread can proceed. Then flush (commit + open a
+     * fresh CB) so the caller can continue encoding prefill work in parallel
+     * with dequant + ANE eval. */
+    job->dequant_submit_t0 = dequant_t0;
+    ds4_gpu_ane_prefill_job *job_for_handler = job;
+    [cb addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull cb_arg){
+        (void)cb_arg;
+        pthread_mutex_lock(&job_for_handler->mu);
+        job_for_handler->dequant_done_flag = 1;
+        pthread_cond_broadcast(&job_for_handler->cv);
+        pthread_mutex_unlock(&job_for_handler->mu);
+    }];
+    if (ds4_gpu_flush_commands() == 0) { ok = 0; goto done; }
+    dequant_committed = 1;
+    g_ane_prefill_dequant_ms += ds4_gpu_now_ms() - dequant_t0;
 
     ds4_ane_mlp_int8w_ctx *ane_ctx =
         ds4_gpu_ane_get_i8i8_tiled_ctx(expert_in_dim,
@@ -15076,8 +15129,6 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
                                        ane_compile_limit);
     if (!ane_ctx) goto done;
 
-    job = (ds4_gpu_ane_prefill_job *)calloc(1, sizeof(*job));
-    if (!job) goto done;
     job->n_tokens = n_tokens;
     job->expert_in_dim = expert_in_dim;
     job->expert_mid_dim = expert_mid_dim;
@@ -15098,18 +15149,17 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->x_i8_batch = (int8_t *)malloc((size_t)x_batch_elems64);
     job->out_f16_batch = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
     job->out_f16_all = (uint16_t *)malloc((size_t)out_elems64 * sizeof(uint16_t));
-    job->out_f32 = (float *)malloc((size_t)out_elems64 * sizeof(float));
+    const NSUInteger out_f32_bytes = (NSUInteger)(out_elems64 * sizeof(float));
+    job->out_f32_mtl = [g_device newBufferWithLength:out_f32_bytes
+                                             options:MTLResourceStorageModeShared];
+    job->out_f32 = job->out_f32_mtl ? (float *)[job->out_f32_mtl contents] : NULL;
     job->route_weights = (float *)malloc((size_t)n_tokens * sizeof(float));
     if (!job->x_i8_all || !job->x_i8_batch || !job->out_f16_batch ||
-        !job->out_f16_all || !job->out_f32 || !job->route_weights ||
+        !job->out_f16_all || !job->out_f32 || !job->out_f32_mtl ||
+        !job->route_weights ||
         !job->gate_i8 || !job->up_i8 || !job->down_i8) {
         goto done;
     }
-    if (pthread_mutex_init(&job->mu, NULL) != 0 ||
-        pthread_cond_init(&job->cv, NULL) != 0) {
-        goto done;
-    }
-    job->sync_initialized = 1;
 
     const float *w_ptr = (const float *)((const uint8_t *)[ds4_gpu_tensor_buffer(weights) contents] +
                                         ds4_gpu_tensor_offset(weights));
@@ -15129,7 +15179,13 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     ok = 1;
 
 done:
-    if (ds4_gpu_begin_commands() != 0) reopened = 1;
+    /* After our flushes the GPU command buffer is already open; only call
+     * begin_commands when no CB is currently held. */
+    if (g_batch_cb != nil) {
+        reopened = 1;
+    } else if (ds4_gpu_begin_commands() != 0) {
+        reopened = 1;
+    }
     if (!ok) {
         if (job) {
             if (job->sync_initialized) {
@@ -15137,6 +15193,13 @@ done:
                 job->ane_failed = 1;
                 job->ane_done = 1;
                 pthread_cond_broadcast(&job->cv);
+                /* If the dequant CB was committed its completion handler
+                 * captures `job` and will signal dequant_done_flag from a
+                 * Metal-private thread. We must not free the job until that
+                 * handler has fired. */
+                while (dequant_committed && !job->dequant_done_flag) {
+                    pthread_cond_wait(&job->cv, &job->mu);
+                }
                 pthread_mutex_unlock(&job->mu);
             }
             if (job->ane_thread_started) {
@@ -15159,6 +15222,9 @@ done:
                 job->ane_failed = 1;
                 job->ane_done = 1;
                 pthread_cond_broadcast(&job->cv);
+                while (dequant_committed && !job->dequant_done_flag) {
+                    pthread_cond_wait(&job->cv, &job->mu);
+                }
                 pthread_mutex_unlock(&job->mu);
             }
             if (job->ane_thread_started) {
@@ -15232,14 +15298,43 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         return 0;
     }
 
+    /* Writeback ANE output into the destination tensor as a GPU blit encoded
+     * on the live command buffer. Metal serializes this after any previously
+     * committed scatter_add reading the same buffer — no CPU/GPU race, no
+     * sync drain required. The post_thread has already joined above, so the
+     * out_f32_mtl bytes are fully written before we encode. */
     const double writeback_t0 = ds4_gpu_now_ms();
-    ok = ds4_gpu_tensor_write(out, 0, job->out_f32, job->out_elems64 * sizeof(float)) != 0;
-    g_ane_prefill_writeback_ms += ds4_gpu_now_ms() - writeback_t0;
-    if (!ok) {
-        g_ane_prefill_write_failures++;
-    } else {
-        g_ane_prefill_successes++;
+    if (!g_batch_cb) {
+        if (ds4_gpu_begin_commands() == 0) {
+            g_ane_prefill_write_failures++;
+            ds4_gpu_ane_prefill_job_free(job);
+            return 0;
+        }
     }
+    id<MTLBuffer> dst_buf = ds4_gpu_tensor_buffer(out);
+    const NSUInteger dst_off = ds4_gpu_tensor_offset(out);
+    const NSUInteger bytes = (NSUInteger)(job->out_elems64 * sizeof(float));
+    if (!dst_buf || job->out_f32_mtl.length < bytes) {
+        g_ane_prefill_write_failures++;
+        ds4_gpu_ane_prefill_job_free(job);
+        return 0;
+    }
+    ds4_gpu_close_batch_encoder();
+    id<MTLBlitCommandEncoder> blit = [g_batch_cb blitCommandEncoder];
+    if (!blit) {
+        g_ane_prefill_write_failures++;
+        ds4_gpu_ane_prefill_job_free(job);
+        return 0;
+    }
+    [blit copyFromBuffer:job->out_f32_mtl
+            sourceOffset:0
+                toBuffer:dst_buf
+       destinationOffset:dst_off
+                    size:bytes];
+    [blit endEncoding];
+    ok = 1;
+    g_ane_prefill_writeback_ms += ds4_gpu_now_ms() - writeback_t0;
+    g_ane_prefill_successes++;
     ds4_gpu_ane_prefill_job_free(job);
     return ok;
 }
