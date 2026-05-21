@@ -954,6 +954,37 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval(
     }
 }
 
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval_xonly(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *input_i8,
+    uint16_t *output_f16)
+{
+    if (!ctx || !input_i8 || !output_f16) return false;
+    if (ctx->mode != 6) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_x, input_i8, ctx->x_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused xonly write_x failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused xonly evaluate failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused xonly read failed\n");
+            return false;
+        }
+        return true;
+    }
+}
+
 bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval_to_surface(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,

@@ -530,3 +530,144 @@ DS4_FLASH_MOE_MPP_INT8_MID_QSCALE=2 \
 
 Smoke result: build passed with `make ds4`; tiny runtime completed with
 `prefill: 4.20 t/s`, `generation: 2.38 t/s`, `unique=1528`, `reuse=1.69x`.
+
+---
+
+## 10. ANE-only async pipeline (2026-05-19/20)
+
+**Critical env contract:** `DS4_FLASH_MOE_ANE_I8I8_PREFILL=1` MUST be set
+explicitly when running ANE-only (`DS4_FLASH_MOE_MPP_I8I8_PREFILL=0`).
+Without it, `ds4_gpu_ane_prefill_i8i8_enabled()` falls back to reading
+`DS4_FLASH_MOE_MPP_I8I8_PREFILL` and the ANE path silently returns NULL
+from `ane_start_tensor`. Work then falls through to the fp32 GPU MoE
+legacy kernel — output is correct but ANE silicon stays idle and the
+throughput numbers are misleading (they look reasonable because GPU fp32
+is fast). Diagnose with `DS4_FLASH_MOE_TRACE_DISPATCH=1` which logs
+per-group dispatch decision + `start_tensor` return for the first 8
+groups in layers 0–1.
+
+Reference env that engages the async pipeline + makes the scheduler try
+to favor ANE (`DS4_FLASH_MOE_SCHED_ANE_REL_SPEED` accepts up to 1024
+after the 2026-05-20 clamp lift):
+
+```bash
+DS4_FLASH_MOE_ANE_PREFILL=1 \
+DS4_FLASH_MOE_ANE_I8I8_PREFILL=1 \
+DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL=1 \
+DS4_FLASH_MOE_ANE_PIPELINE_PREFILL=1 \
+DS4_FLASH_MOE_OVERLAP_PREFILL=1 \
+DS4_FLASH_MOE_OVERLAP_SCHEDULER=1 \
+DS4_FLASH_MOE_ANE_BATCHES=64,128,256,512 \
+DS4_FLASH_MOE_ANE_MAX_REFS=512 \
+DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS=1 \
+DS4_FLASH_MOE_ANE_MIN_REFS=32 \
+DS4_FLASH_MOE_MPP_INT8_PREFILL=0 \
+DS4_FLASH_MOE_MPP_I8I8_PREFILL=0 \
+DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL=0 \
+DS4_FLASH_MOE_SCHED_ANE_REL_SPEED=99 \
+DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL=0.0 \
+./ds4 -m … --prompt-file …/coding_8k.txt --tokens 1 --temp 0
+```
+
+Reference results on M5 Max, coding_8k.txt (8423 tokens), one full prefill
+chunk (`DS4_METAL_GRAPH_RAW_CAP=8704`) and ANE-only MLP dispatch
+(`gpu_i8_groups=0`, `fp32_groups=0` on every layer):
+
+| Config | Prefill t/s | Notes |
+|---|---:|---|
+| ANE-only, no async pread | 204.41 | Baseline with `DS4_FLASH_MOE_ASYNC_PREAD=0`, `PREFETCH=3`. |
+| ANE-only, async pread tuned | **214.88** | Best M5 Max result so far: `ASYNC_PREAD=1`, `PREFETCH=1`, `ASYNC_PREAD_AFTER_STAGE=1`, `ANE_OUTPUT_QUEUE=1`. |
+| Async + `ANE_OUTPUT_QUEUE=2` | 207.42 | Worse; queueing completed ANE jobs increases tail/convert pressure. |
+| Async + GPU output pack | 186.73 | Removes CPU output convert time, but shared-buffer/copy/Metal scheduling overhead dominates. Do not enable by default. |
+| Async + scalar output pack | 192.97 | Diagnostic only; proves NEON vector output conversion matters. |
+| Async + `PREFETCH=0` | 193.67 | Too little read speculation; long cross-layer issue gaps return. |
+
+Best current M5 Max ANE-only profile env:
+
+```bash
+DS4_FLASH_MOE_ASYNC_PREAD=1
+DS4_FLASH_MOE_PREFETCH=1
+DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE=1
+DS4_FLASH_MOE_ANE_OUTPUT_QUEUE=1
+```
+
+Do **not** enable these by default on M5 Max:
+
+```bash
+DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK=1      # slower end-to-end despite cheap GPU encode
+DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK=1   # diagnostic override; disables NEON conversion
+DS4_FLASH_MOE_ANE_OUTPUT_QUEUE=2          # slower than queue depth 1 in this sweep
+```
+
+The async pread win is scheduling rather than raw read bandwidth. On M5 Max,
+baseline pread time was 8.95 s and tuned async pread was 9.43 s, but pread span
+fell from 39.10 s to 37.22 s and same-layer post-stage gap fell from 11.84 s
+to 0.08 s. That produced a net +5.1% throughput improvement.
+
+The remaining limiter is not raw output conversion alone. NEON vector output
+packing reduces `output_pack` from 7.24 s (scalar diagnostic) to about 2.44 s,
+but the tuned run still shows a large `post_wait`/pipeline tail. GPU output
+packing reduced `output_pack` to 28.8 ms, but the full run dropped to 186.73
+t/s because the extra shared-buffer and Metal-side costs lengthened the layer
+pipeline.
+
+For repeatable M5 Max profiling use:
+
+```bash
+./run_ane_prefill_profile_m5max.sh
+```
+
+Logs are written under `moe-batch-bench/profile_runs/`. Use
+`DS4_RUN_NAME=...` to label a sweep and override individual env keys at the
+command line.
+
+**Interpretation.** ANE-only is now useful as a profiling mode and the async
+sidecar read schedule is measurably better on M5 Max, but ANE still does not
+beat the GPU-only MPP int8 path for this end-to-end prefill workload. See
+Appendix C in `DSv4_MLP_ANE_Matmul_Investigation.md` for the broader
+engine-selection conclusion and the multi-ctx pool negative result.
+
+## 11. M5 Max GPU-only async pread profile (2026-05-21)
+
+GPU-only MPP i8w-i8x fused prefill also benefits from the new async sidecar
+pread path. The ANE output-pack flags are intentionally disabled for this mode:
+they only affect ANE job output conversion and should not be part of a pure GPU
+profile.
+
+Reference results on M5 Max, coding_8k.txt (8423 tokens), one full prefill
+chunk (`DS4_METAL_GRAPH_RAW_CAP=8704`), 32 slot-bank slots, GPU-only MLP
+dispatch:
+
+| Config | Prefill t/s | GPU layer-major total | Stage/pread notes |
+|---|---:|---:|---|
+| GPU-only, no async pread | 225.57 | 37.26 s | `ASYNC_PREAD=0`, `PREFETCH=3`; same-layer post-stage gap 11.18 s. |
+| GPU-only, async pread tuned | **276.56** | 30.37 s | `ASYNC_PREAD=1`, `PREFETCH=1`, `ASYNC_PREAD_AFTER_STAGE=1`; same-layer post-stage gap 0.07 s. |
+| GPU-only, async pread + `PREFETCH=3` | 275.50 | 30.48 s | Similar but slightly slower than prefetch 1 on this run. |
+| GPU-only, async pread before-stage | 273.23 | 30.73 s | `ASYNC_PREAD_AFTER_STAGE=0`; slightly worse. |
+
+Best current M5 Max GPU-only profile env:
+
+```bash
+DS4_FLASH_MOE_ASYNC_PREAD=1
+DS4_FLASH_MOE_PREFETCH=1
+DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE=1
+DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK=0
+DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK=0
+```
+
+The gain is again scheduling rather than raw read bandwidth. Baseline pread was
+6.96 s at about 10.19 GiB/s; tuned async pread was 6.68 s at about 10.63 GiB/s.
+The important change is that read issue/post gaps are pulled out of the critical
+same-layer path: total pread span fell from 36.64 s to 29.74 s and same-layer
+post-stage gap fell from 11.18 s to 0.07 s. End-to-end prefill improved by
+about 22.6%.
+
+For repeatable M5 Max GPU-only profiling use:
+
+```bash
+./run_gpu_prefill_profile_m5max.sh
+```
+
+Override `DS4_SLOTS`, `DS4_PREFILL_CHUNK`, `DS4_PROMPT_FILE`,
+`DS4_METAL_GRAPH_RAW_CAP`, or `DS4_RUN_NAME` in the environment when comparing
+different machines or prompt sizes.

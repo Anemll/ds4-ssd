@@ -10,7 +10,11 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <fcntl.h>
 #include <sys/sysctl.h>
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
 
 #include "ds4.h"
 #include "ds4_gpu.h"
@@ -94,6 +98,7 @@ static id<MTLComputePipelineState> g_mpp_dequant_iq2_xxs_i8_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_q2_k_i8_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_q2_k_f16_pipeline;
+static id<MTLComputePipelineState> g_ane_output_pack_f16_f32_pipeline;
 static id<MTLComputePipelineState> g_rope_tail_batch_pipeline;
 static id<MTLComputePipelineState> g_dsv4_fp8_kv_quantize_pipeline;
 static id<MTLComputePipelineState> g_dsv4_kv_fp8_store_pipeline;
@@ -253,10 +258,25 @@ static uint64_t g_ane_prefill_x_values;
 static uint64_t g_ane_prefill_x_saturated;
 static float g_ane_prefill_x_abs_max;
 static double g_ane_prefill_dequant_ms;
+static double g_ane_prefill_dequant_wait_ms;
 static double g_ane_prefill_input_ms;
+static double g_ane_prefill_x_zero_ms;
+static double g_ane_prefill_x_copy_ms;
+static double g_ane_prefill_out_zero_ms;
 static double g_ane_prefill_eval_ms;
 static double g_ane_prefill_output_ms;
+static double g_ane_prefill_output_f16_copy_ms;
+static double g_ane_prefill_output_convert_ms;
+static double g_ane_prefill_output_gpu_encode_ms;
+static double g_ane_prefill_post_wait_ms;
 static double g_ane_prefill_writeback_ms;
+static double g_ane_prefill_wait_predict_ms;
+static double g_ane_prefill_finish_join_ane_ms;
+static double g_ane_prefill_finish_join_post_ms;
+static uint64_t g_ane_prefill_wait_predict_calls;
+static uint64_t g_ane_prefill_finish_calls;
+static uint64_t g_ane_prefill_output_elems;
+static uint64_t g_ane_prefill_output_chunks;
 static int g_model_request_residency = 1;
 static int g_model_warm_views = 1;
 
@@ -341,6 +361,37 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
                 g_ane_prefill_dequant_ms + g_ane_prefill_input_ms +
                     g_ane_prefill_eval_ms + g_ane_prefill_output_ms +
                     g_ane_prefill_writeback_ms);
+        if (g_ane_prefill_output_elems != 0 ||
+            g_ane_prefill_dequant_wait_ms != 0.0 ||
+            g_ane_prefill_post_wait_ms != 0.0) {
+            const double gelem = (double)g_ane_prefill_output_elems / 1000000000.0;
+            const double convert_rate = g_ane_prefill_output_convert_ms > 0.0 ?
+                gelem / (g_ane_prefill_output_convert_ms / 1000.0) : 0.0;
+            fprintf(stderr,
+                    "ds4: ANE prefill timing3 dequant_wait=%.3f ms post_wait=%.3f ms x_zero=%.3f ms x_copy=%.3f ms out_zero=%.3f ms out_f16_copy=%.3f ms output_convert=%.3f ms output_gpu_encode=%.3f ms output_chunks=%llu output_elems=%llu output_convert_rate=%.3f Gelem/s\n",
+                    g_ane_prefill_dequant_wait_ms,
+                    g_ane_prefill_post_wait_ms,
+                    g_ane_prefill_x_zero_ms,
+                    g_ane_prefill_x_copy_ms,
+                    g_ane_prefill_out_zero_ms,
+                    g_ane_prefill_output_f16_copy_ms,
+                    g_ane_prefill_output_convert_ms,
+                    g_ane_prefill_output_gpu_encode_ms,
+                    (unsigned long long)g_ane_prefill_output_chunks,
+                    (unsigned long long)g_ane_prefill_output_elems,
+                    convert_rate);
+        }
+        if (g_ane_prefill_wait_predict_ms != 0.0 ||
+            g_ane_prefill_finish_join_ane_ms != 0.0 ||
+            g_ane_prefill_finish_join_post_ms != 0.0) {
+            fprintf(stderr,
+                    "ds4: ANE prefill timing4 wait_predict=%.3f ms finish_join_ane=%.3f ms finish_join_post=%.3f ms wait_predict_calls=%llu finish_calls=%llu\n",
+                    g_ane_prefill_wait_predict_ms,
+                    g_ane_prefill_finish_join_ane_ms,
+                    g_ane_prefill_finish_join_post_ms,
+                    (unsigned long long)g_ane_prefill_wait_predict_calls,
+                    (unsigned long long)g_ane_prefill_finish_calls);
+        }
         fprintf(stderr,
                 "ds4: ANE prefill chunks refs=%llu padded_refs=%llu pad_util=%.2f%% le16=%llu le64=%llu le128=%llu full=%llu\n",
                 (unsigned long long)g_ane_prefill_eval_refs,
@@ -569,6 +620,28 @@ static double ds4_gpu_now_ms(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
+}
+
+static void ds4_gpu_prefill_trace_interval(const char *name,
+                                           double      t0_ms,
+                                           double      t1_ms) {
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static int fd = -2;
+    if (!name || t1_ms < t0_ms) return;
+    pthread_mutex_lock(&mu);
+    if (fd == -2) {
+        const char *path = getenv("DS4_PREFILL_TRACE_CSV");
+        fd = (path && path[0]) ? open(path, O_WRONLY | O_CREAT | O_APPEND, 0644) : -1;
+    }
+    if (fd >= 0) {
+        char line[256];
+        int n = snprintf(line, sizeof(line), "%.6f,%.6f,%s,0,-1\n",
+                         t0_ms, t1_ms, name);
+        if (n > 0 && n < (int)sizeof(line)) {
+            (void)write(fd, line, (size_t)n);
+        }
+    }
+    pthread_mutex_unlock(&mu);
 }
 
 static int ds4_gpu_progress_enabled(void) {
@@ -4427,6 +4500,7 @@ void ds4_gpu_cleanup(void) {
         g_mpp_dequant_q2_k_i8_pipeline = nil;
         g_ane_dequant_iq2_xxs_f16_pipeline = nil;
         g_ane_dequant_q2_k_f16_pipeline = nil;
+        g_ane_output_pack_f16_f32_pipeline = nil;
         g_rope_tail_batch_pipeline = nil;
         g_dsv4_fp8_kv_quantize_pipeline = nil;
         g_dsv4_kv_fp8_store_pipeline = nil;
@@ -4563,10 +4637,25 @@ void ds4_gpu_cleanup(void) {
         g_ane_prefill_x_saturated = 0;
         g_ane_prefill_x_abs_max = 0.0f;
         g_ane_prefill_dequant_ms = 0.0;
+        g_ane_prefill_dequant_wait_ms = 0.0;
         g_ane_prefill_input_ms = 0.0;
+        g_ane_prefill_x_zero_ms = 0.0;
+        g_ane_prefill_x_copy_ms = 0.0;
+        g_ane_prefill_out_zero_ms = 0.0;
         g_ane_prefill_eval_ms = 0.0;
         g_ane_prefill_output_ms = 0.0;
+        g_ane_prefill_output_f16_copy_ms = 0.0;
+        g_ane_prefill_output_convert_ms = 0.0;
+        g_ane_prefill_output_gpu_encode_ms = 0.0;
+        g_ane_prefill_post_wait_ms = 0.0;
         g_ane_prefill_writeback_ms = 0.0;
+        g_ane_prefill_wait_predict_ms = 0.0;
+        g_ane_prefill_finish_join_ane_ms = 0.0;
+        g_ane_prefill_finish_join_post_ms = 0.0;
+        g_ane_prefill_wait_predict_calls = 0;
+        g_ane_prefill_finish_calls = 0;
+        g_ane_prefill_output_elems = 0;
+        g_ane_prefill_output_chunks = 0;
         ds4_ane_mlp_int8w_quant_stats_reset();
         g_model_request_residency = 1;
         g_model_warm_views = 1;
@@ -11965,6 +12054,46 @@ static float ds4_gpu_f16_bits_to_f32(uint16_t h) {
     return f;
 }
 
+static int ds4_gpu_ane_scalar_output_pack_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static int ds4_gpu_ane_gpu_output_pack_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static void ds4_gpu_f16_to_weighted_f32_row(float *dst,
+                                            const uint16_t *src,
+                                            uint32_t n,
+                                            float weight,
+                                            int force_scalar) {
+#if defined(__ARM_NEON)
+    if (!force_scalar) {
+        uint32_t i = 0;
+        const float32x4_t wv = vdupq_n_f32(weight);
+        for (; i + 8u <= n; i += 8u) {
+            const uint16x8_t hu = vld1q_u16(src + i);
+            const float16x8_t hv = vreinterpretq_f16_u16(hu);
+            const float32x4_t lo = vmulq_f32(vcvt_f32_f16(vget_low_f16(hv)), wv);
+            const float32x4_t hi = vmulq_f32(vcvt_f32_f16(vget_high_f16(hv)), wv);
+            vst1q_f32(dst + i, lo);
+            vst1q_f32(dst + i + 4u, hi);
+        }
+        for (; i < n; i++) {
+            dst[i] = ds4_gpu_f16_bits_to_f32(src[i]) * weight;
+        }
+        return;
+    }
+#else
+    (void)force_scalar;
+#endif
+    for (uint32_t i = 0; i < n; i++) {
+        dst[i] = ds4_gpu_f16_bits_to_f32(src[i]) * weight;
+    }
+}
+
 static int ds4_gpu_encode_bin_f32_rows(
         id<MTLCommandBuffer>        cb,
         id<MTLComputePipelineState> pipeline,
@@ -14217,6 +14346,16 @@ static int ds4_gpu_encode_ane_dequant_q2_k_f16(
         id<MTLBuffer>        dst,
         uint32_t             q_rows,
         uint32_t             q_cols);
+static int ds4_gpu_encode_ane_output_pack_f16_f32(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           dst_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        uint32_t             width,
+        uint32_t             rows);
 
 static void ds4_gpu_ane_prefill_env(float *w_qscale,
                                     float *w_scale,
@@ -14780,6 +14919,8 @@ struct ds4_gpu_ane_prefill_job {
     uint32_t chunk_count;
     uint32_t chunks_ready;
     uint32_t chunks_posted;
+    int scalar_output_pack;
+    int gpu_output_pack;
     float ane_w_scale;
     float ane_x_scale;
     float ane_mid_scale;
@@ -14792,18 +14933,28 @@ struct ds4_gpu_ane_prefill_job {
     uint16_t *out_f16_batch;
     uint16_t *out_f16_all;
     float *out_f32;
+    __strong id<MTLBuffer> out_f16_all_mtl;
     /* MTLBuffer backing out_f32 so the eventual writeback into flash_prefill_out
      * can be a GPU blit serialized on the queue (rather than a CPU memcpy that
      * races with the previous scatter_add still in flight). */
     __strong id<MTLBuffer> out_f32_mtl;
     float *route_weights;
+    __strong id<MTLBuffer> route_weights_mtl;
     uint64_t out_elems64;
     uint64_t out_bucket_elems64;
+    double x_zero_ms;
+    double x_copy_ms;
+    double out_zero_ms;
     double eval_ms;
     double output_ms;
+    double output_f16_copy_ms;
+    double output_convert_ms;
+    double post_wait_ms;
     uint64_t eval_calls;
     uint64_t eval_refs;
     uint64_t padded_refs;
+    uint64_t output_elems;
+    uint64_t output_chunks;
     uint64_t chunks_le16;
     uint64_t chunks_le64;
     uint64_t chunks_le128;
@@ -14818,12 +14969,16 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
     }
     free(job->x_i8_batch);
     free(job->out_f16_batch);
-    free(job->out_f16_all);
+    if (!job->out_f16_all_mtl) free(job->out_f16_all);
+    job->out_f16_all = NULL;
+    job->out_f16_all_mtl = nil;
     /* out_f32 aliases out_f32_mtl.contents; ARC releases the MTLBuffer when
      * we drop the __strong reference. */
     job->out_f32 = NULL;
     job->out_f32_mtl = nil;
-    free(job->route_weights);
+    if (!job->route_weights_mtl) free(job->route_weights);
+    job->route_weights = NULL;
+    job->route_weights_mtl = nil;
     free(job);
 }
 
@@ -14847,11 +15002,17 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
         const uint32_t begin = chunk_idx * job->ane_chunk_refs;
         const uint32_t chunk = (job->n_tokens - begin) < job->ane_chunk_refs ?
             (job->n_tokens - begin) : job->ane_chunk_refs;
+        const double x_zero_t0 = ds4_gpu_now_ms();
         memset(job->x_i8_batch, 0, (size_t)job->ane_batch * job->expert_in_dim);
+        job->x_zero_ms += ds4_gpu_now_ms() - x_zero_t0;
+        const double out_zero_t0 = ds4_gpu_now_ms();
         memset(job->out_f16_batch, 0, (size_t)job->out_bucket_elems64 * sizeof(uint16_t));
+        job->out_zero_ms += ds4_gpu_now_ms() - out_zero_t0;
+        const double x_copy_t0 = ds4_gpu_now_ms();
         memcpy(job->x_i8_batch,
                job->x_i8_all + (uint64_t)begin * job->expert_in_dim,
                (size_t)((uint64_t)chunk * job->expert_in_dim));
+        job->x_copy_ms += ds4_gpu_now_ms() - x_copy_t0;
 
         job->eval_calls++;
         job->eval_refs += chunk;
@@ -14873,7 +15034,9 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
                                                              job->down_i8,
                                                              job->x_i8_batch,
                                                              job->out_f16_batch) ? 1 : 0;
-        job->eval_ms += ds4_gpu_now_ms() - eval_t0;
+        const double eval_t1 = ds4_gpu_now_ms();
+        job->eval_ms += eval_t1 - eval_t0;
+        ds4_gpu_prefill_trace_interval("ane_eval", eval_t0, eval_t1);
         if (!ok) {
             pthread_mutex_lock(&job->mu);
             job->ane_failed = 1;
@@ -14883,11 +15046,15 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
             return NULL;
         }
 
+        const double f16_copy_t0 = ds4_gpu_now_ms();
         for (uint32_t r = 0; r < chunk; r++) {
             memcpy(job->out_f16_all + (uint64_t)(begin + r) * job->out_dim,
                    job->out_f16_batch + (uint64_t)r * job->out_dim,
                    (size_t)job->out_dim * sizeof(uint16_t));
         }
+        const double f16_copy_t1 = ds4_gpu_now_ms();
+        job->output_f16_copy_ms += f16_copy_t1 - f16_copy_t0;
+        ds4_gpu_prefill_trace_interval("out_f16_copy", f16_copy_t0, f16_copy_t1);
 
         pthread_mutex_lock(&job->mu);
         job->chunks_ready = chunk_idx + 1u;
@@ -14905,6 +15072,7 @@ static void *ds4_gpu_ane_prefill_post_thread(void *arg) {
     ds4_gpu_ane_prefill_job *job = (ds4_gpu_ane_prefill_job *)arg;
     if (!job) return NULL;
     for (;;) {
+        const double wait_t0 = ds4_gpu_now_ms();
         pthread_mutex_lock(&job->mu);
         while (job->chunks_posted >= job->chunks_ready &&
                !job->ane_done &&
@@ -14919,6 +15087,7 @@ static void *ds4_gpu_ane_prefill_post_thread(void *arg) {
         }
         const uint32_t chunk_idx = job->chunks_posted++;
         pthread_mutex_unlock(&job->mu);
+        job->post_wait_ms += ds4_gpu_now_ms() - wait_t0;
 
         const uint32_t begin = chunk_idx * job->ane_chunk_refs;
         const uint32_t chunk = (job->n_tokens - begin) < job->ane_chunk_refs ?
@@ -14926,13 +15095,21 @@ static void *ds4_gpu_ane_prefill_post_thread(void *arg) {
         const double output_t0 = ds4_gpu_now_ms();
         for (uint32_t r = 0; r < chunk; r++) {
             const float rw = job->route_weights[begin + r];
-            for (uint32_t c = 0; c < job->out_dim; c++) {
-                const uint64_t src_idx = (uint64_t)(begin + r) * job->out_dim + c;
-                const uint64_t dst_idx = (uint64_t)(begin + r) * job->out_dim + c;
-                job->out_f32[dst_idx] = ds4_gpu_f16_bits_to_f32(job->out_f16_all[src_idx]) * rw;
-            }
+            const uint64_t row = (uint64_t)(begin + r) * job->out_dim;
+            ds4_gpu_f16_to_weighted_f32_row(job->out_f32 + row,
+                                            job->out_f16_all + row,
+                                            job->out_dim,
+                                            rw,
+                                            job->scalar_output_pack);
         }
-        job->output_ms += ds4_gpu_now_ms() - output_t0;
+        const double output_ms = ds4_gpu_now_ms() - output_t0;
+        job->output_ms += output_ms;
+        job->output_convert_ms += output_ms;
+        job->output_elems += (uint64_t)chunk * job->out_dim;
+        job->output_chunks++;
+        ds4_gpu_prefill_trace_interval("output_convert",
+                                       output_t0,
+                                       output_t0 + output_ms);
     }
     pthread_mutex_lock(&job->mu);
     job->post_done = 1;
@@ -15135,6 +15312,8 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->out_dim = out_dim;
     job->ane_batch = ane_batch;
     job->ane_chunk_refs = ane_chunk_refs;
+    job->scalar_output_pack = ds4_gpu_ane_scalar_output_pack_enabled();
+    job->gpu_output_pack = ds4_gpu_ane_gpu_output_pack_enabled();
     job->ane_w_scale = ane_w_scale;
     job->ane_x_scale = ane_x_scale;
     job->ane_mid_scale = ane_mid_scale;
@@ -15148,14 +15327,28 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->chunk_count = (n_tokens + ane_chunk_refs - 1u) / ane_chunk_refs;
     job->x_i8_batch = (int8_t *)malloc((size_t)x_batch_elems64);
     job->out_f16_batch = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
-    job->out_f16_all = (uint16_t *)malloc((size_t)out_elems64 * sizeof(uint16_t));
-    const NSUInteger out_f32_bytes = (NSUInteger)(out_elems64 * sizeof(float));
-    job->out_f32_mtl = [g_device newBufferWithLength:out_f32_bytes
-                                             options:MTLResourceStorageModeShared];
-    job->out_f32 = job->out_f32_mtl ? (float *)[job->out_f32_mtl contents] : NULL;
-    job->route_weights = (float *)malloc((size_t)n_tokens * sizeof(float));
+    if (job->gpu_output_pack) {
+        job->out_f16_all_mtl =
+            [g_device newBufferWithLength:(NSUInteger)(out_elems64 * sizeof(uint16_t))
+                                  options:MTLResourceStorageModeShared];
+        job->out_f16_all =
+            job->out_f16_all_mtl ? (uint16_t *)[job->out_f16_all_mtl contents] : NULL;
+        job->route_weights_mtl =
+            [g_device newBufferWithLength:(NSUInteger)n_tokens * sizeof(float)
+                                  options:MTLResourceStorageModeShared];
+        job->route_weights =
+            job->route_weights_mtl ? (float *)[job->route_weights_mtl contents] : NULL;
+    } else {
+        job->out_f16_all = (uint16_t *)malloc((size_t)out_elems64 * sizeof(uint16_t));
+        const NSUInteger out_f32_bytes = (NSUInteger)(out_elems64 * sizeof(float));
+        job->out_f32_mtl = [g_device newBufferWithLength:out_f32_bytes
+                                                 options:MTLResourceStorageModeShared];
+        job->out_f32 = job->out_f32_mtl ? (float *)[job->out_f32_mtl contents] : NULL;
+        job->route_weights = (float *)malloc((size_t)n_tokens * sizeof(float));
+    }
     if (!job->x_i8_all || !job->x_i8_batch || !job->out_f16_batch ||
-        !job->out_f16_all || !job->out_f32 || !job->out_f32_mtl ||
+        !job->out_f16_all || (!job->gpu_output_pack && (!job->out_f32 || !job->out_f32_mtl)) ||
+        (job->gpu_output_pack && (!job->out_f16_all_mtl || !job->route_weights_mtl)) ||
         !job->route_weights ||
         !job->gate_i8 || !job->up_i8 || !job->down_i8) {
         goto done;
@@ -15168,10 +15361,12 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     memcpy(job->route_weights, w_ptr, (size_t)n_tokens * sizeof(float));
     g_ane_prefill_input_ms += ds4_gpu_now_ms() - input_t0;
 
-    if (pthread_create(&job->post_thread, NULL, ds4_gpu_ane_prefill_post_thread, job) != 0) {
-        goto done;
+    if (!job->gpu_output_pack) {
+        if (pthread_create(&job->post_thread, NULL, ds4_gpu_ane_prefill_post_thread, job) != 0) {
+            goto done;
+        }
+        job->post_thread_started = 1;
     }
-    job->post_thread_started = 1;
     if (pthread_create(&job->ane_thread, NULL, ds4_gpu_ane_prefill_tiled_fused_thread, job) != 0) {
         goto done;
     }
@@ -15246,6 +15441,8 @@ done:
 int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
         ds4_gpu_ane_prefill_job *job) {
     if (!job) return 0;
+    g_ane_prefill_wait_predict_calls++;
+    const double wait_t0 = ds4_gpu_now_ms();
     if (job->ane_thread_started) {
         pthread_join(job->ane_thread, NULL);
         job->ane_thread_started = 0;
@@ -15256,6 +15453,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
         }
         pthread_mutex_unlock(&job->mu);
     }
+    g_ane_prefill_wait_predict_ms += ds4_gpu_now_ms() - wait_t0;
     return !job->ane_failed && job->ane_done;
 }
 
@@ -15268,16 +15466,30 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         ds4_gpu_ane_prefill_job_free(job);
         return 0;
     }
+    g_ane_prefill_finish_calls++;
     if (job->ane_thread_started) {
+        const double join_t0 = ds4_gpu_now_ms();
         pthread_join(job->ane_thread, NULL);
+        g_ane_prefill_finish_join_ane_ms += ds4_gpu_now_ms() - join_t0;
         job->ane_thread_started = 0;
     }
     if (job->post_thread_started) {
+        const double join_t0 = ds4_gpu_now_ms();
         pthread_join(job->post_thread, NULL);
+        g_ane_prefill_finish_join_post_ms += ds4_gpu_now_ms() - join_t0;
         job->post_thread_started = 0;
     }
     g_ane_prefill_eval_ms += job->eval_ms;
     g_ane_prefill_output_ms += job->output_ms;
+    g_ane_prefill_dequant_wait_ms += job->dequant_wait_ms;
+    g_ane_prefill_x_zero_ms += job->x_zero_ms;
+    g_ane_prefill_x_copy_ms += job->x_copy_ms;
+    g_ane_prefill_out_zero_ms += job->out_zero_ms;
+    g_ane_prefill_output_f16_copy_ms += job->output_f16_copy_ms;
+    g_ane_prefill_output_convert_ms += job->output_convert_ms;
+    g_ane_prefill_post_wait_ms += job->post_wait_ms;
+    g_ane_prefill_output_elems += job->output_elems;
+    g_ane_prefill_output_chunks += job->output_chunks;
     g_ane_prefill_eval_calls += job->eval_calls;
     g_ane_prefill_eval_refs += job->eval_refs;
     g_ane_prefill_padded_refs += job->padded_refs;
@@ -15291,7 +15503,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
                                    job->padded_refs);
     g_ane_prefill_ane_evaluate_calls +=
         job->eval_calls * ds4_gpu_ane_mode_evaluate_calls(6);
-    int ok = !job->ane_failed && !job->post_failed && job->ane_done && job->post_done;
+    int ok = !job->ane_failed && !job->post_failed && job->ane_done &&
+        (job->gpu_output_pack || job->post_done);
     if (!ok) {
         g_ane_prefill_eval_failures++;
         ds4_gpu_ane_prefill_job_free(job);
@@ -15314,6 +15527,44 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
     id<MTLBuffer> dst_buf = ds4_gpu_tensor_buffer(out);
     const NSUInteger dst_off = ds4_gpu_tensor_offset(out);
     const NSUInteger bytes = (NSUInteger)(job->out_elems64 * sizeof(float));
+    if (job->gpu_output_pack) {
+        const NSUInteger f16_bytes = (NSUInteger)(job->out_elems64 * sizeof(uint16_t));
+        const NSUInteger weight_bytes = (NSUInteger)job->n_tokens * sizeof(float);
+        if (!dst_buf || !job->out_f16_all_mtl || !job->route_weights_mtl ||
+            job->out_f16_all_mtl.length < f16_bytes ||
+            job->route_weights_mtl.length < weight_bytes) {
+            g_ane_prefill_write_failures++;
+            ds4_gpu_ane_prefill_job_free(job);
+            return 0;
+        }
+        const double output_t0 = ds4_gpu_now_ms();
+        ok = ds4_gpu_encode_ane_output_pack_f16_f32(g_batch_cb,
+                                                    job->out_f16_all_mtl,
+                                                    0,
+                                                    dst_buf,
+                                                    dst_off,
+                                                    job->route_weights_mtl,
+                                                    0,
+                                                    job->out_dim,
+                                                    job->n_tokens);
+        const double output_t1 = ds4_gpu_now_ms();
+        if (!ok) {
+            g_ane_prefill_write_failures++;
+            ds4_gpu_ane_prefill_job_free(job);
+            return 0;
+        }
+        const double output_ms = output_t1 - output_t0;
+        g_ane_prefill_output_ms += output_ms;
+        g_ane_prefill_output_convert_ms += output_ms;
+        g_ane_prefill_output_gpu_encode_ms += output_ms;
+        g_ane_prefill_output_elems += job->out_elems64;
+        g_ane_prefill_output_chunks += 1;
+        ds4_gpu_prefill_trace_interval("output_gpu_encode", output_t0, output_t1);
+        g_ane_prefill_writeback_ms += output_t1 - writeback_t0;
+        g_ane_prefill_successes++;
+        ds4_gpu_ane_prefill_job_free(job);
+        return 1;
+    }
     if (!dst_buf || job->out_f32_mtl.length < bytes) {
         g_ane_prefill_write_failures++;
         ds4_gpu_ane_prefill_job_free(job);
@@ -15333,7 +15584,9 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
                     size:bytes];
     [blit endEncoding];
     ok = 1;
-    g_ane_prefill_writeback_ms += ds4_gpu_now_ms() - writeback_t0;
+    const double writeback_t1 = ds4_gpu_now_ms();
+    g_ane_prefill_writeback_ms += writeback_t1 - writeback_t0;
+    ds4_gpu_prefill_trace_interval("writeback_encode", writeback_t0, writeback_t1);
     g_ane_prefill_successes++;
     ds4_gpu_ane_prefill_job_free(job);
     return ok;
@@ -15627,6 +15880,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                 ane_batch, expert_in_dim, expert_mid_dim, ane_qscale, ane_x_qscale, ane_mid_qscale);
     }
 
+    const int scalar_output_pack = ds4_gpu_ane_scalar_output_pack_enabled();
     for (uint32_t begin = 0; begin < n_tokens; begin += ane_chunk_refs) {
         const uint32_t chunk = (n_tokens - begin) < ane_chunk_refs ?
             (n_tokens - begin) : ane_chunk_refs;
@@ -15828,13 +16082,17 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
         const double output_t0 = ds4_gpu_now_ms();
         for (uint32_t r = 0; r < chunk; r++) {
             const float rw = w_ptr[begin + r];
-            for (uint32_t c = 0; c < out_dim; c++) {
-                uint64_t src_idx = (uint64_t)r * out_dim + c;
-                uint64_t dst_idx = (uint64_t)(begin + r) * out_dim + c;
-                out_f32[dst_idx] = ds4_gpu_f16_bits_to_f32(out_f16[src_idx]) * rw;
-            }
+            ds4_gpu_f16_to_weighted_f32_row(out_f32 + (uint64_t)(begin + r) * out_dim,
+                                            out_f16 + (uint64_t)r * out_dim,
+                                            out_dim,
+                                            rw,
+                                            scalar_output_pack);
         }
-        g_ane_prefill_output_ms += ds4_gpu_now_ms() - output_t0;
+        const double output_ms = ds4_gpu_now_ms() - output_t0;
+        g_ane_prefill_output_ms += output_ms;
+        g_ane_prefill_output_convert_ms += output_ms;
+        g_ane_prefill_output_elems += (uint64_t)chunk * out_dim;
+        g_ane_prefill_output_chunks++;
     }
     if (ane_debug) fprintf(stderr, "ds4: ANE tensor eval ok\n");
     const double writeback_t0 = ds4_gpu_now_ms();
@@ -16013,6 +16271,23 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "                                  uint tid [[thread_position_in_grid]]) {\n"
         "    if (tid >= n) return;\n"
         "    dst[tid] = float(src[tid]) * scale;\n"
+        "}\n"
+        "\n"
+        "kernel void ds4_ane_output_pack_f16_f32(device const half *src [[buffer(0)]],\n"
+        "                                        device float *dst [[buffer(1)]],\n"
+        "                                        device const float *weights [[buffer(2)]],\n"
+        "                                        constant uint &width [[buffer(3)]],\n"
+        "                                        constant uint &rows [[buffer(4)]],\n"
+        "                                        uint row [[threadgroup_position_in_grid]],\n"
+        "                                        uint tid [[thread_position_in_threadgroup]],\n"
+        "                                        uint ntg [[threads_per_threadgroup]]) {\n"
+        "    if (row >= rows) return;\n"
+        "    const float weight = weights[row];\n"
+        "    device const half *src_row = src + (ulong)row * width;\n"
+        "    device float *dst_row = dst + (ulong)row * width;\n"
+        "    for (uint i = tid; i < width; i += ntg) {\n"
+        "        dst_row[i] = float(src_row[i]) * weight;\n"
+        "    }\n"
         "}\n";
 }
 
@@ -16042,7 +16317,8 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         g_mpp_quant_mid_f32_i8_pipeline &&
         g_mpp_scale_i32_f32_pipeline &&
         g_mpp_dequant_iq2_xxs_i8_pipeline &&
-        g_mpp_dequant_q2_k_i8_pipeline) {
+        g_mpp_dequant_q2_k_i8_pipeline &&
+        g_ane_output_pack_f16_f32_pipeline) {
         return 1;
     }
 
@@ -16094,6 +16370,8 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_quant_mid_f32_i8");
     g_mpp_scale_i32_f32_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_scale_i32_f32");
+    g_ane_output_pack_f16_f32_pipeline =
+        ds4_gpu_make_mpp_pipeline(library, @"ds4_ane_output_pack_f16_f32");
 
     return g_mpp_h_i8_f_pipeline && g_mpp_f_i8_f_pipeline &&
            g_mpp_i8_i8_i32_pipeline &&
@@ -16102,7 +16380,8 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
            g_mpp_swiglu_i32_weight_i8_pipeline &&
            g_mpp_quant_f32_i8_pipeline &&
            g_mpp_quant_mid_f32_i8_pipeline &&
-           g_mpp_scale_i32_f32_pipeline;
+           g_mpp_scale_i32_f32_pipeline &&
+           g_ane_output_pack_f16_f32_pipeline;
 }
 
 static int ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(
@@ -16273,6 +16552,38 @@ static int ds4_gpu_encode_mpp_swiglu_weight(
     [enc setBytes:&rows length:sizeof(rows) atIndex:5];
     [enc setBytes:&clamp_value length:sizeof(clamp_value) atIndex:6];
     [enc setBytes:&input_scale length:sizeof(input_scale) atIndex:7];
+    [enc dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
+         threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+static int ds4_gpu_encode_ane_output_pack_f16_f32(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           dst_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        uint32_t             width,
+        uint32_t             rows) {
+    if (!cb || !src || !dst || !weights || width == 0 || rows == 0 ||
+        !g_ane_output_pack_f16_f32_pipeline) {
+        return 0;
+    }
+    NSUInteger nth = g_ane_output_pack_f16_f32_pipeline.maxTotalThreadsPerThreadgroup;
+    if (nth > 256u) nth = 256u;
+    if (nth > width) nth = width;
+    if (nth == 0) nth = 1u;
+
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_ane_output_pack_f16_f32_pipeline];
+    [enc setBuffer:src offset:src_off atIndex:0];
+    [enc setBuffer:dst offset:dst_off atIndex:1];
+    [enc setBuffer:weights offset:weights_off atIndex:2];
+    [enc setBytes:&width length:sizeof(width) atIndex:3];
+    [enc setBytes:&rows length:sizeof(rows) atIndex:4];
     [enc dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
          threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);

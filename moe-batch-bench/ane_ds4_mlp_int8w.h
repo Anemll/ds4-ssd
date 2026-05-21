@@ -84,6 +84,15 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval_to_surface(
     const int8_t *Wdown_i8,
     const int8_t *input_i8);
 
+/* Variant that skips re-writing the weight IOSurfaces: assumes a prior call
+ * has already populated them with the desired expert's gate/up/down weights.
+ * Only the input is written and the output is read. Used to measure how much
+ * of per-call wall time is spent on weight upload vs. ANE evaluate itself. */
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval_xonly(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *input_i8,
+    uint16_t *output_f16);
+
 const uint16_t *ds4_ane_mlp_int8w_lock_output_f16(ds4_ane_mlp_int8w_ctx *ctx, uint64_t *elems);
 void ds4_ane_mlp_int8w_unlock_output(ds4_ane_mlp_int8w_ctx *ctx);
 
