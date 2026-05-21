@@ -671,3 +671,209 @@ For repeatable M5 Max GPU-only profiling use:
 Override `DS4_SLOTS`, `DS4_PREFILL_CHUNK`, `DS4_PROMPT_FILE`,
 `DS4_METAL_GRAPH_RAW_CAP`, or `DS4_RUN_NAME` in the environment when comparing
 different machines or prompt sizes.
+
+## 12. Solo/blocker analysis workflow (M3U, 2026-05-21)
+
+Use this workflow when a raw stage has a large accumulated time but it is not
+clear whether that stage is actually limiting prefill throughput. In this doc,
+**solo** or **blocked** means time where the main prefill pipeline cannot make
+forward progress because a dependent stage has not completed.
+
+### Procedure
+
+1. Measure physical work time. These are accumulated raw stage durations:
+
+```text
+sidecar pread
+Metal upload
+ANE eval
+output_convert / output_pack
+scatter / writeback
+```
+
+2. Measure main-thread blocking time. The useful timers are:
+
+```text
+wait_predict         # main path waiting for the ANE eval thread
+finish_join_post     # main path waiting for the ANE output conversion thread
+same_layer_post_gap  # sidecar pread not overlapped inside the current layer
+cross_layer_post_gap # no sidecar read possible/issued between layers
+```
+
+3. Compare physical time to blocking time. Example:
+
+```text
+output_convert physical: 2.5 s
+finish_join_post block:  0.06 s
+```
+
+This means output conversion is real work, but it is mostly overlapped and is
+not the current throughput blocker.
+
+4. Validate causality with queue/depth toggles:
+
+```bash
+DS4_FLASH_MOE_ANE_OUTPUT_QUEUE=1
+DS4_FLASH_MOE_ANE_OUTPUT_QUEUE=2
+DS4_FLASH_MOE_ANE_OUTPUT_QUEUE=4
+```
+
+If blocking drops and prefill t/s improves, the stage was limiting. If t/s does
+not improve, that stage was already hidden or the extra queueing added overhead.
+
+5. Use a trace CSV when summary counters are not enough:
+
+```bash
+DS4_PREFILL_TRACE_CSV=/tmp/ds4_trace.csv ./run_ane_prefill_profile_m3u.sh
+```
+
+Trace rows are:
+
+```text
+t0_ms,t1_ms,name,layer,id
+```
+
+Useful interval names include:
+
+```text
+sidecar_pread
+sidecar_pread_issue_gap
+sidecar_pread_post_stage_gap
+metal_upload
+ane_eval
+output_convert
+out_f16_copy
+writeback_encode
+scatter_encode
+```
+
+### M3U run setup
+
+M3U scripts now default to the local 8K sweep winner:
+
+```bash
+DS4_METAL_PREFILL_CHUNK=16384
+DS4_FLASH_MOE_ASYNC_PREAD=1
+DS4_FLASH_MOE_PREFETCH=3
+DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE=1
+```
+
+Run:
+
+```bash
+./run_ane_prefill_profile_m3u.sh
+./run_gpu_prefill_profile_m3u.sh
+```
+
+The reference runs below used `coding_8k.txt` (8423 tokens), one generation
+token, `/Volumes/optane/dsv4-iq2xxs-expert-major`, and slot-bank mode.
+
+### M3U best prefill results
+
+| Path | Best config | Prefill t/s |
+|---|---|---:|
+| GPU-only MPP i8/i8 fused | `ASYNC_PREAD=1 PREFETCH=3 AFTER_STAGE=1` | **220.75** |
+| ANE-only expert path | `ASYNC_PREAD=1 PREFETCH=3 AFTER_STAGE=1` | **204.60** |
+
+GPU sweep:
+
+| Config | Prefill t/s |
+|---|---:|
+| `ASYNC_PREAD=0 PREFETCH=3 AFTER_STAGE=0` | 161.83 |
+| `ASYNC_PREAD=1 PREFETCH=1 AFTER_STAGE=0` | 212.06 |
+| `ASYNC_PREAD=1 PREFETCH=1 AFTER_STAGE=1` | 214.81 |
+| `ASYNC_PREAD=1 PREFETCH=3 AFTER_STAGE=1` | **220.75** |
+
+ANE sweep:
+
+| Config | Prefill t/s |
+|---|---:|
+| `ASYNC_PREAD=0 PREFETCH=3 AFTER_STAGE=0` | 173.96 |
+| `ASYNC_PREAD=1 PREFETCH=1 AFTER_STAGE=0` | 201.16 |
+| `ASYNC_PREAD=1 PREFETCH=1 AFTER_STAGE=1` | 202.66 |
+| `ASYNC_PREAD=1 PREFETCH=3 AFTER_STAGE=1` | **204.60** |
+
+### M3U ANE-only blocker breakdown
+
+Best run: `204.60 t/s`.
+
+Physical work:
+
+| Stage | Time |
+|---|---:|
+| `pread` | 15.582 s |
+| Metal upload | 1.570 s |
+| ANE eval | 17.580 s |
+| `output_convert` / output pack | 2.519 s |
+| writeback/scatter | ~0.060 s |
+
+Main-thread blocking:
+
+| Blocker | Time |
+|---|---:|
+| `wait_predict` | 10.867 s |
+| `finish_join_post` | 0.062 s |
+| `same_layer_post_gap` | 1.869 s |
+| `cross_layer_post_gap` | 14.733 s |
+
+Queue-depth validation:
+
+| `DS4_FLASH_MOE_ANE_OUTPUT_QUEUE` | Prefill t/s | `finish_join_post` |
+|---:|---:|---:|
+| 1 | **204.60** | 0.062 s |
+| 2 | 204.32 | 0.057 s |
+| 4 | 201.47 | 0.051 s |
+
+Interpretation: `output_convert` is not the throughput blocker on M3U. It costs
+about 2.5 s physically, but only ~50-60 ms blocks the main path, and deeper
+output queues do not improve throughput. The ANE-specific blocker is
+`wait_predict`: the scheduler waits about 10.9 s for ANE eval completion.
+The common structural blocker is the cross-layer sidecar read gap.
+
+### M3U GPU-only blocker breakdown
+
+Best run: `220.75 t/s`.
+
+Physical work:
+
+| Stage | Time |
+|---|---:|
+| `pread` | 16.073 s |
+| Metal upload | 1.452 s |
+| MPP gate + up + down | 1.451 s |
+| scatter | 0.064 s |
+| GPU layer-major execute | 1.902 s |
+| GPU layer-major host encode | 36.156 s |
+| GPU layer-major total | 38.059 s |
+
+Main-thread blocking indicators:
+
+| Blocker | Time |
+|---|---:|
+| `same_layer_post_gap` | 0.183 s |
+| `cross_layer_post_gap` | 14.736 s |
+| total `post_stage_gap` | 14.918 s |
+
+Interpretation: GPU expert compute is not the limiter in the best run. The MPP
+gate/up/down work is about 1.45 s and total GPU execute is about 1.90 s. The
+same-layer sidecar pread is mostly hidden: 16.07 s of physical pread becomes
+only 0.18 s of same-layer post gap. The remaining bottlenecks are host-side
+graph encode/staging and the structural cross-layer sidecar read gap.
+
+### Current conclusion
+
+On this M3U host, GPU-only is still faster than ANE-only for 8K prefill:
+
+```text
+GPU-only best: 220.75 t/s
+ANE-only best: 204.60 t/s
+```
+
+The next optimization target is not ANE output conversion. The useful targets
+are:
+
+1. Reduce ANE `wait_predict` blocking or schedule less work onto ANE when it
+   lengthens the critical path.
+2. Reduce the shared `cross_layer_post_gap` by issuing useful sidecar reads
+   across layer boundaries.
+3. Reduce GPU host encode/staging overhead in the layer-major prefill path.
