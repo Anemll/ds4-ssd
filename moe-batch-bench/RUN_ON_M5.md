@@ -76,6 +76,12 @@ two-cluster ceiling.
 
 This is the apples-to-apples comparison of real prefill throughput.
 
+> The repo ships dedicated profile scripts per chip:
+> `run_ane_prefill_profile_m5max.sh` (single-cluster M5 Max default: DUAL=0),
+> `run_ane_prefill_profile_m4pro.sh`, and `run_ane_prefill_profile_m3u.sh`
+> (M3 Ultra dual-cluster). Pick the one matching the chip you're on. The
+> THREADS / HYBRID_ANE_MIN_REFS env vars apply to all three.
+
 ### 1. Prerequisites
 
 - The DSv4 IQ2_XXS expert-major sidecar (~120 GB):
@@ -101,7 +107,7 @@ export DS4_PROMPT_FILE=/path/to/coding_8k.txt
 
 # Baseline run with all shipped defaults (THREADS=2, MIN_REFS=384, ...)
 DS4_RUN_NAME=m5_prod_baseline \
-    ./run_ane_prefill_profile_m3u.sh
+    ./run_ane_prefill_profile_m5max.sh
 ```
 
 The script writes to `moe-batch-bench/profile_runs/m5_prod_baseline.log`.
@@ -117,7 +123,7 @@ for n in 1 2 3 4; do
   DS4_RUN_NAME=m5_threads${n} \
       DS4_FLASH_MOE_ANE_THREADS=$n \
       DS4_FLASH_MOE_ANE_THREADS_FIXED_BATCH=1 \
-      ./run_ane_prefill_profile_m3u.sh
+      ./run_ane_prefill_profile_m5max.sh
 done
 ```
 
@@ -144,7 +150,7 @@ noise-flat across 128-512:
 for t in 64 128 192 256 384 512 768 1024; do
   DS4_RUN_NAME=m5_hyb${t} \
       DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS=$t \
-      ./run_ane_prefill_profile_m3u.sh
+      ./run_ane_prefill_profile_m5max.sh
 done
 ```
 
@@ -219,5 +225,9 @@ there.
   `DS4_FLASH_MOE_ANE_DUAL=1` exists and what each knob does.
 - [`ane_ds4_mlp_int8w_multi_smoke.m`](ane_ds4_mlp_int8w_multi_smoke.m) —
   the standalone smoke source; CLI options at the top.
+- [`run_ane_prefill_profile_m5max.sh`](../run_ane_prefill_profile_m5max.sh) —
+  M5 Max production profile (DUAL=0 default).
+- [`run_ane_prefill_profile_m4pro.sh`](../run_ane_prefill_profile_m4pro.sh) —
+  M4 Pro production profile.
 - [`run_ane_prefill_profile_m3u.sh`](../run_ane_prefill_profile_m3u.sh) —
-  the production profile script (works on any chip, name notwithstanding).
+  M3 Ultra production profile (DUAL=1 default).
