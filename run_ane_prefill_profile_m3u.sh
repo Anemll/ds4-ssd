@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+# M3 Ultra ANE prefill profile — dual-cluster optimal config.
+#
+# Defaults capture the tuned dual-cluster ANE prefill path for DSv4 IQ2_XXS.
+# Expected prefill throughput at the 8K coding prompt:
+#   prefill ~275-282 t/s  (vs ~220 t/s GPU-only, ~218 t/s single-cluster ANE)
+# This is ~1.226x over GPU-only and ~1.36x over the original m3u defaults.
+#
+# Every knob below is `${VAR:-default}` so the outer shell can override any
+# of them.  See moe-batch-bench/DUAL_ANE_CLUSTER_OPTIMIZATION.md for what
+# each setting buys and why.
+#
+# To force GPU-only for an A/B comparison, use run_gpu_prefill_profile_m3u.sh
+# (it sets the ANE/MPP flags the opposite way).
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,35 +60,56 @@ DS4_RUN_ARGS=(
 echo "log: $LOG"
 echo "summary: $SUMMARY"
 
-# M3U local 8K ANE-only sweep winner: async pread, prefetch 3,
-# issue preads after the stage.
 env \
+  `# --- Infra ---` \
   DS4_LOCK_FILE="$DS4_LOCK_FILE" \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
   DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-8704}" \
   DS4_FLASH_MOE_SLOT_BANK_SLOTS="$DS4_SLOTS" \
-  DS4_FLASH_MOE_ANE_PREFILL=1 \
-  DS4_FLASH_MOE_ANE_PIPELINE_PREFILL=1 \
-  DS4_FLASH_MOE_OVERLAP_PREFILL=1 \
-  DS4_FLASH_MOE_OVERLAP_SCHEDULER=1 \
-  DS4_FLASH_MOE_PREFETCH="${DS4_FLASH_MOE_PREFETCH:-3}" \
-  DS4_FLASH_MOE_ASYNC_PREAD="${DS4_FLASH_MOE_ASYNC_PREAD:-1}" \
-  DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE="${DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE:-1}" \
-  DS4_FLASH_MOE_ANE_BATCHES="${DS4_FLASH_MOE_ANE_BATCHES:-64,128,256,512}" \
-  DS4_FLASH_MOE_ANE_MAX_REFS="${DS4_FLASH_MOE_ANE_MAX_REFS:-512}" \
-  DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS="${DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS:-1}" \
-  DS4_FLASH_MOE_ANE_MIN_REFS="${DS4_FLASH_MOE_ANE_MIN_REFS:-32}" \
-  DS4_FLASH_MOE_ANE_OUTPUT_QUEUE="${DS4_FLASH_MOE_ANE_OUTPUT_QUEUE:-1}" \
-  DS4_FLASH_MOE_SCHED_ANE_REL_SPEED="${DS4_FLASH_MOE_SCHED_ANE_REL_SPEED:-99}" \
-  DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
+  `# --- Route expert work through ANE (master gates) ---` \
+  `# These select the ANE i8i8 tiled-fused path.  Setting any of them to 0 ` \
+  `# disables ANE prefill — useful for an A/B vs the GPU script. ` \
+  DS4_FLASH_MOE_ANE_PREFILL="${DS4_FLASH_MOE_ANE_PREFILL:-1}" \
+  DS4_FLASH_MOE_ANE_PIPELINE_PREFILL="${DS4_FLASH_MOE_ANE_PIPELINE_PREFILL:-1}" \
+  DS4_FLASH_MOE_ANE_I8I8_PREFILL="${DS4_FLASH_MOE_ANE_I8I8_PREFILL:-1}" \
+  DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL="${DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL:-1}" \
+  DS4_FLASH_MOE_OVERLAP_PREFILL="${DS4_FLASH_MOE_OVERLAP_PREFILL:-1}" \
+  DS4_FLASH_MOE_OVERLAP_SCHEDULER="${DS4_FLASH_MOE_OVERLAP_SCHEDULER:-1}" \
+  `# Force GPU-MPP path off so the hybrid scheduler doesn't steal expert work ` \
   DS4_FLASH_MOE_MPP_INT8_PREFILL="${DS4_FLASH_MOE_MPP_INT8_PREFILL:-0}" \
   DS4_FLASH_MOE_MPP_I8I8_PREFILL="${DS4_FLASH_MOE_MPP_I8I8_PREFILL:-0}" \
   DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL="${DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL:-0}" \
-  DS4_FLASH_MOE_ANE_I8I8_PREFILL=1 \
-  DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL=1 \
+  `# --- Dual-cluster ANE optimizations (M3 Ultra has 2 ANEx16 clusters) ---` \
+  `# DUAL=1: two ANE workers per call, one per cluster, splitting chunks ` \
+  `# MULTI_ACTIVE=1: scheduler skips wait_predict join so eval(N+1) starts ` \
+  `#                during eval(N) — both clusters compute in parallel ` \
+  `# OUTPUT_QUEUE=4: post-eval queue depth, lets writeback overlap with next eval ` \
+  `# GPU_OUTPUT_PACK=1: GPU does the f16->f32 + route-weight scaling ` \
+  `# PREFLUSH_EVERY=4: batch every 4 calls' dequant kernels into one CB commit ` \
+  DS4_FLASH_MOE_ANE_DUAL="${DS4_FLASH_MOE_ANE_DUAL:-1}" \
+  DS4_FLASH_MOE_ANE_MULTI_ACTIVE="${DS4_FLASH_MOE_ANE_MULTI_ACTIVE:-1}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_QUEUE="${DS4_FLASH_MOE_ANE_OUTPUT_QUEUE:-4}" \
+  DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK="${DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK:-1}" \
+  DS4_FLASH_MOE_ANE_PREFLUSH_EVERY="${DS4_FLASH_MOE_ANE_PREFLUSH_EVERY:-4}" \
+  `# Batch + refs tuning: single batch size keeps the ctx cache simple. ` \
+  `# Sweep peak is BATCHES=256, MAX_REFS=256, HYBRID_ANE_MIN_REFS=384. ` \
+  DS4_FLASH_MOE_ANE_BATCHES="${DS4_FLASH_MOE_ANE_BATCHES:-256}" \
+  DS4_FLASH_MOE_ANE_MAX_REFS="${DS4_FLASH_MOE_ANE_MAX_REFS:-256}" \
+  DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS="${DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS:-1}" \
+  DS4_FLASH_MOE_ANE_MIN_REFS="${DS4_FLASH_MOE_ANE_MIN_REFS:-32}" \
+  DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS="${DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS:-384}" \
+  `# Scheduler routing weights between ANE and GPU paths ` \
+  DS4_FLASH_MOE_SCHED_ANE_REL_SPEED="${DS4_FLASH_MOE_SCHED_ANE_REL_SPEED:-99}" \
+  DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
+  `# --- Staging / pread tuning (8K winner: async + prefetch=3 + after-stage) ---` \
+  DS4_FLASH_MOE_PREFETCH="${DS4_FLASH_MOE_PREFETCH:-3}" \
+  DS4_FLASH_MOE_ASYNC_PREAD="${DS4_FLASH_MOE_ASYNC_PREAD:-1}" \
+  DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE="${DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE:-1}" \
+  `# Quantization scales (still set so the MPP path is correctly tuned if invoked) ` \
   DS4_FLASH_MOE_MPP_INT8_QSCALE="${DS4_FLASH_MOE_MPP_INT8_QSCALE:-512}" \
   DS4_FLASH_MOE_MPP_INT8_X_QSCALE="${DS4_FLASH_MOE_MPP_INT8_X_QSCALE:-32}" \
   DS4_FLASH_MOE_MPP_INT8_MID_QSCALE="${DS4_FLASH_MOE_MPP_INT8_MID_QSCALE:-32}" \
+  `# --- Profiling / stats output (cheap; off in production binaries) ---` \
   DS4_FLASH_MOE_ANE_STATS="${DS4_FLASH_MOE_ANE_STATS:-1}" \
   DS4_FLASH_MOE_SCHED_STATS="${DS4_FLASH_MOE_SCHED_STATS:-1}" \
   DS4_FLASH_MOE_HYBRID_STATS="${DS4_FLASH_MOE_HYBRID_STATS:-1}" \

@@ -11497,24 +11497,54 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             } \
         } \
     } while (0)
-/* wait_predict_tensor joins the CPU ANE pthread; the GPU command stream does
- * not need to be drained for that to be correct. Flush instead. */
+/* Dual-ANE-cluster optimization (M3 Ultra) — scheduler half.
+ *
+ * The other half (per-job dequant slot pool, two ANE worker threads, two
+ * context handles) lives in ds4_metal.m.  Together they let the M3 Ultra's
+ * two ANEx16 clusters run ANE prefill jobs concurrently instead of
+ * serialising on a single cluster.  See moe-batch-bench/DUAL_ANE_CLUSTER_
+ * OPTIMIZATION.md for the full design.
+ *
+ * DS4_FLASH_MOE_ANE_MULTI_ACTIVE=1 lets us SKIP the synchronous wait_predict
+ * here, transferring the active job to the predicted-handle slot *without*
+ * joining its ANE thread.  The thread keeps running concurrently with the
+ * next active job's eval on the other cluster; the eventual finish_tensor
+ * (called from DS4_FINISH_ANE_SLOT) does the join.  Net effect: eval(N)
+ * overlaps with eval(N+1), driven by the two ANE clusters in parallel
+ * instead of being serialised at the scheduler.
+ *
+ * Without this flag, the slot pool in ds4_metal.m is correct but useless —
+ * only one ANE eval would actually be in flight at a time.
+ *
+ * When DS4_FLASH_MOE_ANE_MULTI_ACTIVE is off (or env not set), behaviour
+ * matches the previous synchronous wait_predict for safety. */
 #define DS4_WAIT_ACTIVE_ANE_PREDICT(job_out, tokens_out, refs_out) do { \
         if (active_ane_job) { \
             concurrent_waits++; \
             if (ok && commands_open) { \
                 ok = ds4_gpu_flush_commands() != 0; \
             } \
-            int predict_ok = ok ? ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(active_ane_job) : 0; \
-            if (!predict_ok) { \
-                ok = false; \
-            } else { \
+            int multi_active = env_flag_enabled("DS4_FLASH_MOE_ANE_MULTI_ACTIVE"); \
+            if (multi_active) { \
+                /* Defer the join: transfer ownership without waiting. */ \
                 job_out = active_ane_job; \
                 tokens_out = active_ane_tokens; \
                 refs_out = active_ane_refs; \
                 active_ane_job = NULL; \
                 active_ane_tokens = NULL; \
                 active_ane_refs = 0; \
+            } else { \
+                int predict_ok = ok ? ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(active_ane_job) : 0; \
+                if (!predict_ok) { \
+                    ok = false; \
+                } else { \
+                    job_out = active_ane_job; \
+                    tokens_out = active_ane_tokens; \
+                    refs_out = active_ane_refs; \
+                    active_ane_job = NULL; \
+                    active_ane_tokens = NULL; \
+                    active_ane_refs = 0; \
+                } \
             } \
         } \
     } while (0)
