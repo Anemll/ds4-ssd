@@ -50,6 +50,7 @@ DS4_RUN_ARGS=(
   -m "$DS4_MODEL"
   --moe-sidecar "$DS4_SIDECAR"
   --moe-mode slot-bank
+  --moe-slot-bank "$DS4_SLOTS"
   --metal
   --ctx "$DS4_CTX"
   --tokens "$DS4_TOKENS"
@@ -134,6 +135,6 @@ env \
   echo "async_pread=${DS4_FLASH_MOE_ASYNC_PREAD:-1} prefetch=${DS4_FLASH_MOE_PREFETCH:-3} after_stage=${DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE:-1}"
   echo
   grep -E \
-    'prefill:|decode:|Flash-MoE prefill dedup|Flash-MoE prefill stage stats|Flash-MoE prefill pread issue stats|Flash-MoE prefill pread bucket|Flash-MoE slot-bank stats|Flash-MoE hybrid prefill|Flash-MoE overlap plan|ANE prefill stats|ANE quant stats|ANE i8i8 hidden quant stats|ANE prefill timing|ANE prefill chunks|ANE prefill batch_hist|gpu (graph|chunked|layer-major) prefill|prefill detail' \
+    'prefill:|decode:|Flash-MoE prefill dedup|Flash-MoE prefill stage stats|Flash-MoE prefill pread issue stats|Flash-MoE prefill pread bucket|Flash-MoE slot-bank stats|Flash-MoE hybrid prefill|Flash-MoE overlap plan|ANE prefill stats|ANE quant stats|ANE i8i8 hidden quant stats|ANE prefill timing|ANE prefill chunks|ANE prefill batch_hist|(gpu|metal) (graph|chunked|layer-major) prefill|prefill detail' \
     "$LOG" || true
 } | tee "$SUMMARY"

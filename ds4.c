@@ -16350,7 +16350,7 @@ static bool metal_graph_prefill_layer_major(
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 
-    const bool split_profile = getenv("DS4_METAL_GRAPH_PREFILL_SPLIT_PROFILE") != NULL;
+    const bool split_profile = env_flag_enabled("DS4_METAL_GRAPH_PREFILL_SPLIT_PROFILE");
     /*
      * A full long-prompt prefill can keep the GPU busy long enough for macOS
      * to watchdog WindowServer. Keep short prompts in one command buffer for
@@ -16358,7 +16358,7 @@ static bool metal_graph_prefill_layer_major(
      * server gets regular scheduling points.
      */
     const bool split_commands = split_profile || n_tokens > 2048 || imatrix != NULL;
-    const bool profile = getenv("DS4_METAL_GRAPH_PREFILL_PROFILE") != NULL || split_profile;
+    const bool profile = env_flag_enabled("DS4_METAL_GRAPH_PREFILL_PROFILE") || split_profile;
     const double t0 = profile ? now_sec() : 0.0;
     double encode_s = 0.0;
     double execute_s = 0.0;
@@ -16522,7 +16522,7 @@ static bool metal_graph_prefill_layer_major(
                 encode_s += t_encoded - t_chunk0;
                 execute_s += t_done - t_encoded;
                 fprintf(stderr,
-                        "ds4: gpu layer-major prefill layer %u encode=%.3f ms execute=%.3f ms\n",
+                        "ds4: metal layer-major prefill layer %u encode=%.3f ms execute=%.3f ms\n",
                         il,
                         (t_encoded - t_chunk0) * 1000.0,
                         (t_done - t_encoded) * 1000.0);
@@ -16578,12 +16578,12 @@ static bool metal_graph_prefill_layer_major(
         execute_s += t_head_done - t_head_encoded;
         if (split_profile) {
             fprintf(stderr,
-                    "ds4: gpu layer-major prefill head encode=%.3f ms execute=%.3f ms\n",
+                    "ds4: metal layer-major prefill head encode=%.3f ms execute=%.3f ms\n",
                     (t_head_encoded - t_head0) * 1000.0,
                     (t_head_done - t_head_encoded) * 1000.0);
         }
         fprintf(stderr,
-                "ds4: gpu layer-major prefill total tokens=%d encode=%.3f ms execute=%.3f ms read=%.3f ms total=%.3f ms\n",
+                "ds4: metal layer-major prefill total tokens=%d encode=%.3f ms execute=%.3f ms read=%.3f ms total=%.3f ms\n",
                 n_tokens,
                 encode_s * 1000.0,
                 execute_s * 1000.0,
@@ -16674,7 +16674,7 @@ static bool metal_graph_prefill_chunked_range(
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 
-    const bool profile = getenv("DS4_METAL_GRAPH_PREFILL_PROFILE") != NULL;
+    const bool profile = env_flag_enabled("DS4_METAL_GRAPH_PREFILL_PROFILE");
     const double t0 = profile ? now_sec() : 0.0;
     double encode_s = 0.0;
     double execute_s = 0.0;
