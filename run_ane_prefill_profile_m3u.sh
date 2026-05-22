@@ -87,6 +87,9 @@ env \
   `# GPU_OUTPUT_PACK=1: GPU does the f16->f32 + route-weight scaling ` \
   `# PREFLUSH_EVERY=4: batch every 4 calls' dequant kernels into one CB commit ` \
   DS4_FLASH_MOE_ANE_DUAL="${DS4_FLASH_MOE_ANE_DUAL:-1}" \
+  `# THREADS overrides DUAL: 2 = current dual; 3/4 oversubscribes the 2 ` \
+  `# physical clusters to probe pipeline overlap (experimental). ` \
+  DS4_FLASH_MOE_ANE_THREADS="${DS4_FLASH_MOE_ANE_THREADS:-2}" \
   DS4_FLASH_MOE_ANE_MULTI_ACTIVE="${DS4_FLASH_MOE_ANE_MULTI_ACTIVE:-1}" \
   DS4_FLASH_MOE_ANE_OUTPUT_QUEUE="${DS4_FLASH_MOE_ANE_OUTPUT_QUEUE:-4}" \
   DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK="${DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK:-1}" \

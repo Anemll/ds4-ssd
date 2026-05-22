@@ -89,6 +89,9 @@ moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3: moe-batch-bench/ane_ds4_m
 moe-batch-bench/ane_ds4_mlp_int8w.o: moe-batch-bench/ane_ds4_mlp_int8w.m moe-batch-bench/ane_ds4_mlp_int8w.h
 	$(CC) $(OBJCFLAGS) -c -o $@ moe-batch-bench/ane_ds4_mlp_int8w.m
 
+moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke: moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-server ds4_server_cpu.o rax.o $(CPU_CORE_OBJS) $(LDLIBS)

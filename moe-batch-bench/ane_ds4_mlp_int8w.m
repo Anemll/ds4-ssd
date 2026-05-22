@@ -453,6 +453,99 @@ static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale,
     return m;
 }
 
+/* Variant of gen_mil_i8w_i8x_tiled_fused that ends with a `quantize` so the
+ * model's output tensor is int8 instead of fp16.  Halves the output IOSurface
+ * size (B*H bytes vs B*H*2) and the corresponding read_surface memcpy each
+ * call — useful for measuring whether output-bandwidth is bounding aggregate
+ * ANE TFLOP/s.  The output scale is `mid_scale` (reused for simplicity). */
+static NSString *gen_mil_i8w_i8x_tiled_fused_i8out(int H, int I, int B,
+                                                    float w_scale, float x_scale,
+                                                    float mid_scale) {
+    const int tile_i = 256;
+    NSMutableString *m = [NSMutableString string];
+    [m appendString:
+        @"program(1.3)\n"
+        @"[buildInfo = dict<string, string>({"
+        @"{\"coremlc-component-MIL\", \"3520.4.1\"}, "
+        @"{\"coremlc-version\", \"3520.5.1\"}, "
+        @"{\"coremltools-component-milinternal\", \"\"}, "
+        @"{\"coremltools-version\", \"9.0\"}})]\n{\n"];
+    [m appendFormat:
+        @"    func main<ios18>(tensor<int8, [%d, %d]> Wgq, tensor<int8, [%d, %d]> Wuq, tensor<int8, [%d, %d]> Wdq, tensor<int8, [%d, %d]> Xq) {\n",
+        H, I, H, I, I, H, B, H];
+    [m appendFormat:@"            fp16 wscale = const()[name = string(\"wscale\"), val = fp16(%a)];\n",
+                    (double)w_scale];
+    [m appendFormat:@"            fp16 xscale = const()[name = string(\"xscale\"), val = fp16(%a)];\n",
+                    (double)x_scale];
+    [m appendFormat:@"            fp16 midscale = const()[name = string(\"midscale\"), val = fp16(%a)];\n",
+                    (double)mid_scale];
+    [m appendString:
+        @"            int8 zp = const()[name = string(\"zp\"), val = int8(0)];\n"
+        @"            string q_dtype = const()[name = string(\"q_dtype\"), val = string(\"int8\")];\n"
+        @"            fp16 clamp_hi = const()[name = string(\"clamp_hi\"), val = fp16(0x1.4p+3)];\n"
+        @"            fp16 clamp_lo = const()[name = string(\"clamp_lo\"), val = fp16(-0x1.4p+3)];\n"
+        @"            tensor<int32, [1]> ax0 = const()[name = string(\"ax0\"), val = tensor<int32, [1]>([0])];\n"
+        @"            bool tx_f = const()[name = string(\"tx_f\"), val = bool(false)];\n"];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> X = dequantize(input = Xq, scale = xscale, zero_point = zp)[name = string(\"X\")];\n", B, H];
+    [m appendFormat:@"            tensor<fp16, [1, %d, %d]> X3 = expand_dims(axes = ax0, x = X)[name = string(\"X3\")];\n", B, H];
+
+    NSString *prev_y = nil;
+    for (int start = 0; start < I; start += tile_i) {
+        const int end = start + tile_i < I ? start + tile_i : I;
+        const int T = end - start;
+        NSString *tag = [NSString stringWithFormat:@"i%d_%d", start, end];
+        [m appendFormat:@"            tensor<int8, [%d, %d]> Wgq_%@ = slice_by_index(begin = tensor<int32, [2]>([0, %d]), end = tensor<int32, [2]>([%d, %d]), x = Wgq)[name = string(\"Wgq_%@\")];\n",
+                        H, T, tag, start, H, end, tag];
+        [m appendFormat:@"            tensor<int8, [%d, %d]> Wuq_%@ = slice_by_index(begin = tensor<int32, [2]>([0, %d]), end = tensor<int32, [2]>([%d, %d]), x = Wuq)[name = string(\"Wuq_%@\")];\n",
+                        H, T, tag, start, H, end, tag];
+        [m appendFormat:@"            tensor<int8, [%d, %d]> Wdq_%@ = slice_by_index(begin = tensor<int32, [2]>([%d, 0]), end = tensor<int32, [2]>([%d, %d]), x = Wdq)[name = string(\"Wdq_%@\")];\n",
+                        T, H, tag, start, end, H, tag];
+        [m appendFormat:@"            tensor<fp16, [%d, %d]> Wg_%@ = dequantize(input = Wgq_%@, scale = wscale, zero_point = zp)[name = string(\"Wg_%@\")];\n",
+                        H, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [%d, %d]> Wu_%@ = dequantize(input = Wuq_%@, scale = wscale, zero_point = zp)[name = string(\"Wu_%@\")];\n",
+                        H, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [%d, %d]> Wd_%@ = dequantize(input = Wdq_%@, scale = wscale, zero_point = zp)[name = string(\"Wd_%@\")];\n",
+                        T, H, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> gate_%@ = matmul(transpose_x = tx_f, transpose_y = tx_f, x = X3, y = Wg_%@)[name = string(\"gate_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> up_%@ = matmul(transpose_x = tx_f, transpose_y = tx_f, x = X3, y = Wu_%@)[name = string(\"up_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> gate_c_%@ = clip(x = gate_%@, alpha = clamp_lo, beta = clamp_hi)[name = string(\"gate_c_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> up_c_%@ = clip(x = up_%@, alpha = clamp_lo, beta = clamp_hi)[name = string(\"up_c_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> act_%@ = silu(x = gate_c_%@)[name = string(\"act_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> hidden_fp_%@ = mul(x = act_%@, y = up_c_%@)[name = string(\"hidden_fp_%@\")];\n",
+                        B, T, tag, tag, tag, tag];
+        [m appendFormat:@"            tensor<int8, [1, %d, %d]> hidden_q_%@ = quantize(input = hidden_fp_%@, output_dtype = q_dtype, scale = midscale, zero_point = zp)[name = string(\"hidden_q_%@\")];\n",
+                        B, T, tag, tag, tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> hidden_%@ = dequantize(input = hidden_q_%@, scale = midscale, zero_point = zp)[name = string(\"hidden_%@\")];\n",
+                        B, T, tag, tag, tag];
+        NSString *y_name = [NSString stringWithFormat:@"Y_%@", tag];
+        [m appendFormat:@"            tensor<fp16, [1, %d, %d]> %@ = matmul(transpose_x = tx_f, transpose_y = tx_f, x = hidden_%@, y = Wd_%@)[name = string(\"%@\")];\n",
+                        B, H, y_name, tag, tag, y_name];
+        if (prev_y) {
+            NSString *acc_name = [NSString stringWithFormat:@"Y_acc_%@", tag];
+            [m appendFormat:@"            tensor<fp16, [1, %d, %d]> %@ = add(x = %@, y = %@)[name = string(\"%@\")];\n",
+                            B, H, acc_name, prev_y, y_name, acc_name];
+            prev_y = acc_name;
+        } else {
+            prev_y = y_name;
+        }
+    }
+    /* Quantize the final accumulator to int8 so the model output IOSurface is
+     * B*H bytes instead of B*H*2.  Reuses midscale as the output scale. */
+    if (prev_y) {
+        [m appendFormat:@"            tensor<int8, [1, %d, %d]> Y_out_q = quantize(input = %@, output_dtype = q_dtype, scale = midscale, zero_point = zp)[name = string(\"Y_out_q\")];\n",
+                        B, H, prev_y];
+        [m appendString:@"        } -> (Y_out_q);\n}\n"];
+    } else {
+        [m appendString:@"        } -> (X3);\n}\n"];
+    }
+    return m;
+}
+
 static NSString *gen_mil_int8w(int H, int I, int B, float w_scale, float x_scale) {
     const BOOL gate_direct = H > I;
     const BOOL down_direct = I > H;
@@ -732,10 +825,14 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         NSString *mil = mode == 1 ? gen_mil_fp16w(H, I, B) :
             (mode == 4 ? gen_mil_i8w_i8x_fused(H, I, B, w_scale, x_scale, mid_scale) :
              (mode == 6 ? gen_mil_i8w_i8x_tiled_fused(H, I, B, w_scale, x_scale, mid_scale) :
-                          gen_mil_int8w(H, I, B, w_scale, x_scale)));
+              (mode == 7 ? gen_mil_i8w_i8x_tiled_fused_i8out(H, I, B, w_scale, x_scale, mid_scale) :
+                          gen_mil_int8w(H, I, B, w_scale, x_scale))));
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         if (dbg) fprintf(stderr, "ds4: ANE %s create H=%d I=%d B=%d w_scale=%g x_scale=%g mid_scale=%g\n",
-                         mode == 1 ? "fp16w" : (mode == 4 ? "i8w-i8x-fused" : (mode == 6 ? "i8w-i8x-tiled-fused" : "int8w")),
+                         mode == 1 ? "fp16w" :
+                            (mode == 4 ? "i8w-i8x-fused" :
+                             (mode == 6 ? "i8w-i8x-tiled-fused" :
+                              (mode == 7 ? "i8w-i8x-tiled-fused-i8out" : "int8w"))),
                          H, I, B, w_scale, x_scale, mid_scale);
         id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
             g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
@@ -774,16 +871,19 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         if (!ctx) return NULL;
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = mode; ctx->w_scale = w_scale; ctx->x_scale = x_scale; ctx->mid_scale = mid_scale;
         const NSUInteger elem = mode == 1 ? 2u : 1u;
+        /* mode==7 outputs int8 ([1,B,H]) instead of fp16 ([1,B,H]) → half the
+         * output bytes + half the read_surface memcpy per call. */
+        const NSUInteger out_elem = (mode == 7) ? 1u : 2u;
         ctx->gate_bytes = (NSUInteger)H * (NSUInteger)I * elem;
         ctx->down_bytes = (NSUInteger)I * (NSUInteger)H * elem;
         ctx->x_bytes = (NSUInteger)B * (NSUInteger)H * elem;
         ctx->route_bytes = (NSUInteger)B * 2u;
-        ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * 2u;
+        ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * out_elem;
         ctx->io_gate = make_surface_typed(ctx->gate_bytes, elem);
         ctx->io_up = make_surface_typed(ctx->gate_bytes, elem);
         ctx->io_down = make_surface_typed(ctx->down_bytes, elem);
         ctx->io_x = make_surface_typed(ctx->x_bytes, elem);
-        ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
+        ctx->io_out = make_surface_typed(ctx->out_bytes, out_elem);
         if (!ctx->io_gate || !ctx->io_up || !ctx->io_down || !ctx->io_x || !ctx->io_out) {
             if (dbg) fprintf(stderr, "ds4: ANE IOSurface allocation failed\n");
             ds4_ane_mlp_int8w_destroy(ctx);
@@ -796,7 +896,7 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         id w_d = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_down);
         id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
         id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
-        NSArray *req_inputs = (mode == 4 || mode == 6) ? @[w_d, w_g, w_u, w_x] : @[w_g, w_u, w_d, w_x];
+        NSArray *req_inputs = (mode == 4 || mode == 6 || mode == 7) ? @[w_d, w_g, w_u, w_x] : @[w_g, w_u, w_d, w_x];
         id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
             g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
             req_inputs, @[@0, @1, @2, @3], @[w_o], @[@0], nil, nil, @0);
@@ -840,6 +940,10 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_gateup_fused_create(int H, int I, int
 
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
     return ds4_ane_mlp_create_common(H, I, B, w_scale, x_scale, mid_scale, 6);
+}
+
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
+    return ds4_ane_mlp_create_common(H, I, B, w_scale, x_scale, mid_scale, 7);
 }
 
 bool ds4_ane_mlp_int8w_eval(
@@ -948,6 +1052,47 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval(
         }
         if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
             if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused IOSurface read failed\n");
+            return false;
+        }
+        return true;
+    }
+}
+
+/* Int8-output variant of tiled_fused_eval.  Identical pipeline; only the
+ * output IOSurface dtype + read_surface size differs (B*H bytes int8 vs
+ * B*H*2 bytes fp16).  Returns whatever int8 values the ANE produced — caller
+ * is responsible for dequantizing using ctx->mid_scale if needed. */
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    int8_t       *output_i8)
+{
+    if (!ctx || !Wgate_i8 || !Wup_i8 || !Wdown_i8 || !input_i8 || !output_i8) return false;
+    if (ctx->mode != 7) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_gate, Wgate_i8, ctx->gate_bytes) ||
+            !write_surface(ctx->io_up, Wup_i8, ctx->gate_bytes) ||
+            !write_surface(ctx->io_down, Wdown_i8, ctx->down_bytes) ||
+            !write_surface(ctx->io_x, input_i8, ctx->x_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused i8out IOSurface write failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused i8out evaluate failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_i8, ctx->out_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused i8out IOSurface read failed\n");
             return false;
         }
         return true;

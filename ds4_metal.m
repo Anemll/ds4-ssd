@@ -272,6 +272,11 @@ static ds4_ane_ctx_cache_entry g_ane_ctx_cache[DS4_ANE_CTX_CACHE_MAX];
  * shape and would hand back ctx_a a second time.  Used only when
  * DS4_FLASH_MOE_ANE_DUAL=1 on the tiled_fused path. */
 static ds4_ane_ctx_cache_entry g_ane_ctx_cache_b[DS4_ANE_CTX_CACHE_MAX];
+/* Optional 3rd/4th worker context caches.  M3 Ultra physically has two ANE
+ * clusters (A,B); a 3rd/4th context will be time-shared onto one of them by
+ * the OS scheduler.  Gated behind DS4_FLASH_MOE_ANE_THREADS={3,4}. */
+static ds4_ane_ctx_cache_entry g_ane_ctx_cache_c[DS4_ANE_CTX_CACHE_MAX];
+static ds4_ane_ctx_cache_entry g_ane_ctx_cache_d[DS4_ANE_CTX_CACHE_MAX];
 static uint64_t g_ane_prefill_calls;
 static uint64_t g_ane_prefill_successes;
 static uint64_t g_ane_prefill_skip_big_refs;
@@ -309,6 +314,10 @@ static double g_ane_prefill_eval_ms;
  * read these two together to estimate ANE wall = max(A, B) ≈ A under balanced
  * stride-2 split (so wall ≈ (A+B)/2, ~halving baseline). */
 static double g_ane_prefill_eval_ms_b;
+/* C/D worker eval ms — populated only when DS4_FLASH_MOE_ANE_THREADS={3,4}.
+ * ANE wall ≈ max(A,B,C,D). */
+static double g_ane_prefill_eval_ms_c;
+static double g_ane_prefill_eval_ms_d;
 static double g_ane_prefill_output_ms;
 static double g_ane_prefill_output_f16_copy_ms;
 static double g_ane_prefill_output_convert_ms;
@@ -391,18 +400,23 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
         const double ane_calls = g_ane_prefill_ane_evaluate_calls ? (double)g_ane_prefill_ane_evaluate_calls : calls;
         const double pad_util = g_ane_prefill_padded_refs ?
             100.0 * (double)g_ane_prefill_eval_refs / (double)g_ane_prefill_padded_refs : 0.0;
-        const double eval_total = g_ane_prefill_eval_ms + g_ane_prefill_eval_ms_b;
-        /* When dual is active eval_total = A+B; ANE wall ≈ max(A,B).  When
-         * solo, eval_ms_b is 0 and ane_wall_est == eval_ms. */
-        const double ane_wall_est = g_ane_prefill_eval_ms > g_ane_prefill_eval_ms_b ?
-            g_ane_prefill_eval_ms : g_ane_prefill_eval_ms_b;
+        const double eval_total = g_ane_prefill_eval_ms + g_ane_prefill_eval_ms_b +
+                                   g_ane_prefill_eval_ms_c + g_ane_prefill_eval_ms_d;
+        /* When dual/multi is active eval_total = A+B(+C+D); ANE wall ≈ max(A..).
+         * When solo, eval_ms_{b,c,d} are 0 and ane_wall_est == eval_ms. */
+        double ane_wall_est = g_ane_prefill_eval_ms;
+        if (g_ane_prefill_eval_ms_b > ane_wall_est) ane_wall_est = g_ane_prefill_eval_ms_b;
+        if (g_ane_prefill_eval_ms_c > ane_wall_est) ane_wall_est = g_ane_prefill_eval_ms_c;
+        if (g_ane_prefill_eval_ms_d > ane_wall_est) ane_wall_est = g_ane_prefill_eval_ms_d;
         fprintf(stderr,
-                "ds4: ANE prefill timing dequant=%.3f ms input=%.3f ms ane_eval=%.3f ms ane_eval_a=%.3f ms ane_eval_b=%.3f ms ane_wall_est=%.3f ms writeback=%.3f ms helper_avg=%.6f ms ane_calls=%llu ane_call_avg=%.6f ms\n",
+                "ds4: ANE prefill timing dequant=%.3f ms input=%.3f ms ane_eval=%.3f ms ane_eval_a=%.3f ms ane_eval_b=%.3f ms ane_eval_c=%.3f ms ane_eval_d=%.3f ms ane_wall_est=%.3f ms writeback=%.3f ms helper_avg=%.6f ms ane_calls=%llu ane_call_avg=%.6f ms\n",
                 g_ane_prefill_dequant_ms,
                 g_ane_prefill_input_ms,
                 eval_total,
                 g_ane_prefill_eval_ms,
                 g_ane_prefill_eval_ms_b,
+                g_ane_prefill_eval_ms_c,
+                g_ane_prefill_eval_ms_d,
                 ane_wall_est,
                 g_ane_prefill_writeback_ms,
                 eval_total / calls,
@@ -4697,6 +4711,8 @@ void ds4_gpu_cleanup(void) {
         g_ane_prefill_out_zero_ms = 0.0;
         g_ane_prefill_eval_ms = 0.0;
         g_ane_prefill_eval_ms_b = 0.0;
+        g_ane_prefill_eval_ms_c = 0.0;
+        g_ane_prefill_eval_ms_d = 0.0;
         g_ane_prefill_output_ms = 0.0;
         g_ane_prefill_output_f16_copy_ms = 0.0;
         g_ane_prefill_output_convert_ms = 0.0;
@@ -14542,6 +14558,10 @@ static void ds4_gpu_ane_ctx_cache_clear(void) {
         memset(&g_ane_ctx_cache[i], 0, sizeof(g_ane_ctx_cache[i]));
         ds4_ane_mlp_int8w_destroy(g_ane_ctx_cache_b[i].ctx);
         memset(&g_ane_ctx_cache_b[i], 0, sizeof(g_ane_ctx_cache_b[i]));
+        ds4_ane_mlp_int8w_destroy(g_ane_ctx_cache_c[i].ctx);
+        memset(&g_ane_ctx_cache_c[i], 0, sizeof(g_ane_ctx_cache_c[i]));
+        ds4_ane_mlp_int8w_destroy(g_ane_ctx_cache_d[i].ctx);
+        memset(&g_ane_ctx_cache_d[i], 0, sizeof(g_ane_ctx_cache_d[i]));
     }
 }
 
@@ -14658,19 +14678,23 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx(uint32_t H,
     return ctx;
 }
 
-/* Like ds4_gpu_ane_get_i8i8_tiled_ctx but allocates against the secondary
- * cache so caller gets a context handle distinct from the primary, for use on
- * the second ANE cluster.  Same shape + scales; same fallback budget tracking. */
-static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b(uint32_t H,
-                                                                uint32_t I,
-                                                                uint32_t B,
-                                                                float w_scale,
-                                                                float x_scale,
-                                                                float mid_scale,
-                                                                uint32_t compile_limit) {
+/* Shared implementation for the secondary-cluster context getters.  The cache
+ * argument selects which parallel context slot table to use (one per worker).
+ * Like ds4_gpu_ane_get_i8i8_tiled_ctx but allocates against the given cache so
+ * the caller gets a context handle distinct from the primary, for use on a
+ * different ANE cluster.  Same shape + scales; same fallback budget tracking. */
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_from(
+        ds4_ane_ctx_cache_entry *cache,
+        uint32_t H,
+        uint32_t I,
+        uint32_t B,
+        float w_scale,
+        float x_scale,
+        float mid_scale,
+        uint32_t compile_limit) {
     const int mode = 6;
     for (uint32_t i = 0; i < DS4_ANE_CTX_CACHE_MAX; i++) {
-        ds4_ane_ctx_cache_entry *entry = &g_ane_ctx_cache_b[i];
+        ds4_ane_ctx_cache_entry *entry = &cache[i];
         if (entry->ctx &&
             entry->mode == mode &&
             entry->H == (int)H &&
@@ -14688,7 +14712,7 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b(uint32_t H,
     }
     uint32_t slot = DS4_ANE_CTX_CACHE_MAX;
     for (uint32_t i = 0; i < DS4_ANE_CTX_CACHE_MAX; i++) {
-        if (!g_ane_ctx_cache_b[i].ctx) {
+        if (!cache[i].ctx) {
             slot = i;
             break;
         }
@@ -14698,22 +14722,58 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b(uint32_t H,
         return NULL;
     }
     g_ane_prefill_compile_attempts++;
-    ds4_ane_mlp_int8w_ctx *ctx_b =
+    ds4_ane_mlp_int8w_ctx *ctx_new =
         ds4_ane_mlp_i8w_i8x_tiled_fused_create((int)H, (int)I, (int)B,
                                                 w_scale, x_scale, mid_scale);
-    if (!ctx_b) {
+    if (!ctx_new) {
         g_ane_prefill_compile_failures++;
         return NULL;
     }
-    g_ane_ctx_cache_b[slot].ctx = ctx_b;
-    g_ane_ctx_cache_b[slot].mode = mode;
-    g_ane_ctx_cache_b[slot].H = (int)H;
-    g_ane_ctx_cache_b[slot].I = (int)I;
-    g_ane_ctx_cache_b[slot].B = (int)B;
-    g_ane_ctx_cache_b[slot].w_scale = w_scale;
-    g_ane_ctx_cache_b[slot].x_scale = x_scale;
-    g_ane_ctx_cache_b[slot].mid_scale = mid_scale;
-    return ctx_b;
+    cache[slot].ctx = ctx_new;
+    cache[slot].mode = mode;
+    cache[slot].H = (int)H;
+    cache[slot].I = (int)I;
+    cache[slot].B = (int)B;
+    cache[slot].w_scale = w_scale;
+    cache[slot].x_scale = x_scale;
+    cache[slot].mid_scale = mid_scale;
+    return ctx_new;
+}
+
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b(uint32_t H,
+                                                                uint32_t I,
+                                                                uint32_t B,
+                                                                float w_scale,
+                                                                float x_scale,
+                                                                float mid_scale,
+                                                                uint32_t compile_limit) {
+    return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_b, H, I, B,
+                                                w_scale, x_scale, mid_scale,
+                                                compile_limit);
+}
+
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_c(uint32_t H,
+                                                                uint32_t I,
+                                                                uint32_t B,
+                                                                float w_scale,
+                                                                float x_scale,
+                                                                float mid_scale,
+                                                                uint32_t compile_limit) {
+    return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_c, H, I, B,
+                                                w_scale, x_scale, mid_scale,
+                                                compile_limit);
+}
+
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_d(uint32_t H,
+                                                                uint32_t I,
+                                                                uint32_t B,
+                                                                float w_scale,
+                                                                float x_scale,
+                                                                float mid_scale,
+                                                                uint32_t compile_limit) {
+    return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_d, H, I, B,
+                                                w_scale, x_scale, mid_scale,
+                                                compile_limit);
 }
 
 
@@ -14766,6 +14826,26 @@ static int ds4_gpu_ane_prefill_dual_stagger_us(void) {
     if (v < 0) return 0;
     if (v > 100000) v = 100000;
     return (int)v;
+}
+
+/* Per-call ANE worker count.  M3 Ultra physically has two ANEx16 clusters
+ * (A,B); a 3rd/4th worker thread will be time-shared by the OS scheduler onto
+ * one of them.  The experiment goal is to see whether oversubscription lets
+ * post-eval scratch writeback overlap with the next call's eval more
+ * aggressively (or hurts via per-thread bandwidth contention).
+ *
+ *   DS4_FLASH_MOE_ANE_THREADS=1 .. 4   explicit worker count
+ *   (unset)                            fall back to: DUAL=1 → 2, else 1
+ */
+static int ds4_gpu_ane_prefill_threads(void) {
+    const char *env = getenv("DS4_FLASH_MOE_ANE_THREADS");
+    if (env && env[0]) {
+        long v = atol(env);
+        if (v < 1) v = 1;
+        if (v > 4) v = 4;
+        return (int)v;
+    }
+    return ds4_gpu_ane_prefill_dual_enabled() ? 2 : 1;
 }
 
 static const char *ds4_gpu_ane_mode_name(int mode) {
@@ -15172,6 +15252,10 @@ struct ds4_gpu_ane_prefill_job {
      * complete out of order. */
     int dual;
     int dual_stagger_us;
+    /* Per-call worker count (1..4).  workers >= 2 splits chunks stride-N
+     * across pthreads on independent contexts.  Used as the stride in the
+     * shared run_chunks_strided body so 2/3/4 workers all share one body. */
+    int n_workers;
     pthread_t ane_thread_b;
     int ane_thread_b_started;
     int ane_done_b;
@@ -15185,6 +15269,25 @@ struct ds4_gpu_ane_prefill_job {
     uint64_t eval_calls_b;
     uint64_t eval_refs_b;
     uint64_t padded_refs_b;
+    /* 3rd/4th worker state (only used when n_workers >= 3 / >= 4). */
+    pthread_t ane_thread_c;
+    int ane_thread_c_started;
+    ds4_ane_mlp_int8w_ctx *ane_ctx_c;
+    int8_t *x_i8_batch_c;
+    uint16_t *out_f16_batch_c;
+    double eval_ms_c;
+    uint64_t eval_calls_c;
+    uint64_t eval_refs_c;
+    uint64_t padded_refs_c;
+    pthread_t ane_thread_d;
+    int ane_thread_d_started;
+    ds4_ane_mlp_int8w_ctx *ane_ctx_d;
+    int8_t *x_i8_batch_d;
+    uint16_t *out_f16_batch_d;
+    double eval_ms_d;
+    uint64_t eval_calls_d;
+    uint64_t eval_refs_d;
+    uint64_t padded_refs_d;
 };
 
 static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
@@ -15204,9 +15307,17 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
     free(job->out_f16_batch);
     free(job->x_i8_batch_b);
     free(job->out_f16_batch_b);
+    free(job->x_i8_batch_c);
+    free(job->out_f16_batch_c);
+    free(job->x_i8_batch_d);
+    free(job->out_f16_batch_d);
     free(job->chunks_done_bitmap);
     job->x_i8_batch_b = NULL;
     job->out_f16_batch_b = NULL;
+    job->x_i8_batch_c = NULL;
+    job->out_f16_batch_c = NULL;
+    job->x_i8_batch_d = NULL;
+    job->out_f16_batch_d = NULL;
     job->chunks_done_bitmap = NULL;
     if (!job->out_f16_all_mtl) free(job->out_f16_all);
     job->out_f16_all = NULL;
@@ -15413,13 +15524,16 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_a(void *arg) {
         job->dequant_wait_ms += ds4_gpu_now_ms() - wait_t0;
         if (failed) goto signal_done;
     }
-    ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx,
-                                            job->x_i8_batch, job->out_f16_batch,
-                                            0, 2,
-                                            &job->eval_ms,
-                                            &job->eval_calls,
-                                            &job->eval_refs,
-                                            &job->padded_refs);
+    {
+        const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 2u;
+        ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx,
+                                                job->x_i8_batch, job->out_f16_batch,
+                                                0, stride,
+                                                &job->eval_ms,
+                                                &job->eval_calls,
+                                                &job->eval_refs,
+                                                &job->padded_refs);
+    }
 signal_done: {
     int release_slot_idx = -1;
     pthread_mutex_lock(&job->mu);
@@ -15454,13 +15568,110 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_b(void *arg) {
     if (job->dual_stagger_us > 0) {
         usleep((useconds_t)job->dual_stagger_us);
     }
-    ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_b,
-                                            job->x_i8_batch_b, job->out_f16_batch_b,
-                                            1, 2,
-                                            &job->eval_ms_b,
-                                            &job->eval_calls_b,
-                                            &job->eval_refs_b,
-                                            &job->padded_refs_b);
+    {
+        const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 2u;
+        ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_b,
+                                                job->x_i8_batch_b, job->out_f16_batch_b,
+                                                1, stride,
+                                                &job->eval_ms_b,
+                                                &job->eval_calls_b,
+                                                &job->eval_refs_b,
+                                                &job->padded_refs_b);
+    }
+signal_done: {
+    int release_slot_idx = -1;
+    pthread_mutex_lock(&job->mu);
+    if (--job->ane_threads_remaining <= 0) {
+        job->ane_done = 1;
+        release_slot_idx = job->dequant_slot;
+        job->dequant_slot = -1;
+    }
+    pthread_cond_broadcast(&job->cv);
+    pthread_mutex_unlock(&job->mu);
+    if (release_slot_idx >= 0) {
+        ds4_gpu_ane_release_dequant_slot(release_slot_idx);
+    }
+    return NULL;
+}
+}
+
+/* 3rd/4th worker bodies (only spawned when n_workers >= 3 / >= 4).  Identical
+ * to dual_b except for the worker index used for the chunk stride and the
+ * context + scratch buffer set.  Each will be time-shared by the OS scheduler
+ * onto one of the two physical ANE clusters. */
+static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_c(void *arg) {
+    ds4_gpu_ane_prefill_job *job = (ds4_gpu_ane_prefill_job *)arg;
+    if (!job) return NULL;
+    if (job->sync_initialized) {
+        const double wait_t0 = ds4_gpu_now_ms();
+        pthread_mutex_lock(&job->mu);
+        while (!job->dequant_done_flag && !job->ane_failed) {
+            pthread_cond_wait(&job->cv, &job->mu);
+        }
+        const int failed = job->ane_failed;
+        pthread_mutex_unlock(&job->mu);
+        job->dequant_wait_ms += ds4_gpu_now_ms() - wait_t0;
+        if (failed) goto signal_done;
+    }
+    if (job->dual_stagger_us > 0) {
+        /* Stagger worker C by 2x the configured offset so all N threads land
+         * with even phase separation. */
+        usleep((useconds_t)job->dual_stagger_us * 2u);
+    }
+    {
+        const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 3u;
+        ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_c,
+                                                job->x_i8_batch_c, job->out_f16_batch_c,
+                                                2, stride,
+                                                &job->eval_ms_c,
+                                                &job->eval_calls_c,
+                                                &job->eval_refs_c,
+                                                &job->padded_refs_c);
+    }
+signal_done: {
+    int release_slot_idx = -1;
+    pthread_mutex_lock(&job->mu);
+    if (--job->ane_threads_remaining <= 0) {
+        job->ane_done = 1;
+        release_slot_idx = job->dequant_slot;
+        job->dequant_slot = -1;
+    }
+    pthread_cond_broadcast(&job->cv);
+    pthread_mutex_unlock(&job->mu);
+    if (release_slot_idx >= 0) {
+        ds4_gpu_ane_release_dequant_slot(release_slot_idx);
+    }
+    return NULL;
+}
+}
+
+static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_d(void *arg) {
+    ds4_gpu_ane_prefill_job *job = (ds4_gpu_ane_prefill_job *)arg;
+    if (!job) return NULL;
+    if (job->sync_initialized) {
+        const double wait_t0 = ds4_gpu_now_ms();
+        pthread_mutex_lock(&job->mu);
+        while (!job->dequant_done_flag && !job->ane_failed) {
+            pthread_cond_wait(&job->cv, &job->mu);
+        }
+        const int failed = job->ane_failed;
+        pthread_mutex_unlock(&job->mu);
+        job->dequant_wait_ms += ds4_gpu_now_ms() - wait_t0;
+        if (failed) goto signal_done;
+    }
+    if (job->dual_stagger_us > 0) {
+        usleep((useconds_t)job->dual_stagger_us * 3u);
+    }
+    {
+        const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 4u;
+        ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_d,
+                                                job->x_i8_batch_d, job->out_f16_batch_d,
+                                                3, stride,
+                                                &job->eval_ms_d,
+                                                &job->eval_calls_d,
+                                                &job->eval_refs_d,
+                                                &job->padded_refs_d);
+    }
 signal_done: {
     int release_slot_idx = -1;
     pthread_mutex_lock(&job->mu);
@@ -15599,11 +15810,24 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
             if (v >= 1 && v <= 4096) dual_select_threshold = (uint32_t)v;
         }
     }
-    const int dual_select_intent = ds4_gpu_ane_prefill_dual_enabled() && n_tokens >= dual_select_threshold;
+    const int planned_workers_for_split = ds4_gpu_ane_prefill_threads();
+    /* When set, suppress both the multi-worker batch shrinkage below and the
+     * chunk-refs rebalance further down so every ANE call keeps the same
+     * batch regardless of THREADS — used to isolate cluster-parallelism wins
+     * from per-call-batch-size effects. */
+    int fixed_batch_for_threads = 0;
+    {
+        const char *e = getenv("DS4_FLASH_MOE_ANE_THREADS_FIXED_BATCH");
+        if (e && e[0] && atoi(e) != 0) fixed_batch_for_threads = 1;
+    }
+    const int dual_select_intent = planned_workers_for_split >= 2 &&
+                                    n_tokens >= dual_select_threshold &&
+                                    !fixed_batch_for_threads;
     if (dual_select_intent) {
-        const uint32_t half = (n_tokens + 1u) / 2u;
-        const uint32_t dual_batch = ds4_gpu_ane_select_batch(half, ane_batch);
-        if (dual_batch < ane_batch) ane_batch = dual_batch;
+        const uint32_t denom = (uint32_t)planned_workers_for_split;
+        const uint32_t per_worker = (n_tokens + denom - 1u) / denom;
+        const uint32_t multi_batch = ds4_gpu_ane_select_batch(per_worker, ane_batch);
+        if (multi_batch < ane_batch) ane_batch = multi_batch;
     }
 
     uint32_t ane_max_refs = ane_batch;
@@ -15615,14 +15839,22 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     }
     uint32_t ane_chunk_refs = ane_max_refs < ane_batch ? ane_max_refs : ane_batch;
     if (ane_chunk_refs == 0) ane_chunk_refs = 1;
-    /* Dual-cluster chunk balancing: when dual will fire (n_tokens > ane_batch)
-     * with chunk_count=2, sizing the chunk to ceil(n_tokens/2) gives A and B
-     * equal work instead of A=ane_batch, B=remainder.  Constrained by
-     * ane_chunk_refs ceiling so we stay within ANE batch capability. */
-    if (ds4_gpu_ane_prefill_dual_enabled() && n_tokens > ane_chunk_refs && n_tokens <= 2u * ane_chunk_refs) {
-        const uint32_t balanced = (n_tokens + 1u) / 2u;
-        if (balanced > 0 && balanced < ane_chunk_refs) {
-            ane_chunk_refs = balanced;
+    /* Dual/multi chunk balancing: when N workers will fire (n_tokens >
+     * ane_chunk_refs) with chunk_count==N, sizing the chunk to ceil(n_tokens/N)
+     * gives all N workers equal work instead of N-1 at ane_chunk_refs and the
+     * last one at the remainder.  Constrained by ane_chunk_refs ceiling so we
+     * stay within ANE batch capability. */
+    {
+        const int planned_workers = ds4_gpu_ane_prefill_threads();
+        if (!fixed_batch_for_threads &&
+            planned_workers >= 2 &&
+            n_tokens > ane_chunk_refs &&
+            n_tokens <= (uint32_t)planned_workers * ane_chunk_refs) {
+            const uint32_t balanced =
+                (n_tokens + (uint32_t)planned_workers - 1u) / (uint32_t)planned_workers;
+            if (balanced > 0 && balanced < ane_chunk_refs) {
+                ane_chunk_refs = balanced;
+            }
         }
     }
     const char *chunk_all_env = getenv("DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS");
@@ -15851,18 +16083,22 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->x_i8_batch = (int8_t *)malloc((size_t)x_batch_elems64);
     job->out_f16_batch = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
 
-    /* Dual-cluster setup: allocate a second context + scratch + bitmap when
-     * DS4_FLASH_MOE_ANE_DUAL=1 and there is enough work to split (>=2 chunks).
-     * If second-context compile fails we silently fall back to single-cluster
-     * (set job->dual = 0) so the existing single-worker path still runs. */
+    /* Dual/multi-worker setup: allocate a 2nd/3rd/4th context + scratch +
+     * bitmap when DS4_FLASH_MOE_ANE_THREADS>=2 and there is enough work to
+     * split (chunks_count >= N).  If any extra context compile fails we cap
+     * the worker count at the number that succeeded; if even the 2nd fails we
+     * silently fall back to single-cluster. */
     job->ane_threads_remaining = 1;
     job->dual = 0;
-    /* For SOLO (single-chunk) ANE calls with DUAL enabled, alternate which
+    job->n_workers = 1;
+    const int requested_workers = ds4_gpu_ane_prefill_threads();
+    /* For SOLO (single-chunk) ANE calls with multi enabled, alternate which
      * cluster the call lands on so the workload between A and B clusters is
      * balanced — without this, every single-chunk call runs on A and B is
      * idle.  With multi-active scheduler, this lets two solo calls run in
-     * parallel on different clusters. */
-    if (ds4_gpu_ane_prefill_dual_enabled() && job->chunk_count == 1) {
+     * parallel on different clusters.  Stays with A/B since the 3rd/4th
+     * context just gets time-shared back onto A or B. */
+    if (requested_workers >= 2 && job->chunk_count == 1) {
         static int solo_balance_counter = 0;
         const int use_b = (solo_balance_counter++ & 1) != 0;
         if (use_b) {
@@ -15877,7 +16113,7 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
             if (ctx_b) job->ane_ctx = ctx_b;  /* land on cluster B */
         }
     }
-    if (ds4_gpu_ane_prefill_dual_enabled() && job->chunk_count >= 2) {
+    if (requested_workers >= 2 && job->chunk_count >= 2) {
         ds4_ane_mlp_int8w_ctx *ane_ctx_b =
             ds4_gpu_ane_get_i8i8_tiled_ctx_b(expert_in_dim,
                                               expert_mid_dim,
@@ -15894,7 +16130,46 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
             job->dual_stagger_us = ds4_gpu_ane_prefill_dual_stagger_us();
             if (job->x_i8_batch_b && job->out_f16_batch_b && job->chunks_done_bitmap) {
                 job->dual = 1;
+                job->n_workers = 2;
                 job->ane_threads_remaining = 2;
+            }
+        }
+    }
+    if (job->n_workers == 2 && requested_workers >= 3 && job->chunk_count >= 3) {
+        ds4_ane_mlp_int8w_ctx *ane_ctx_c =
+            ds4_gpu_ane_get_i8i8_tiled_ctx_c(expert_in_dim,
+                                              expert_mid_dim,
+                                              ane_batch,
+                                              ane_w_scale,
+                                              ane_x_scale,
+                                              ane_mid_scale,
+                                              ane_compile_limit);
+        if (ane_ctx_c) {
+            job->ane_ctx_c = ane_ctx_c;
+            job->x_i8_batch_c = (int8_t *)malloc((size_t)x_batch_elems64);
+            job->out_f16_batch_c = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
+            if (job->x_i8_batch_c && job->out_f16_batch_c) {
+                job->n_workers = 3;
+                job->ane_threads_remaining = 3;
+            }
+        }
+    }
+    if (job->n_workers == 3 && requested_workers >= 4 && job->chunk_count >= 4) {
+        ds4_ane_mlp_int8w_ctx *ane_ctx_d =
+            ds4_gpu_ane_get_i8i8_tiled_ctx_d(expert_in_dim,
+                                              expert_mid_dim,
+                                              ane_batch,
+                                              ane_w_scale,
+                                              ane_x_scale,
+                                              ane_mid_scale,
+                                              ane_compile_limit);
+        if (ane_ctx_d) {
+            job->ane_ctx_d = ane_ctx_d;
+            job->x_i8_batch_d = (int8_t *)malloc((size_t)x_batch_elems64);
+            job->out_f16_batch_d = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
+            if (job->x_i8_batch_d && job->out_f16_batch_d) {
+                job->n_workers = 4;
+                job->ane_threads_remaining = 4;
             }
         }
     }
@@ -15960,16 +16235,43 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
         if (pthread_create(&job->ane_thread_b, NULL,
                            ds4_gpu_ane_prefill_tiled_fused_thread_dual_b, job) != 0) {
             /* Thread B failed to spawn; we still have thread A running.  Force
-             * it down by marking the second slot as already-finished so A's
-             * threads_remaining decrement reaches zero and ane_done fires.
-             * Then fall through to error path. */
+             * the unsstarted workers (B/C/D if planned) to be accounted for so
+             * threads_remaining decrement reaches zero and ane_done fires. */
             pthread_mutex_lock(&job->mu);
-            if (--job->ane_threads_remaining <= 0) job->ane_done = 1;
+            int phantom = job->n_workers - 1; /* B and any of C,D not yet started */
+            while (phantom-- > 0) {
+                if (--job->ane_threads_remaining <= 0) job->ane_done = 1;
+            }
             pthread_cond_broadcast(&job->cv);
             pthread_mutex_unlock(&job->mu);
             goto done;
         }
         job->ane_thread_b_started = 1;
+        if (job->n_workers >= 3) {
+            if (pthread_create(&job->ane_thread_c, NULL,
+                               ds4_gpu_ane_prefill_tiled_fused_thread_dual_c, job) != 0) {
+                pthread_mutex_lock(&job->mu);
+                int phantom = job->n_workers - 2; /* C and possibly D */
+                while (phantom-- > 0) {
+                    if (--job->ane_threads_remaining <= 0) job->ane_done = 1;
+                }
+                pthread_cond_broadcast(&job->cv);
+                pthread_mutex_unlock(&job->mu);
+                goto done;
+            }
+            job->ane_thread_c_started = 1;
+        }
+        if (job->n_workers >= 4) {
+            if (pthread_create(&job->ane_thread_d, NULL,
+                               ds4_gpu_ane_prefill_tiled_fused_thread_dual_d, job) != 0) {
+                pthread_mutex_lock(&job->mu);
+                if (--job->ane_threads_remaining <= 0) job->ane_done = 1;
+                pthread_cond_broadcast(&job->cv);
+                pthread_mutex_unlock(&job->mu);
+                goto done;
+            }
+            job->ane_thread_d_started = 1;
+        }
     } else {
         if (pthread_create(&job->ane_thread, NULL,
                            ds4_gpu_ane_prefill_tiled_fused_thread, job) != 0) {
@@ -16011,6 +16313,14 @@ done:
                 pthread_join(job->ane_thread_b, NULL);
                 job->ane_thread_b_started = 0;
             }
+            if (job->ane_thread_c_started) {
+                pthread_join(job->ane_thread_c, NULL);
+                job->ane_thread_c_started = 0;
+            }
+            if (job->ane_thread_d_started) {
+                pthread_join(job->ane_thread_d, NULL);
+                job->ane_thread_d_started = 0;
+            }
             if (job->post_thread_started) {
                 pthread_join(job->post_thread, NULL);
                 job->post_thread_started = 0;
@@ -16039,6 +16349,14 @@ done:
             if (job->ane_thread_b_started) {
                 pthread_join(job->ane_thread_b, NULL);
                 job->ane_thread_b_started = 0;
+            }
+            if (job->ane_thread_c_started) {
+                pthread_join(job->ane_thread_c, NULL);
+                job->ane_thread_c_started = 0;
+            }
+            if (job->ane_thread_d_started) {
+                pthread_join(job->ane_thread_d, NULL);
+                job->ane_thread_d_started = 0;
             }
             if (job->post_thread_started) {
                 pthread_join(job->post_thread, NULL);
@@ -16071,6 +16389,14 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
         pthread_join(job->ane_thread_b, NULL);
         job->ane_thread_b_started = 0;
     }
+    if (job->ane_thread_c_started) {
+        pthread_join(job->ane_thread_c, NULL);
+        job->ane_thread_c_started = 0;
+    }
+    if (job->ane_thread_d_started) {
+        pthread_join(job->ane_thread_d, NULL);
+        job->ane_thread_d_started = 0;
+    }
     g_ane_prefill_wait_predict_ms += ds4_gpu_now_ms() - wait_t0;
     return !job->ane_failed && job->ane_done;
 }
@@ -16097,6 +16423,18 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         g_ane_prefill_finish_join_ane_ms += ds4_gpu_now_ms() - join_t0;
         job->ane_thread_b_started = 0;
     }
+    if (job->ane_thread_c_started) {
+        const double join_t0 = ds4_gpu_now_ms();
+        pthread_join(job->ane_thread_c, NULL);
+        g_ane_prefill_finish_join_ane_ms += ds4_gpu_now_ms() - join_t0;
+        job->ane_thread_c_started = 0;
+    }
+    if (job->ane_thread_d_started) {
+        const double join_t0 = ds4_gpu_now_ms();
+        pthread_join(job->ane_thread_d, NULL);
+        g_ane_prefill_finish_join_ane_ms += ds4_gpu_now_ms() - join_t0;
+        job->ane_thread_d_started = 0;
+    }
     if (job->post_thread_started) {
         const double join_t0 = ds4_gpu_now_ms();
         pthread_join(job->post_thread, NULL);
@@ -16105,6 +16443,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
     }
     g_ane_prefill_eval_ms += job->eval_ms;
     g_ane_prefill_eval_ms_b += job->eval_ms_b;
+    g_ane_prefill_eval_ms_c += job->eval_ms_c;
+    g_ane_prefill_eval_ms_d += job->eval_ms_d;
     g_ane_prefill_output_ms += job->output_ms;
     g_ane_prefill_dequant_wait_ms += job->dequant_wait_ms;
     g_ane_prefill_x_zero_ms += job->x_zero_ms;
@@ -16115,19 +16455,27 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
     g_ane_prefill_post_wait_ms += job->post_wait_ms;
     g_ane_prefill_output_elems += job->output_elems;
     g_ane_prefill_output_chunks += job->output_chunks;
-    g_ane_prefill_eval_calls += job->eval_calls + job->eval_calls_b;
-    g_ane_prefill_eval_refs += job->eval_refs + job->eval_refs_b;
-    g_ane_prefill_padded_refs += job->padded_refs + job->padded_refs_b;
-    g_ane_prefill_chunks_le16 += job->chunks_le16;
-    g_ane_prefill_chunks_le64 += job->chunks_le64;
-    g_ane_prefill_chunks_le128 += job->chunks_le128;
-    g_ane_prefill_chunks_full += job->chunks_full;
-    ds4_gpu_ane_record_batch_stats(job->ane_batch,
-                                   job->eval_calls + job->eval_calls_b,
-                                   job->eval_refs + job->eval_refs_b,
-                                   job->padded_refs + job->padded_refs_b);
-    g_ane_prefill_ane_evaluate_calls +=
-        (job->eval_calls + job->eval_calls_b) * ds4_gpu_ane_mode_evaluate_calls(6);
+    {
+        const uint64_t total_eval_calls = job->eval_calls + job->eval_calls_b +
+                                          job->eval_calls_c + job->eval_calls_d;
+        const uint64_t total_eval_refs  = job->eval_refs  + job->eval_refs_b  +
+                                          job->eval_refs_c  + job->eval_refs_d;
+        const uint64_t total_padded_refs= job->padded_refs+ job->padded_refs_b+
+                                          job->padded_refs_c+ job->padded_refs_d;
+        g_ane_prefill_eval_calls   += total_eval_calls;
+        g_ane_prefill_eval_refs    += total_eval_refs;
+        g_ane_prefill_padded_refs  += total_padded_refs;
+        g_ane_prefill_chunks_le16  += job->chunks_le16;
+        g_ane_prefill_chunks_le64  += job->chunks_le64;
+        g_ane_prefill_chunks_le128 += job->chunks_le128;
+        g_ane_prefill_chunks_full  += job->chunks_full;
+        ds4_gpu_ane_record_batch_stats(job->ane_batch,
+                                       total_eval_calls,
+                                       total_eval_refs,
+                                       total_padded_refs);
+        g_ane_prefill_ane_evaluate_calls +=
+            total_eval_calls * ds4_gpu_ane_mode_evaluate_calls(6);
+    }
     int ok = !job->ane_failed && !job->post_failed && job->ane_done &&
         (job->gpu_output_pack || job->post_done);
     if (!ok) {
