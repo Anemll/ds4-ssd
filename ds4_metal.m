@@ -466,15 +466,22 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
         extern double   g_shared_ane_sync_input_ms;
         extern double   g_shared_ane_sync_output_ms;
         extern double   g_shared_ane_sync_init_ms;
+        extern double   g_shared_ane_dep_wait_ms;
+        extern double   g_shared_ane_join_wait_ms;
+        extern double   g_shared_ane_warm_ms;
         if (g_shared_ane_sync_calls > 0) {
             const double avg_eval_ms = g_shared_ane_sync_eval_ms / (double)g_shared_ane_sync_calls;
+            const double avg_join_ms = g_shared_ane_join_wait_ms / (double)g_shared_ane_sync_calls;
             fprintf(stderr,
-                    "ds4: ANE shared-expert calls=%llu total_ms=%.3f eval_ms=%.3f eval_avg=%.3f ms/call input_ms=%.3f output_ms=%.3f init_ms=%.3f\n",
+                    "ds4: ANE shared-expert calls=%llu total_ms=%.3f eval_ms=%.3f eval_avg=%.3f ms/call input_ms=%.3f output_ms=%.3f init_ms=%.3f warm_ms=%.3f dep_wait_ms=%.3f join_wait_ms=%.3f join_avg=%.3f ms/call\n",
                     (unsigned long long)g_shared_ane_sync_calls,
                     g_shared_ane_sync_total_ms,
                     g_shared_ane_sync_eval_ms, avg_eval_ms,
                     g_shared_ane_sync_input_ms, g_shared_ane_sync_output_ms,
-                    g_shared_ane_sync_init_ms);
+                    g_shared_ane_sync_init_ms,
+                    g_shared_ane_warm_ms,
+                    g_shared_ane_dep_wait_ms,
+                    g_shared_ane_join_wait_ms, avg_join_ms);
         }
         fprintf(stderr,
                 "ds4: ANE prefill chunks refs=%llu padded_refs=%llu pad_util=%.2f%% le16=%llu le64=%llu le128=%llu full=%llu\n",
@@ -5841,6 +5848,17 @@ double g_shared_ane_sync_input_ms;
 double g_shared_ane_sync_eval_ms;
 double g_shared_ane_sync_output_ms;
 uint64_t g_shared_ane_sync_calls;
+/* Wait-time probes to localize the constexpr-conv encode-wall regression:
+ *   dep_wait_ms  — worker thread blocked on GPU's batch_ffn_norm completion
+ *                  (worker idle, NOT on main-thread critical path).
+ *   join_wait_ms — main thread blocked in finish_tensor's pthread_join
+ *                  (worker still running, IS on main-thread critical path).
+ * If join_wait_ms ≈ regression, the cost is real serial waiting on ANE.
+ * If join_wait_ms ≈ 0 but encode wall is still up, the cost is elsewhere. */
+double g_shared_ane_dep_wait_ms;
+double g_shared_ane_join_wait_ms;
+/* Cumulative warm-eval time during ensure (paid in prewarm, not prefill). */
+double g_shared_ane_warm_ms;
 
 /* Q8_0 block: fp16 scale (2 bytes) + 32 int8 values (32 bytes) = 34 bytes per
  * 32 elements.  ggml/GGUF stores weights as [n_rows, n_cols] (= [out_dim,
@@ -5984,6 +6002,20 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
         /* Weights are now baked into the per-layer blob; host buffers can go. */
         free(gate_OI); free(up_OI); free(down_OI);
         c->gate_f16 = c->up_f16 = c->down_f16 = NULL;
+        /* One-shot warm eval: triggers the first-call ANE setup (microcode
+         * load / weight residency) so it lands in the prewarm budget instead
+         * of the prefill timer.  Output is discarded. */
+        if (ok) {
+            const NSUInteger x_elems = (NSUInteger)c->batch * (NSUInteger)in_dim;
+            uint16_t *x_warm = (uint16_t *)calloc(x_elems, sizeof(uint16_t));
+            uint16_t *y_warm = (uint16_t *)calloc(x_elems, sizeof(uint16_t));
+            if (x_warm && y_warm) {
+                const double t_warm0 = ds4_gpu_now_ms();
+                (void)ds4_ane_mlp_fp16w_constexpr_eval(c->ctx, x_warm, y_warm);
+                g_shared_ane_warm_ms += ds4_gpu_now_ms() - t_warm0;
+            }
+            free(x_warm); free(y_warm);
+        }
         mode_label = "fp16w-constexpr-conv (per-layer ctx)";
     } else {
         c->gate_f16 = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
@@ -6084,11 +6116,13 @@ static void *ds4_gpu_shared_expert_ane_worker(void *arg) {
     if (!job) return NULL;
 
     /* Wait for GPU to finish writing batch_ffn_norm. */
+    const double t_dep0 = ds4_gpu_now_ms();
     pthread_mutex_lock(&job->mu);
     while (!job->dep_done) {
         pthread_cond_wait(&job->cv, &job->mu);
     }
     pthread_mutex_unlock(&job->mu);
+    g_shared_ane_dep_wait_ms += ds4_gpu_now_ms() - t_dep0;
 
     const double t_in0 = ds4_gpu_now_ms();
     const uint64_t n_elems = (uint64_t)job->n_tokens * job->in_dim;
@@ -6253,7 +6287,11 @@ int ds4_gpu_shared_expert_ane_async_finish_tensor(
         ds4_gpu_shared_expert_ane_job *job) {
     if (!job) return 0;
     if (job->thread_started) {
+        /* Time we spend here is real serial cost: the main encoding loop is
+         * blocked until the ANE worker for this layer completes. */
+        const double t_join0 = ds4_gpu_now_ms();
         pthread_join(job->thread, NULL);
+        g_shared_ane_join_wait_ms += ds4_gpu_now_ms() - t_join0;
         job->thread_started = 0;
     }
     int ok = !job->eval_failed && job->eval_done;
