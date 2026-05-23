@@ -15783,37 +15783,84 @@ static bool metal_graph_encode_layer_ffn_batch(
                                       (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
     }
     DS4_METAL_PROFILE_FFN_STAGE("routed_moe");
-    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_gate,
-                                              model->map,
-                                              model->size,
-                                              layer->ffn_gate_shexp->abs_offset,
-                                              DS4_N_EMBD,
-                                              shared_dim,
-                                              g->batch_ffn_norm,
-                                              n_tokens) != 0;
-    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_up,
-                                              model->map,
-                                              model->size,
-                                              layer->ffn_up_shexp->abs_offset,
-                                              DS4_N_EMBD,
-                                              shared_dim,
-                                              g->batch_ffn_norm,
-                                              n_tokens) != 0;
+    /* DS4_FLASH_MOE_SKIP_SHARED_EXPERT=1: probe-mode no-op.  Skips the 4 GPU
+     * dispatches per layer to upper-bound the GPU command-encode wall
+     * savings; decode correctness is broken while this is on.
+     *
+     * DS4_FLASH_MOE_ANE_SHARED_EXPERT=1: runs the shared expert on ANE via
+     * the synchronous evaluator.  Replaces the 3 q8_0 matmuls + 1 swiglu
+     * with a single ANE call per layer.  Weights are pre-dequantized from
+     * q8_0 to per-tensor int8 on first call per layer and cached. */
+    static int s_shared_mode_init = 0;
+    static int s_skip_shared_enabled = 0;
+    static int s_ane_shared_enabled = 0;
+    if (!s_shared_mode_init) {
+        const char *e1 = getenv("DS4_FLASH_MOE_SKIP_SHARED_EXPERT");
+        const char *e2 = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
+        s_skip_shared_enabled = (e1 && e1[0] && atoi(e1) != 0) ? 1 : 0;
+        s_ane_shared_enabled  = (e2 && e2[0] && atoi(e2) != 0) ? 1 : 0;
+        s_shared_mode_init = 1;
+        if (s_skip_shared_enabled) {
+            fprintf(stderr, "ds4: WARNING DS4_FLASH_MOE_SKIP_SHARED_EXPERT=1 "
+                            "— shared expert dispatches skipped (probe mode; "
+                            "decode output is incorrect)\n");
+        }
+        if (s_ane_shared_enabled && s_skip_shared_enabled) {
+            fprintf(stderr, "ds4: SKIP_SHARED_EXPERT overrides ANE_SHARED_EXPERT\n");
+            s_ane_shared_enabled = 0;
+        }
+        if (s_ane_shared_enabled) {
+            fprintf(stderr, "ds4: ANE_SHARED_EXPERT=1 — synchronous ANE shared expert\n");
+        }
+    }
+    if (s_ane_shared_enabled && !s_skip_shared_enabled) {
+        if (ok) ok = ds4_gpu_shared_expert_ane_sync_tensor(
+                            g->batch_shared_out,
+                            g->batch_ffn_norm,
+                            (int)il,
+                            model->map,
+                            model->size,
+                            layer->ffn_gate_shexp->abs_offset,
+                            layer->ffn_up_shexp->abs_offset,
+                            layer->ffn_down_shexp->abs_offset,
+                            DS4_N_EMBD,
+                            shared_dim,
+                            n_tokens) != 0;
+    } else if (!s_skip_shared_enabled) {
+        if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_gate,
+                                                  model->map,
+                                                  model->size,
+                                                  layer->ffn_gate_shexp->abs_offset,
+                                                  DS4_N_EMBD,
+                                                  shared_dim,
+                                                  g->batch_ffn_norm,
+                                                  n_tokens) != 0;
+        if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_up,
+                                                  model->map,
+                                                  model->size,
+                                                  layer->ffn_up_shexp->abs_offset,
+                                                  DS4_N_EMBD,
+                                                  shared_dim,
+                                                  g->batch_ffn_norm,
+                                                  n_tokens) != 0;
+    }
     DS4_METAL_PROFILE_FFN_STAGE("shared_gate_up");
-    if (ok) ok = ds4_gpu_swiglu_tensor(g->batch_shared_mid,
-                                         g->batch_shared_gate,
-                                         g->batch_shared_up,
-                                         (uint32_t)((uint64_t)n_tokens * shared_dim),
-                                         0.0f,
-                                         1.0f) != 0;
-    if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_out,
-                                              model->map,
-                                              model->size,
-                                              layer->ffn_down_shexp->abs_offset,
-                                              shared_dim,
-                                              DS4_N_EMBD,
-                                              g->batch_shared_mid,
-                                              n_tokens) != 0;
+    if (!s_ane_shared_enabled && !s_skip_shared_enabled) {
+        if (ok) ok = ds4_gpu_swiglu_tensor(g->batch_shared_mid,
+                                             g->batch_shared_gate,
+                                             g->batch_shared_up,
+                                             (uint32_t)((uint64_t)n_tokens * shared_dim),
+                                             0.0f,
+                                             1.0f) != 0;
+        if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_out,
+                                                  model->map,
+                                                  model->size,
+                                                  layer->ffn_down_shexp->abs_offset,
+                                                  shared_dim,
+                                                  DS4_N_EMBD,
+                                                  g->batch_shared_mid,
+                                                  n_tokens) != 0;
+    }
     DS4_METAL_PROFILE_FFN_STAGE("shared_down");
     if (ok) {
         metal_graph_debug_dump_tensor("ffn_shexp", g->batch_shared_out,
