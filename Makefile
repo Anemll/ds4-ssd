@@ -35,12 +35,12 @@ endif
 .PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression moe-batch-bench ane-mlp-bench mpp-int8-bench
 
 ifeq ($(UNAME_S),Darwin)
-all: ds4 ds4-server ds4-bench ds4-eval
+all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
 
 help:
 	@echo "DS4 build targets:"
-	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
-	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
+	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
+	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make moe-batch-bench Build standalone MoE batch GPU/AMX benchmark"
 	@echo "  make ane-mlp-bench Build private-API ANE MLP W-input benchmark"
 	@echo "  make mpp-int8-bench Build Metal 4 MPP int8 matmul probe"
@@ -58,6 +58,9 @@ ds4-bench: ds4_bench.o $(CORE_OBJS)
 
 ds4-eval: ds4_eval.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_eval.o $(CORE_OBJS) $(METAL_LDLIBS)
+
+ds4-agent: ds4_agent.o ds4_kvstore.o linenoise.o $(CORE_OBJS)
+	$(CC) $(CFLAGS) -o $@ ds4_agent.o ds4_kvstore.o linenoise.o $(CORE_OBJS) $(METAL_LDLIBS)
 
 moe-batch-bench: moe-batch-bench/moe-batch-bench
 
@@ -92,11 +95,24 @@ moe-batch-bench/ane_ds4_mlp_int8w.o: moe-batch-bench/ane_ds4_mlp_int8w.m moe-bat
 moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke: moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
 	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
-cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o linenoise.o rax.o $(CPU_CORE_OBJS)
+moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke: moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+
+moe-batch-bench/ane_ds4_oproj_constexpr_smoke: moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+
+moe-batch-bench/ane_ds4_oproj_int8_smoke: moe-batch-bench/ane_ds4_oproj_int8_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_int8_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+
+moe-batch-bench/ane_per_chunk_iosurface_probe: moe-batch-bench/ane_per_chunk_iosurface_probe.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_per_chunk_iosurface_probe.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -ldl
+
+cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-server ds4_server_cpu.o rax.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-bench ds4_bench_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-eval ds4_eval_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
+	$(CC) $(CFLAGS) -o ds4-agent ds4_agent_cpu.o ds4_kvstore.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 
 cuda-regression:
 	@echo "cuda-regression requires a CUDA build"
@@ -108,7 +124,7 @@ help:
 	@echo "  make cuda-spark          Build CUDA for DGX Spark / GB10"
 	@echo "  make cuda-generic        Build CUDA for a generic local CUDA GPU"
 	@echo "  make cuda CUDA_ARCH=sm_N Build CUDA with an explicit nvcc -arch value"
-	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, and ./ds4-eval"
+	@echo "  make cpu                 Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make moe-batch-bench     Requires macOS"
 	@echo "  make ane-mlp-bench       Requires macOS private ANE framework"
 	@echo "  make mpp-int8-bench      Requires macOS 26 / Metal 4"
@@ -124,10 +140,10 @@ ane-mlp-bench:
 	@exit 2
 
 cuda-spark:
-	$(MAKE) ds4 ds4-server ds4-bench ds4-eval CUDA_ARCH=
+	$(MAKE) ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH=
 
 cuda-generic:
-	$(MAKE) ds4 ds4-server ds4-bench ds4-eval CUDA_ARCH=native
+	$(MAKE) ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH=native
 
 cuda:
 	@if [ -z "$(strip $(CUDA_ARCH))" ]; then \
@@ -135,7 +151,7 @@ cuda:
 		echo "       or use make cuda-spark / make cuda-generic"; \
 		exit 2; \
 	fi
-	$(MAKE) ds4 ds4-server ds4-bench ds4-eval CUDA_ARCH="$(CUDA_ARCH)"
+	$(MAKE) ds4 ds4-server ds4-bench ds4-eval ds4-agent CUDA_ARCH="$(CUDA_ARCH)"
 
 ds4: ds4_cli.o linenoise.o $(CORE_OBJS)
 	$(NVCC) $(NVCCFLAGS) -o $@ $^ $(CUDA_LDLIBS)
@@ -149,11 +165,15 @@ ds4-bench: ds4_bench.o $(CORE_OBJS)
 ds4-eval: ds4_eval.o $(CORE_OBJS)
 	$(NVCC) $(NVCCFLAGS) -o $@ $^ $(CUDA_LDLIBS)
 
-cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o linenoise.o rax.o $(CPU_CORE_OBJS)
+ds4-agent: ds4_agent.o ds4_kvstore.o linenoise.o $(CORE_OBJS)
+	$(NVCC) $(NVCCFLAGS) -o $@ $^ $(CUDA_LDLIBS)
+
+cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-server ds4_server_cpu.o rax.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-bench ds4_bench_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
 	$(CC) $(CFLAGS) -o ds4-eval ds4_eval_cpu.o $(CPU_CORE_OBJS) $(LDLIBS)
+	$(CC) $(CFLAGS) -o ds4-agent ds4_agent_cpu.o ds4_kvstore.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)
 
 cuda-regression: tests/cuda_long_context_smoke
 	./tests/cuda_long_context_smoke
@@ -173,6 +193,12 @@ ds4_bench.o: ds4_bench.c ds4.h
 
 ds4_eval.o: ds4_eval.c ds4.h
 	$(CC) $(CFLAGS) -c -o $@ ds4_eval.c
+
+ds4_agent.o: ds4_agent.c ds4.h ds4_kvstore.h linenoise.h
+	$(CC) $(CFLAGS) -c -o $@ ds4_agent.c
+
+ds4_kvstore.o: ds4_kvstore.c ds4_kvstore.h ds4.h
+	$(CC) $(CFLAGS) -c -o $@ ds4_kvstore.c
 
 moe-batch-bench/moe_batch_bench.o: moe-batch-bench/moe_batch_bench.m ds4_gpu.h
 	$(CC) $(OBJCFLAGS) -c -o $@ moe-batch-bench/moe_batch_bench.m
@@ -204,6 +230,9 @@ ds4_bench_cpu.o: ds4_bench.c ds4.h
 ds4_eval_cpu.o: ds4_eval.c ds4.h
 	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4_eval.c
 
+ds4_agent_cpu.o: ds4_agent.c ds4.h ds4_kvstore.h linenoise.h
+	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4_agent.c
+
 ds4_metal.o: ds4_metal.m ds4_gpu.h $(METAL_SRCS)
 	$(CC) $(OBJCFLAGS) -c -o $@ ds4_metal.m
 
@@ -224,4 +253,4 @@ test: ds4_test
 	./ds4_test
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o moe-batch-bench/moe-batch-bench moe-batch-bench/ane_ds4_mlp_inmem_bench moe-batch-bench/ane_matmul_w_input_probe moe-batch-bench/ane_ds4_mlp_inmem_bench_packed moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3 moe-batch-bench/*.o
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o moe-batch-bench/moe-batch-bench moe-batch-bench/ane_ds4_mlp_inmem_bench moe-batch-bench/ane_matmul_w_input_probe moe-batch-bench/ane_ds4_mlp_inmem_bench_packed moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3 moe-batch-bench/*.o

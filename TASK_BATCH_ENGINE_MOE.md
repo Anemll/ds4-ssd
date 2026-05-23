@@ -751,3 +751,79 @@ Production ANE integration therefore needs a scheduler that only materializes
 high-value expert batches, reuses cached packed inputs when possible, and keeps
 the producer duty cycle below the point where it harms the main quantized GPU
 prefill path.
+
+## 2026-05-19/20 Update: Async Pipeline Engagement and the Hard Ceiling
+
+Full per-call cost decomposition and the multi-ctx pool experiment are in
+Appendix C of `DSv4_MLP_ANE_Matmul_Investigation.md`. Headline findings
+relevant to this task's engine-selection question on M5 Max:
+
+- **Per-call ANE wall at H=4096 I=2048 B=256** decomposes as 24% weight
+  upload + 4% output read + 72% evaluate (1.65 ms total). Apple's framework
+  hides the weight-upload cost when 4 ctxs run concurrently (per-call drops
+  to 1.12 ms, 32% lower) but the ANE silicon itself is the single bottleneck
+  — pipelining beyond the framework's natural 1.48× is not available without
+  recompiling the CoreML model.
+
+- **ANE silicon is genuinely slower per ref than the GPU MPP int8 + fp32
+  fallback paths** for the DeepSeek-V3 routed expert MLP at int8. Forcing
+  more refs to ANE via `DS4_FLASH_MOE_SCHED_ANE_REL_SPEED` (cap was raised
+  from 4.0 to 1024.0 in ds4.c so the env actually takes effect) drops
+  throughput monotonically: 186.50 t/s at 57% ANE share → 179.49 t/s at
+  69% ANE share. The engine-selection policy "send everything that fits in
+  ANE_MIN_REFS to ANE" is therefore wrong on this hardware/workload — the
+  existing `build_flash_prefill_overlap_plan` cost-balancing assignment is
+  approximately optimal.
+
+- **The right engine for small expert groups is fp32 GPU MoE**, not ANE.
+  The default scheduler already routes them there as long as
+  `concurrent_prefill` is enabled. The pre-existing
+  `concurrent_prefill = try_ane_prefill && try_mpp_int8_prefill && …` gate
+  was too restrictive — relaxed to drop the MPP requirement so ANE-only
+  configurations can use the same dispatch logic and pick up the same
+  routing decisions.
+
+- **The async pipeline is dead code in pure ANE-only mode unless
+  `DS4_FLASH_MOE_ANE_I8I8_PREFILL=1` is set explicitly.** Without it
+  `ane_start_tensor` silently returns NULL on every call (the `i8i8_enabled`
+  helper falls back to reading the disabled MPP env) and work cascades
+  through to fp32 GPU. Add `DS4_FLASH_MOE_TRACE_DISPATCH=1` for per-group
+  dispatch tracing when diagnosing this kind of fall-through.
+
+- **Multi-ctx pool**: tested, reverted. pool=2 deadlocks (3-slot transient
+  peak in the scheduler); pool=4 regresses combined by 16% (memory pressure)
+  and deadlocks ANE-only async (concurrent completion handlers + shared GPU
+  command buffer queue). The standalone bench's 1.48× speedup doesn't
+  translate to production.
+
+- **Final landscape on coding_8k.txt:** GPU-only ~199 t/s, Combined default
+  ~187 t/s, ANE-heavy async hybrid 179–186 t/s, ANE-only sync ~134 t/s.
+  The default combined mode is the production sweet spot.
+
+### 2026-05-23 agent/Flash-MoE instrumentation notes
+
+- `ds4-agent` now accepts Flash-MoE sidecar options directly:
+  `--moe-sidecar PATH`, `--moe-mode slot-bank`, and `--moe-slot-bank N`.
+  This lets the native agent exercise the same memory-resident sidecar path as
+  the CLI without an HTTP hop.
+- Large `DS4_METAL_PREFILL_CHUNK` / raw-cap runs do not naturally emit frequent
+  durable progress, because a whole chunk is processed before the KV checkpoint
+  boundary is safe. The Metal prefill path now sends display-only
+  `prefill_display` callbacks after each completed layer in the chunk, while
+  keeping durable `prefill_chunk` callbacks only at true chunk boundaries.
+- The agent footer consumes both callbacks. Its percentage and prefill t/s keep
+  moving inside one large Flash-MoE chunk, but session save/resume accounting
+  still uses the durable chunk boundary.
+- Flash-MoE slot-bank shutdown stats now include actual resident slot
+  occupancy: used/total slots, percent resident, and average/min/max slots per
+  layer. This distinguishes configured slot-bank capacity from slots actually
+  populated by the workload.
+- `DS4_FLASH_MOE_ANE_THREADS=2` is the explicit routed-ANE prefill worker-count
+  flag. If it is unset, `DS4_FLASH_MOE_ANE_DUAL=1` implies two workers.
+  This does not split `DS4_FLASH_MOE_ANE_SHARED_EXPERT=1`: the shared-expert
+  path currently starts one async worker for the shared-expert job and has no
+  separate shared-expert thread-count flag.
+- `DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1` is ignored while routed ANE prefill is
+  active unless `DS4_FLASH_MOE_ANE_OUTPUT_PROJ_FORCE=1` or
+  `DS4_FLASH_MOE_ANE_OUTPUT_PROJ_WITH_ROUTED=1` is set. The default avoids a
+  known serial dependency boundary between attention output projection and FFN.

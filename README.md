@@ -141,9 +141,56 @@ make cuda-generic     # Linux CUDA, other local CUDA GPUs
 make cpu              # CPU-only diagnostics build
 ```
 
-`./ds4flash.gguf` is the default model path used by both binaries. Pass `-m` to
-select another supported GGUF from `./gguf/`. Run `./ds4 --help` and
-`./ds4-server --help` for the full flag list.
+`./ds4flash.gguf` is the default model path used by the command-line tools.
+Pass `-m` or `--model` to select another supported GGUF from `./gguf/`. Run
+`./ds4 --help`, `./ds4-server --help`, and `./ds4-agent --help` for the full
+flag lists.
+
+## Native Coding Agent
+
+`ds4-agent` is a native terminal coding agent built into the same process as the
+DS4 inference engine. It owns one live `ds4_session`, so prompt sync, tool
+loops, and generation reuse KV state without HTTP or socket overhead.
+
+```sh
+./ds4-agent --model ds4flash.gguf
+```
+
+For Flash-MoE sidecar runs, use the same sidecar options supported by the
+engine:
+
+```sh
+./ds4-agent \
+  --model /path/to/dense/model-dense.gguf \
+  --moe-sidecar /path/to/sidecar \
+  --moe-mode slot-bank \
+  --moe-slot-bank 96
+```
+
+Interactive commands include `/save`, `/list`, `/switch SHA`, `/history`, and
+`/new`. Saved agent sessions are stored in `~/.ds4/kvcache` as normal DS4 KV
+payloads keyed by the rendered transcript SHA. On clean exit after a save,
+`ds4-agent` prints a resumable command:
+
+```text
+resume this session:
+  ./ds4-agent --model ... --backend metal --ctx 100000 ... --resume SHA
+```
+
+`--resume SHA` loads the saved KV payload directly at startup, without first
+prefilling the system prompt. The status footer reports prefill progress and
+tokens/sec, generation speed, and after a user turn finishes it keeps the last
+turn duration visible while idle, for example:
+
+```text
+ctx 43.9k/100k | completed in 2h:10m:5s | idle
+```
+
+Large Metal/Flash-MoE prefill chunks expose two progress notions internally:
+durable `prefill_chunk` events only fire at real KV checkpoint boundaries, while
+display-only `prefill_display` events advance after each completed model layer.
+The latter keeps the agent footer and t/s estimate moving during one large
+chunk without pretending the KV state is safe to persist mid-chunk.
 
 ## Speed
 
