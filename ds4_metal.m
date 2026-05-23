@@ -5906,9 +5906,30 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     c->batch = (uint32_t)ds4_shared_expert_batch_env();
     c->in_dim = in_dim;
     c->mid_dim = mid_dim;
+    /* The ANE context is shape-bound but not weight-bound (weights are passed
+     * per _eval call).  All 43 layers have the same fp16w shape (4096×2048),
+     * so we share ONE compiled ctx across them — saves ~5 s of one-time ANE
+     * compile on the first prefill (was 138 ms × 43 layers). */
+    static ds4_ane_mlp_int8w_ctx *s_shared_ctx = NULL;
+    static int s_shared_ctx_in_dim = 0;
+    static int s_shared_ctx_mid_dim = 0;
+    static int s_shared_ctx_batch = 0;
     if (ok) {
-        c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
-        if (!c->ctx) ok = 0;
+        if (s_shared_ctx &&
+            s_shared_ctx_in_dim == (int)in_dim &&
+            s_shared_ctx_mid_dim == (int)mid_dim &&
+            s_shared_ctx_batch == (int)c->batch) {
+            c->ctx = s_shared_ctx;
+        } else {
+            c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
+            if (!c->ctx) ok = 0;
+            else {
+                s_shared_ctx = c->ctx;
+                s_shared_ctx_in_dim = (int)in_dim;
+                s_shared_ctx_mid_dim = (int)mid_dim;
+                s_shared_ctx_batch = (int)c->batch;
+            }
+        }
     }
     if (ok) {
         c->initialized = 1;
