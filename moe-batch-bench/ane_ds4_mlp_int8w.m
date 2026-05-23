@@ -1576,6 +1576,131 @@ bool ds4_ane_mlp_i8w_i8x_fused_eval(
     }
 }
 
+/* Dedicated create for the linear two-matmul int8 path.  Unlike the mode-2
+ * create_common (which bakes ONE w_scale into both gate and down models), this
+ * lets gate and down have DIFFERENT scales — needed for LoRA-style projections
+ * where Wa and Wb absmax differ. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_fp16x_linear_create(int H, int I, int B,
+                                                           float a_scale, float b_scale) {
+    if (H <= 0 || I <= 0 || B <= 0 || !(a_scale > 0.0f) || !(b_scale > 0.0f)) return NULL;
+    resolve_classes();
+    const bool dbg = ane_int8w_debug_enabled();
+    if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
+        if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear missing classes\n");
+        return NULL;
+    }
+    @autoreleasepool {
+        ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
+        if (!ctx) return NULL;
+        ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 2;
+        ctx->w_scale = a_scale;     /* gate-side scale */
+        ctx->mid_scale = b_scale;   /* down-side scale stored in mid_scale slot */
+        ctx->x_scale = 1.0f;
+        /* int8 weights → 1 byte/elem; fp16 activations → 2 bytes/elem. */
+        ctx->gate_bytes   = (NSUInteger)H * (NSUInteger)I * 1u;
+        ctx->down_bytes   = (NSUInteger)I * (NSUInteger)H * 1u;
+        ctx->x_bytes      = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->mid_bytes    = (NSUInteger)B * (NSUInteger)I * sizeof(uint16_t);
+        ctx->hidden_bytes = (NSUInteger)B * (NSUInteger)I * sizeof(uint16_t);
+        ctx->out_bytes    = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->io_gate   = make_surface_typed(ctx->gate_bytes, 1u);
+        ctx->io_down   = make_surface_typed(ctx->down_bytes, 1u);
+        ctx->io_x      = make_surface_typed(ctx->x_bytes, 1u);
+        ctx->io_mid    = make_surface_typed(ctx->mid_bytes, 1u);
+        ctx->io_hidden = make_surface_typed(ctx->hidden_bytes, 1u);
+        ctx->io_out    = make_surface_typed(ctx->out_bytes, 1u);
+        if (!ctx->io_gate || !ctx->io_down || !ctx->io_x ||
+            !ctx->io_mid  || !ctx->io_hidden || !ctx->io_out) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear IOSurface alloc failed\n");
+            ds4_ane_mlp_int8w_destroy(ctx);
+            return NULL;
+        }
+        NSString *gate_mil = gen_mil_i8w_fp16x_matmul(H, I, B, a_scale);
+        NSString *down_mil = gen_mil_i8w_fp16x_matmul(I, H, B, b_scale);
+        if (!compile_and_load_mil(gate_mil, "i8w-fp16x-linear A", &ctx->model_r, &ctx->tmpDir_r) ||
+            !compile_and_load_mil(down_mil, "i8w-fp16x-linear B", &ctx->model_down_r, &ctx->tmpDir_down_r)) {
+            ds4_ane_mlp_int8w_destroy(ctx);
+            return NULL;
+        }
+        id w_g = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_gate);
+        id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
+        id w_m = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_mid);
+        id w_d = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_down);
+        id w_h = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_hidden);
+        id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
+        id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
+            g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
+            @[w_g, w_x], @[@0, @1], @[w_m], @[@0], nil, nil, @0);
+        id req_down = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
+            g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
+            @[w_d, w_h], @[@0, @1], @[w_o], @[@0], nil, nil, @0);
+        if (!req || !req_down) {
+            ds4_ane_mlp_int8w_destroy(ctx);
+            return NULL;
+        }
+        ctx->request_r = (void *)CFBridgingRetain(req);
+        ctx->request_down_r = (void *)CFBridgingRetain(req_down);
+        if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear create H=%d I=%d B=%d a_scale=%g b_scale=%g\n",
+                         H, I, B, a_scale, b_scale);
+        return ctx;
+    }
+}
+
+/* Linear two-matmul i8w-fp16x eval: int8 weights with per-tensor scale baked
+ * into the compiled MIL.  Reuses the mode-2 split ctx (model_r is gate-shape
+ * [B, H] @ [H, I], model_down_r is down-shape [B, I] @ [I, H]).  Two ANE
+ * evals, no activation between.  Per-call upload is half the fp16 path's
+ * (Wa+Wb together = HI bytes instead of 2*HI). */
+bool ds4_ane_mlp_i8w_fp16x_linear_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t   *Wa_i8,
+    const int8_t   *Wb_i8,
+    const uint16_t *input_f16,
+    uint16_t       *output_f16)
+{
+    if (!ctx || !Wa_i8 || !Wb_i8 || !input_f16 || !output_f16) return false;
+    if (ctx->mode != 2 || !ctx->model_down_r) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_x, input_f16, ctx->x_bytes) ||
+            !write_surface(ctx->io_gate, Wa_i8, ctx->gate_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear A write failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear A eval failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        uint16_t *mid = (uint16_t *)malloc(ctx->mid_bytes);
+        if (!mid) return false;
+        if (!read_surface(ctx->io_mid, mid, ctx->mid_bytes) ||
+            !write_surface(ctx->io_hidden, mid, ctx->hidden_bytes) ||
+            !write_surface(ctx->io_down, Wb_i8, ctx->down_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear A→B staging failed\n");
+            free(mid);
+            return false;
+        }
+        free(mid);
+        ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_down_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_down_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-fp16x-linear B eval failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) return false;
+        return true;
+    }
+}
+
 /* Linear two-matmul fp16w eval: input → W_a → mid → W_b → output, no
  * activation between.  Reuses the mode-1 split ctx (model_r for the A matmul
  * with shape [B, H] @ [H, I], model_down_r for the B matmul with shape

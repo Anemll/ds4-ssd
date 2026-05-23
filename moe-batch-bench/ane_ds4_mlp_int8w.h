@@ -92,6 +92,22 @@ bool ds4_ane_mlp_fp16w_linear_eval(
     const uint16_t *input_f16,
     uint16_t *output_f16);
 
+/* int8-weight version of the above.  Uses a mode-2 (i8w-fp16x) ctx — the per-
+ * tensor w_scale was baked in at ctx create time.  Weight upload bytes are
+ * half the fp16 path (Wa+Wb together = H*I + I*H bytes int8 instead of fp16). */
+bool ds4_ane_mlp_i8w_fp16x_linear_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t   *Wa_i8,
+    const int8_t   *Wb_i8,
+    const uint16_t *input_f16,
+    uint16_t       *output_f16);
+
+/* Dedicated create for the linear-eval int8 path that lets gate and down have
+ * DIFFERENT w_scales (mode-2 create_common uses one scale for both). */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_fp16x_linear_create(int H, int I, int B,
+                                                           float a_scale,
+                                                           float b_scale);
+
 bool ds4_ane_mlp_i8w_fp16x_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,

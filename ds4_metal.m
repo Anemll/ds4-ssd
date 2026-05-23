@@ -6370,12 +6370,21 @@ typedef struct {
     uint16_t *b_f16;          /* [n_embd,      out_low_dim] fp16, transposed */
     uint16_t *a_f16_OI;       /* [out_low_dim, in_dim] fp16, ggml-native (no transpose) for conv path */
     uint16_t *b_f16_OI;       /* [n_embd, out_low_dim] fp16, ggml-native for conv path */
+    /* int8 path: per-tensor quantized weights derived from a_f16/b_f16. */
+    int8_t  *a_i8;            /* same layout as a_f16, half the bytes */
+    int8_t  *b_i8;
+    float    a_scale;         /* per-tensor: int8_val = round(fp16_val / scale) */
+    float    b_scale;
     uint32_t batch;
     uint64_t in_dim;          /* 4096 */
     uint64_t out_low_dim;     /* 8192 */
     uint64_t n_embd;          /* 4096 */
     /* Matmul path: one shared shape-bound ctx (mode 1, fp16w-linear eval). */
     ds4_ane_mlp_int8w_ctx *ctx;
+    /* int8 matmul path: per-layer ctx (mode 2, i8w-fp16x-linear eval).
+     * Per-layer because w_scale is baked at create time and differs per layer. */
+    ds4_ane_mlp_int8w_ctx *ctx_a_i8;   /* gate model with a_scale baked in */
+    ds4_ane_mlp_int8w_ctx *ctx_b_i8;   /* down model with b_scale baked in */
     /* Constexpr conv path: per-layer per-worker ctxs (mode 10).  conv_ctxs[i]
      * is used by worker i in multi-cluster mode.  n_conv_workers == 0 means
      * the conv path isn't built for this layer. */
@@ -6422,6 +6431,39 @@ static int ds4_oproj_threads(void) {
     long v = atol(e);
     if (v < 1) v = 1; if (v > 4) v = 4;
     return (int)v;
+}
+
+/* DS4_FLASH_MOE_ANE_OUTPUT_PROJ_INT8=1: use int8 weights (mode 2,
+ * i8w-fp16x-linear) instead of fp16 (mode 1).  Halves per-call weight upload
+ * bytes.  Per-tensor scale derived from absmax of the fp16 weights — quality
+ * impact must be verified by generation. */
+static int ds4_oproj_use_int8(void) {
+    const char *e = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_INT8");
+    return e && e[0] && atoi(e) != 0;
+}
+
+/* Per-tensor symmetric int8 quantization: scale = absmax / 127.  Returns the
+ * scale; caller passes the quantized int8 buffer to the mode-2 ctx create. */
+static float ds4_quantize_f16_to_i8_per_tensor(const uint16_t *in_f16,
+                                                int8_t        *out_i8,
+                                                uint64_t       n_elems) {
+    if (!in_f16 || !out_i8 || n_elems == 0) return 1.0f;
+    float absmax = 0.0f;
+    for (uint64_t i = 0; i < n_elems; i++) {
+        float v = ds4_gpu_f16_bits_to_f32(in_f16[i]);
+        float a = fabsf(v);
+        if (a > absmax) absmax = a;
+    }
+    const float scale = absmax > 0.0f ? absmax / 127.0f : 1.0f;
+    const float inv = 1.0f / scale;
+    for (uint64_t i = 0; i < n_elems; i++) {
+        float v = ds4_gpu_f16_bits_to_f32(in_f16[i]) * inv;
+        int q = (int)lrintf(v);
+        if (q > 127) q = 127;
+        if (q < -128) q = -128;
+        out_i8[i] = (int8_t)q;
+    }
+    return scale;
 }
 
 static ds4_oproj_layer_cache *ds4_oproj_ensure(
@@ -6484,6 +6526,29 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
         }
     }
 
+    /* Optional int8 matmul path: per-tensor quantize the fp16 a/b weights and
+     * create a mode-2 ctx with both w_scales baked in (one per matmul stage).
+     * Per-call upload bytes are half the fp16 path (int8 vs fp16). */
+    const int want_int8 = ok && ds4_oproj_use_int8();
+    if (want_int8) {
+        const uint64_t a_elems = out_low_dim * in_dim;
+        const uint64_t b_elems = n_embd * out_low_dim;
+        c->a_i8 = (int8_t *)malloc((size_t)a_elems);
+        c->b_i8 = (int8_t *)malloc((size_t)b_elems);
+        if (!c->a_i8 || !c->b_i8) ok = 0;
+        if (ok) {
+            c->a_scale = ds4_quantize_f16_to_i8_per_tensor(c->a_f16, c->a_i8, a_elems);
+            c->b_scale = ds4_quantize_f16_to_i8_per_tensor(c->b_f16, c->b_i8, b_elems);
+            c->ctx_a_i8 = ds4_ane_mlp_i8w_fp16x_linear_create(
+                (int)in_dim, (int)out_low_dim, (int)c->batch,
+                c->a_scale, c->b_scale);
+            if (!c->ctx_a_i8) ok = 0;
+            /* int8 path uses a single ctx (linear_create builds gate + down
+             * with the right scales already).  ctx_b_i8 is left NULL — we
+             * dispatch through ctx_a_i8 alone. */
+        }
+    }
+
     /* Optional constexpr conv path: per-layer per-worker compiled ctxs with
      * weights baked into MIL.  Needs the [O, I] ggml-native weight layout
      * (no transpose) since conv expects weights as [O, I, 1, 1]. */
@@ -6539,12 +6604,17 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
                   ? (c->n_conv_workers == 1 ? "fp16w-linear-conv (1 ctx)"
                      : (c->n_conv_workers == 2 ? "fp16w-linear-conv (dual cluster)"
                         : "fp16w-linear-conv (multi worker)"))
-                  : "fp16w-linear-matmul (shared ctx)",
+                  : (c->ctx_a_i8 ? "i8w-fp16x-linear (per-tensor scale)"
+                                 : "fp16w-linear-matmul (shared ctx)"),
                 ds4_gpu_now_ms() - t0);
     } else {
         free(c->a_f16); free(c->b_f16);
         free(c->a_f16_OI); free(c->b_f16_OI);
+        free(c->a_i8); free(c->b_i8);
         c->a_f16 = c->b_f16 = c->a_f16_OI = c->b_f16_OI = NULL;
+        c->a_i8 = c->b_i8 = NULL;
+        if (c->ctx_a_i8) ds4_ane_mlp_int8w_destroy(c->ctx_a_i8); c->ctx_a_i8 = NULL;
+        if (c->ctx_b_i8) ds4_ane_mlp_int8w_destroy(c->ctx_b_i8); c->ctx_b_i8 = NULL;
         for (int w = 0; w < 4; w++) {
             if (c->conv_ctxs[w]) ds4_ane_mlp_int8w_destroy(c->conv_ctxs[w]);
             c->conv_ctxs[w] = NULL;
@@ -6614,6 +6684,11 @@ static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
         if (s->use_conv) {
             eval_call_ok = ds4_ane_mlp_fp16w_linear_constexpr_eval(
                 s->ctx, s->x_pad, s->y_pad);
+        } else if (job->cache->ctx_a_i8) {
+            eval_call_ok = ds4_ane_mlp_i8w_fp16x_linear_eval(
+                job->cache->ctx_a_i8,
+                job->cache->a_i8, job->cache->b_i8,
+                s->x_pad, s->y_pad);
         } else {
             eval_call_ok = ds4_ane_mlp_fp16w_linear_eval(
                 job->cache->ctx, job->cache->a_f16, job->cache->b_f16,
