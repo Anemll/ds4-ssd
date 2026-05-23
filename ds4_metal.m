@@ -6447,6 +6447,47 @@ static int ds4_oproj_use_int8(void) {
     return e && e[0] && atoi(e) != 0;
 }
 
+/* DS4_FLASH_MOE_ANE_OUTPUT_PROJ_GPU_CVT=1: move the input fp32→fp16
+ * conversion from the ANE worker (NEON) to a GPU dispatch (kernel_cpy_f32_f16)
+ * encoded into the same CB that produces batch_heads.  Frees CPU during the
+ * O-proj critical path and uses GPU's higher memory bandwidth (~800 GB/s on
+ * M3U vs ~100 GB/s effective on CPU). */
+static int ds4_oproj_use_gpu_cvt(void) {
+    const char *e = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_GPU_CVT");
+    return e && e[0] && atoi(e) != 0;
+}
+
+/* Single shared fp16 staging buffer for O-proj GPU input conversion.  Sized
+ * to the max n_tokens × in_dim × 2 bytes seen so far; grows on demand.
+ * GPU writes here, worker reads here (no NEON conversion needed). */
+static id<MTLBuffer> g_oproj_input_f16_staging_buf;
+static NSUInteger    g_oproj_input_f16_staging_bytes;
+static pthread_mutex_t g_oproj_input_staging_mu = PTHREAD_MUTEX_INITIALIZER;
+
+static id<MTLBuffer> ds4_oproj_input_staging_get(NSUInteger required_bytes) {
+    pthread_mutex_lock(&g_oproj_input_staging_mu);
+    if (g_oproj_input_f16_staging_buf &&
+        g_oproj_input_f16_staging_bytes >= required_bytes) {
+        id<MTLBuffer> buf = g_oproj_input_f16_staging_buf;
+        pthread_mutex_unlock(&g_oproj_input_staging_mu);
+        return buf;
+    }
+    /* Grow.  Drop old (ARC) and allocate fresh. */
+    NSUInteger grow_bytes = required_bytes;
+    /* Round up to 64K for some slack. */
+    grow_bytes = (grow_bytes + 0xFFFFu) & ~0xFFFFu;
+    id<MTLBuffer> buf = [g_device newBufferWithLength:grow_bytes
+                                              options:MTLResourceStorageModeShared];
+    if (!buf) {
+        pthread_mutex_unlock(&g_oproj_input_staging_mu);
+        return nil;
+    }
+    g_oproj_input_f16_staging_buf = buf;
+    g_oproj_input_f16_staging_bytes = grow_bytes;
+    pthread_mutex_unlock(&g_oproj_input_staging_mu);
+    return buf;
+}
+
 /* NEON SIMD f32→f16 conversion (4 elements per instruction).  vcvt_f16_f32
  * matches IEEE 754 round-to-nearest-even semantics, identical to the existing
  * scalar ds4_gpu_f32_to_f16_bits within the normal range. */
@@ -6742,8 +6783,14 @@ typedef struct ds4_gpu_oproj_ane_job {
     uint32_t n_tokens;
     /* Pointers into MTLBuffer.contents() (shared-storage on Apple Silicon).
      * Worker reads input after dep_done, writes output before signaling done. */
-    const float *in_f32_ptr;
-    float       *out_f32_ptr;
+    const float    *in_f32_ptr;
+    float          *out_f32_ptr;
+    /* When non-NULL, the worker reads pre-converted fp16 input from this
+     * pointer instead of NEON-converting from in_f32_ptr.  The fp16 input
+     * staging buffer is GPU-written via kernel_cpy_f32_f16 in the same CB
+     * that produces batch_heads, and the CB's completion handler signals
+     * dep_done so the worker knows the staging buffer is fully written. */
+    const uint16_t *in_f16_ptr;
     uint16_t *x_f16_all;
     uint16_t *x_f16_pad;
     uint16_t *y_f16_pad;
