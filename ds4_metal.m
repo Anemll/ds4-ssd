@@ -5793,20 +5793,18 @@ int ds4_gpu_shared_gate_up_swiglu_q8_0_tensor(
 static uint16_t ds4_gpu_f32_to_f16_bits(float f);
 static float    ds4_gpu_f16_bits_to_f32(uint16_t h);
 
-/* Per-layer cache: dequantized Q8_0 weights as per-tensor int8 + the ANE
- * tiled-fused context for this layer.  Created lazily on first call for
- * the layer and held for the lifetime of the run. */
+/* Per-layer cache: dequantized Q8_0 weights as fp16 + the ANE fp16-weight
+ * context for this layer.  Created lazily on first call and held for the
+ * lifetime of the run.  Memory cost: 3 × in*mid * 2 bytes per layer
+ * (~48 MB at H=4096, I=2048 → ~2 GB across 43 layers).  Precision is
+ * exact relative to Q8_0 — same math the GPU q8_0 matmul does. */
 typedef struct {
     int   initialized;
     int   compile_failed;     /* sticky: don't retry creating the context */
-    int8_t *gate_i8;          /* [in_dim, mid_dim]   per-tensor int8 */
-    int8_t *up_i8;            /* [in_dim, mid_dim]   per-tensor int8 */
-    int8_t *down_i8;          /* [mid_dim, in_dim]   per-tensor int8 */
-    float  w_scale;           /* SINGLE scale used for all three matrices
-                               * (ANE int8w MIL accepts only one wscale) */
-    float  x_scale;           /* fp16 input quantization scale (1/x_qscale) */
-    float  mid_scale;         /* fp16 mid quantization scale */
-    uint32_t batch;           /* compiled ANE batch (B) for the tiled_fused ctx */
+    uint16_t *gate_f16;       /* [mid_dim, in_dim]   fp16 bit-rep */
+    uint16_t *up_f16;         /* [mid_dim, in_dim]   fp16 bit-rep */
+    uint16_t *down_f16;       /* [in_dim, mid_dim]   fp16 bit-rep */
+    uint32_t batch;           /* compiled ANE batch (B) for the fp16w ctx */
     uint64_t in_dim;
     uint64_t mid_dim;
     ds4_ane_mlp_int8w_ctx *ctx;
@@ -5826,85 +5824,40 @@ static double g_shared_ane_sync_output_ms;
 static uint64_t g_shared_ane_sync_calls;
 
 /* Q8_0 block: fp16 scale (2 bytes) + 32 int8 values (32 bytes) = 34 bytes per
- * 32 elements.  Pass model_map + offset to the start of the weight matrix
- * stored as [n_rows, n_cols] of int8 row-major (so weight_bytes = n_rows *
- * (n_cols/32) * 34).  Output buffer holds [n_rows, n_cols] of int8 with the
- * given per-tensor scale.  Returns 0 on size mismatch. */
-static int ds4_dequant_q8_0_to_i8_per_tensor(
+ * 32 elements.  ggml/GGUF stores weights as [n_rows, n_cols] (= [out_dim,
+ * in_dim] for matmul Y = X · W^T) but the ANE int8w/fp16w MIL expects the
+ * transposed layout [in_dim, out_dim] (matmul Y = X · W).  This function
+ * dequantizes Q8_0 AND transposes in one pass: the output buffer holds
+ * [n_cols, n_rows] = [in_dim, out_dim] fp16 row-major.  Confirmed against
+ * the routed expert path which uses `kernel_dsv4_mpp_dequant_iq2_xxs_
+ * transpose_i8` for the same purpose. */
+static int ds4_dequant_q8_0_to_f16_transposed(
         const void *model_map, uint64_t model_size,
         uint64_t offset, uint64_t n_rows, uint64_t n_cols,
-        int8_t *out_i8, float *out_scale) {
-    if (!model_map || !out_i8 || !out_scale || (n_cols & 31u) != 0) return 0;
+        uint16_t *out_f16) {
+    if (!model_map || !out_f16 || (n_cols & 31u) != 0) return 0;
     const uint64_t blocks_per_row = n_cols / 32u;
     const uint64_t row_bytes = blocks_per_row * 34u;
     const uint64_t total_bytes = n_rows * row_bytes;
     if (offset > model_size || total_bytes > model_size - offset) return 0;
 
-    /* First pass: find the maximum per-block scale to determine a per-tensor
-     * scale.  Max scaled magnitude is max_block_scale * 127.  We choose the
-     * per-tensor scale = max_block_scale so requantized values fit in int8. */
     const uint8_t *base = (const uint8_t *)model_map + offset;
-    float max_block_scale = 0.0f;
     for (uint64_t r = 0; r < n_rows; r++) {
         const uint8_t *row = base + r * row_bytes;
         for (uint64_t b = 0; b < blocks_per_row; b++) {
             const uint8_t *blk = row + b * 34u;
             uint16_t s_bits = (uint16_t)(blk[0]) | ((uint16_t)(blk[1]) << 8);
             float s = ds4_gpu_f16_bits_to_f32(s_bits);
-            const float as = s < 0.0f ? -s : s;
-            if (as > max_block_scale) max_block_scale = as;
-        }
-    }
-    if (max_block_scale <= 0.0f) {
-        /* All-zero weights — pick a unit scale to avoid div by zero downstream. */
-        max_block_scale = 1.0f;
-        memset(out_i8, 0, (size_t)n_rows * (size_t)n_cols);
-        *out_scale = max_block_scale;
-        return 1;
-    }
-    /* Per-tensor scale = max block scale.  Re-quantize each element as
-     *   out_int8 = round(value_fp16 / per_tensor_scale)
-     *           = round(block_int8 * block_scale / per_tensor_scale).
-     * |block_int8| ≤ 127, |block_scale| ≤ per_tensor_scale, so the result
-     * stays in [-127, 127] modulo rounding. */
-    const float inv_per_tensor = 1.0f / max_block_scale;
-    for (uint64_t r = 0; r < n_rows; r++) {
-        const uint8_t *row = base + r * row_bytes;
-        int8_t *out_row = out_i8 + r * n_cols;
-        for (uint64_t b = 0; b < blocks_per_row; b++) {
-            const uint8_t *blk = row + b * 34u;
-            uint16_t s_bits = (uint16_t)(blk[0]) | ((uint16_t)(blk[1]) << 8);
-            float s = ds4_gpu_f16_bits_to_f32(s_bits);
-            float ratio = s * inv_per_tensor;
             const int8_t *src_q = (const int8_t *)(blk + 2);
-            int8_t *dst = out_row + b * 32u;
             for (uint32_t i = 0; i < 32u; i++) {
-                float v = (float)src_q[i] * ratio;
-                int q = (int)lrintf(v);
-                if (q > 127) q = 127;
-                if (q < -128) q = -128;
-                dst[i] = (int8_t)q;
+                float v = (float)src_q[i] * s;
+                const uint64_t col_idx = b * 32u + i;       /* original col */
+                const uint64_t dst_idx = col_idx * n_rows + r; /* transposed */
+                out_f16[dst_idx] = ds4_gpu_f32_to_f16_bits(v);
             }
         }
     }
-    *out_scale = max_block_scale;
     return 1;
-}
-
-static int ds4_shared_expert_x_qscale_env(void) {
-    const char *e = getenv("DS4_FLASH_MOE_ANE_SHARED_X_QSCALE");
-    if (!e || !e[0]) return 16;
-    long v = atol(e);
-    if (v < 1) v = 1; if (v > 1024) v = 1024;
-    return (int)v;
-}
-
-static int ds4_shared_expert_mid_qscale_env(void) {
-    const char *e = getenv("DS4_FLASH_MOE_ANE_SHARED_MID_QSCALE");
-    if (!e || !e[0]) return 16;
-    long v = atol(e);
-    if (v < 1) v = 1; if (v > 1024) v = 1024;
-    return (int)v;
 }
 
 static int ds4_shared_expert_batch_env(void) {
@@ -5935,71 +5888,26 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     int ok = 1;
     const uint64_t gate_elems = in_dim * mid_dim;
     const uint64_t down_elems = mid_dim * in_dim;
-    c->gate_i8 = (int8_t *)malloc((size_t)gate_elems);
-    c->up_i8   = (int8_t *)malloc((size_t)gate_elems);
-    c->down_i8 = (int8_t *)malloc((size_t)down_elems);
-    if (!c->gate_i8 || !c->up_i8 || !c->down_i8) {
+    c->gate_f16 = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+    c->up_f16   = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+    c->down_f16 = (uint16_t *)malloc((size_t)down_elems * sizeof(uint16_t));
+    if (!c->gate_f16 || !c->up_f16 || !c->down_f16) {
         ok = 0;
     }
-    float w_scale_g = 1.0f, w_scale_u = 1.0f, w_scale_d = 1.0f;
-    if (ok) ok = ds4_dequant_q8_0_to_i8_per_tensor(model_map, model_size,
-                                                    gate_offset, mid_dim, in_dim,
-                                                    c->gate_i8, &w_scale_g);
-    if (ok) ok = ds4_dequant_q8_0_to_i8_per_tensor(model_map, model_size,
-                                                    up_offset, mid_dim, in_dim,
-                                                    c->up_i8, &w_scale_u);
-    if (ok) ok = ds4_dequant_q8_0_to_i8_per_tensor(model_map, model_size,
-                                                    down_offset, in_dim, mid_dim,
-                                                    c->down_i8, &w_scale_d);
-    /* ANE int8w MIL accepts only ONE `wscale` constant — but gate/up/down
-     * each have their own per-tensor scale.  Rescale each weight's int8
-     * values so they all use a common scale = max(g, u, d).  For tensors
-     * whose original scale was smaller, this shrinks |int8| values
-     * proportionally (precision loss but no overflow).  After this, the ANE
-     * MIL's `dequantized = int8 * w_scale` matches the original fp16
-     * mathematics exactly modulo rounding. */
-    float w_scale = w_scale_g;
-    if (w_scale_u > w_scale) w_scale = w_scale_u;
-    if (w_scale_d > w_scale) w_scale = w_scale_d;
-    if (w_scale <= 0.0f) w_scale = 1.0f;
-    if (ok && w_scale_g != w_scale) {
-        const float r = w_scale_g / w_scale;
-        const uint64_t n = mid_dim * in_dim;
-        for (uint64_t i = 0; i < n; i++) {
-            int q = (int)lrintf((float)c->gate_i8[i] * r);
-            if (q > 127) q = 127; if (q < -128) q = -128;
-            c->gate_i8[i] = (int8_t)q;
-        }
-    }
-    if (ok && w_scale_u != w_scale) {
-        const float r = w_scale_u / w_scale;
-        const uint64_t n = mid_dim * in_dim;
-        for (uint64_t i = 0; i < n; i++) {
-            int q = (int)lrintf((float)c->up_i8[i] * r);
-            if (q > 127) q = 127; if (q < -128) q = -128;
-            c->up_i8[i] = (int8_t)q;
-        }
-    }
-    if (ok && w_scale_d != w_scale) {
-        const float r = w_scale_d / w_scale;
-        const uint64_t n = in_dim * mid_dim;
-        for (uint64_t i = 0; i < n; i++) {
-            int q = (int)lrintf((float)c->down_i8[i] * r);
-            if (q > 127) q = 127; if (q < -128) q = -128;
-            c->down_i8[i] = (int8_t)q;
-        }
-    }
-    c->w_scale = w_scale;
-    c->x_scale = 1.0f / (float)ds4_shared_expert_x_qscale_env();
-    c->mid_scale = 1.0f / (float)ds4_shared_expert_mid_qscale_env();
+    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                          gate_offset, mid_dim, in_dim,
+                                          c->gate_f16);
+    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                          up_offset, mid_dim, in_dim,
+                                          c->up_f16);
+    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                          down_offset, in_dim, mid_dim,
+                                          c->down_f16);
     c->batch = (uint32_t)ds4_shared_expert_batch_env();
     c->in_dim = in_dim;
     c->mid_dim = mid_dim;
     if (ok) {
-        c->ctx = ds4_ane_mlp_i8w_i8x_tiled_fused_create((int)in_dim, (int)mid_dim,
-                                                          (int)c->batch,
-                                                          c->w_scale, c->x_scale,
-                                                          c->mid_scale);
+        c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
         if (!c->ctx) ok = 0;
     }
     if (ok) {
@@ -6007,13 +5915,12 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
         g_shared_ane_sync_init_ms += ds4_gpu_now_ms() - t0;
         fprintf(stderr,
                 "ds4: ANE shared-expert init layer=%d in=%llu mid=%llu B=%u "
-                "w_scale=%.6f w_scale_g/u/d=%.6f/%.6f/%.6f x_scale=%.6f mid_scale=%.6f init_ms=%.1f\n",
+                "fp16-weight mode init_ms=%.1f\n",
                 layer_idx, (unsigned long long)in_dim, (unsigned long long)mid_dim,
-                c->batch, c->w_scale, w_scale_g, w_scale_u, w_scale_d,
-                c->x_scale, c->mid_scale, ds4_gpu_now_ms() - t0);
+                c->batch, ds4_gpu_now_ms() - t0);
     } else {
-        free(c->gate_i8); free(c->up_i8); free(c->down_i8);
-        c->gate_i8 = c->up_i8 = c->down_i8 = NULL;
+        free(c->gate_f16); free(c->up_f16); free(c->down_f16);
+        c->gate_f16 = c->up_f16 = c->down_f16 = NULL;
         c->compile_failed = 1;
         fprintf(stderr, "ds4: ANE shared-expert init FAILED for layer=%d\n", layer_idx);
     }
@@ -6066,37 +5973,34 @@ int ds4_gpu_shared_expert_ane_sync_tensor(
     if (!x_f32 || !y_f32) return 0;
 
     const double t_in0 = ds4_gpu_now_ms();
-    /* Quantize all fp32 input rows to int8 once.  inv_x_scale = 1/x_scale. */
-    const float inv_x_scale = 1.0f / c->x_scale;
-    int8_t *x_i8_all = (int8_t *)malloc((size_t)n_tokens * (size_t)in_dim);
-    if (!x_i8_all) return 0;
+    /* Convert all fp32 input rows to fp16 once.  No quantization needed in
+     * fp16-weight ANE mode. */
+    uint16_t *x_f16_all = (uint16_t *)malloc((size_t)n_tokens * (size_t)in_dim * sizeof(uint16_t));
+    if (!x_f16_all) return 0;
     for (uint64_t i = 0; i < (uint64_t)n_tokens * in_dim; i++) {
-        float v = x_f32[i] * inv_x_scale;
-        int q = (int)lrintf(v);
-        if (q > 127) q = 127; if (q < -128) q = -128;
-        x_i8_all[i] = (int8_t)q;
+        x_f16_all[i] = ds4_gpu_f32_to_f16_bits(x_f32[i]);
     }
     g_shared_ane_sync_input_ms += ds4_gpu_now_ms() - t_in0;
 
     /* Run ANE in chunks of B (compiled batch).  Need padded input + output
      * scratch sized to B rows. */
     const uint32_t B = c->batch;
-    int8_t   *x_i8_pad  = (int8_t   *)malloc((size_t)B * (size_t)in_dim);
+    uint16_t *x_f16_pad = (uint16_t *)malloc((size_t)B * (size_t)in_dim * sizeof(uint16_t));
     uint16_t *y_f16_pad = (uint16_t *)malloc((size_t)B * (size_t)in_dim * sizeof(uint16_t));
-    if (!x_i8_pad || !y_f16_pad) { free(x_i8_all); free(x_i8_pad); free(y_f16_pad); return 0; }
+    if (!x_f16_pad || !y_f16_pad) { free(x_f16_all); free(x_f16_pad); free(y_f16_pad); return 0; }
 
     int eval_ok = 1;
     for (uint32_t begin = 0; begin < n_tokens && eval_ok; begin += B) {
         const uint32_t chunk = (n_tokens - begin) < B ? (n_tokens - begin) : B;
-        memset(x_i8_pad, 0, (size_t)B * (size_t)in_dim);
-        memcpy(x_i8_pad, x_i8_all + (uint64_t)begin * in_dim,
-               (size_t)chunk * (size_t)in_dim);
+        memset(x_f16_pad, 0, (size_t)B * (size_t)in_dim * sizeof(uint16_t));
+        memcpy(x_f16_pad, x_f16_all + (uint64_t)begin * in_dim,
+               (size_t)chunk * (size_t)in_dim * sizeof(uint16_t));
         memset(y_f16_pad, 0, (size_t)B * (size_t)in_dim * sizeof(uint16_t));
 
         const double t_eval0 = ds4_gpu_now_ms();
-        if (!ds4_ane_mlp_i8w_i8x_tiled_fused_eval(c->ctx,
-                                                    c->gate_i8, c->up_i8, c->down_i8,
-                                                    x_i8_pad, y_f16_pad)) {
+        if (!ds4_ane_mlp_fp16w_eval(c->ctx,
+                                     c->gate_f16, c->up_f16, c->down_f16,
+                                     x_f16_pad, y_f16_pad)) {
             eval_ok = 0;
             break;
         }
@@ -6115,8 +6019,8 @@ int ds4_gpu_shared_expert_ane_sync_tensor(
         g_shared_ane_sync_output_ms += ds4_gpu_now_ms() - t_out0;
     }
 
-    free(x_i8_all);
-    free(x_i8_pad);
+    free(x_f16_all);
+    free(x_f16_pad);
     free(y_f16_pad);
 
     g_shared_ane_sync_total_ms += ds4_gpu_now_ms() - t_total0;
