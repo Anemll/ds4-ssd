@@ -459,6 +459,23 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
                     (unsigned long long)g_ane_prefill_wait_predict_calls,
                     (unsigned long long)g_ane_prefill_finish_calls);
         }
+        /* Forward refs — counters defined below near the shared-expert impl. */
+        extern uint64_t g_shared_ane_sync_calls;
+        extern double   g_shared_ane_sync_total_ms;
+        extern double   g_shared_ane_sync_eval_ms;
+        extern double   g_shared_ane_sync_input_ms;
+        extern double   g_shared_ane_sync_output_ms;
+        extern double   g_shared_ane_sync_init_ms;
+        if (g_shared_ane_sync_calls > 0) {
+            const double avg_eval_ms = g_shared_ane_sync_eval_ms / (double)g_shared_ane_sync_calls;
+            fprintf(stderr,
+                    "ds4: ANE shared-expert calls=%llu total_ms=%.3f eval_ms=%.3f eval_avg=%.3f ms/call input_ms=%.3f output_ms=%.3f init_ms=%.3f\n",
+                    (unsigned long long)g_shared_ane_sync_calls,
+                    g_shared_ane_sync_total_ms,
+                    g_shared_ane_sync_eval_ms, avg_eval_ms,
+                    g_shared_ane_sync_input_ms, g_shared_ane_sync_output_ms,
+                    g_shared_ane_sync_init_ms);
+        }
         fprintf(stderr,
                 "ds4: ANE prefill chunks refs=%llu padded_refs=%llu pad_util=%.2f%% le16=%llu le64=%llu le128=%llu full=%llu\n",
                 (unsigned long long)g_ane_prefill_eval_refs,
@@ -5816,12 +5833,14 @@ static pthread_mutex_t g_shared_expert_cache_mu = PTHREAD_MUTEX_INITIALIZER;
 
 /* Stats — accumulate per-prefill so the operator can see ms spent in the
  * sync path vs the routed-expert async path. */
-static double g_shared_ane_sync_total_ms;
-static double g_shared_ane_sync_init_ms;
-static double g_shared_ane_sync_input_ms;
-static double g_shared_ane_sync_eval_ms;
-static double g_shared_ane_sync_output_ms;
-static uint64_t g_shared_ane_sync_calls;
+/* File-scope linkage so the ANE prefill stat printer above (which uses extern
+ * forward decls) can read these without reordering the whole file. */
+double g_shared_ane_sync_total_ms;
+double g_shared_ane_sync_init_ms;
+double g_shared_ane_sync_input_ms;
+double g_shared_ane_sync_eval_ms;
+double g_shared_ane_sync_output_ms;
+uint64_t g_shared_ane_sync_calls;
 
 /* Q8_0 block: fp16 scale (2 bytes) + 32 int8 values (32 bytes) = 34 bytes per
  * 32 elements.  ggml/GGUF stores weights as [n_rows, n_cols] (= [out_dim,
