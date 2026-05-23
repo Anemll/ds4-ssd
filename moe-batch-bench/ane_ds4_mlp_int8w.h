@@ -108,6 +108,25 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_fp16x_linear_create(int H, int I, int B,
                                                            float a_scale,
                                                            float b_scale);
 
+/* int8 + per-output-channel scale variant of the linear constexpr conv path.
+ * Weights baked into MIL via constexpr_blockwise_shift_scale (variant A in
+ * INT4_MATMUL_ANE_WORKFLOW.md).  Wa_q/Wb_q [O, I] int8 row-major; Wa_off/Wb_off
+ * [O] int8 (typically all zero for symmetric); Wa_scale/Wb_scale [O] fp16.
+ * Mode 11.  X [B, H] in, Y [B, H] out. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(
+    int H, int I, int B,
+    const int8_t   *Wa_q_OI,
+    const int8_t   *Wa_off_O,
+    const uint16_t *Wa_scale_f16_O,
+    const int8_t   *Wb_q_OI,
+    const int8_t   *Wb_off_O,
+    const uint16_t *Wb_scale_f16_O);
+
+bool ds4_ane_mlp_int8w_linear_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *input_f16,
+    uint16_t       *output_f16);
+
 bool ds4_ane_mlp_i8w_fp16x_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,

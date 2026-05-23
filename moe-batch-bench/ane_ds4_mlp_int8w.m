@@ -842,6 +842,98 @@ static NSString *gen_mil_fp16w_constexpr_conv(int H, int I, int B,
     return m;
 }
 
+/* Build a CoreML MIL weight blob with N (data, dtype) pairs.  dtypes per
+ * BlobDataType: 1=Float16, 4=Int8.  Sizes must be 64-aligned. */
+static NSData *ane_build_blob_n(const uint8_t * const *data_ptrs,
+                                const NSUInteger      *bytes_per,
+                                const uint32_t        *dtypes,
+                                int                    count,
+                                uint64_t              *out_offsets) {
+    if (!data_ptrs || !bytes_per || !dtypes || count <= 0) return nil;
+    uint64_t total = 64;  /* storage_header */
+    for (int i = 0; i < count; i++) {
+        if (bytes_per[i] & 63u) return nil;
+        total += 64 + bytes_per[i];
+    }
+    NSMutableData *buf = [NSMutableData dataWithLength:(NSUInteger)total];
+    if (!buf) return nil;
+    uint8_t *p = (uint8_t *)buf.mutableBytes;
+    ane_blob_storage_header hdr = {0};
+    hdr.count = (uint32_t)count;
+    hdr.version = 2;
+    memcpy(p, &hdr, sizeof(hdr));
+    uint64_t cur = 64;
+    for (int i = 0; i < count; i++) {
+        const uint64_t meta_off = cur;
+        const uint64_t data_off = cur + 64;
+        ane_blob_metadata m = {0};
+        m.sentinel = 0xDEADBEEFu;
+        m.mil_dtype = dtypes[i];
+        m.size_in_bytes = bytes_per[i];
+        m.offset = data_off;
+        memcpy(p + meta_off, &m, sizeof(m));
+        memcpy(p + data_off, data_ptrs[i], (size_t)bytes_per[i]);
+        if (out_offsets) out_offsets[i] = meta_off;
+        cur = data_off + bytes_per[i];
+    }
+    return buf;
+}
+
+/* Two-stage linear MLP with int8 weights + per-output-channel fp16 scales,
+ * lowered as conv2d-1x1.  Uses constexpr_blockwise_shift_scale with the
+ * degenerate "block = full in_dim" config (ANE accepts this as per-channel
+ * scale).  Inputs/outputs same as the fp16 linear constexpr conv (X [B, H]
+ * in, Y [B, H] out).  Mode 11.  Blob chunk order: Wa_q, Wa_off, Wa_scale,
+ * Wb_q, Wb_off, Wb_scale. */
+static NSString *gen_mil_int8w_linear_constexpr_conv(int H, int I, int B,
+                                                     NSString *blob_path,
+                                                     uint64_t off_wa_q, uint64_t off_wa_off, uint64_t off_wa_scale,
+                                                     uint64_t off_wb_q, uint64_t off_wb_off, uint64_t off_wb_scale) {
+    NSMutableString *m = [NSMutableString string];
+    [m appendString:
+        @"program(1.3)\n"
+        @"[buildInfo = dict<string, string>({"
+        @"{\"coremlc-component-MIL\", \"3520.4.1\"}, "
+        @"{\"coremlc-version\", \"3520.5.1\"}})]\n{\n"];
+    [m appendFormat:@"    func main<ios18>(tensor<fp16, [%d, %d]> X) {\n", B, H];
+    [m appendString:
+        @"            tensor<int32, [2]> perm2 = const()[name = string(\"perm2\"), val = tensor<int32, [2]>([1, 0])];\n"
+        @"            string pad_type = const()[name = string(\"pad_type\"), val = string(\"valid\")];\n"
+        @"            tensor<int32, [2]> strides = const()[name = string(\"strides\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            tensor<int32, [4]> pad = const()[name = string(\"pad\"), val = tensor<int32, [4]>([0, 0, 0, 0])];\n"
+        @"            tensor<int32, [2]> dilations = const()[name = string(\"dilations\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            int32 groups = const()[name = string(\"groups\"), val = int32(1)];\n"];
+    [m appendFormat:@"            tensor<int32, [4]> x_shape = const()[name = string(\"x_shape\"), val = tensor<int32, [4]>([1, %d, 1, %d])];\n", H, B];
+    [m appendFormat:@"            tensor<int32, [2]> y_shape = const()[name = string(\"y_shape\"), val = tensor<int32, [2]>([%d, %d])];\n", H, B];
+
+    [m appendFormat:@"            tensor<int8, [%d, %d, 1, 1]> Wa_q = const()[name = string(\"Wa_q\"), val = tensor<int8, [%d, %d, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    I, H, I, H, blob_path, (unsigned long long)off_wa_q];
+    [m appendFormat:@"            tensor<int8, [%d, 1, 1, 1]> Wa_off = const()[name = string(\"Wa_off\"), val = tensor<int8, [%d, 1, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    I, I, blob_path, (unsigned long long)off_wa_off];
+    [m appendFormat:@"            tensor<fp16, [%d, 1, 1, 1]> Wa_scale = const()[name = string(\"Wa_scale\"), val = tensor<fp16, [%d, 1, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    I, I, blob_path, (unsigned long long)off_wa_scale];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wa = constexpr_blockwise_shift_scale(data = Wa_q, offset = Wa_off, scale = Wa_scale)[name = string(\"Wa\")];\n",
+                    I, H];
+
+    [m appendFormat:@"            tensor<int8, [%d, %d, 1, 1]> Wb_q = const()[name = string(\"Wb_q\"), val = tensor<int8, [%d, %d, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    H, I, H, I, blob_path, (unsigned long long)off_wb_q];
+    [m appendFormat:@"            tensor<int8, [%d, 1, 1, 1]> Wb_off = const()[name = string(\"Wb_off\"), val = tensor<int8, [%d, 1, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    H, H, blob_path, (unsigned long long)off_wb_off];
+    [m appendFormat:@"            tensor<fp16, [%d, 1, 1, 1]> Wb_scale = const()[name = string(\"Wb_scale\"), val = tensor<fp16, [%d, 1, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    H, H, blob_path, (unsigned long long)off_wb_scale];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wb = constexpr_blockwise_shift_scale(data = Wb_q, offset = Wb_off, scale = Wb_scale)[name = string(\"Wb\")];\n",
+                    H, I];
+
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Xt = transpose(perm = perm2, x = X)[name = string(\"Xt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> X4 = reshape(shape = x_shape, x = Xt)[name = string(\"X4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> mid = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wa, x = X4)[name = string(\"mid\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> Y4 = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wb, x = mid)[name = string(\"Y4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Yt = reshape(shape = y_shape, x = Y4)[name = string(\"Yt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Y = transpose(perm = perm2, x = Yt)[name = string(\"Y\")];\n", B, H];
+    [m appendString:@"        } -> (Y);\n}\n"];
+    return m;
+}
+
 /* Linear two-stage MLP lowered as conv2d-1x1 with constexpr fp16 weights.
  * No activation between the two convs — for LoRA-style projections like the
  * DSv4 attention output (W_a × W_b).  Input X [B, H], W_a → [I, H, 1, 1],
@@ -1309,6 +1401,151 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
         ctx->request_r = (void *)CFBridgingRetain(req);
         ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
         return ctx;
+    }
+}
+
+/* Per-layer constexpr-weight linear two-stage MLP with int8 weights + per-
+ * channel fp16 scales (mode 11).  Wa_q/Wb_q already in ggml-native [O, I]
+ * layout (rows = out channels).  Wa/Wb_scale: per-output-channel fp16 scalars.
+ * Wa/Wb_off: per-output-channel int8 zero points (all zero for symmetric). */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, int B,
+                                                                  const int8_t   *Wa_q_OI,
+                                                                  const int8_t   *Wa_off_O,
+                                                                  const uint16_t *Wa_scale_f16_O,
+                                                                  const int8_t   *Wb_q_OI,
+                                                                  const int8_t   *Wb_off_O,
+                                                                  const uint16_t *Wb_scale_f16_O) {
+    if (H <= 0 || I <= 0 || B <= 0) return NULL;
+    if (!Wa_q_OI || !Wa_off_O || !Wa_scale_f16_O ||
+        !Wb_q_OI || !Wb_off_O || !Wb_scale_f16_O) return NULL;
+    resolve_classes();
+    const bool dbg = ane_int8w_debug_enabled();
+    if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) return NULL;
+    @autoreleasepool {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        const NSUInteger a_q_bytes     = (NSUInteger)I * (NSUInteger)H;            /* int8 */
+        const NSUInteger a_off_bytes   = (NSUInteger)I;                            /* int8 [I,1,1,1] */
+        const NSUInteger a_scale_bytes = (NSUInteger)I * sizeof(uint16_t);         /* fp16 [I,1,1,1] */
+        const NSUInteger b_q_bytes     = (NSUInteger)H * (NSUInteger)I;
+        const NSUInteger b_off_bytes   = (NSUInteger)H;
+        const NSUInteger b_scale_bytes = (NSUInteger)H * sizeof(uint16_t);
+        /* All these must be 64-aligned for the blob writer.  Small ones (I=8192
+         * → 8192 bytes int8 = 128*64; 16384 fp16 = 256*64) are; the big int8
+         * weight blocks (32 MB / 32 MB) are 64-aligned by construction. */
+        const uint8_t *data_ptrs[6] = {
+            (const uint8_t *)Wa_q_OI, (const uint8_t *)Wa_off_O,
+            (const uint8_t *)Wa_scale_f16_O,
+            (const uint8_t *)Wb_q_OI, (const uint8_t *)Wb_off_O,
+            (const uint8_t *)Wb_scale_f16_O,
+        };
+        const NSUInteger sizes[6] = {
+            a_q_bytes, a_off_bytes, a_scale_bytes,
+            b_q_bytes, b_off_bytes, b_scale_bytes,
+        };
+        const uint32_t dtypes[6] = { 4, 4, 1, 4, 4, 1 };
+        uint64_t offs[6] = {0};
+        NSData *blob = ane_build_blob_n(data_ptrs, sizes, dtypes, 6, offs);
+        if (!blob) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr blob build failed (likely an int8-OFF size that's not 64-aligned)\n");
+            return NULL;
+        }
+        NSString *blob_path_in_mil = @"@model_path/weights/weight.bin";
+        NSString *mil = gen_mil_int8w_linear_constexpr_conv(
+            H, I, B, blob_path_in_mil,
+            offs[0], offs[1], offs[2],
+            offs[3], offs[4], offs[5]);
+        NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
+        NSError *e = nil;
+        NSDictionary *weights = @{
+            blob_path_in_mil: @{ @"offset": @(0), @"data": blob }
+        };
+        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
+            milData, weights, nil);
+        if (!desc) return NULL;
+        id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
+            g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
+        if (!mdl) return NULL;
+        id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
+        NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
+        NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
+        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES attributes:nil error:nil]) return NULL;
+        NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
+        if (![blob writeToFile:blob_path atomically:YES]) {
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
+        if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
+                mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr compile failed: %s\n  (debug: keeping tmpdir %s)\n",
+                             e ? [[e description] UTF8String] : "unknown", [td UTF8String]);
+            if (!dbg) [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
+                mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr load failed: %s\n",
+                             e ? [[e description] UTF8String] : "unknown");
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
+        if (!ctx) {
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 11;
+        ctx->w_scale = 1.0f; ctx->x_scale = 1.0f; ctx->mid_scale = 1.0f;
+        ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->io_x   = make_surface_typed(ctx->x_bytes, 2u);
+        ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
+        if (!ctx->io_x || !ctx->io_out) {
+            ds4_ane_mlp_int8w_destroy(ctx);
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
+        id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
+        id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
+            g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
+            @[w_x], @[@0], @[w_o], @[@0], nil, nil, @0);
+        if (!req) {
+            ds4_ane_mlp_int8w_destroy(ctx);
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        ctx->model_r   = (void *)CFBridgingRetain(mdl);
+        ctx->request_r = (void *)CFBridgingRetain(req);
+        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
+        return ctx;
+    }
+}
+
+bool ds4_ane_mlp_int8w_linear_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
+                                              const uint16_t *input_f16,
+                                              uint16_t *output_f16) {
+    if (!ctx || !input_f16 || !output_f16) return false;
+    if (ctx->mode != 11) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_x, input_f16, ctx->x_bytes)) return false;
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr eval failed: %s\n",
+                             e ? [[e description] UTF8String] : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) return false;
+        return true;
     }
 }
 

@@ -6390,6 +6390,11 @@ typedef struct {
      * the conv path isn't built for this layer. */
     int n_conv_workers;
     ds4_ane_mlp_int8w_ctx *conv_ctxs[4];
+    /* int8 constexpr conv path (mode 11) — same multi-worker structure as
+     * fp16 conv but with per-channel int8 weights baked in.  n_int8_conv_workers
+     * != 0 means this path is built for this layer. */
+    int n_int8_conv_workers;
+    ds4_ane_mlp_int8w_ctx *int8_conv_ctxs[4];
 } ds4_oproj_layer_cache;
 
 #define DS4_OPROJ_MAX_LAYERS 64
@@ -6464,6 +6469,37 @@ static float ds4_quantize_f16_to_i8_per_tensor(const uint16_t *in_f16,
         out_i8[i] = (int8_t)q;
     }
     return scale;
+}
+
+/* Per-channel symmetric int8 quantization for a [out_dim, in_dim] fp16 weight
+ * matrix laid out row-major (one output channel per row).  Writes int8 weights
+ * and per-channel fp16 scales (one scalar per row).  This is the canonical
+ * ANE-compatible quantization for conv2d via constexpr_blockwise_shift_scale
+ * with block = full in_dim (which ANE accepts as "per-channel"). */
+static void ds4_quantize_f16_to_i8_per_channel(const uint16_t *in_f16_OI,
+                                                int8_t        *out_i8_OI,
+                                                uint16_t      *out_scale_f16,
+                                                uint64_t       out_dim,
+                                                uint64_t       in_dim) {
+    for (uint64_t c = 0; c < out_dim; c++) {
+        const uint16_t *row = in_f16_OI + c * in_dim;
+        int8_t         *dst = out_i8_OI + c * in_dim;
+        float absmax = 0.0f;
+        for (uint64_t i = 0; i < in_dim; i++) {
+            float a = fabsf(ds4_gpu_f16_bits_to_f32(row[i]));
+            if (a > absmax) absmax = a;
+        }
+        const float scale = absmax > 0.0f ? absmax / 127.0f : 1.0f;
+        const float inv = 1.0f / scale;
+        for (uint64_t i = 0; i < in_dim; i++) {
+            float v = ds4_gpu_f16_bits_to_f32(row[i]) * inv;
+            int q = (int)lrintf(v);
+            if (q > 127) q = 127;
+            if (q < -128) q = -128;
+            dst[i] = (int8_t)q;
+        }
+        out_scale_f16[c] = ds4_gpu_f32_to_f16_bits(scale);
+    }
 }
 
 static ds4_oproj_layer_cache *ds4_oproj_ensure(
@@ -6564,7 +6600,30 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
             model_map, model_size, a_offset, out_low_dim, in_dim, c->a_f16_OI);
         if (ok) ok = ds4_dequant_q8_0_to_f16(
             model_map, model_size, b_offset, n_embd, out_low_dim, c->b_f16_OI);
-        if (ok) {
+        const int conv_int8 = want_int8;
+        if (ok && conv_int8) {
+            /* Build int8 + per-channel constexpr conv ctxs (mode 11). */
+            int8_t   *a_q  = (int8_t *)malloc((size_t)a_OI_elems);
+            int8_t   *b_q  = (int8_t *)malloc((size_t)b_OI_elems);
+            int8_t   *a_off = (int8_t *)calloc((size_t)out_low_dim, 1);
+            int8_t   *b_off = (int8_t *)calloc((size_t)n_embd, 1);
+            uint16_t *a_sc = (uint16_t *)malloc((size_t)out_low_dim * sizeof(uint16_t));
+            uint16_t *b_sc = (uint16_t *)malloc((size_t)n_embd * sizeof(uint16_t));
+            if (!a_q || !b_q || !a_off || !b_off || !a_sc || !b_sc) ok = 0;
+            if (ok) {
+                ds4_quantize_f16_to_i8_per_channel(c->a_f16_OI, a_q, a_sc, out_low_dim, in_dim);
+                ds4_quantize_f16_to_i8_per_channel(c->b_f16_OI, b_q, b_sc, n_embd,      out_low_dim);
+                for (int w = 0; w < want_workers && ok; w++) {
+                    c->int8_conv_ctxs[w] = ds4_ane_mlp_int8w_linear_constexpr_create(
+                        (int)in_dim, (int)out_low_dim, (int)c->batch,
+                        a_q, a_off, a_sc, b_q, b_off, b_sc);
+                    if (!c->int8_conv_ctxs[w]) ok = 0;
+                }
+                if (ok) c->n_int8_conv_workers = want_workers;
+            }
+            free(a_q); free(b_q); free(a_off); free(b_off); free(a_sc); free(b_sc);
+        } else if (ok) {
+            /* fp16 conv ctxs (mode 10). */
             for (int w = 0; w < want_workers && ok; w++) {
                 c->conv_ctxs[w] = ds4_ane_mlp_fp16w_linear_constexpr_create(
                     (int)in_dim, (int)out_low_dim, (int)c->batch,
@@ -6586,6 +6645,9 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
                 for (int w = 0; w < c->n_conv_workers; w++) {
                     (void)ds4_ane_mlp_fp16w_linear_constexpr_eval(c->conv_ctxs[w], xw, yw);
                 }
+                for (int w = 0; w < c->n_int8_conv_workers; w++) {
+                    (void)ds4_ane_mlp_int8w_linear_constexpr_eval(c->int8_conv_ctxs[w], xw, yw);
+                }
             }
             free(xw); free(yw);
         }
@@ -6600,12 +6662,16 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
                 layer_idx,
                 (unsigned long long)in_dim, (unsigned long long)out_low_dim,
                 (unsigned long long)n_embd, c->batch,
-                c->n_conv_workers > 0
-                  ? (c->n_conv_workers == 1 ? "fp16w-linear-conv (1 ctx)"
-                     : (c->n_conv_workers == 2 ? "fp16w-linear-conv (dual cluster)"
-                        : "fp16w-linear-conv (multi worker)"))
-                  : (c->ctx_a_i8 ? "i8w-fp16x-linear (per-tensor scale)"
-                                 : "fp16w-linear-matmul (shared ctx)"),
+                c->n_int8_conv_workers > 0
+                  ? (c->n_int8_conv_workers == 1 ? "i8w-linear-conv (per-channel, 1 ctx)"
+                     : (c->n_int8_conv_workers == 2 ? "i8w-linear-conv (per-channel, dual cluster)"
+                        : "i8w-linear-conv (per-channel, multi worker)"))
+                  : (c->n_conv_workers > 0
+                     ? (c->n_conv_workers == 1 ? "fp16w-linear-conv (1 ctx)"
+                        : (c->n_conv_workers == 2 ? "fp16w-linear-conv (dual cluster)"
+                           : "fp16w-linear-conv (multi worker)"))
+                     : (c->ctx_a_i8 ? "i8w-fp16x-linear (per-tensor scale)"
+                                    : "fp16w-linear-matmul (shared ctx)")),
                 ds4_gpu_now_ms() - t0);
     } else {
         free(c->a_f16); free(c->b_f16);
@@ -6618,8 +6684,11 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
         for (int w = 0; w < 4; w++) {
             if (c->conv_ctxs[w]) ds4_ane_mlp_int8w_destroy(c->conv_ctxs[w]);
             c->conv_ctxs[w] = NULL;
+            if (c->int8_conv_ctxs[w]) ds4_ane_mlp_int8w_destroy(c->int8_conv_ctxs[w]);
+            c->int8_conv_ctxs[w] = NULL;
         }
         c->n_conv_workers = 0;
+        c->n_int8_conv_workers = 0;
         c->compile_failed = 1;
         fprintf(stderr, "ds4: ANE O-proj init FAILED for layer=%d\n", layer_idx);
     }
@@ -6681,7 +6750,11 @@ static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
 
         const double t_eval0 = ds4_gpu_now_ms();
         bool eval_call_ok = false;
-        if (s->use_conv) {
+        const int mode = s->ctx ? ds4_ane_mlp_int8w_mode(s->ctx) : -1;
+        if (mode == 11) {
+            eval_call_ok = ds4_ane_mlp_int8w_linear_constexpr_eval(
+                s->ctx, s->x_pad, s->y_pad);
+        } else if (mode == 10) {
             eval_call_ok = ds4_ane_mlp_fp16w_linear_constexpr_eval(
                 s->ctx, s->x_pad, s->y_pad);
         } else if (job->cache->ctx_a_i8) {
@@ -6733,9 +6806,19 @@ static void *ds4_gpu_oproj_ane_worker(void *arg) {
     }
     g_oproj_ane_input_ms += ds4_gpu_now_ms() - t_in0;
 
-    const int n_workers = (job->cache->n_conv_workers > 0)
-                          ? job->cache->n_conv_workers : 1;
-    const int use_conv  = (job->cache->n_conv_workers > 0) ? 1 : 0;
+    /* Pick the active path: int8 conv > fp16 conv > matmul (fp16 or i8w). */
+    int n_workers = 1;
+    int use_conv  = 0;
+    ds4_ane_mlp_int8w_ctx **active_ctxs = NULL;
+    if (job->cache->n_int8_conv_workers > 0) {
+        n_workers = job->cache->n_int8_conv_workers;
+        use_conv = 1;
+        active_ctxs = job->cache->int8_conv_ctxs;
+    } else if (job->cache->n_conv_workers > 0) {
+        n_workers = job->cache->n_conv_workers;
+        use_conv = 1;
+        active_ctxs = job->cache->conv_ctxs;
+    }
 
     /* Allocate per-worker scratch (x_pad, y_pad) so workers don't trample.
      * Worker 0 reuses job->x_f16_pad/y_f16_pad. */
@@ -6745,7 +6828,7 @@ static void *ds4_gpu_oproj_ane_worker(void *arg) {
     int spawn_ok = 1;
     for (int w = 0; w < n_workers && spawn_ok; w++) {
         args[w].job = job;
-        args[w].ctx = use_conv ? job->cache->conv_ctxs[w] : job->cache->ctx;
+        args[w].ctx = use_conv ? active_ctxs[w] : job->cache->ctx;
         args[w].use_conv = use_conv;
         args[w].stride = (uint32_t)n_workers;
         args[w].offset = (uint32_t)w;
