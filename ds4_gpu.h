@@ -154,13 +154,39 @@ int ds4_gpu_shared_gate_up_swiglu_q8_0_tensor(
         uint64_t                out_dim,
         const ds4_gpu_tensor *x);
 
-/* Synchronous ANE evaluator for the per-layer shared expert FFN
- * (gate + up + SwiGLU + down).  Replaces the 3 Q8_0 GPU matmuls + 1 SwiGLU
- * for the shared expert path. Weights are dequantized from Q8_0 to a single
- * per-tensor int8 on first call for a given layer and cached for the run.
- * Input/output are read/written via CPU through the MTLBuffer mappings; a
- * GPU sync is inserted to make sure prior writes to `in` have landed.
- * Gated behind DS4_FLASH_MOE_ANE_SHARED_EXPERT=1. */
+/* ANE evaluator for the per-layer shared expert FFN (gate + up + SwiGLU +
+ * down).  Replaces the 3 Q8_0 GPU matmuls + 1 SwiGLU for the shared expert
+ * path.  Weights are pre-dequantized from Q8_0 to fp16 on first call per
+ * layer (cached for the run).  fp16-weight ANE mode preserves precision
+ * exactly modulo fp32→fp16 input rounding.
+ *
+ * Async variant: start_tensor attaches a completion handler to the current
+ * GPU command buffer (which produces `in`), flushes the CB, and spawns a
+ * worker thread.  The worker does CPU fp32↔fp16 conversion + ANE eval +
+ * writeback into `out` MTLBuffer.contents() in parallel with GPU encoding
+ * subsequent ops.  finish_tensor pthread_joins the worker before the
+ * caller encodes any downstream dispatch that reads `out`.  Gated behind
+ * DS4_FLASH_MOE_ANE_SHARED_EXPERT=1. */
+struct ds4_gpu_shared_expert_ane_job;
+typedef struct ds4_gpu_shared_expert_ane_job ds4_gpu_shared_expert_ane_job;
+
+ds4_gpu_shared_expert_ane_job *ds4_gpu_shared_expert_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim,
+        uint32_t                n_tokens);
+
+int ds4_gpu_shared_expert_ane_async_finish_tensor(
+        ds4_gpu_shared_expert_ane_job *job);
+
+/* Synchronous wrapper around start+finish — same observable behaviour. */
 int ds4_gpu_shared_expert_ane_sync_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *in,

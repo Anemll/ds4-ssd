@@ -5928,7 +5928,242 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     return ok ? c : NULL;
 }
 
+/* Async job state: an ANE worker thread runs the shared-expert eval in
+ * parallel with the GPU encoding subsequent ops.  The CB's completion
+ * handler fires when GPU has actually written `batch_ffn_norm`; the worker
+ * waits on that flag before reading the buffer, then does all CPU-side
+ * fp32↔fp16 conversion + ANE eval + writeback into the shared output
+ * MTLBuffer.contents().  The caller pthread_joins the worker at the
+ * residual-add point.  Compared to the sync impl this eliminates the
+ * per-layer ds4_gpu_synchronize wait (which was structurally the cost). */
+typedef struct ds4_gpu_shared_expert_ane_job {
+    ds4_shared_expert_layer_cache *cache;
+    int layer_idx;
+    uint32_t n_tokens;
+    uint64_t in_dim;
+    uint64_t mid_dim;
+
+    /* Pointers into MTLBuffer.contents() (CPU/GPU coherent on Apple Silicon
+     * shared-storage buffers).  Worker reads input after dep_done; writes
+     * output before signaling eval_done. */
+    const float *in_f32_ptr;
+    float       *out_f32_ptr;
+
+    /* Worker-owned scratch — freed at finish. */
+    uint16_t *x_f16_all;
+    uint16_t *x_f16_pad;
+    uint16_t *y_f16_pad;
+
+    pthread_t thread;
+    int thread_started;
+    pthread_mutex_t mu;
+    pthread_cond_t cv;
+    int dep_done;       /* GPU has written batch_ffn_norm */
+    int eval_done;
+    int eval_failed;
+
+    double t_start_ms;
+} ds4_gpu_shared_expert_ane_job;
+
+static void *ds4_gpu_shared_expert_ane_worker(void *arg) {
+    ds4_gpu_shared_expert_ane_job *job = (ds4_gpu_shared_expert_ane_job *)arg;
+    if (!job) return NULL;
+
+    /* Wait for GPU to finish writing batch_ffn_norm. */
+    pthread_mutex_lock(&job->mu);
+    while (!job->dep_done) {
+        pthread_cond_wait(&job->cv, &job->mu);
+    }
+    pthread_mutex_unlock(&job->mu);
+
+    const double t_in0 = ds4_gpu_now_ms();
+    const uint64_t n_elems = (uint64_t)job->n_tokens * job->in_dim;
+    for (uint64_t i = 0; i < n_elems; i++) {
+        job->x_f16_all[i] = ds4_gpu_f32_to_f16_bits(job->in_f32_ptr[i]);
+    }
+    g_shared_ane_sync_input_ms += ds4_gpu_now_ms() - t_in0;
+
+    const uint32_t B = job->cache->batch;
+    int eval_ok = 1;
+    for (uint32_t begin = 0; begin < job->n_tokens && eval_ok; begin += B) {
+        const uint32_t chunk = (job->n_tokens - begin) < B ? (job->n_tokens - begin) : B;
+        memset(job->x_f16_pad, 0, (size_t)B * (size_t)job->in_dim * sizeof(uint16_t));
+        memcpy(job->x_f16_pad,
+               job->x_f16_all + (uint64_t)begin * job->in_dim,
+               (size_t)chunk * (size_t)job->in_dim * sizeof(uint16_t));
+        memset(job->y_f16_pad, 0, (size_t)B * (size_t)job->in_dim * sizeof(uint16_t));
+
+        const double t_eval0 = ds4_gpu_now_ms();
+        if (!ds4_ane_mlp_fp16w_eval(job->cache->ctx,
+                                     job->cache->gate_f16, job->cache->up_f16,
+                                     job->cache->down_f16,
+                                     job->x_f16_pad, job->y_f16_pad)) {
+            eval_ok = 0;
+            break;
+        }
+        g_shared_ane_sync_eval_ms += ds4_gpu_now_ms() - t_eval0;
+
+        const double t_out0 = ds4_gpu_now_ms();
+        for (uint32_t r = 0; r < chunk; r++) {
+            const uint16_t *src = job->y_f16_pad + (uint64_t)r * job->in_dim;
+            float          *dst = job->out_f32_ptr + (uint64_t)(begin + r) * job->in_dim;
+            for (uint64_t i = 0; i < job->in_dim; i++) {
+                dst[i] = ds4_gpu_f16_bits_to_f32(src[i]);
+            }
+        }
+        g_shared_ane_sync_output_ms += ds4_gpu_now_ms() - t_out0;
+    }
+
+    pthread_mutex_lock(&job->mu);
+    job->eval_done = 1;
+    job->eval_failed = !eval_ok;
+    pthread_cond_broadcast(&job->cv);
+    pthread_mutex_unlock(&job->mu);
+    return NULL;
+}
+
+ds4_gpu_shared_expert_ane_job *ds4_gpu_shared_expert_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim,
+        uint32_t                n_tokens) {
+    if (!g_initialized && !ds4_gpu_init()) return NULL;
+    if (!in || !out || n_tokens == 0) return NULL;
+    if (in_dim > UINT32_MAX || mid_dim > UINT32_MAX) return NULL;
+
+    ds4_shared_expert_layer_cache *c = ds4_shared_expert_ensure(
+        layer_idx, model_map, model_size, gate_offset, up_offset, down_offset,
+        in_dim, mid_dim);
+    if (!c) return NULL;
+
+    id<MTLBuffer> inbuf  = ds4_gpu_tensor_buffer(in);
+    id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+    if (!inbuf || !outbuf) return NULL;
+    const uint64_t in_bytes  = (uint64_t)n_tokens * in_dim * sizeof(float);
+    const uint64_t out_bytes = (uint64_t)n_tokens * in_dim * sizeof(float);
+    if (ds4_gpu_tensor_bytes(in) < in_bytes || ds4_gpu_tensor_bytes(out) < out_bytes) {
+        return NULL;
+    }
+
+    ds4_gpu_shared_expert_ane_job *job =
+        (ds4_gpu_shared_expert_ane_job *)calloc(1, sizeof(*job));
+    if (!job) return NULL;
+    job->cache = c;
+    job->layer_idx = layer_idx;
+    job->n_tokens = n_tokens;
+    job->in_dim = in_dim;
+    job->mid_dim = mid_dim;
+    job->in_f32_ptr  = (const float *)((const uint8_t *)[inbuf  contents] + ds4_gpu_tensor_offset(in));
+    job->out_f32_ptr = (float       *)((uint8_t       *)[outbuf contents] + ds4_gpu_tensor_offset(out));
+    pthread_mutex_init(&job->mu, NULL);
+    pthread_cond_init(&job->cv, NULL);
+    job->t_start_ms = ds4_gpu_now_ms();
+    g_shared_ane_sync_calls++;
+
+    const uint32_t B = c->batch;
+    job->x_f16_all = (uint16_t *)malloc((size_t)n_tokens * (size_t)in_dim * sizeof(uint16_t));
+    job->x_f16_pad = (uint16_t *)malloc((size_t)B        * (size_t)in_dim * sizeof(uint16_t));
+    job->y_f16_pad = (uint16_t *)malloc((size_t)B        * (size_t)in_dim * sizeof(uint16_t));
+    if (!job->x_f16_all || !job->x_f16_pad || !job->y_f16_pad ||
+        !job->in_f32_ptr || !job->out_f32_ptr) {
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+
+    /* Attach completion handler to current CB so worker fires when GPU
+     * finishes producing batch_ffn_norm.  Then flush to commit the CB
+     * (the handler can only fire after commit).  This does NOT wait. */
+    if (g_batch_cb == nil) {
+        /* No current CB — caller is in a weird state.  Bail. */
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+    ds4_gpu_shared_expert_ane_job *job_for_handler = job;
+    [g_batch_cb addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull cb_arg){
+        (void)cb_arg;
+        pthread_mutex_lock(&job_for_handler->mu);
+        job_for_handler->dep_done = 1;
+        pthread_cond_broadcast(&job_for_handler->cv);
+        pthread_mutex_unlock(&job_for_handler->mu);
+    }];
+    if (!ds4_gpu_flush_commands()) {
+        /* Mark dep_done anyway so worker doesn't hang. */
+        pthread_mutex_lock(&job->mu);
+        job->dep_done = 1;
+        job->eval_failed = 1;
+        pthread_cond_broadcast(&job->cv);
+        pthread_mutex_unlock(&job->mu);
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+
+    if (pthread_create(&job->thread, NULL,
+                        ds4_gpu_shared_expert_ane_worker, job) != 0) {
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+    job->thread_started = 1;
+    return job;
+}
+
+int ds4_gpu_shared_expert_ane_async_finish_tensor(
+        ds4_gpu_shared_expert_ane_job *job) {
+    if (!job) return 0;
+    if (job->thread_started) {
+        pthread_join(job->thread, NULL);
+        job->thread_started = 0;
+    }
+    int ok = !job->eval_failed && job->eval_done;
+    g_shared_ane_sync_total_ms += ds4_gpu_now_ms() - job->t_start_ms;
+    free(job->x_f16_all);
+    free(job->x_f16_pad);
+    free(job->y_f16_pad);
+    pthread_mutex_destroy(&job->mu);
+    pthread_cond_destroy(&job->cv);
+    free(job);
+    return ok ? 1 : 0;
+}
+
+/* Synchronous wrapper kept for callers that don't want the async lifecycle.
+ * Identical observable behaviour to the previous _sync_tensor impl. */
 int ds4_gpu_shared_expert_ane_sync_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *in,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim,
+        uint32_t                n_tokens) {
+    ds4_gpu_shared_expert_ane_job *job =
+        ds4_gpu_shared_expert_ane_async_start_tensor(in, out, layer_idx,
+                                                       model_map, model_size,
+                                                       gate_offset, up_offset, down_offset,
+                                                       in_dim, mid_dim, n_tokens);
+    if (!job) return 0;
+    return ds4_gpu_shared_expert_ane_async_finish_tensor(job);
+}
+
+/* Legacy sync impl body kept below for reference but no longer reached. */
+static int ds4_gpu_shared_expert_ane_sync_tensor_LEGACY(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *in,
         int                     layer_idx,

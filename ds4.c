@@ -15686,6 +15686,36 @@ static bool metal_graph_encode_layer_ffn_batch(
                                       (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
     }
     DS4_METAL_PROFILE_FFN_STAGE("norm");
+
+    /* Async ANE shared-expert: start_tensor right after batch_ffn_norm is
+     * encoded so the ANE worker runs in parallel with router + routed_moe
+     * encoding.  finish_tensor is below, right before downstream consumers
+     * of batch_shared_out (the residual-add block).  Cached env flag is
+     * initialized further down in the FFN block (see s_ane_shared_enabled);
+     * here we use the same getenv directly to avoid forward init issues. */
+    ds4_gpu_shared_expert_ane_job *shared_job = NULL;
+    {
+        const char *e = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
+        const char *eskip = getenv("DS4_FLASH_MOE_SKIP_SHARED_EXPERT");
+        const int ane_on  = e     && e[0]     && atoi(e)     != 0;
+        const int skip_on = eskip && eskip[0] && atoi(eskip) != 0;
+        if (ok && ane_on && !skip_on) {
+            shared_job = ds4_gpu_shared_expert_ane_async_start_tensor(
+                                g->batch_ffn_norm,
+                                g->batch_shared_out,
+                                (int)il,
+                                model->map,
+                                model->size,
+                                layer->ffn_gate_shexp->abs_offset,
+                                layer->ffn_up_shexp->abs_offset,
+                                layer->ffn_down_shexp->abs_offset,
+                                DS4_N_EMBD,
+                                layer->ffn_gate_shexp->dim[1],
+                                n_tokens);
+            if (!shared_job) ok = 0;
+        }
+    }
+
     if (ok) ok = ds4_gpu_matmul_f16_tensor(g->batch_router_logits,
                                              model->map,
                                              model->size,
@@ -15814,18 +15844,17 @@ static bool metal_graph_encode_layer_ffn_batch(
         }
     }
     if (s_ane_shared_enabled && !s_skip_shared_enabled) {
-        if (ok) ok = ds4_gpu_shared_expert_ane_sync_tensor(
-                            g->batch_shared_out,
-                            g->batch_ffn_norm,
-                            (int)il,
-                            model->map,
-                            model->size,
-                            layer->ffn_gate_shexp->abs_offset,
-                            layer->ffn_up_shexp->abs_offset,
-                            layer->ffn_down_shexp->abs_offset,
-                            DS4_N_EMBD,
-                            shared_dim,
-                            n_tokens) != 0;
+        /* Join the worker started right after the norm stage above.  This
+         * is the latest point we can wait — downstream residual-add reads
+         * batch_shared_out.  If ANE eval is faster than the intervening
+         * router + routed_moe GPU encoding (~700 ms/layer), join takes ~0 ms. */
+        if (ok && shared_job) {
+            ok = ds4_gpu_shared_expert_ane_async_finish_tensor(shared_job) != 0;
+            shared_job = NULL;
+        } else if (shared_job) {
+            (void)ds4_gpu_shared_expert_ane_async_finish_tensor(shared_job);
+            shared_job = NULL;
+        }
     } else if (!s_skip_shared_enabled) {
         if (ok) ok = ds4_gpu_matmul_q8_0_tensor(g->batch_shared_gate,
                                                   model->map,
