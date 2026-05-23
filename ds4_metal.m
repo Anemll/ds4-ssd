@@ -5868,6 +5868,15 @@ static int ds4_shared_expert_batch_env(void) {
     return (int)v;
 }
 
+/* DS4_SHARED_EXPERT_ANE_CONV=1: switch the shared-expert ANE MIL from the
+ * matmul-based split fp16w (3 evaluate calls + CPU silu+mul) to the single-call
+ * fp16w_fused_conv (1 evaluate, all silu+mul on ANE, conv2d-1x1 lowering).
+ * Off by default so prod behavior is unchanged until A/B confirms a win. */
+static int ds4_shared_expert_ane_use_conv(void) {
+    const char *e = getenv("DS4_SHARED_EXPERT_ANE_CONV");
+    return e && e[0] && atoi(e) != 0;
+}
+
 /* Lazy initialize the cache slot for `layer_idx`.  Returns the cache entry
  * on success (initialized == 1), or NULL if initialization failed. */
 static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
@@ -5914,20 +5923,26 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     static int s_shared_ctx_in_dim = 0;
     static int s_shared_ctx_mid_dim = 0;
     static int s_shared_ctx_batch = 0;
+    static int s_shared_ctx_mode = 0;
+    const int want_mode = ds4_shared_expert_ane_use_conv() ? 8 : 1;
     if (ok) {
         if (s_shared_ctx &&
             s_shared_ctx_in_dim == (int)in_dim &&
             s_shared_ctx_mid_dim == (int)mid_dim &&
-            s_shared_ctx_batch == (int)c->batch) {
+            s_shared_ctx_batch == (int)c->batch &&
+            s_shared_ctx_mode == want_mode) {
             c->ctx = s_shared_ctx;
         } else {
-            c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
+            c->ctx = (want_mode == 8)
+                ? ds4_ane_mlp_fp16w_fused_conv_create((int)in_dim, (int)mid_dim, (int)c->batch)
+                : ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
             if (!c->ctx) ok = 0;
             else {
                 s_shared_ctx = c->ctx;
                 s_shared_ctx_in_dim = (int)in_dim;
                 s_shared_ctx_mid_dim = (int)mid_dim;
                 s_shared_ctx_batch = (int)c->batch;
+                s_shared_ctx_mode = want_mode;
             }
         }
     }
@@ -5936,9 +5951,11 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
         g_shared_ane_sync_init_ms += ds4_gpu_now_ms() - t0;
         fprintf(stderr,
                 "ds4: ANE shared-expert init layer=%d in=%llu mid=%llu B=%u "
-                "fp16-weight mode init_ms=%.1f\n",
+                "%s init_ms=%.1f\n",
                 layer_idx, (unsigned long long)in_dim, (unsigned long long)mid_dim,
-                c->batch, ds4_gpu_now_ms() - t0);
+                c->batch,
+                want_mode == 8 ? "fp16w-fused-conv mode" : "fp16w split-matmul mode",
+                ds4_gpu_now_ms() - t0);
     } else {
         free(c->gate_f16); free(c->up_f16); free(c->down_f16);
         c->gate_f16 = c->up_f16 = c->down_f16 = NULL;
@@ -6015,10 +6032,16 @@ static void *ds4_gpu_shared_expert_ane_worker(void *arg) {
         memset(job->y_f16_pad, 0, (size_t)B * (size_t)job->in_dim * sizeof(uint16_t));
 
         const double t_eval0 = ds4_gpu_now_ms();
-        if (!ds4_ane_mlp_fp16w_eval(job->cache->ctx,
-                                     job->cache->gate_f16, job->cache->up_f16,
-                                     job->cache->down_f16,
-                                     job->x_f16_pad, job->y_f16_pad)) {
+        const bool eval_call_ok = ds4_ane_mlp_int8w_mode(job->cache->ctx) == 8
+            ? ds4_ane_mlp_fp16w_fused_conv_eval(job->cache->ctx,
+                                                 job->cache->gate_f16, job->cache->up_f16,
+                                                 job->cache->down_f16,
+                                                 job->x_f16_pad, job->y_f16_pad)
+            : ds4_ane_mlp_fp16w_eval(job->cache->ctx,
+                                      job->cache->gate_f16, job->cache->up_f16,
+                                      job->cache->down_f16,
+                                      job->x_f16_pad, job->y_f16_pad);
+        if (!eval_call_ok) {
             eval_ok = 0;
             break;
         }

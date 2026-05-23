@@ -676,6 +676,54 @@ static NSString *gen_mil_fp16w(int H, int I, int B) {
     return m;
 }
 
+/* Single-call fused fp16-weight MLP lowered as conv2d-1x1, the canonical
+ * ANE-friendly pattern for linear layers (matches Apple's own LLM exports).
+ * Activations land in NCHW [1, C, 1, W]; weights in [O, I, 1, 1].  The W and X
+ * layout transforms are emitted in MIL so the host-side IOSurface contract is
+ * identical to gen_mil_fp16w (Wg/Wu [H,I], Wd [I,H], X [B,H], Y [B,H]). */
+static NSString *gen_mil_fp16w_fused_conv(int H, int I, int B) {
+    NSMutableString *m = [NSMutableString string];
+    [m appendString:
+        @"program(1.3)\n"
+        @"[buildInfo = dict<string, string>({"
+        @"{\"coremlc-component-MIL\", \"3520.4.1\"}, "
+        @"{\"coremlc-version\", \"3520.5.1\"}})]\n{\n"];
+    [m appendFormat:
+        @"    func main<ios18>(tensor<fp16, [%d, %d]> Wg, tensor<fp16, [%d, %d]> Wu, tensor<fp16, [%d, %d]> Wd, tensor<fp16, [%d, %d]> X) {\n",
+        H, I, H, I, I, H, B, H];
+    [m appendString:
+        @"            tensor<int32, [2]> perm2 = const()[name = string(\"perm2\"), val = tensor<int32, [2]>([1, 0])];\n"
+        @"            string pad_type = const()[name = string(\"pad_type\"), val = string(\"valid\")];\n"
+        @"            tensor<int32, [2]> strides = const()[name = string(\"strides\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            tensor<int32, [4]> pad = const()[name = string(\"pad\"), val = tensor<int32, [4]>([0, 0, 0, 0])];\n"
+        @"            tensor<int32, [2]> dilations = const()[name = string(\"dilations\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            int32 groups = const()[name = string(\"groups\"), val = int32(1)];\n"];
+    /* Reshape host-side [H,I] / [I,H] / [B,H] inputs into ANE-native NCHW.
+     * Weight layout target: [O, I, 1, 1].  Activation target: [1, C, 1, B]. */
+    [m appendFormat:@"            tensor<int32, [4]> wg_shape = const()[name = string(\"wg_shape\"), val = tensor<int32, [4]>([%d, %d, 1, 1])];\n", I, H];
+    [m appendFormat:@"            tensor<int32, [4]> wu_shape = const()[name = string(\"wu_shape\"), val = tensor<int32, [4]>([%d, %d, 1, 1])];\n", I, H];
+    [m appendFormat:@"            tensor<int32, [4]> wd_shape = const()[name = string(\"wd_shape\"), val = tensor<int32, [4]>([%d, %d, 1, 1])];\n", H, I];
+    [m appendFormat:@"            tensor<int32, [4]> x_shape = const()[name = string(\"x_shape\"), val = tensor<int32, [4]>([1, %d, 1, %d])];\n", H, B];
+    [m appendFormat:@"            tensor<int32, [2]> y_shape = const()[name = string(\"y_shape\"), val = tensor<int32, [2]>([%d, %d])];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Wgt = transpose(perm = perm2, x = Wg)[name = string(\"Wgt\")];\n", I, H];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Wut = transpose(perm = perm2, x = Wu)[name = string(\"Wut\")];\n", I, H];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Wdt = transpose(perm = perm2, x = Wd)[name = string(\"Wdt\")];\n", H, I];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wgk = reshape(shape = wg_shape, x = Wgt)[name = string(\"Wgk\")];\n", I, H];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wuk = reshape(shape = wu_shape, x = Wut)[name = string(\"Wuk\")];\n", I, H];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wdk = reshape(shape = wd_shape, x = Wdt)[name = string(\"Wdk\")];\n", H, I];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Xt = transpose(perm = perm2, x = X)[name = string(\"Xt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> X4 = reshape(shape = x_shape, x = Xt)[name = string(\"X4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> gate = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wgk, x = X4)[name = string(\"gate\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> up = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wuk, x = X4)[name = string(\"up\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> act = silu(x = gate)[name = string(\"act\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> hidden = mul(x = act, y = up)[name = string(\"hidden\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> Y4 = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wdk, x = hidden)[name = string(\"Y4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Yt = reshape(shape = y_shape, x = Y4)[name = string(\"Yt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Y = transpose(perm = perm2, x = Yt)[name = string(\"Y\")];\n", B, H];
+    [m appendString:@"        } -> (Y);\n}\n"];
+    return m;
+}
+
 static bool compile_and_load_mil(NSString *mil,
                                  const char *label,
                                  void **model_r,
@@ -826,13 +874,15 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
             (mode == 4 ? gen_mil_i8w_i8x_fused(H, I, B, w_scale, x_scale, mid_scale) :
              (mode == 6 ? gen_mil_i8w_i8x_tiled_fused(H, I, B, w_scale, x_scale, mid_scale) :
               (mode == 7 ? gen_mil_i8w_i8x_tiled_fused_i8out(H, I, B, w_scale, x_scale, mid_scale) :
-                          gen_mil_int8w(H, I, B, w_scale, x_scale))));
+               (mode == 8 ? gen_mil_fp16w_fused_conv(H, I, B) :
+                          gen_mil_int8w(H, I, B, w_scale, x_scale)))));
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         if (dbg) fprintf(stderr, "ds4: ANE %s create H=%d I=%d B=%d w_scale=%g x_scale=%g mid_scale=%g\n",
                          mode == 1 ? "fp16w" :
                             (mode == 4 ? "i8w-i8x-fused" :
                              (mode == 6 ? "i8w-i8x-tiled-fused" :
-                              (mode == 7 ? "i8w-i8x-tiled-fused-i8out" : "int8w"))),
+                              (mode == 7 ? "i8w-i8x-tiled-fused-i8out" :
+                               (mode == 8 ? "fp16w-fused-conv" : "int8w")))),
                          H, I, B, w_scale, x_scale, mid_scale);
         id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
             g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
@@ -870,7 +920,9 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
         if (!ctx) return NULL;
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = mode; ctx->w_scale = w_scale; ctx->x_scale = x_scale; ctx->mid_scale = mid_scale;
-        const NSUInteger elem = mode == 1 ? 2u : 1u;
+        /* fp16 weights for mode 1 (legacy split path uses other branch above) and
+         * mode 8 (fused conv); int8 weights for all other single-model modes. */
+        const NSUInteger elem = (mode == 1 || mode == 8) ? 2u : 1u;
         /* mode==7 outputs int8 ([1,B,H]) instead of fp16 ([1,B,H]) → half the
          * output bytes + half the read_surface memcpy per call. */
         const NSUInteger out_elem = (mode == 7) ? 1u : 2u;
@@ -946,6 +998,10 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I
     return ds4_ane_mlp_create_common(H, I, B, w_scale, x_scale, mid_scale, 7);
 }
 
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_fused_conv_create(int H, int I, int B) {
+    return ds4_ane_mlp_create_common(H, I, B, 1.0f, 1.0f, 1.0f, 8);
+}
+
 bool ds4_ane_mlp_int8w_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,
@@ -1015,6 +1071,43 @@ bool ds4_ane_mlp_i8w_i8x_fused_eval(
         }
         if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
             if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x fused IOSurface read failed\n");
+            return false;
+        }
+        return true;
+    }
+}
+
+bool ds4_ane_mlp_fp16w_fused_conv_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *Wgate_f16,
+    const uint16_t *Wup_f16,
+    const uint16_t *Wdown_f16,
+    const uint16_t *input_f16,
+    uint16_t *output_f16)
+{
+    if (!ctx || !Wgate_f16 || !Wup_f16 || !Wdown_f16 || !input_f16 || !output_f16) return false;
+    if (ctx->mode != 8) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_gate, Wgate_f16, ctx->gate_bytes) ||
+            !write_surface(ctx->io_up, Wup_f16, ctx->gate_bytes) ||
+            !write_surface(ctx->io_down, Wdown_f16, ctx->down_bytes) ||
+            !write_surface(ctx->io_x, input_f16, ctx->x_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w fused conv IOSurface write failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w fused conv evaluate failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w fused conv IOSurface read failed\n");
             return false;
         }
         return true;

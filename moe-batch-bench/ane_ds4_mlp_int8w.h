@@ -21,6 +21,8 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_gateup_fused_create(int H, int I, int
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 /* Tiled-fused with int8 output (B*H bytes instead of B*H*2). */
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
+/* Single-call fused fp16-weight MLP lowered as conv2d-1x1 (ANE-native pattern). */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_fused_conv_create(int H, int I, int B);
 
 bool ds4_ane_mlp_int8w_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
@@ -32,6 +34,16 @@ bool ds4_ane_mlp_int8w_eval(
     uint16_t *output_f16);
 
 bool ds4_ane_mlp_fp16w_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *Wgate_f16,
+    const uint16_t *Wup_f16,
+    const uint16_t *Wdown_f16,
+    const uint16_t *input_f16,
+    uint16_t *output_f16);
+
+/* Single-call fused fp16w eval using the conv2d-1x1 MIL.  Same I/O contract as
+ * ds4_ane_mlp_fp16w_eval (Wg/Wu [H,I], Wd [I,H], input [B,H], output [B,H]). */
+bool ds4_ane_mlp_fp16w_fused_conv_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const uint16_t *Wgate_f16,
     const uint16_t *Wup_f16,
