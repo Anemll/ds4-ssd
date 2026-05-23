@@ -20555,6 +20555,39 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     }
 #endif
 
+#ifndef DS4_NO_GPU
+    /* Pre-warm the ANE shared-expert cache for all layers when enabled.
+     * Without this the ~4 s of one-time Q8_0→fp16 dequant + ANE compile is
+     * paid inside the first prefill, hiding the per-token speedup the
+     * async eval delivers.  Runs once at engine open, before any prefill
+     * timer is started by the CLI/server. */
+    if (graph_backend && e->metal_ready) {
+        const char *env = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
+        if (env && env[0] && atoi(env) != 0) {
+            const double prewarm_t0 = now_sec();
+            uint32_t prewarmed = 0;
+            for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+                const ds4_layer_weights *layer = &e->weights.layer[il];
+                if (!layer->ffn_gate_shexp || !layer->ffn_up_shexp || !layer->ffn_down_shexp) {
+                    continue;
+                }
+                const uint64_t shared_dim = layer->ffn_gate_shexp->dim[1];
+                if (ds4_gpu_shared_expert_ane_prewarm(
+                        (int)il, e->model.map, e->model.size,
+                        layer->ffn_gate_shexp->abs_offset,
+                        layer->ffn_up_shexp->abs_offset,
+                        layer->ffn_down_shexp->abs_offset,
+                        DS4_N_EMBD, shared_dim) != 0) {
+                    prewarmed++;
+                }
+            }
+            fprintf(stderr,
+                    "ds4: ANE shared-expert prewarm: %u/%u layers, %.1f ms total (paid before prefill timer)\n",
+                    prewarmed, DS4_N_LAYER, (now_sec() - prewarm_t0) * 1000.0);
+        }
+    }
+#endif
+
     *out = e;
     return 0;
 }

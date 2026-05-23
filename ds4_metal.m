@@ -6160,6 +6160,25 @@ int ds4_gpu_shared_expert_ane_async_finish_tensor(
     return ok ? 1 : 0;
 }
 
+/* Pre-warm: pre-dequantize Q8_0 weights to fp16 and create the shared ANE
+ * context.  Called from metal_graph_warmup_prefill_kernels so the ~4 s of
+ * one-time init is paid before the prefill timer starts.  Idempotent. */
+int ds4_gpu_shared_expert_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    ds4_shared_expert_layer_cache *c = ds4_shared_expert_ensure(
+        layer_idx, model_map, model_size, gate_offset, up_offset, down_offset,
+        in_dim, mid_dim);
+    return c ? 1 : 0;
+}
+
 /* Synchronous wrapper kept for callers that don't want the async lifecycle.
  * Identical observable behaviour to the previous _sync_tensor impl. */
 int ds4_gpu_shared_expert_ane_sync_tensor(

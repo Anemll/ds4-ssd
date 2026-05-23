@@ -186,6 +186,21 @@ ds4_gpu_shared_expert_ane_job *ds4_gpu_shared_expert_ane_async_start_tensor(
 int ds4_gpu_shared_expert_ane_async_finish_tensor(
         ds4_gpu_shared_expert_ane_job *job);
 
+/* Pre-warm a layer's shared-expert ANE cache: pre-dequantize Q8_0 → fp16
+ * weights and create the shared compiled context.  Idempotent — safe to
+ * call multiple times for the same layer.  Returns 1 on success, 0 on
+ * failure (failure is sticky for that layer).  Call from model-load /
+ * prefill warmup so the ~4 s of init is paid outside prefill timing. */
+int ds4_gpu_shared_expert_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim);
+
 /* Synchronous wrapper around start+finish — same observable behaviour. */
 int ds4_gpu_shared_expert_ane_sync_tensor(
         ds4_gpu_tensor       *out,
