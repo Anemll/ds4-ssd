@@ -39,6 +39,12 @@ struct ds4_ane_mlp_int8w_ctx {
     NSUInteger hidden_bytes;
     NSUInteger route_bytes;
     NSUInteger out_bytes;
+    /* Per-chunk-IOSurface variant (mode 11, GPU-conversion O-proj path):
+     * one request per externally-supplied input IOSurface.  All chunk
+     * requests share the ctx's io_out.  When n_chunk_requests > 0,
+     * eval_at_chunk uses chunk_requests[k] instead of request_r. */
+    int n_chunk_requests;
+    void *chunk_requests[64];
 };
 
 static dispatch_once_t g_classes_once;
@@ -1526,6 +1532,66 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, i
     }
 }
 
+/* Attach N additional input IOSurfaces to an existing mode-11 ctx by creating
+ * N new requests, each bound to one of the supplied input IOSurfaces (with the
+ * ctx's existing io_out as the shared output).  After this, eval_at_chunk(k)
+ * uses chunk_requests[k] instead of request_r — ANE reads the matching
+ * external IOSurface for that chunk.  Caller owns the IOSurfaces' lifetime. */
+bool ds4_ane_mlp_int8w_linear_constexpr_attach_chunks(
+        ds4_ane_mlp_int8w_ctx *ctx,
+        const IOSurfaceRef *chunk_input_iosurfaces,
+        int n_chunks) {
+    if (!ctx || !chunk_input_iosurfaces || n_chunks <= 0) return false;
+    if (n_chunks > 64) return false;
+    if (ctx->mode != 11) return false;
+    resolve_classes();
+    if (!g_ReqCls || !g_IOCls) return false;
+    @autoreleasepool {
+        id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(
+            g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
+        if (!w_o) return false;
+        for (int k = 0; k < n_chunks; k++) {
+            id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(
+                g_IOCls, @selector(objectWithIOSurface:), chunk_input_iosurfaces[k]);
+            if (!w_x) return false;
+            id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
+                g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
+                @[w_x], @[@0], @[w_o], @[@0], nil, nil, @0);
+            if (!req) return false;
+            ctx->chunk_requests[k] = (void *)CFBridgingRetain(req);
+        }
+        ctx->n_chunk_requests = n_chunks;
+        return true;
+    }
+}
+
+/* Eval using the per-chunk request bound to chunk_idx's IOSurface — caller
+ * has already written the input (typically via a GPU dispatch into the
+ * external IOSurface), and reads fp16 output from the shared io_out. */
+bool ds4_ane_mlp_int8w_linear_constexpr_eval_at_chunk(
+        ds4_ane_mlp_int8w_ctx *ctx,
+        int chunk_idx,
+        uint16_t *output_f16) {
+    if (!ctx || !output_f16) return false;
+    if (ctx->mode != 11) return false;
+    if (chunk_idx < 0 || chunk_idx >= ctx->n_chunk_requests) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->chunk_requests[chunk_idx], &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr eval_at_chunk %d failed: %s\n",
+                             chunk_idx, e ? [[e description] UTF8String] : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) return false;
+        return true;
+    }
+}
+
 bool ds4_ane_mlp_int8w_linear_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
                                               const uint16_t *input_f16,
                                               uint16_t *output_f16) {
@@ -2627,6 +2693,12 @@ void ds4_ane_mlp_int8w_destroy(ds4_ane_mlp_int8w_ctx *ctx) {
         if (ctx->io_out) CFRelease(ctx->io_out);
         if (tmpDir) [[NSFileManager defaultManager] removeItemAtPath:tmpDir error:nil];
         if (tmpDirDown) [[NSFileManager defaultManager] removeItemAtPath:tmpDirDown error:nil];
+        for (int k = 0; k < ctx->n_chunk_requests; k++) {
+            if (ctx->chunk_requests[k]) {
+                CFBridgingRelease(ctx->chunk_requests[k]);
+                ctx->chunk_requests[k] = NULL;
+            }
+        }
         free(ctx);
     }
 }

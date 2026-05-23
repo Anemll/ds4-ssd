@@ -127,6 +127,24 @@ bool ds4_ane_mlp_int8w_linear_constexpr_eval(
     const uint16_t *input_f16,
     uint16_t       *output_f16);
 
+/* Attach N external input IOSurfaces to an existing mode-11 ctx — creates
+ * one ANE request per IOSurface, all sharing the ctx's existing io_out.
+ * After this, eval_at_chunk dispatches via the request for the requested
+ * chunk index, and ANE reads the matching external IOSurface (no per-call
+ * write_surface needed).  Caller owns the IOSurfaces' lifetime. */
+#ifdef __OBJC__
+#import <IOSurface/IOSurface.h>
+bool ds4_ane_mlp_int8w_linear_constexpr_attach_chunks(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const IOSurfaceRef    *chunk_input_iosurfaces,
+    int                    n_chunks);
+#endif
+
+bool ds4_ane_mlp_int8w_linear_constexpr_eval_at_chunk(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    int                    chunk_idx,
+    uint16_t              *output_f16);
+
 bool ds4_ane_mlp_i8w_fp16x_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,

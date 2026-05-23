@@ -6457,35 +6457,71 @@ static int ds4_oproj_use_gpu_cvt(void) {
     return e && e[0] && atoi(e) != 0;
 }
 
-/* Single shared fp16 staging buffer for O-proj GPU input conversion.  Sized
- * to the max n_tokens × in_dim × 2 bytes seen so far; grows on demand.
- * GPU writes here, worker reads here (no NEON conversion needed). */
-static id<MTLBuffer> g_oproj_input_f16_staging_buf;
-static NSUInteger    g_oproj_input_f16_staging_bytes;
-static pthread_mutex_t g_oproj_input_staging_mu = PTHREAD_MUTEX_INITIALIZER;
+/* Pool of N per-chunk input IOSurfaces (size [B, in_dim] fp16 each) used by
+ * the GPU-conversion O-proj path.  Each is wrapped as a MTLBuffer so a GPU
+ * kernel_cpy_f32_f16 dispatch can write directly into the same memory ANE
+ * reads via _ANEIOSurfaceObject.  Shared across all 43 layers and across
+ * dual-cluster ctxs (each ctx has its own N requests bound to these N
+ * IOSurfaces).  Allocated lazily on first use. */
+#define DS4_OPROJ_MAX_CHUNK_IOSURFACES 64
+static IOSurfaceRef  g_oproj_chunk_in_iosurfs[DS4_OPROJ_MAX_CHUNK_IOSURFACES];
+static id<MTLBuffer> g_oproj_chunk_in_mtl_bufs[DS4_OPROJ_MAX_CHUNK_IOSURFACES];
+static int           g_oproj_chunk_in_count;
+static NSUInteger    g_oproj_chunk_in_bytes_each;
+static pthread_mutex_t g_oproj_chunk_in_mu = PTHREAD_MUTEX_INITIALIZER;
 
-static id<MTLBuffer> ds4_oproj_input_staging_get(NSUInteger required_bytes) {
-    pthread_mutex_lock(&g_oproj_input_staging_mu);
-    if (g_oproj_input_f16_staging_buf &&
-        g_oproj_input_f16_staging_bytes >= required_bytes) {
-        id<MTLBuffer> buf = g_oproj_input_f16_staging_buf;
-        pthread_mutex_unlock(&g_oproj_input_staging_mu);
-        return buf;
+static int ds4_oproj_chunk_in_pool_ensure(int n_chunks, NSUInteger bytes_each) {
+    pthread_mutex_lock(&g_oproj_chunk_in_mu);
+    if (n_chunks > DS4_OPROJ_MAX_CHUNK_IOSURFACES) {
+        pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+        return 0;
     }
-    /* Grow.  Drop old (ARC) and allocate fresh. */
-    NSUInteger grow_bytes = required_bytes;
-    /* Round up to 64K for some slack. */
-    grow_bytes = (grow_bytes + 0xFFFFu) & ~0xFFFFu;
-    id<MTLBuffer> buf = [g_device newBufferWithLength:grow_bytes
-                                              options:MTLResourceStorageModeShared];
-    if (!buf) {
-        pthread_mutex_unlock(&g_oproj_input_staging_mu);
-        return nil;
+    if (g_oproj_chunk_in_count >= n_chunks && g_oproj_chunk_in_bytes_each == bytes_each) {
+        pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+        return 1;
     }
-    g_oproj_input_f16_staging_buf = buf;
-    g_oproj_input_f16_staging_bytes = grow_bytes;
-    pthread_mutex_unlock(&g_oproj_input_staging_mu);
-    return buf;
+    /* Size or count changed — destroy old, allocate fresh. */
+    for (int k = 0; k < g_oproj_chunk_in_count; k++) {
+        if (g_oproj_chunk_in_iosurfs[k]) { CFRelease(g_oproj_chunk_in_iosurfs[k]); g_oproj_chunk_in_iosurfs[k] = NULL; }
+        g_oproj_chunk_in_mtl_bufs[k] = nil;  /* ARC */
+    }
+    g_oproj_chunk_in_count = 0;
+    g_oproj_chunk_in_bytes_each = 0;
+
+    NSDictionary *props = @{
+        (id)kIOSurfaceWidth: @(bytes_each / 2u),  /* 2-byte elems (fp16) */
+        (id)kIOSurfaceHeight: @1,
+        (id)kIOSurfaceBytesPerElement: @2,
+        (id)kIOSurfaceBytesPerRow: @(bytes_each),
+        (id)kIOSurfaceAllocSize: @(bytes_each),
+        (id)kIOSurfacePixelFormat: @0,
+    };
+    for (int k = 0; k < n_chunks; k++) {
+        IOSurfaceRef io = IOSurfaceCreate((__bridge CFDictionaryRef)props);
+        if (!io) goto fail;
+        g_oproj_chunk_in_iosurfs[k] = io;
+        IOSurfaceLock(io, 0, NULL);
+        void *base = IOSurfaceGetBaseAddress(io);
+        IOSurfaceUnlock(io, 0, NULL);
+        if (!base) goto fail;
+        g_oproj_chunk_in_mtl_bufs[k] =
+            [g_device newBufferWithBytesNoCopy:base
+                                        length:bytes_each
+                                       options:MTLResourceStorageModeShared
+                                   deallocator:nil];
+        if (!g_oproj_chunk_in_mtl_bufs[k]) goto fail;
+    }
+    g_oproj_chunk_in_count = n_chunks;
+    g_oproj_chunk_in_bytes_each = bytes_each;
+    pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+    return 1;
+fail:
+    for (int k = 0; k < n_chunks; k++) {
+        if (g_oproj_chunk_in_iosurfs[k]) { CFRelease(g_oproj_chunk_in_iosurfs[k]); g_oproj_chunk_in_iosurfs[k] = NULL; }
+        g_oproj_chunk_in_mtl_bufs[k] = nil;
+    }
+    pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+    return 0;
 }
 
 /* NEON SIMD f32→f16 conversion (4 elements per instruction).  vcvt_f16_f32
@@ -6716,6 +6752,29 @@ static ds4_oproj_layer_cache *ds4_oproj_ensure(
         /* Weights are baked in compiled ctxs now — can drop the host buffers. */
         free(c->a_f16_OI); free(c->b_f16_OI);
         c->a_f16_OI = c->b_f16_OI = NULL;
+        /* When GPU input conversion is enabled, also attach an array of
+         * external input IOSurfaces (one per chunk position) to each int8
+         * conv ctx.  Each ctx then has N requests, and the worker calls
+         * eval_at_chunk(k) — ANE reads chunk k's pre-converted fp16 input
+         * directly from IOSurface k (which a GPU dispatch wrote to). */
+        if (ok && c->n_int8_conv_workers > 0 && ds4_oproj_use_gpu_cvt()) {
+            const int n_chunks = DS4_OPROJ_MAX_CHUNK_IOSURFACES;  /* upper bound */
+            const NSUInteger chunk_bytes = (NSUInteger)c->batch * (NSUInteger)in_dim * sizeof(uint16_t);
+            if (ds4_oproj_chunk_in_pool_ensure(n_chunks, chunk_bytes)) {
+                IOSurfaceRef io_arr[DS4_OPROJ_MAX_CHUNK_IOSURFACES];
+                pthread_mutex_lock(&g_oproj_chunk_in_mu);
+                for (int k = 0; k < n_chunks; k++) io_arr[k] = g_oproj_chunk_in_iosurfs[k];
+                pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+                for (int w = 0; w < c->n_int8_conv_workers && ok; w++) {
+                    if (!ds4_ane_mlp_int8w_linear_constexpr_attach_chunks(
+                            c->int8_conv_ctxs[w], io_arr, n_chunks)) {
+                        ok = 0;
+                    }
+                }
+            } else {
+                ok = 0;
+            }
+        }
         /* One-shot warm eval per ctx so first-call setup lands in prewarm. */
         if (ok) {
             const NSUInteger x_elems = (NSUInteger)c->batch * (NSUInteger)in_dim;
@@ -6829,26 +6888,33 @@ static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
     const uint64_t out_dim = job->cache->n_embd;
     int eval_ok = 1;
     uint32_t chunk_idx = 0;
+    const int chunk_io_active = (job->in_f16_ptr != NULL);  /* sentinel from start_tensor */
     for (uint32_t begin = 0; begin < job->n_tokens && eval_ok; begin += B, chunk_idx++) {
         if ((chunk_idx % s->stride) != s->offset) continue;
         const uint32_t chunk = (job->n_tokens - begin) < B ? (job->n_tokens - begin) : B;
-        /* Convert chunk's input slice fp32 → fp16 directly into x_pad. */
-        const double t_in0 = ds4_gpu_now_ms();
-        ds4_neon_f32_to_f16(s->x_pad,
-                             job->in_f32_ptr + (uint64_t)begin * in_dim,
-                             (uint64_t)chunk * in_dim);
-        /* Zero the padding rows if any (chunk < B). */
-        if (chunk < B) {
-            memset(s->x_pad + (uint64_t)chunk * in_dim, 0,
-                   (size_t)(B - chunk) * (size_t)in_dim * sizeof(uint16_t));
+        /* Input prep: when chunk_io is active, GPU already wrote the chunk's
+         * fp16 input to the chunk's own IOSurface — nothing to do here. */
+        if (!chunk_io_active) {
+            const double t_in0 = ds4_gpu_now_ms();
+            ds4_neon_f32_to_f16(s->x_pad,
+                                 job->in_f32_ptr + (uint64_t)begin * in_dim,
+                                 (uint64_t)chunk * in_dim);
+            if (chunk < B) {
+                memset(s->x_pad + (uint64_t)chunk * in_dim, 0,
+                       (size_t)(B - chunk) * (size_t)in_dim * sizeof(uint16_t));
+            }
+            s->input_ms += ds4_gpu_now_ms() - t_in0;
         }
-        s->input_ms += ds4_gpu_now_ms() - t_in0;
         memset(s->y_pad, 0, (size_t)B * (size_t)out_dim * sizeof(uint16_t));
 
         const double t_eval0 = ds4_gpu_now_ms();
         bool eval_call_ok = false;
         const int mode = s->ctx ? ds4_ane_mlp_int8w_mode(s->ctx) : -1;
-        if (mode == 11) {
+        if (mode == 11 && chunk_io_active) {
+            /* ANE reads pre-converted input from chunk_idx's bound IOSurface. */
+            eval_call_ok = ds4_ane_mlp_int8w_linear_constexpr_eval_at_chunk(
+                s->ctx, (int)chunk_idx, s->y_pad);
+        } else if (mode == 11) {
             eval_call_ok = ds4_ane_mlp_int8w_linear_constexpr_eval(
                 s->ctx, s->x_pad, s->y_pad);
         } else if (mode == 10) {
@@ -7026,7 +7092,58 @@ ds4_gpu_oproj_ane_job *ds4_gpu_oproj_ane_async_start_tensor(
         free(job);
         return NULL;
     }
+
+    /* GPU-conversion path: when the active int8 conv ctxs have chunk_requests
+     * attached, encode N cpy_f32_f16 dispatches into the current CB — one per
+     * chunk, copying the chunk's slice of batch_heads from fp32 to the chunk's
+     * pre-allocated fp16 IOSurface.  The CB's completion handler then signals
+     * dep_done after all GPU writes (and any preceding GPU work) complete.
+     * Worker calls eval_at_chunk for each chunk; ANE reads directly from the
+     * pre-written IOSurface — no NEON conversion, no worker memcpy. */
+    int use_chunk_io = 0;
+    if (c->n_int8_conv_workers > 0 && c->int8_conv_ctxs[0] &&
+        ds4_ane_mlp_int8w_mode(c->int8_conv_ctxs[0]) == 11) {
+        /* Probe: does the ctx have chunk_requests attached?  We can't read
+         * n_chunk_requests directly (opaque struct), so just attempt to
+         * compute the gpu_cvt flag.  This is set at ensure time and stays
+         * stable across calls. */
+        if (ds4_oproj_use_gpu_cvt()) use_chunk_io = 1;
+    }
+    if (use_chunk_io) {
+        const uint32_t B = c->batch;
+        const uint32_t n_chunks = (n_tokens + B - 1u) / B;
+        if (n_chunks > (uint32_t)DS4_OPROJ_MAX_CHUNK_IOSURFACES) {
+            /* Fall back to CPU path — too many chunks for the pool. */
+            use_chunk_io = 0;
+        } else {
+            pthread_mutex_lock(&g_oproj_chunk_in_mu);
+            for (uint32_t k = 0; k < n_chunks; k++) {
+                const uint32_t chunk = (n_tokens - k * B) < B ? (n_tokens - k * B) : B;
+                const NSUInteger src_off = ds4_gpu_tensor_offset(in) +
+                    (NSUInteger)k * B * in_dim * sizeof(float);
+                const uint32_t n_elems = (uint32_t)((uint64_t)chunk * in_dim);
+                if (!ds4_gpu_encode_cpy_f32_f16_1d(g_batch_cb,
+                                                    inbuf, src_off,
+                                                    g_oproj_chunk_in_mtl_bufs[k], 0,
+                                                    n_elems)) {
+                    /* Dispatch failed mid-loop — bail out of chunk_io path. */
+                    use_chunk_io = 0;
+                    break;
+                }
+                /* If chunk < B, pad the rest of the IOSurface with zeros via
+                 * an additional dispatch.  We zero-init at allocation, but
+                 * since previous calls may have written non-zero data into
+                 * the trailing rows, we'd need to clear.  For now: skip
+                 * padding (last chunk's trailing rows have stale data).  ANE
+                 * still computes correct output for the valid rows; the
+                 * worker only reads the first 'chunk' rows of the output. */
+            }
+            pthread_mutex_unlock(&g_oproj_chunk_in_mu);
+        }
+    }
+
     ds4_gpu_oproj_ane_job *job_for_handler = job;
+    job_for_handler->in_f16_ptr = use_chunk_io ? (const uint16_t *)0x1 : NULL;  /* sentinel: chunk-io active */
     [g_batch_cb addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull cb_arg){
         (void)cb_arg;
         pthread_mutex_lock(&job_for_handler->mu);
