@@ -67,6 +67,31 @@ bool ds4_ane_mlp_fp16w_constexpr_eval(
     const uint16_t *input_f16,
     uint16_t *output_f16);
 
+/* Linear two-stage constexpr conv2d-1x1 (no activation) — for LoRA-style
+ * projections like DSv4 attention output.  Wa [I, H], Wb [H, I] (ggml-native
+ * [O, I] orientation matches conv weight layout).  Input [B, H], output [B, H].
+ * Mode 10 ctx with weights baked into MIL via BLOBFILE constexpr. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(
+    int H, int I, int B,
+    const uint16_t *Wa_OI,
+    const uint16_t *Wb_OI);
+
+bool ds4_ane_mlp_fp16w_linear_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *input_f16,
+    uint16_t *output_f16);
+
+/* Linear two-matmul fp16w eval: input · Wa → mid · Wb → output, no
+ * activation between.  Reuses a mode-1 (fp16w split) ctx created with the
+ * matching shape.  Wa is fed via the gate model, Wb via the down model.
+ * Shapes: input [B, H], Wa [H, I], Wb [I, H], output [B, H]. */
+bool ds4_ane_mlp_fp16w_linear_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *Wa_f16,
+    const uint16_t *Wb_f16,
+    const uint16_t *input_f16,
+    uint16_t *output_f16);
+
 bool ds4_ane_mlp_i8w_fp16x_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,

@@ -15537,31 +15537,60 @@ static bool metal_graph_encode_layer_attention_batch(
                                       (uint64_t)n_tokens * q_dim, il, pos0);
     }
     DS4_METAL_PROFILE_ATTN_STAGE("inv_rope");
-    if (ok) ok = ds4_gpu_attention_output_q8_batch_tensor(g->batch_attn_out,
-                                                            g->batch_attn_low,
-                                                            g->batch_group_tmp,
-                                                            g->batch_low_tmp,
-                                                            model->map,
-                                                            model->size,
-                                                            layer->attn_output_a->abs_offset,
-                                                            layer->attn_output_b->abs_offset,
-                                                            group_dim,
-                                                            rank,
-                                                            n_groups,
-                                                            DS4_N_EMBD,
-                                                            g->batch_heads,
-                                                            n_tokens) != 0;
-    if (ok) {
+    /* DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1: route attention output projection
+     * (W_a × W_b LoRA pair) to ANE via fp16w linear two-stage matmul.
+     * Sheds ~67 ms/layer (~2.9 s/prefill) of GPU q8_0 GEMM dispatch.  Falls
+     * back to the GPU path if the ANE worker can't start (compile failure,
+     * unsupported shape, etc). */
+    ds4_gpu_oproj_ane_job *oproj_job = NULL;
+    {
+        const char *env = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ");
+        if (ok && env && env[0] && atoi(env) != 0 &&
+            !metal_graph_directional_steering_attn_enabled(g)) {
+            oproj_job = ds4_gpu_oproj_ane_async_start_tensor(
+                g->batch_heads, g->batch_attn_out,
+                (int)il, model->map, model->size,
+                layer->attn_output_a->abs_offset,
+                layer->attn_output_b->abs_offset,
+                (uint64_t)group_dim * n_groups,
+                (uint64_t)n_groups * rank,
+                DS4_N_EMBD,
+                n_tokens);
+        }
+    }
+    if (ok && !oproj_job) {
+        ok = ds4_gpu_attention_output_q8_batch_tensor(g->batch_attn_out,
+                                                        g->batch_attn_low,
+                                                        g->batch_group_tmp,
+                                                        g->batch_low_tmp,
+                                                        model->map,
+                                                        model->size,
+                                                        layer->attn_output_a->abs_offset,
+                                                        layer->attn_output_b->abs_offset,
+                                                        group_dim,
+                                                        rank,
+                                                        n_groups,
+                                                        DS4_N_EMBD,
+                                                        g->batch_heads,
+                                                        n_tokens) != 0;
+    }
+    if (ok && !oproj_job) {
         metal_graph_debug_dump_tensor("attn_low", g->batch_attn_low,
                                       (uint64_t)n_tokens * n_groups * rank,
                                       il,
                                       pos0);
     }
+    DS4_METAL_PROFILE_ATTN_STAGE("output_proj");
+    if (ok && oproj_job) {
+        /* Join the ANE worker now — batch_attn_out is consumed by the next
+         * stages.  Worker may have already finished; cost is just pthread_join. */
+        ok = ds4_gpu_oproj_ane_async_finish_tensor(oproj_job) != 0;
+        oproj_job = NULL;
+    }
     if (ok) {
         metal_graph_debug_dump_tensor("attn_out", g->batch_attn_out,
                                       (uint64_t)n_tokens * DS4_N_EMBD, il, pos0);
     }
-    DS4_METAL_PROFILE_ATTN_STAGE("output_proj");
     if (ok && metal_graph_directional_steering_attn_enabled(g)) {
         ok = metal_graph_apply_directional_steering_attn(g, g->batch_attn_out, il, n_tokens);
     }
@@ -20584,6 +20613,33 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             fprintf(stderr,
                     "ds4: ANE shared-expert prewarm: %u/%u layers, %.1f ms total (paid before prefill timer)\n",
                     prewarmed, DS4_N_LAYER, (now_sec() - prewarm_t0) * 1000.0);
+        }
+        /* DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1: prewarm the attention output
+         * projection ANE cache.  Pre-dequantizes Q8_0 W_a/W_b → fp16 for all
+         * 43 layers and creates the shared fp16w ctx so the first prefill
+         * doesn't include the ~4 s of init in its timer. */
+        {
+            const char *env_oproj = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ");
+            if (env_oproj && env_oproj[0] && atoi(env_oproj) != 0) {
+                const double prewarm_t0 = now_sec();
+                uint32_t prewarmed = 0;
+                const uint64_t in_dim      = (uint64_t)DS4_N_HEAD_DIM * (DS4_N_HEAD / DS4_N_OUT_GROUP);
+                const uint64_t out_low_dim = (uint64_t)DS4_N_OUT_GROUP * DS4_N_LORA_O;
+                for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+                    const ds4_layer_weights *layer = &e->weights.layer[il];
+                    if (!layer->attn_output_a || !layer->attn_output_b) continue;
+                    if (ds4_gpu_oproj_ane_prewarm(
+                            (int)il, e->model.map, e->model.size,
+                            layer->attn_output_a->abs_offset,
+                            layer->attn_output_b->abs_offset,
+                            in_dim, out_low_dim, DS4_N_EMBD) != 0) {
+                        prewarmed++;
+                    }
+                }
+                fprintf(stderr,
+                        "ds4: ANE O-proj prewarm: %u/%u layers, %.1f ms total (paid before prefill timer)\n",
+                        prewarmed, DS4_N_LAYER, (now_sec() - prewarm_t0) * 1000.0);
+            }
         }
     }
 #endif

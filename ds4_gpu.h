@@ -215,6 +215,37 @@ int ds4_gpu_shared_expert_ane_sync_tensor(
         uint64_t                mid_dim,
         uint32_t                n_tokens);
 
+/* Attention output projection (O-proj) ANE path — async fp16w linear two-stage
+ * matmul (attn_output_a, attn_output_b).  Same lifecycle as shared expert.
+ * Gated behind DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1. */
+struct ds4_gpu_oproj_ane_job;
+typedef struct ds4_gpu_oproj_ane_job ds4_gpu_oproj_ane_job;
+
+ds4_gpu_oproj_ane_job *ds4_gpu_oproj_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd,
+        uint32_t                n_tokens);
+
+int ds4_gpu_oproj_ane_async_finish_tensor(ds4_gpu_oproj_ane_job *job);
+
+int ds4_gpu_oproj_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd);
+
 int ds4_gpu_matmul_f16_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,

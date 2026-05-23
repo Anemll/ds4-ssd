@@ -483,6 +483,27 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
                     g_shared_ane_dep_wait_ms,
                     g_shared_ane_join_wait_ms, avg_join_ms);
         }
+        extern uint64_t g_oproj_ane_calls;
+        extern double   g_oproj_ane_total_ms;
+        extern double   g_oproj_ane_eval_ms;
+        extern double   g_oproj_ane_input_ms;
+        extern double   g_oproj_ane_output_ms;
+        extern double   g_oproj_ane_init_ms;
+        extern double   g_oproj_ane_dep_wait_ms;
+        extern double   g_oproj_ane_join_wait_ms;
+        if (g_oproj_ane_calls > 0) {
+            const double avg_eval_ms = g_oproj_ane_eval_ms / (double)g_oproj_ane_calls;
+            const double avg_join_ms = g_oproj_ane_join_wait_ms / (double)g_oproj_ane_calls;
+            fprintf(stderr,
+                    "ds4: ANE O-proj calls=%llu total_ms=%.3f eval_ms=%.3f eval_avg=%.3f ms/call input_ms=%.3f output_ms=%.3f init_ms=%.3f dep_wait_ms=%.3f join_wait_ms=%.3f join_avg=%.3f ms/call\n",
+                    (unsigned long long)g_oproj_ane_calls,
+                    g_oproj_ane_total_ms,
+                    g_oproj_ane_eval_ms, avg_eval_ms,
+                    g_oproj_ane_input_ms, g_oproj_ane_output_ms,
+                    g_oproj_ane_init_ms,
+                    g_oproj_ane_dep_wait_ms,
+                    g_oproj_ane_join_wait_ms, avg_join_ms);
+        }
         fprintf(stderr,
                 "ds4: ANE prefill chunks refs=%llu padded_refs=%llu pad_util=%.2f%% le16=%llu le64=%llu le128=%llu full=%llu\n",
                 (unsigned long long)g_ane_prefill_eval_refs,
@@ -6323,6 +6344,499 @@ int ds4_gpu_shared_expert_ane_prewarm(
         in_dim, mid_dim);
     return c ? 1 : 0;
 }
+
+/* ============================================================================
+ * Attention output projection (O-proj) ANE path.
+ *
+ * Mirrors the shared-expert async pattern.  DSv4's O-proj is a LoRA-style
+ * two-stage projection: attn_low = heads · attn_output_a, attn_out = attn_low ·
+ * attn_output_b.  Shapes:
+ *   heads        [n_tokens, group_dim * n_groups]  = [n_tokens, 4096]
+ *   W_a (Q8_0)   [4096, n_groups * rank]           = [4096, 8192]
+ *   W_b (Q8_0)   [8192, DS4_N_EMBD]                = [8192, 4096]
+ *   attn_out     [n_tokens, DS4_N_EMBD]            = [n_tokens, 4096]
+ * Weights are static per layer (43 distinct sets), shape-identical across
+ * layers, so we dequant once per layer and share one compiled fp16w ctx.
+ *
+ * The chosen ANE path is the fp16w mode-1 split ctx with the new
+ * ds4_ane_mlp_fp16w_linear_eval (2 evals, no activation between) — same code
+ * shape as shared expert but without silu/mul.  The W_a / W_b dims map onto
+ * the existing fp16w (H, I) ctx as H=4096, I=8192. */
+
+typedef struct {
+    int   initialized;
+    int   compile_failed;
+    uint16_t *a_f16;          /* [out_low_dim, in_dim] fp16, transposed for matmul */
+    uint16_t *b_f16;          /* [n_embd,      out_low_dim] fp16, transposed */
+    uint16_t *a_f16_OI;       /* [out_low_dim, in_dim] fp16, ggml-native (no transpose) for conv path */
+    uint16_t *b_f16_OI;       /* [n_embd, out_low_dim] fp16, ggml-native for conv path */
+    uint32_t batch;
+    uint64_t in_dim;          /* 4096 */
+    uint64_t out_low_dim;     /* 8192 */
+    uint64_t n_embd;          /* 4096 */
+    /* Matmul path: one shared shape-bound ctx (mode 1, fp16w-linear eval). */
+    ds4_ane_mlp_int8w_ctx *ctx;
+    /* Constexpr conv path: per-layer per-worker ctxs (mode 10).  conv_ctxs[i]
+     * is used by worker i in multi-cluster mode.  n_conv_workers == 0 means
+     * the conv path isn't built for this layer. */
+    int n_conv_workers;
+    ds4_ane_mlp_int8w_ctx *conv_ctxs[4];
+} ds4_oproj_layer_cache;
+
+#define DS4_OPROJ_MAX_LAYERS 64
+static ds4_oproj_layer_cache g_oproj_cache[DS4_OPROJ_MAX_LAYERS];
+static pthread_mutex_t g_oproj_cache_mu = PTHREAD_MUTEX_INITIALIZER;
+
+double   g_oproj_ane_total_ms;
+double   g_oproj_ane_init_ms;
+double   g_oproj_ane_input_ms;
+double   g_oproj_ane_eval_ms;
+double   g_oproj_ane_output_ms;
+double   g_oproj_ane_dep_wait_ms;
+double   g_oproj_ane_join_wait_ms;
+uint64_t g_oproj_ane_calls;
+
+static int ds4_oproj_batch_env(void) {
+    const char *e = getenv("DS4_FLASH_MOE_ANE_OPROJ_BATCH");
+    if (!e || !e[0]) return 256;
+    long v = atol(e);
+    if (v < 1) v = 1; if (v > 8192) v = 8192;
+    return (int)v;
+}
+
+/* DS4_FLASH_MOE_ANE_OUTPUT_PROJ_CONV=1: use the constexpr conv2d-1x1 linear
+ * path (mode 10, weights baked into per-layer MIL) instead of the matmul
+ * split path (mode 1, weights uploaded per call).  Conv path is ~2-3x faster
+ * per ANE eval but compiles 1-4 ctx per layer (43 * N total). */
+static int ds4_oproj_use_conv(void) {
+    const char *e = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_CONV");
+    return e && e[0] && atoi(e) != 0;
+}
+
+/* DS4_FLASH_MOE_ANE_OUTPUT_PROJ_THREADS=1..4: number of parallel ANE workers
+ * for the O-proj per-layer call (each works on a chunk stride).  Only takes
+ * effect with the conv path (matmul path is single-worker only). */
+static int ds4_oproj_threads(void) {
+    const char *e = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_THREADS");
+    if (!e || !e[0]) return 1;
+    long v = atol(e);
+    if (v < 1) v = 1; if (v > 4) v = 4;
+    return (int)v;
+}
+
+static ds4_oproj_layer_cache *ds4_oproj_ensure(
+        int layer_idx,
+        const void *model_map, uint64_t model_size,
+        uint64_t a_offset, uint64_t b_offset,
+        uint64_t in_dim, uint64_t out_low_dim, uint64_t n_embd) {
+    if (layer_idx < 0 || layer_idx >= DS4_OPROJ_MAX_LAYERS) return NULL;
+    ds4_oproj_layer_cache *c = &g_oproj_cache[layer_idx];
+    if (c->initialized) return c;
+    if (c->compile_failed) return NULL;
+
+    pthread_mutex_lock(&g_oproj_cache_mu);
+    if (c->initialized) { pthread_mutex_unlock(&g_oproj_cache_mu); return c; }
+    if (c->compile_failed) { pthread_mutex_unlock(&g_oproj_cache_mu); return NULL; }
+
+    const double t0 = ds4_gpu_now_ms();
+    int ok = 1;
+    /* W_a is stored as [in_dim, out_low_dim] in ggml (rows=in_dim, cols=out_low_dim).
+     * fp16w MIL wants [in, out] = [4096, 8192] — matching ggml's [n_rows=in, n_cols=out]
+     * orientation EXCEPT that the existing dequant helper transposes its output, so
+     * passing (n_rows=out_low_dim, n_cols=in_dim) gives us the post-transpose layout
+     * the fp16w matmul expects: [in_dim, out_low_dim]. */
+    const uint64_t a_elems = in_dim * out_low_dim;
+    const uint64_t b_elems = out_low_dim * n_embd;
+    c->a_f16 = (uint16_t *)malloc((size_t)a_elems * sizeof(uint16_t));
+    c->b_f16 = (uint16_t *)malloc((size_t)b_elems * sizeof(uint16_t));
+    if (!c->a_f16 || !c->b_f16) ok = 0;
+    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(
+        model_map, model_size, a_offset, out_low_dim, in_dim, c->a_f16);
+    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(
+        model_map, model_size, b_offset, n_embd, out_low_dim, c->b_f16);
+    c->batch = (uint32_t)ds4_oproj_batch_env();
+    c->in_dim = in_dim;
+    c->out_low_dim = out_low_dim;
+    c->n_embd = n_embd;
+
+    /* Shape-shared fp16w mode-1 ctx across all 43 layers.  H=in_dim,
+     * I=out_low_dim so model_r is [B, H] @ [H, I] (A matmul) and model_down_r
+     * is [B, I] @ [I, H] (B matmul). */
+    static ds4_ane_mlp_int8w_ctx *s_oproj_ctx = NULL;
+    static int s_oproj_in_dim = 0;
+    static int s_oproj_out_low = 0;
+    static int s_oproj_batch = 0;
+    if (ok) {
+        if (s_oproj_ctx &&
+            s_oproj_in_dim == (int)in_dim &&
+            s_oproj_out_low == (int)out_low_dim &&
+            s_oproj_batch   == (int)c->batch) {
+            c->ctx = s_oproj_ctx;
+        } else {
+            c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)out_low_dim, (int)c->batch);
+            if (!c->ctx) ok = 0;
+            else {
+                s_oproj_ctx = c->ctx;
+                s_oproj_in_dim = (int)in_dim;
+                s_oproj_out_low = (int)out_low_dim;
+                s_oproj_batch   = (int)c->batch;
+            }
+        }
+    }
+
+    /* Optional constexpr conv path: per-layer per-worker compiled ctxs with
+     * weights baked into MIL.  Needs the [O, I] ggml-native weight layout
+     * (no transpose) since conv expects weights as [O, I, 1, 1]. */
+    const int want_conv = ok && ds4_oproj_use_conv();
+    const int want_workers = ds4_oproj_threads();
+    if (want_conv) {
+        const uint64_t a_OI_elems = out_low_dim * in_dim;
+        const uint64_t b_OI_elems = n_embd * out_low_dim;
+        c->a_f16_OI = (uint16_t *)malloc((size_t)a_OI_elems * sizeof(uint16_t));
+        c->b_f16_OI = (uint16_t *)malloc((size_t)b_OI_elems * sizeof(uint16_t));
+        if (!c->a_f16_OI || !c->b_f16_OI) ok = 0;
+        if (ok) ok = ds4_dequant_q8_0_to_f16(
+            model_map, model_size, a_offset, out_low_dim, in_dim, c->a_f16_OI);
+        if (ok) ok = ds4_dequant_q8_0_to_f16(
+            model_map, model_size, b_offset, n_embd, out_low_dim, c->b_f16_OI);
+        if (ok) {
+            for (int w = 0; w < want_workers && ok; w++) {
+                c->conv_ctxs[w] = ds4_ane_mlp_fp16w_linear_constexpr_create(
+                    (int)in_dim, (int)out_low_dim, (int)c->batch,
+                    c->a_f16_OI, c->b_f16_OI);
+                if (!c->conv_ctxs[w]) ok = 0;
+            }
+            if (ok) c->n_conv_workers = want_workers;
+        }
+        /* Weights are baked in compiled ctxs now — can drop the host buffers. */
+        free(c->a_f16_OI); free(c->b_f16_OI);
+        c->a_f16_OI = c->b_f16_OI = NULL;
+        /* One-shot warm eval per ctx so first-call setup lands in prewarm. */
+        if (ok) {
+            const NSUInteger x_elems = (NSUInteger)c->batch * (NSUInteger)in_dim;
+            const NSUInteger y_elems = (NSUInteger)c->batch * (NSUInteger)n_embd;
+            uint16_t *xw = (uint16_t *)calloc(x_elems, sizeof(uint16_t));
+            uint16_t *yw = (uint16_t *)calloc(y_elems, sizeof(uint16_t));
+            if (xw && yw) {
+                for (int w = 0; w < c->n_conv_workers; w++) {
+                    (void)ds4_ane_mlp_fp16w_linear_constexpr_eval(c->conv_ctxs[w], xw, yw);
+                }
+            }
+            free(xw); free(yw);
+        }
+    }
+
+    if (ok) {
+        c->initialized = 1;
+        g_oproj_ane_init_ms += ds4_gpu_now_ms() - t0;
+        fprintf(stderr,
+                "ds4: ANE O-proj init layer=%d in=%llu out_low=%llu n_embd=%llu B=%u "
+                "%s init_ms=%.1f\n",
+                layer_idx,
+                (unsigned long long)in_dim, (unsigned long long)out_low_dim,
+                (unsigned long long)n_embd, c->batch,
+                c->n_conv_workers > 0
+                  ? (c->n_conv_workers == 1 ? "fp16w-linear-conv (1 ctx)"
+                     : (c->n_conv_workers == 2 ? "fp16w-linear-conv (dual cluster)"
+                        : "fp16w-linear-conv (multi worker)"))
+                  : "fp16w-linear-matmul (shared ctx)",
+                ds4_gpu_now_ms() - t0);
+    } else {
+        free(c->a_f16); free(c->b_f16);
+        free(c->a_f16_OI); free(c->b_f16_OI);
+        c->a_f16 = c->b_f16 = c->a_f16_OI = c->b_f16_OI = NULL;
+        for (int w = 0; w < 4; w++) {
+            if (c->conv_ctxs[w]) ds4_ane_mlp_int8w_destroy(c->conv_ctxs[w]);
+            c->conv_ctxs[w] = NULL;
+        }
+        c->n_conv_workers = 0;
+        c->compile_failed = 1;
+        fprintf(stderr, "ds4: ANE O-proj init FAILED for layer=%d\n", layer_idx);
+    }
+    pthread_mutex_unlock(&g_oproj_cache_mu);
+    return ok ? c : NULL;
+}
+
+typedef struct ds4_gpu_oproj_ane_job {
+    ds4_oproj_layer_cache *cache;
+    int      layer_idx;
+    uint32_t n_tokens;
+    /* Pointers into MTLBuffer.contents() (shared-storage on Apple Silicon).
+     * Worker reads input after dep_done, writes output before signaling done. */
+    const float *in_f32_ptr;
+    float       *out_f32_ptr;
+    uint16_t *x_f16_all;
+    uint16_t *x_f16_pad;
+    uint16_t *y_f16_pad;
+    pthread_t thread;
+    int thread_started;
+    pthread_mutex_t mu;
+    pthread_cond_t cv;
+    int dep_done;
+    int eval_done;
+    int eval_failed;
+    double t_start_ms;
+} ds4_gpu_oproj_ane_job;
+
+/* Per-stride worker: processes chunks where (chunk_idx % stride == offset).
+ * Used by the multi-cluster conv path; for single-worker matmul / single
+ * conv stride=1 offset=0 so it handles every chunk. */
+typedef struct {
+    ds4_gpu_oproj_ane_job *job;
+    ds4_ane_mlp_int8w_ctx *ctx;       /* worker-specific ctx (conv) or shared (matmul) */
+    int    use_conv;
+    uint32_t stride;
+    uint32_t offset;
+    uint16_t *x_pad;                  /* worker-owned scratch */
+    uint16_t *y_pad;
+    int eval_ok;
+} ds4_gpu_oproj_stride_arg;
+
+static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
+    ds4_gpu_oproj_stride_arg *s = (ds4_gpu_oproj_stride_arg *)arg;
+    ds4_gpu_oproj_ane_job *job = s->job;
+    const uint32_t B = job->cache->batch;
+    const uint64_t in_dim = job->cache->in_dim;
+    const uint64_t out_dim = job->cache->n_embd;
+    int eval_ok = 1;
+    uint32_t chunk_idx = 0;
+    for (uint32_t begin = 0; begin < job->n_tokens && eval_ok; begin += B, chunk_idx++) {
+        if ((chunk_idx % s->stride) != s->offset) continue;
+        const uint32_t chunk = (job->n_tokens - begin) < B ? (job->n_tokens - begin) : B;
+        memset(s->x_pad, 0, (size_t)B * (size_t)in_dim * sizeof(uint16_t));
+        memcpy(s->x_pad,
+               job->x_f16_all + (uint64_t)begin * in_dim,
+               (size_t)chunk * (size_t)in_dim * sizeof(uint16_t));
+        memset(s->y_pad, 0, (size_t)B * (size_t)out_dim * sizeof(uint16_t));
+
+        const double t_eval0 = ds4_gpu_now_ms();
+        bool eval_call_ok = false;
+        if (s->use_conv) {
+            eval_call_ok = ds4_ane_mlp_fp16w_linear_constexpr_eval(
+                s->ctx, s->x_pad, s->y_pad);
+        } else {
+            eval_call_ok = ds4_ane_mlp_fp16w_linear_eval(
+                job->cache->ctx, job->cache->a_f16, job->cache->b_f16,
+                s->x_pad, s->y_pad);
+        }
+        if (!eval_call_ok) { eval_ok = 0; break; }
+        g_oproj_ane_eval_ms += ds4_gpu_now_ms() - t_eval0;
+
+        const double t_out0 = ds4_gpu_now_ms();
+        for (uint32_t r = 0; r < chunk; r++) {
+            const uint16_t *src = s->y_pad + (uint64_t)r * out_dim;
+            float          *dst = job->out_f32_ptr + (uint64_t)(begin + r) * out_dim;
+            for (uint64_t i = 0; i < out_dim; i++) {
+                dst[i] = ds4_gpu_f16_bits_to_f32(src[i]);
+            }
+        }
+        g_oproj_ane_output_ms += ds4_gpu_now_ms() - t_out0;
+    }
+    s->eval_ok = eval_ok;
+    return NULL;
+}
+
+static void *ds4_gpu_oproj_ane_worker(void *arg) {
+    ds4_gpu_oproj_ane_job *job = (ds4_gpu_oproj_ane_job *)arg;
+    if (!job) return NULL;
+
+    const double t_dep0 = ds4_gpu_now_ms();
+    pthread_mutex_lock(&job->mu);
+    while (!job->dep_done) {
+        pthread_cond_wait(&job->cv, &job->mu);
+    }
+    pthread_mutex_unlock(&job->mu);
+    g_oproj_ane_dep_wait_ms += ds4_gpu_now_ms() - t_dep0;
+
+    const double t_in0 = ds4_gpu_now_ms();
+    const uint64_t in_dim = job->cache->in_dim;
+    const uint64_t out_dim = job->cache->n_embd;
+    const uint32_t B = job->cache->batch;
+    const uint64_t n_elems = (uint64_t)job->n_tokens * in_dim;
+    for (uint64_t i = 0; i < n_elems; i++) {
+        job->x_f16_all[i] = ds4_gpu_f32_to_f16_bits(job->in_f32_ptr[i]);
+    }
+    g_oproj_ane_input_ms += ds4_gpu_now_ms() - t_in0;
+
+    const int n_workers = (job->cache->n_conv_workers > 0)
+                          ? job->cache->n_conv_workers : 1;
+    const int use_conv  = (job->cache->n_conv_workers > 0) ? 1 : 0;
+
+    /* Allocate per-worker scratch (x_pad, y_pad) so workers don't trample.
+     * Worker 0 reuses job->x_f16_pad/y_f16_pad. */
+    ds4_gpu_oproj_stride_arg args[4] = {0};
+    uint16_t *extra_xpad[4] = {0};
+    uint16_t *extra_ypad[4] = {0};
+    int spawn_ok = 1;
+    for (int w = 0; w < n_workers && spawn_ok; w++) {
+        args[w].job = job;
+        args[w].ctx = use_conv ? job->cache->conv_ctxs[w] : job->cache->ctx;
+        args[w].use_conv = use_conv;
+        args[w].stride = (uint32_t)n_workers;
+        args[w].offset = (uint32_t)w;
+        if (w == 0) {
+            args[w].x_pad = job->x_f16_pad;
+            args[w].y_pad = job->y_f16_pad;
+        } else {
+            extra_xpad[w] = (uint16_t *)malloc((size_t)B * in_dim  * sizeof(uint16_t));
+            extra_ypad[w] = (uint16_t *)malloc((size_t)B * out_dim * sizeof(uint16_t));
+            if (!extra_xpad[w] || !extra_ypad[w]) { spawn_ok = 0; break; }
+            args[w].x_pad = extra_xpad[w];
+            args[w].y_pad = extra_ypad[w];
+        }
+    }
+    int eval_ok = spawn_ok;
+    if (spawn_ok) {
+        if (n_workers == 1) {
+            ds4_gpu_oproj_ane_stride_worker(&args[0]);
+            eval_ok = args[0].eval_ok;
+        } else {
+            pthread_t threads[4] = {0};
+            for (int w = 0; w < n_workers; w++) {
+                pthread_create(&threads[w], NULL, ds4_gpu_oproj_ane_stride_worker, &args[w]);
+            }
+            for (int w = 0; w < n_workers; w++) {
+                pthread_join(threads[w], NULL);
+                if (!args[w].eval_ok) eval_ok = 0;
+            }
+        }
+    }
+    for (int w = 1; w < 4; w++) { free(extra_xpad[w]); free(extra_ypad[w]); }
+
+    pthread_mutex_lock(&job->mu);
+    job->eval_done = 1;
+    job->eval_failed = !eval_ok;
+    pthread_cond_broadcast(&job->cv);
+    pthread_mutex_unlock(&job->mu);
+    return NULL;
+}
+
+ds4_gpu_oproj_ane_job *ds4_gpu_oproj_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd,
+        uint32_t                n_tokens) {
+    if (!g_initialized && !ds4_gpu_init()) return NULL;
+    if (!in || !out || n_tokens == 0) return NULL;
+    if (in_dim > UINT32_MAX || out_low_dim > UINT32_MAX || n_embd > UINT32_MAX) return NULL;
+
+    ds4_oproj_layer_cache *c = ds4_oproj_ensure(
+        layer_idx, model_map, model_size, a_offset, b_offset,
+        in_dim, out_low_dim, n_embd);
+    if (!c) return NULL;
+
+    id<MTLBuffer> inbuf  = ds4_gpu_tensor_buffer(in);
+    id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+    if (!inbuf || !outbuf) return NULL;
+    const uint64_t in_bytes  = (uint64_t)n_tokens * in_dim * sizeof(float);
+    const uint64_t out_bytes = (uint64_t)n_tokens * n_embd * sizeof(float);
+    if (ds4_gpu_tensor_bytes(in) < in_bytes ||
+        ds4_gpu_tensor_bytes(out) < out_bytes) {
+        return NULL;
+    }
+
+    ds4_gpu_oproj_ane_job *job = (ds4_gpu_oproj_ane_job *)calloc(1, sizeof(*job));
+    if (!job) return NULL;
+    job->cache = c;
+    job->layer_idx = layer_idx;
+    job->n_tokens = n_tokens;
+    job->in_f32_ptr  = (const float *)((const uint8_t *)[inbuf  contents] + ds4_gpu_tensor_offset(in));
+    job->out_f32_ptr = (float       *)((uint8_t       *)[outbuf contents] + ds4_gpu_tensor_offset(out));
+    pthread_mutex_init(&job->mu, NULL);
+    pthread_cond_init(&job->cv, NULL);
+    job->t_start_ms = ds4_gpu_now_ms();
+    g_oproj_ane_calls++;
+
+    const uint32_t B = c->batch;
+    job->x_f16_all = (uint16_t *)malloc((size_t)n_tokens * (size_t)in_dim * sizeof(uint16_t));
+    job->x_f16_pad = (uint16_t *)malloc((size_t)B        * (size_t)in_dim * sizeof(uint16_t));
+    job->y_f16_pad = (uint16_t *)malloc((size_t)B        * (size_t)n_embd * sizeof(uint16_t));
+    if (!job->x_f16_all || !job->x_f16_pad || !job->y_f16_pad) {
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+
+    if (g_batch_cb == nil) {
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+    ds4_gpu_oproj_ane_job *job_for_handler = job;
+    [g_batch_cb addCompletedHandler:^(id<MTLCommandBuffer> _Nonnull cb_arg){
+        (void)cb_arg;
+        pthread_mutex_lock(&job_for_handler->mu);
+        job_for_handler->dep_done = 1;
+        pthread_cond_broadcast(&job_for_handler->cv);
+        pthread_mutex_unlock(&job_for_handler->mu);
+    }];
+    if (!ds4_gpu_flush_commands()) {
+        pthread_mutex_lock(&job->mu);
+        job->dep_done = 1;
+        job->eval_failed = 1;
+        pthread_cond_broadcast(&job->cv);
+        pthread_mutex_unlock(&job->mu);
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+
+    if (pthread_create(&job->thread, NULL, ds4_gpu_oproj_ane_worker, job) != 0) {
+        free(job->x_f16_all); free(job->x_f16_pad); free(job->y_f16_pad);
+        pthread_mutex_destroy(&job->mu); pthread_cond_destroy(&job->cv);
+        free(job);
+        return NULL;
+    }
+    job->thread_started = 1;
+    return job;
+}
+
+int ds4_gpu_oproj_ane_async_finish_tensor(ds4_gpu_oproj_ane_job *job) {
+    if (!job) return 0;
+    if (job->thread_started) {
+        const double t_join0 = ds4_gpu_now_ms();
+        pthread_join(job->thread, NULL);
+        g_oproj_ane_join_wait_ms += ds4_gpu_now_ms() - t_join0;
+        job->thread_started = 0;
+    }
+    int ok = !job->eval_failed && job->eval_done;
+    g_oproj_ane_total_ms += ds4_gpu_now_ms() - job->t_start_ms;
+    free(job->x_f16_all);
+    free(job->x_f16_pad);
+    free(job->y_f16_pad);
+    pthread_mutex_destroy(&job->mu);
+    pthread_cond_destroy(&job->cv);
+    free(job);
+    return ok ? 1 : 0;
+}
+
+int ds4_gpu_oproj_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    ds4_oproj_layer_cache *c = ds4_oproj_ensure(
+        layer_idx, model_map, model_size, a_offset, b_offset,
+        in_dim, out_low_dim, n_embd);
+    return c ? 1 : 0;
+}
+
+/* ============================================================================ */
 
 /* Synchronous wrapper kept for callers that don't want the async lifecycle.
  * Identical observable behaviour to the previous _sync_tensor impl. */
