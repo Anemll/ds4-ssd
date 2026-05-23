@@ -6447,6 +6447,46 @@ static int ds4_oproj_use_int8(void) {
     return e && e[0] && atoi(e) != 0;
 }
 
+/* NEON SIMD f32→f16 conversion (4 elements per instruction).  vcvt_f16_f32
+ * matches IEEE 754 round-to-nearest-even semantics, identical to the existing
+ * scalar ds4_gpu_f32_to_f16_bits within the normal range. */
+static inline void ds4_neon_f32_to_f16(uint16_t *out, const float *in, uint64_t n) {
+    uint64_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        float32x4_t a = vld1q_f32(in + i +  0);
+        float32x4_t b = vld1q_f32(in + i +  4);
+        float32x4_t c = vld1q_f32(in + i +  8);
+        float32x4_t d = vld1q_f32(in + i + 12);
+        vst1_u16(out + i +  0, vreinterpret_u16_f16(vcvt_f16_f32(a)));
+        vst1_u16(out + i +  4, vreinterpret_u16_f16(vcvt_f16_f32(b)));
+        vst1_u16(out + i +  8, vreinterpret_u16_f16(vcvt_f16_f32(c)));
+        vst1_u16(out + i + 12, vreinterpret_u16_f16(vcvt_f16_f32(d)));
+    }
+    for (; i + 4 <= n; i += 4) {
+        vst1_u16(out + i, vreinterpret_u16_f16(vcvt_f16_f32(vld1q_f32(in + i))));
+    }
+    for (; i < n; i++) out[i] = ds4_gpu_f32_to_f16_bits(in[i]);
+}
+
+/* NEON SIMD f16→f32 conversion. */
+static inline void ds4_neon_f16_to_f32(float *out, const uint16_t *in, uint64_t n) {
+    uint64_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        float16x4_t a = vreinterpret_f16_u16(vld1_u16(in + i +  0));
+        float16x4_t b = vreinterpret_f16_u16(vld1_u16(in + i +  4));
+        float16x4_t c = vreinterpret_f16_u16(vld1_u16(in + i +  8));
+        float16x4_t d = vreinterpret_f16_u16(vld1_u16(in + i + 12));
+        vst1q_f32(out + i +  0, vcvt_f32_f16(a));
+        vst1q_f32(out + i +  4, vcvt_f32_f16(b));
+        vst1q_f32(out + i +  8, vcvt_f32_f16(c));
+        vst1q_f32(out + i + 12, vcvt_f32_f16(d));
+    }
+    for (; i + 4 <= n; i += 4) {
+        vst1q_f32(out + i, vcvt_f32_f16(vreinterpret_f16_u16(vld1_u16(in + i))));
+    }
+    for (; i < n; i++) out[i] = ds4_gpu_f16_bits_to_f32(in[i]);
+}
+
 /* Per-tensor symmetric int8 quantization: scale = absmax / 127.  Returns the
  * scale; caller passes the quantized int8 buffer to the mode-2 ctx create. */
 static float ds4_quantize_f16_to_i8_per_tensor(const uint16_t *in_f16,
@@ -6719,7 +6759,9 @@ typedef struct ds4_gpu_oproj_ane_job {
 
 /* Per-stride worker: processes chunks where (chunk_idx % stride == offset).
  * Used by the multi-cluster conv path; for single-worker matmul / single
- * conv stride=1 offset=0 so it handles every chunk. */
+ * conv stride=1 offset=0 so it handles every chunk.  Each stride worker now
+ * NEON-converts its own input slices directly from the GPU's fp32 buffer to
+ * x_pad, distributing the fp32→fp16 bandwidth across N threads. */
 typedef struct {
     ds4_gpu_oproj_ane_job *job;
     ds4_ane_mlp_int8w_ctx *ctx;       /* worker-specific ctx (conv) or shared (matmul) */
@@ -6729,6 +6771,7 @@ typedef struct {
     uint16_t *x_pad;                  /* worker-owned scratch */
     uint16_t *y_pad;
     int eval_ok;
+    double input_ms;                  /* local accumulator, summed at join */
 } ds4_gpu_oproj_stride_arg;
 
 static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
@@ -6742,10 +6785,17 @@ static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
     for (uint32_t begin = 0; begin < job->n_tokens && eval_ok; begin += B, chunk_idx++) {
         if ((chunk_idx % s->stride) != s->offset) continue;
         const uint32_t chunk = (job->n_tokens - begin) < B ? (job->n_tokens - begin) : B;
-        memset(s->x_pad, 0, (size_t)B * (size_t)in_dim * sizeof(uint16_t));
-        memcpy(s->x_pad,
-               job->x_f16_all + (uint64_t)begin * in_dim,
-               (size_t)chunk * (size_t)in_dim * sizeof(uint16_t));
+        /* Convert chunk's input slice fp32 → fp16 directly into x_pad. */
+        const double t_in0 = ds4_gpu_now_ms();
+        ds4_neon_f32_to_f16(s->x_pad,
+                             job->in_f32_ptr + (uint64_t)begin * in_dim,
+                             (uint64_t)chunk * in_dim);
+        /* Zero the padding rows if any (chunk < B). */
+        if (chunk < B) {
+            memset(s->x_pad + (uint64_t)chunk * in_dim, 0,
+                   (size_t)(B - chunk) * (size_t)in_dim * sizeof(uint16_t));
+        }
+        s->input_ms += ds4_gpu_now_ms() - t_in0;
         memset(s->y_pad, 0, (size_t)B * (size_t)out_dim * sizeof(uint16_t));
 
         const double t_eval0 = ds4_gpu_now_ms();
@@ -6771,13 +6821,11 @@ static void *ds4_gpu_oproj_ane_stride_worker(void *arg) {
         g_oproj_ane_eval_ms += ds4_gpu_now_ms() - t_eval0;
 
         const double t_out0 = ds4_gpu_now_ms();
-        for (uint32_t r = 0; r < chunk; r++) {
-            const uint16_t *src = s->y_pad + (uint64_t)r * out_dim;
-            float          *dst = job->out_f32_ptr + (uint64_t)(begin + r) * out_dim;
-            for (uint64_t i = 0; i < out_dim; i++) {
-                dst[i] = ds4_gpu_f16_bits_to_f32(src[i]);
-            }
-        }
+        /* Single contiguous NEON conversion — chunk rows are contiguous in
+         * both src (y_pad) and dst (out_f32_ptr + begin*out_dim). */
+        ds4_neon_f16_to_f32(job->out_f32_ptr + (uint64_t)begin * out_dim,
+                             s->y_pad,
+                             (uint64_t)chunk * out_dim);
         g_oproj_ane_output_ms += ds4_gpu_now_ms() - t_out0;
     }
     s->eval_ok = eval_ok;
@@ -6796,15 +6844,12 @@ static void *ds4_gpu_oproj_ane_worker(void *arg) {
     pthread_mutex_unlock(&job->mu);
     g_oproj_ane_dep_wait_ms += ds4_gpu_now_ms() - t_dep0;
 
-    const double t_in0 = ds4_gpu_now_ms();
     const uint64_t in_dim = job->cache->in_dim;
     const uint64_t out_dim = job->cache->n_embd;
     const uint32_t B = job->cache->batch;
-    const uint64_t n_elems = (uint64_t)job->n_tokens * in_dim;
-    for (uint64_t i = 0; i < n_elems; i++) {
-        job->x_f16_all[i] = ds4_gpu_f32_to_f16_bits(job->in_f32_ptr[i]);
-    }
-    g_oproj_ane_input_ms += ds4_gpu_now_ms() - t_in0;
+    /* Input conversion (fp32 → fp16) is done per-chunk inside each stride
+     * worker now, distributing the bandwidth across N threads. */
+    (void)in_dim; (void)out_dim;  /* silence unused warning when no chunks */
 
     /* Pick the active path: int8 conv > fp16 conv > matmul (fp16 or i8w). */
     int n_workers = 1;
@@ -6857,6 +6902,11 @@ static void *ds4_gpu_oproj_ane_worker(void *arg) {
                 pthread_join(threads[w], NULL);
                 if (!args[w].eval_ok) eval_ok = 0;
             }
+        }
+        /* Sum per-thread input_ms back into the global counter (output_ms is
+         * already accumulated directly into the global from each worker). */
+        for (int w = 0; w < n_workers; w++) {
+            g_oproj_ane_input_ms += args[w].input_ms;
         }
     }
     for (int w = 1; w < 4; w++) { free(extra_xpad[w]); free(extra_ypad[w]); }
