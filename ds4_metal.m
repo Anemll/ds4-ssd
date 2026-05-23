@@ -5860,6 +5860,39 @@ static int ds4_dequant_q8_0_to_f16_transposed(
     return 1;
 }
 
+/* Dequantize Q8_0 to fp16 in native ggml row-major layout (no transpose):
+ * input is [n_rows, n_cols] Q8_0 (row-major, n_cols-aligned to 32), output is
+ * [n_rows, n_cols] fp16 row-major.  For conv2d-1x1 we want weights in
+ * [O, I, 1, 1] layout — ggml stores Wgate/Wup as [mid_dim, in_dim] and Wdown
+ * as [in_dim, mid_dim], both already in the [O, I] orientation conv expects. */
+static int ds4_dequant_q8_0_to_f16(
+        const void *model_map, uint64_t model_size,
+        uint64_t offset, uint64_t n_rows, uint64_t n_cols,
+        uint16_t *out_f16) {
+    if (!model_map || !out_f16 || (n_cols & 31u) != 0) return 0;
+    const uint64_t blocks_per_row = n_cols / 32u;
+    const uint64_t row_bytes = blocks_per_row * 34u;
+    const uint64_t total_bytes = n_rows * row_bytes;
+    if (offset > model_size || total_bytes > model_size - offset) return 0;
+
+    const uint8_t *base = (const uint8_t *)model_map + offset;
+    for (uint64_t r = 0; r < n_rows; r++) {
+        const uint8_t *row = base + r * row_bytes;
+        uint16_t *dst_row = out_f16 + r * n_cols;
+        for (uint64_t b = 0; b < blocks_per_row; b++) {
+            const uint8_t *blk = row + b * 34u;
+            uint16_t s_bits = (uint16_t)(blk[0]) | ((uint16_t)(blk[1]) << 8);
+            float s = ds4_gpu_f16_bits_to_f32(s_bits);
+            const int8_t *src_q = (const int8_t *)(blk + 2);
+            uint16_t *dst = dst_row + b * 32u;
+            for (uint32_t i = 0; i < 32u; i++) {
+                dst[i] = ds4_gpu_f32_to_f16_bits((float)src_q[i] * s);
+            }
+        }
+    }
+    return 1;
+}
+
 static int ds4_shared_expert_batch_env(void) {
     const char *e = getenv("DS4_FLASH_MOE_ANE_SHARED_BATCH");
     if (!e || !e[0]) return 256;
@@ -5897,55 +5930,80 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     int ok = 1;
     const uint64_t gate_elems = in_dim * mid_dim;
     const uint64_t down_elems = mid_dim * in_dim;
-    c->gate_f16 = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
-    c->up_f16   = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
-    c->down_f16 = (uint16_t *)malloc((size_t)down_elems * sizeof(uint16_t));
-    if (!c->gate_f16 || !c->up_f16 || !c->down_f16) {
-        ok = 0;
-    }
-    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
-                                          gate_offset, mid_dim, in_dim,
-                                          c->gate_f16);
-    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
-                                          up_offset, mid_dim, in_dim,
-                                          c->up_f16);
-    if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
-                                          down_offset, in_dim, mid_dim,
-                                          c->down_f16);
     c->batch = (uint32_t)ds4_shared_expert_batch_env();
     c->in_dim = in_dim;
     c->mid_dim = mid_dim;
-    /* The ANE context is shape-bound but not weight-bound (weights are passed
-     * per _eval call).  All 43 layers have the same fp16w shape (4096×2048),
-     * so we share ONE compiled ctx across them — saves ~5 s of one-time ANE
-     * compile on the first prefill (was 138 ms × 43 layers). */
-    static ds4_ane_mlp_int8w_ctx *s_shared_ctx = NULL;
-    static int s_shared_ctx_in_dim = 0;
-    static int s_shared_ctx_mid_dim = 0;
-    static int s_shared_ctx_batch = 0;
-    static int s_shared_ctx_mode = 0;
-    const int want_mode = ds4_shared_expert_ane_use_conv() ? 8 : 1;
-    if (ok) {
-        if (s_shared_ctx &&
-            s_shared_ctx_in_dim == (int)in_dim &&
-            s_shared_ctx_mid_dim == (int)mid_dim &&
-            s_shared_ctx_batch == (int)c->batch &&
-            s_shared_ctx_mode == want_mode) {
-            c->ctx = s_shared_ctx;
-        } else {
-            c->ctx = (want_mode == 8)
-                ? ds4_ane_mlp_fp16w_fused_conv_create((int)in_dim, (int)mid_dim, (int)c->batch)
-                : ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
+
+    /* Branch on mode early.  Matmul (1) and fused-conv-with-input-weights (8)
+     * share runtime IOSurfaces across layers; we keep the per-layer host weight
+     * buffers and use a shared compiled ctx.  Constexpr-conv (9) bakes weights
+     * into per-layer compiled models; no per-call weight upload, no shared ctx,
+     * and we can free the host buffers as soon as the blob file is written. */
+    const int want_mode = ds4_shared_expert_ane_use_conv() ? 9 : 1;
+    const char *mode_label = "fp16w split-matmul";
+    if (want_mode == 9) {
+        /* Dequant Q8_0 → fp16 in ggml-native [O, I] orientation.  Wg/Wu are
+         * stored as [mid_dim, in_dim]; Wd as [in_dim, mid_dim].  This matches
+         * the [O, I, 1, 1] layout the conv2d-1x1 kernel expects after a free
+         * reshape — no transpose anywhere. */
+        uint16_t *gate_OI = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+        uint16_t *up_OI   = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+        uint16_t *down_OI = (uint16_t *)malloc((size_t)down_elems * sizeof(uint16_t));
+        if (!gate_OI || !up_OI || !down_OI) ok = 0;
+        if (ok) ok = ds4_dequant_q8_0_to_f16(model_map, model_size,
+                                              gate_offset, mid_dim, in_dim, gate_OI);
+        if (ok) ok = ds4_dequant_q8_0_to_f16(model_map, model_size,
+                                              up_offset,   mid_dim, in_dim, up_OI);
+        if (ok) ok = ds4_dequant_q8_0_to_f16(model_map, model_size,
+                                              down_offset, in_dim, mid_dim, down_OI);
+        if (ok) {
+            c->ctx = ds4_ane_mlp_fp16w_constexpr_create(
+                (int)in_dim, (int)mid_dim, (int)c->batch,
+                gate_OI, up_OI, down_OI);
             if (!c->ctx) ok = 0;
-            else {
-                s_shared_ctx = c->ctx;
-                s_shared_ctx_in_dim = (int)in_dim;
-                s_shared_ctx_mid_dim = (int)mid_dim;
-                s_shared_ctx_batch = (int)c->batch;
-                s_shared_ctx_mode = want_mode;
+        }
+        /* Weights are now baked into the per-layer blob; host buffers can go. */
+        free(gate_OI); free(up_OI); free(down_OI);
+        c->gate_f16 = c->up_f16 = c->down_f16 = NULL;
+        mode_label = "fp16w-constexpr-conv (per-layer ctx)";
+    } else {
+        c->gate_f16 = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+        c->up_f16   = (uint16_t *)malloc((size_t)gate_elems * sizeof(uint16_t));
+        c->down_f16 = (uint16_t *)malloc((size_t)down_elems * sizeof(uint16_t));
+        if (!c->gate_f16 || !c->up_f16 || !c->down_f16) ok = 0;
+        if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                              gate_offset, mid_dim, in_dim,
+                                              c->gate_f16);
+        if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                              up_offset, mid_dim, in_dim,
+                                              c->up_f16);
+        if (ok) ok = ds4_dequant_q8_0_to_f16_transposed(model_map, model_size,
+                                              down_offset, in_dim, mid_dim,
+                                              c->down_f16);
+        /* Shape-bound shared ctx — all 43 layers reuse one compiled MIL. */
+        static ds4_ane_mlp_int8w_ctx *s_shared_ctx = NULL;
+        static int s_shared_ctx_in_dim = 0;
+        static int s_shared_ctx_mid_dim = 0;
+        static int s_shared_ctx_batch = 0;
+        if (ok) {
+            if (s_shared_ctx &&
+                s_shared_ctx_in_dim == (int)in_dim &&
+                s_shared_ctx_mid_dim == (int)mid_dim &&
+                s_shared_ctx_batch == (int)c->batch) {
+                c->ctx = s_shared_ctx;
+            } else {
+                c->ctx = ds4_ane_mlp_fp16w_create((int)in_dim, (int)mid_dim, (int)c->batch);
+                if (!c->ctx) ok = 0;
+                else {
+                    s_shared_ctx = c->ctx;
+                    s_shared_ctx_in_dim = (int)in_dim;
+                    s_shared_ctx_mid_dim = (int)mid_dim;
+                    s_shared_ctx_batch = (int)c->batch;
+                }
             }
         }
     }
+
     if (ok) {
         c->initialized = 1;
         g_shared_ane_sync_init_ms += ds4_gpu_now_ms() - t0;
@@ -5953,14 +6011,13 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
                 "ds4: ANE shared-expert init layer=%d in=%llu mid=%llu B=%u "
                 "%s init_ms=%.1f\n",
                 layer_idx, (unsigned long long)in_dim, (unsigned long long)mid_dim,
-                c->batch,
-                want_mode == 8 ? "fp16w-fused-conv mode" : "fp16w split-matmul mode",
-                ds4_gpu_now_ms() - t0);
+                c->batch, mode_label, ds4_gpu_now_ms() - t0);
     } else {
         free(c->gate_f16); free(c->up_f16); free(c->down_f16);
         c->gate_f16 = c->up_f16 = c->down_f16 = NULL;
         c->compile_failed = 1;
-        fprintf(stderr, "ds4: ANE shared-expert init FAILED for layer=%d\n", layer_idx);
+        fprintf(stderr, "ds4: ANE shared-expert init FAILED for layer=%d (mode=%d)\n",
+                layer_idx, want_mode);
     }
     pthread_mutex_unlock(&g_shared_expert_cache_mu);
     return ok ? c : NULL;
@@ -6032,15 +6089,23 @@ static void *ds4_gpu_shared_expert_ane_worker(void *arg) {
         memset(job->y_f16_pad, 0, (size_t)B * (size_t)job->in_dim * sizeof(uint16_t));
 
         const double t_eval0 = ds4_gpu_now_ms();
-        const bool eval_call_ok = ds4_ane_mlp_int8w_mode(job->cache->ctx) == 8
-            ? ds4_ane_mlp_fp16w_fused_conv_eval(job->cache->ctx,
-                                                 job->cache->gate_f16, job->cache->up_f16,
-                                                 job->cache->down_f16,
-                                                 job->x_f16_pad, job->y_f16_pad)
-            : ds4_ane_mlp_fp16w_eval(job->cache->ctx,
-                                      job->cache->gate_f16, job->cache->up_f16,
-                                      job->cache->down_f16,
-                                      job->x_f16_pad, job->y_f16_pad);
+        const int eval_mode = ds4_ane_mlp_int8w_mode(job->cache->ctx);
+        bool eval_call_ok = false;
+        if (eval_mode == 9) {
+            /* Constexpr conv: weights already in compiled model, no upload. */
+            eval_call_ok = ds4_ane_mlp_fp16w_constexpr_eval(job->cache->ctx,
+                                                            job->x_f16_pad, job->y_f16_pad);
+        } else if (eval_mode == 8) {
+            eval_call_ok = ds4_ane_mlp_fp16w_fused_conv_eval(job->cache->ctx,
+                                                              job->cache->gate_f16, job->cache->up_f16,
+                                                              job->cache->down_f16,
+                                                              job->x_f16_pad, job->y_f16_pad);
+        } else {
+            eval_call_ok = ds4_ane_mlp_fp16w_eval(job->cache->ctx,
+                                                   job->cache->gate_f16, job->cache->up_f16,
+                                                   job->cache->down_f16,
+                                                   job->x_f16_pad, job->y_f16_pad);
+        }
         if (!eval_call_ok) {
             eval_ok = 0;
             break;

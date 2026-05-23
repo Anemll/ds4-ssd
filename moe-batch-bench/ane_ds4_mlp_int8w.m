@@ -141,6 +141,78 @@ static uint16_t ane_f32_to_f16_bits(float f) {
     return (uint16_t)(sign | ((uint32_t)exp << 10) | (m & 0x3ffu));
 }
 
+/* CoreML MIL weight-blob format (matches MILBlob/Blob/StorageFormat.hpp):
+ *   - 64-byte storage_header (count, version=2, reserved)
+ *   - per blob:
+ *       - 64-byte blob_metadata (sentinel=0xDEADBEEF, dtype, sizeInBytes, offset to data)
+ *       - raw data (64-aligned)
+ * The MIL `BLOBFILE(... offset = uint64(N))` references the metadata, not the
+ * data: the reader follows metadata.offset to locate the raw bytes. */
+typedef struct __attribute__((packed)) {
+    uint32_t count;
+    uint32_t version;
+    uint64_t reserved[7];
+} ane_blob_storage_header;
+typedef struct __attribute__((packed)) {
+    uint32_t sentinel;
+    uint32_t mil_dtype;          /* 1 = Float16 */
+    uint64_t size_in_bytes;
+    uint64_t offset;             /* file offset of raw data */
+    uint64_t padding_size_in_bits;
+    uint64_t reserved[4];
+} ane_blob_metadata;
+_Static_assert(sizeof(ane_blob_storage_header) == 64, "storage_header must be 64 bytes");
+_Static_assert(sizeof(ane_blob_metadata) == 64, "blob_metadata must be 64 bytes");
+
+/* Build an NSData containing three fp16 tensors back-to-back in the CoreML
+ * MIL weight-blob format.  Returns the three metadata offsets (the values MIL's
+ * BLOBFILE references) via out_off_*.  The same NSData must be (a) passed to
+ * modelWithMILText:weights:options: keyed by the @model_path/... path string,
+ * AND (b) written to disk at <hexIdTmpDir>/weights/weight.bin — the private
+ * compiler reads both paths. */
+static NSData *ane_build_fp16_blob_3(const uint16_t *t0, NSUInteger t0_bytes,
+                                     const uint16_t *t1, NSUInteger t1_bytes,
+                                     const uint16_t *t2, NSUInteger t2_bytes,
+                                     uint64_t *out_off_0,
+                                     uint64_t *out_off_1,
+                                     uint64_t *out_off_2) {
+    if (!t0 || !t1 || !t2) return nil;
+    if ((t0_bytes & 63u) || (t1_bytes & 63u) || (t2_bytes & 63u)) return nil;
+    const uint64_t off_meta_0 = 64;
+    const uint64_t off_data_0 = off_meta_0 + 64;
+    const uint64_t off_meta_1 = off_data_0 + t0_bytes;
+    const uint64_t off_data_1 = off_meta_1 + 64;
+    const uint64_t off_meta_2 = off_data_1 + t1_bytes;
+    const uint64_t off_data_2 = off_meta_2 + 64;
+    const uint64_t total = off_data_2 + t2_bytes;
+    NSMutableData *buf = [NSMutableData dataWithLength:(NSUInteger)total];
+    if (!buf) return nil;
+    uint8_t *p = (uint8_t *)buf.mutableBytes;
+
+    ane_blob_storage_header hdr = {0};
+    hdr.count = 3;
+    hdr.version = 2;
+    memcpy(p, &hdr, sizeof(hdr));
+
+    const uint8_t *srcs[3]    = { (const uint8_t *)t0, (const uint8_t *)t1, (const uint8_t *)t2 };
+    const uint64_t sizes[3]   = { t0_bytes, t1_bytes, t2_bytes };
+    const uint64_t metas[3]   = { off_meta_0, off_meta_1, off_meta_2 };
+    const uint64_t datas[3]   = { off_data_0, off_data_1, off_data_2 };
+    for (int i = 0; i < 3; i++) {
+        ane_blob_metadata m = {0};
+        m.sentinel = 0xDEADBEEFu;
+        m.mil_dtype = 1;  /* Float16 */
+        m.size_in_bytes = sizes[i];
+        m.offset = datas[i];
+        memcpy(p + metas[i], &m, sizeof(m));
+        memcpy(p + datas[i], srcs[i], sizes[i]);
+    }
+    if (out_off_0) *out_off_0 = off_meta_0;
+    if (out_off_1) *out_off_1 = off_meta_1;
+    if (out_off_2) *out_off_2 = off_meta_2;
+    return buf;
+}
+
 static float ane_f16_bits_to_f32(uint16_t h) {
     uint32_t sign = ((uint32_t)h & 0x8000u) << 16;
     uint32_t exp = ((uint32_t)h >> 10) & 0x1fu;
@@ -724,6 +796,52 @@ static NSString *gen_mil_fp16w_fused_conv(int H, int I, int B) {
     return m;
 }
 
+/* Single-call fused fp16w MLP with weights as constexpr fp16 baked into the
+ * MIL via a side-loaded blob file.  This matches Apple's own ANE LLM exports —
+ * weights live as conv-native [O,I,1,1] constants, only X is uploaded per call.
+ * Wg/Wu have shape [I, H, 1, 1], Wd has shape [H, I, 1, 1] (ggml-native [O,I]
+ * orientation matches conv weight layout, so no host or in-MIL transpose). */
+static NSString *gen_mil_fp16w_constexpr_conv(int H, int I, int B,
+                                              NSString *blob_path,
+                                              uint64_t off_g, uint64_t off_u, uint64_t off_d) {
+    NSMutableString *m = [NSMutableString string];
+    [m appendString:
+        @"program(1.3)\n"
+        @"[buildInfo = dict<string, string>({"
+        @"{\"coremlc-component-MIL\", \"3520.4.1\"}, "
+        @"{\"coremlc-version\", \"3520.5.1\"}})]\n{\n"];
+    [m appendFormat:@"    func main<ios18>(tensor<fp16, [%d, %d]> X) {\n", B, H];
+    [m appendString:
+        @"            tensor<int32, [2]> perm2 = const()[name = string(\"perm2\"), val = tensor<int32, [2]>([1, 0])];\n"
+        @"            string pad_type = const()[name = string(\"pad_type\"), val = string(\"valid\")];\n"
+        @"            tensor<int32, [2]> strides = const()[name = string(\"strides\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            tensor<int32, [4]> pad = const()[name = string(\"pad\"), val = tensor<int32, [4]>([0, 0, 0, 0])];\n"
+        @"            tensor<int32, [2]> dilations = const()[name = string(\"dilations\"), val = tensor<int32, [2]>([1, 1])];\n"
+        @"            int32 groups = const()[name = string(\"groups\"), val = int32(1)];\n"];
+    [m appendFormat:@"            tensor<int32, [4]> x_shape = const()[name = string(\"x_shape\"), val = tensor<int32, [4]>([1, %d, 1, %d])];\n", H, B];
+    [m appendFormat:@"            tensor<int32, [2]> y_shape = const()[name = string(\"y_shape\"), val = tensor<int32, [2]>([%d, %d])];\n", H, B];
+    /* Weight constants backed by BLOBFILE.  No transpose: blob bytes are already
+     * laid out as [O, I, 1, 1] fp16 row-major. */
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wg = const()[name = string(\"Wg\"), val = tensor<fp16, [%d, %d, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    I, H, I, H, blob_path, (unsigned long long)off_g];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wu = const()[name = string(\"Wu\"), val = tensor<fp16, [%d, %d, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    I, H, I, H, blob_path, (unsigned long long)off_u];
+    [m appendFormat:@"            tensor<fp16, [%d, %d, 1, 1]> Wd = const()[name = string(\"Wd\"), val = tensor<fp16, [%d, %d, 1, 1]>(BLOBFILE(path = string(\"%@\"), offset = uint64(%llu)))];\n",
+                    H, I, H, I, blob_path, (unsigned long long)off_d];
+    /* Activation reshape into NCHW. */
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Xt = transpose(perm = perm2, x = X)[name = string(\"Xt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> X4 = reshape(shape = x_shape, x = Xt)[name = string(\"X4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> gate = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wg, x = X4)[name = string(\"gate\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> up = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wu, x = X4)[name = string(\"up\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> act = silu(x = gate)[name = string(\"act\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> hidden = mul(x = act, y = up)[name = string(\"hidden\")];\n", I, B];
+    [m appendFormat:@"            tensor<fp16, [1, %d, 1, %d]> Y4 = conv(dilations = dilations, groups = groups, pad = pad, pad_type = pad_type, strides = strides, weight = Wd, x = hidden)[name = string(\"Y4\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Yt = reshape(shape = y_shape, x = Y4)[name = string(\"Yt\")];\n", H, B];
+    [m appendFormat:@"            tensor<fp16, [%d, %d]> Y = transpose(perm = perm2, x = Yt)[name = string(\"Y\")];\n", B, H];
+    [m appendString:@"        } -> (Y);\n}\n"];
+    return m;
+}
+
 static bool compile_and_load_mil(NSString *mil,
                                  const char *label,
                                  void **model_r,
@@ -1000,6 +1118,177 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I
 
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_fused_conv_create(int H, int I, int B) {
     return ds4_ane_mlp_create_common(H, I, B, 1.0f, 1.0f, 1.0f, 8);
+}
+
+/* Per-layer compiled ctx with weights baked as fp16 constexpr via BLOBFILE.
+ * Wg/Wu must be supplied in [I, H, 1, 1] row-major layout (mid_dim × in_dim);
+ * Wd must be in [H, I, 1, 1] (in_dim × mid_dim).  This is ggml's native [O, I]
+ * orientation for these tensors, so callers that just dequantized Q8_0 row-
+ * major can pass the buffer directly without an extra transpose. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
+                                                          const uint16_t *Wgate_OI,
+                                                          const uint16_t *Wup_OI,
+                                                          const uint16_t *Wdown_OI) {
+    if (H <= 0 || I <= 0 || B <= 0 || !Wgate_OI || !Wup_OI || !Wdown_OI) return NULL;
+    resolve_classes();
+    const bool dbg = ane_int8w_debug_enabled();
+    if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
+        if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr missing private classes\n");
+        return NULL;
+    }
+    @autoreleasepool {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        const NSUInteger gate_bytes = (NSUInteger)I * (NSUInteger)H * sizeof(uint16_t);
+        const NSUInteger down_bytes = (NSUInteger)H * (NSUInteger)I * sizeof(uint16_t);
+
+        /* Canonical form: BLOBFILE path is the literal "@model_path/...".  The
+         * private compiler resolves @model_path/ via two channels:
+         *   (1) An entry in the `weights:` dict passed to the descriptor, keyed
+         *       by the full @model_path/... string, value {offset, data}.
+         *   (2) An on-disk file at NSTemporaryDirectory()/<hexId>/weights/...
+         * We provide BOTH (the in-memory dict for the descriptor's hash, and
+         * the file for the post-descriptor compile pass). */
+        NSString *blob_path_in_mil = @"@model_path/weights/weight.bin";
+        const uint64_t off_g = 64;
+        const uint64_t off_u = 64 + 64 + (uint64_t)gate_bytes;
+        const uint64_t off_d = 64 + 64 + (uint64_t)gate_bytes + 64 + (uint64_t)gate_bytes;
+
+        uint64_t off_g_chk = 0, off_u_chk = 0, off_d_chk = 0;
+        NSData *blob = ane_build_fp16_blob_3(Wgate_OI, gate_bytes,
+                                              Wup_OI,   gate_bytes,
+                                              Wdown_OI, down_bytes,
+                                              &off_g_chk, &off_u_chk, &off_d_chk);
+        if (!blob || off_g_chk != off_g || off_u_chk != off_u || off_d_chk != off_d) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr blob build failed\n");
+            return NULL;
+        }
+
+        NSString *mil = gen_mil_fp16w_constexpr_conv(H, I, B, blob_path_in_mil, off_g, off_u, off_d);
+        NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
+        NSError *e = nil;
+        NSDictionary *weights = @{
+            blob_path_in_mil: @{
+                @"offset": @(0),
+                @"data": blob,
+            }
+        };
+        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
+            milData, weights, nil);
+        if (!desc) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr descriptor failed\n");
+            return NULL;
+        }
+        id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
+            g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
+        if (!mdl) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr inMemoryModel failed\n");
+            return NULL;
+        }
+        id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
+        NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
+        NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
+        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES
+                            attributes:nil error:nil]) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr mkdir %s failed\n",
+                             [weights_dir UTF8String]);
+            return NULL;
+        }
+        NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
+        if (![blob writeToFile:blob_path atomically:YES]) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr blob writeToFile failed: %s\n",
+                             [blob_path UTF8String]);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
+        if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
+                mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr compile failed: %s\n  (debug: keeping tmpdir %s for inspection)\n",
+                             e ? [[e description] UTF8String] : "unknown",
+                             [td UTF8String]);
+            if (!dbg) [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
+                mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr load failed: %s\n",
+                             e ? [[e description] UTF8String] : "unknown");
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+
+        ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
+        if (!ctx) {
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+                mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 9;
+        ctx->w_scale = 1.0f; ctx->x_scale = 1.0f; ctx->mid_scale = 1.0f;
+        /* Only X input + Y output surfaces — weights live in the model. */
+        ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->io_x   = make_surface_typed(ctx->x_bytes, 2u);
+        ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
+        if (!ctx->io_x || !ctx->io_out) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr IOSurface alloc failed\n");
+            ds4_ane_mlp_int8w_destroy(ctx);
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+                mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls,
+            @selector(objectWithIOSurface:), ctx->io_x);
+        id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls,
+            @selector(objectWithIOSurface:), ctx->io_out);
+        id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
+            g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
+            @[w_x], @[@0], @[w_o], @[@0], nil, nil, @0);
+        if (!req) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr request create failed\n");
+            ds4_ane_mlp_int8w_destroy(ctx);
+            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+                mdl, @selector(unloadWithQoS:error:), 21, &e);
+            [fm removeItemAtPath:td error:nil];
+            return NULL;
+        }
+        ctx->model_r   = (void *)CFBridgingRetain(mdl);
+        ctx->request_r = (void *)CFBridgingRetain(req);
+        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
+        return ctx;
+    }
+}
+
+bool ds4_ane_mlp_fp16w_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
+                                       const uint16_t *input_f16,
+                                       uint16_t *output_f16) {
+    if (!ctx || !input_f16 || !output_f16) return false;
+    if (ctx->mode != 9) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_x, input_f16, ctx->x_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr write X failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr evaluate failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr read Y failed\n");
+            return false;
+        }
+        return true;
+    }
 }
 
 bool ds4_ane_mlp_int8w_eval(

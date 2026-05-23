@@ -24,6 +24,15 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I
 /* Single-call fused fp16-weight MLP lowered as conv2d-1x1 (ANE-native pattern). */
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_fused_conv_create(int H, int I, int B);
 
+/* Constexpr-weight version: weights are baked into the compiled MIL via a
+ * side-loaded fp16 blob file.  Caller passes weights in conv-native [O, I]
+ * layout (Wg/Wu: [I, H], Wd: [H, I] — both ggml's native ordering for these
+ * tensors).  Only X is uploaded per eval, only Y is read. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
+                                                          const uint16_t *Wgate_OI,
+                                                          const uint16_t *Wup_OI,
+                                                          const uint16_t *Wdown_OI);
+
 bool ds4_ane_mlp_int8w_eval(
     ds4_ane_mlp_int8w_ctx *ctx,
     const int8_t *Wgate_i8,
@@ -48,6 +57,13 @@ bool ds4_ane_mlp_fp16w_fused_conv_eval(
     const uint16_t *Wgate_f16,
     const uint16_t *Wup_f16,
     const uint16_t *Wdown_f16,
+    const uint16_t *input_f16,
+    uint16_t *output_f16);
+
+/* Constexpr-weight conv eval.  No weight arguments — they're already in the
+ * compiled model.  Input [B, H], output [B, H], both fp16. */
+bool ds4_ane_mlp_fp16w_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
     const uint16_t *input_f16,
     uint16_t *output_f16);
 
