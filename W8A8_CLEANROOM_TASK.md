@@ -111,12 +111,30 @@ antirez's main has gates/flags that, if mishandled, silently corrupt the W8A8 re
 - **Weight-repack cache**: key by weight_offset so the Q8_0→int8 repack runs ONCE/weight at first use, not per
   dispatch (per-dispatch repack erases the win AND adds an encoder every call).
 
+## Per-caller inventory & selective fallback (after implementation — REQUIRED)
+A W8A8 kernel is only worth routing where it's a CLEAR per-call-site win. After each kernel works, inventory
+**every caller** and gate per-site; where W8A8 is not a clear win, **fall back to antirez's existing fp16-NAX path**
+for that caller (the `ds4_mm_hint`-style per-site policy — AUTO/PREFER_I8/NO_I8 — is the mechanism).
+1. **Enumerate callers** of the dense matmul + attn_out in antirez's main (grep his `ds4_gpu_matmul_*` /
+   `attention_output` calls): functional part (MLA q_a/q_b/kv_a, shared gate/up/down, attn_out O-proj, lm_head,
+   and the F16 projections comp_kv/comp_sc/indexer/router/hc), with each site's **(K, M) shape AND typical
+   call-site n_tok** (check the ACTUAL n_tok passed, not just weight shape — e.g. comp_kv runs at n_tok=4).
+2. **Per-site A/B**: W8A8 vs his fp16-NAX at each site's real shape+n_tok (microbench + the end-to-end gate).
+   A site is "clear win" only if W8A8 beats his path there end-to-end beyond the ~2% noise floor AND quality holds.
+3. **Route accordingly**: PREFER_I8 only the clear-win sites (expected: large-M, large-n_tok prefill — dense MLA
+   projections, shared expert, attn_out). NO_I8 / leave-on-his-NAX the rest: lm_head (quality), and any small-M
+   (router/indexer/hc → ~64-256 out) or small-n_tok (comp_kv/comp_sc → n_tok=4 tail window) site where W8A8
+   can't fill its tile / dilutes below noise. Don't blanket-enable.
+4. Document the per-site decision table (site → W8A8 or fp16-NAX, with the measured Δ) in the PR.
+
 ## Acceptance
 - `anemll-NAX-w8a8` branch on a clean main-ds4: dense + attn_out W8A8 (lm_head half), env-gated, builds clean.
 - Each kernel: quality-neutral + speed-positive, validated.
 - Full A/B recorded: clean-main vs +W8A8 (prefill +15–20%, gen unchanged, coherent); and clean-main+W8A8 vs
   ds4-ssd+W8A8 to localize any fork regression.
 - PR description with the recipe + measured deltas + quality evidence.
+- **Per-caller decision table**: every matmul call site → routed W8A8 or fp16-NAX-fallback, with its measured
+  per-site Δ; W8A8 enabled ONLY where it's a clear end-to-end win, fp16-NAX retained everywhere else.
 
 Reference details + measured numbers + the full investigation are in ds4-ssd
 `memory/nax-kernel-tuning-playbook.md` and `moe-batch-bench/M5M_ANE_OPTIMIZATION_REPORT.md`.
