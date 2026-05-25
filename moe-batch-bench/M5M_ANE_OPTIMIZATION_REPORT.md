@@ -1,5 +1,27 @@
 # M5 Max ANE prefill optimization report
 
+> **2026-05-25 FINAL 2-rep bench (bwb9ziase, gen-32, full int8 stack vs antirez fp16-NAX, both from own dirs).**
+> Rep1 was cool/flat (reliable); rep2 was thermally bimodal (ours hot/fast 8–24k, antirez hot/fast 40–64k —
+> the two binaries did not share a thermal state within their adjacent pair, so rep2 Δ is thermal, not
+> algorithmic, and is NOT averaged in). **Reliable standing = rep1:**
+>
+> | ctx | ours prefill t/s | anti prefill t/s | pf Δ | ours **decode t/s** | anti **decode t/s** | gen Δ |
+> |---|---|---|---|---|---|---|
+> | 8k  | 340.9 | 333.0 | +2.4% | 25.74 | 26.22 | −1.8% |
+> | 16k | 296.8 | 296.2 | +0.2% | 25.45 | 25.45 |  0.0% |
+> | 24k | 282.4 | 272.1 | +3.8% | 24.99 | 24.97 | +0.1% |
+> | 32k | 267.8 | 269.5 | −0.6% | 24.52 | 25.06 | −2.2% |
+> | 40k | 259.8 | 261.0 | −0.5% | 24.13 | 24.80 | −2.7% |
+> | 48k | 248.1 | 245.4 | +1.1% | 23.48 | 23.92 | −1.8% |
+> | 56k | 235.9 | 235.5 | +0.2% | 23.42 | 23.90 | −2.0% |
+> | 64k | 231.3 | 229.1 | +1.0% | 23.06 | 23.02 | +0.2% |
+> | **mean** | | | **+0.94%** | | | **−1.3%** |
+>
+> **Standing: prefill PARITY (+0.94%); decode ~−1.3% behind.** Decode gap is small, real, and decode-side
+> (W8A8 doesn't fire at n_tok=1 GEMV) → a fork-side decode overhead the cleanroom comparison will localize.
+> rep2 absolute peaks (ours 8k 415 t/s, decode 30 t/s) are thermal, not a regression/win. ALL DONE — cleanroom
+> agent (W8A8_CLEANROOM_TASK.md) clear to start.
+
 > **2026-05-25 FINAL — full int8 stack (dense + shared + attn_out W8A8, lm_head half) = PARITY vs antirez.**
 > All int8-eligible matmuls covered. Clean run (gen-8, flat): mean +0.5% prefill across 8k-64k. The gen-32 run
 > was thermally bimodal (low-ctx +10-14%, high-ctx -3-6% = thermal drift, not real) → means prefill +2.5%, gen
