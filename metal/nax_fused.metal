@@ -16,6 +16,31 @@ using namespace mpp::tensor_ops;
 
 #define QK_K 256
 
+// Autotune knobs (injected via MTLCompileOptions.preprocessorMacros from env at
+// library-build time; see ds4_gpu_ensure_nax_fused_library). Defaults preserve the
+// shipped behavior so an unset env is a no-op.
+#ifndef DS4_IDX_RELAXED
+#define DS4_IDX_RELAXED false   // indexer matmul2d relaxed_precision (env DS4_GPU_INDEXER_RELAXED)
+#endif
+#ifndef DS4_IDX_WALK
+#define DS4_IDX_WALK 0          // indexer Morton/Z-order tile walk (env DS4_GPU_INDEXER_WALK)
+#endif
+#ifndef DS4_DENSE_WALK
+#define DS4_DENSE_WALK 0        // dense Morton/Z-order tile walk (env DS4_GPU_DENSE_WALK)
+#endif
+#ifndef DS4_ATTN_NR1
+#define DS4_ATTN_NR1 128        // attn_out O-proj token tile (env DS4_GPU_ATTN_NR1)
+#endif
+#ifndef DS4_ATTN_NK
+#define DS4_ATTN_NK 32          // attn_out O-proj K-tile (env DS4_GPU_ATTN_NK)
+#endif
+
+// Deinterleave a linear threadgroup id into 2D tile coords (Morton/Z-order inverse).
+inline void ds4nf_morton2d(uint lin, thread uint &tx, thread uint &ty) {
+    tx = 0; ty = 0;
+    for (uint b = 0; b < 16u; b++) { tx |= ((lin >> (2u*b)) & 1u) << b; ty |= ((lin >> (2u*b+1u)) & 1u) << b; }
+}
+
 constant uchar ds4nf_ksigns[128] = {
       0, 129, 130,   3, 132,   5,   6, 135, 136,   9,  10, 139,  12, 141, 142,  15,
     144,  17,  18, 147,  20, 149, 150,  23,  24, 153, 154,  27, 156,  29,  30, 159,
@@ -122,7 +147,15 @@ kernel void ds4_dense_q8_nax(
     constexpr int NR1 = 128, NR0 = 64, NK = 32, NL = NK/16, NUM_THREADS = 128;
     const int K = args.ne00, M = args.ne0, N = args.ne1;
     const int im = tgpig.z, i12 = im % args.ne12, i13 = im / args.ne12;
+#if DS4_DENSE_WALK
+    uint _tx, _ty; ds4nf_morton2d(tgpig.x, _tx, _ty);
+    const uint _gx = ((uint)N + NR1 - 1u) / NR1;
+    const uint _gy = ((uint)M + NR0 - 1u) / NR0;
+    if (_tx >= _gx || _ty >= _gy) return;
+    const int r1 = (int)_tx * NR1, r0 = (int)_ty * NR0;
+#else
     const int r0 = tgpig.y * NR0, r1 = tgpig.x * NR1;
+#endif
     const uint64_t offset0 = (i12/args.r2)*args.nb02 + (i13/args.r3)*args.nb03;
     threadgroup half *sa = (threadgroup half *)shmem;
     auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
@@ -214,7 +247,7 @@ kernel void ds4_attn_out_low_q8_nax(
         threadgroup  char *shmem [[threadgroup(0)]],
         uint3  tgpig [[threadgroup_position_in_grid]],
         ushort tiitg [[thread_index_in_threadgroup]]) {
-    constexpr int NR1 = 128, NR0 = 64, NK = 32, NL = NK/16, NUM_THREADS = 128;
+    constexpr int NR1 = DS4_ATTN_NR1, NR0 = 64, NK = DS4_ATTN_NK, NL = NK/16, NUM_THREADS = 128;
     const int K = args.ne00, M = args.ne0, N = args.ne21, G = args.ne1;
     const int group = tgpig.z;
     const int r0 = tgpig.y*NR0, r1 = tgpig.x*NR1;
@@ -287,8 +320,17 @@ kernel void ds4_indexer_scores_nax(
     constexpr int D  = 128;
     constexpr int NUM_THREADS = 128;
 
+#if DS4_IDX_WALK
+    uint _tx, _ty; ds4nf_morton2d(tgpig.x, _tx, _ty);
+    const uint _gx = (args.n_comp + TN - 1u) / TN;
+    const uint _gy = (args.n_tokens + (uint)TM - 1u) / (uint)TM;
+    if (_tx >= _gx || _ty >= _gy) return;
+    const uint c0 = _tx * TN;
+    const uint t0 = _ty * TM;
+#else
     const uint c0 = tgpig.x * TN;
     const uint t0 = tgpig.y * TM;
+#endif
 
     threadgroup half  *qtg = shared;               // [16][32]
     threadgroup half  *ktg = qtg + TM*NK;          // [32][128]
@@ -338,7 +380,7 @@ kernel void ds4_indexer_scores_nax(
     auto td = tensor(dot, dextents<int32_t, 2>(TM, TN), array<int, 2>({1, TM}));
 
     matmul2d<
-        matmul2d_descriptor(TN, TM, NK, false, true, false,
+        matmul2d_descriptor(TN, TM, NK, false, true, DS4_IDX_RELAXED,
             matmul2d_descriptor::mode::multiply_accumulate),
         execution_simdgroups<4>> mm;
 
@@ -494,4 +536,116 @@ kernel void ds4_mpp_q2k_i8_i32_counted(
     }
     auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
     cT.store(mC);
+}
+
+// ============================================================================
+// int8 (W8A8) dense Q8_0 path. Validated +1.4-1.5x vs relaxed float x half at
+// 0.7% rel (moe-batch-bench/nax_dense_i8_probe.m). Three kernels:
+//   1) ds4_repack_q8_to_i8_rowscale : Q8_0 weight [out x in] -> int8 [out x in]
+//      + per-row scale (run once at load, cached by weight offset).
+//   2) ds4_quant_act_pertoken_i8    : f32 act [tok x in] -> int8 + per-token scale.
+//   3) ds4_dense_i8_fused           : int8 x int8 -> int32, fused rescale in store
+//      (NR1=128/NR0=32/NK=128; result tile 32x128 i32 = 16KB + weight 4KB fits TG).
+// ============================================================================
+struct ds4_i8_dense_args { int32_t K, M, N; };
+
+// One threadgroup per output row: row-max over K (dequant), write int8 + per-row scale.
+kernel void ds4_repack_q8_to_i8_rowscale(
+        device const char  *wq8src [[buffer(0)]],   // Q8_0 weight [M x bpr blocks]
+        device int8_t      *wi8    [[buffer(1)]],    // out int8 [M x K] row-major
+        device float       *wscale [[buffer(2)]],    // out per-row scale [M]
+        constant uint      &K      [[buffer(3)]],
+        constant uint      &Mrows  [[buffer(4)]],
+        constant uint64_t  &row_bytes [[buffer(5)]], // Q8_0 row stride (bytes)
+        uint   row [[threadgroup_position_in_grid]],
+        uint   tid [[thread_position_in_threadgroup]],
+        uint   ntg [[threads_per_threadgroup]]) {
+    if (row >= Mrows) return;
+    const uint bpr = K / 32u;
+    device const block_q8_0 *rp = (device const block_q8_0 *)(wq8src + (uint64_t)row * row_bytes);
+    float m = 0.0f;
+    for (uint kb = tid; kb < bpr; kb += ntg) {
+        const float d = (float)rp[kb].d;
+        for (int j = 0; j < 32; j++) m = max(m, fabs((float)rp[kb].qs[j] * d));
+    }
+    threadgroup float sh[256];
+    sh[tid] = m; threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint s = ntg/2u; s > 0u; s >>= 1) { if (tid < s) sh[tid] = max(sh[tid], sh[tid+s]); threadgroup_barrier(mem_flags::mem_threadgroup); }
+    const float sc = sh[0] > 0.0f ? sh[0] / 127.0f : 1e-9f;
+    if (tid == 0) wscale[row] = sc;
+    const float inv = 1.0f / sc;
+    device int8_t *dr = wi8 + (uint64_t)row * K;
+    for (uint kb = tid; kb < bpr; kb += ntg) {
+        const float d = (float)rp[kb].d;
+        for (int j = 0; j < 32; j++) { float v = rint((float)rp[kb].qs[j] * d * inv); dr[kb*32+j] = (int8_t)clamp(v, -127.0f, 127.0f); }
+    }
+}
+
+// One threadgroup per token row: row-max over width, write int8 + per-token scale.
+kernel void ds4_quant_act_pertoken_i8(
+        device const float *src   [[buffer(0)]],   // [rows x width] f32
+        device int8_t      *dst   [[buffer(1)]],    // [rows x width] int8
+        device float       *scale [[buffer(2)]],    // [rows]
+        constant uint      &width [[buffer(3)]],
+        constant uint      &rows  [[buffer(4)]],
+        uint   row [[threadgroup_position_in_grid]],
+        uint   tid [[thread_position_in_threadgroup]],
+        uint   ntg [[threads_per_threadgroup]]) {
+    if (row >= rows) return;
+    device const float *sr = src + (uint64_t)row * width;
+    float m = 0.0f;
+    for (uint i = tid; i < width; i += ntg) m = max(m, fabs(sr[i]));
+    threadgroup float sh[256];
+    sh[tid] = m; threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint s = ntg/2u; s > 0u; s >>= 1) { if (tid < s) sh[tid] = max(sh[tid], sh[tid+s]); threadgroup_barrier(mem_flags::mem_threadgroup); }
+    const float sc = sh[0] > 0.0f ? sh[0] / 127.0f : 1e-9f;
+    if (tid == 0) scale[row] = sc;
+    const float inv = 1.0f / sc;
+    device int8_t *dr = dst + (uint64_t)row * width;
+    for (uint i = tid; i < width; i += ntg) { float v = rint(sr[i] * inv); dr[i] = (int8_t)clamp(v, -127.0f, 127.0f); }
+}
+
+// int8 x int8 -> int32 dense matmul, fused per-(row,token) rescale -> f32.
+kernel void ds4_dense_i8_fused(
+        constant ds4_i8_dense_args &args [[buffer(0)]],
+        device const char  *wi8    [[buffer(1)]],   // int8 weight [M x K] row-major
+        device const char  *ai8    [[buffer(2)]],   // int8 act [N x K] row-major
+        device       char  *dst    [[buffer(3)]],   // f32 out [N x M] (dst[t*M+o])
+        device const float *wscale [[buffer(4)]],    // [M]
+        device const float *ascale [[buffer(5)]],    // [N]
+        threadgroup char *shmem [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 32, NK = 128, NL = NK/16, NUM_THREADS = 128;
+    const int K = args.K, M = args.M, N = args.N;
+    const int r0 = tgpig.y*NR0, r1 = tgpig.x*NR1;
+    threadgroup int8_t  *sa = (threadgroup int8_t  *)shmem;
+    threadgroup int32_t *sc = (threadgroup int32_t *)(shmem + NR0*NK);
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    device int8_t *ptrB = (device int8_t *)ai8;
+    auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, K}));
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, false,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0;
+    device const int8_t *wA = (device const int8_t *)wi8;
+    for (int lk = 0; lk < K; lk += NK) {
+        for (int work = tiitg; work < NR0*NL; work += NUM_THREADS) {
+            const int row = work/NL, kb = (work%NL)*16;
+            if (r0 + row < M) { device const int8_t *wr = wA + (uint64_t)(r0+row)*K + lk + kb;
+                for (int i = 0; i < 16; i++) sa[row*NK + kb + i] = (lk+kb+i < K) ? wr[i] : (int8_t)0; }
+            else { for (int i = 0; i < 16; i++) sa[row*NK + kb + i] = 0; }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0); auto mB = tB.slice(lk, r1); mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto tC = tensor(sc, dextents<int32_t, 2>(NR0, NR1), array<int, 2>({1, NR0}));
+    cT.store(tC);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    device float *db = (device float *)dst;
+    for (int w = tiitg; w < NR0*NR1; w += NUM_THREADS) {
+        const int m = w % NR0, n = w / NR0, o = r0 + m, t = r1 + n;
+        if (o < M && t < N) db[(uint64_t)t*M + o] = (float)sc[m + n*NR0] * ascale[t] * wscale[o];
+    }
 }

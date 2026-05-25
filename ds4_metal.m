@@ -118,6 +118,9 @@ static id<MTLLibrary>              g_nax_fused_library;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
 static id<MTLComputePipelineState> g_mpp_q2k_fused_pipeline;
 static id<MTLComputePipelineState> g_dense_q8_nax_pipeline;
+static id<MTLComputePipelineState> g_dense_i8_fused_pipeline;
+static id<MTLComputePipelineState> g_repack_q8_i8_pipeline;
+static id<MTLComputePipelineState> g_quant_act_pertoken_i8_pipeline;
 static id<MTLComputePipelineState> g_indexer_scores_nax_pipeline;
 static id<MTLComputePipelineState> g_attn_out_low_nax_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
@@ -2028,7 +2031,13 @@ static int ds4_gpu_encode_cpy_f16_f32_1d(
 static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void);
 static void ds4_gpu_ensure_nax_fused_library(void);
 static int ds4_gpu_dense_q8_nax_enabled(void);
+static int ds4_gpu_dense_i8_enabled(void);
 static int ds4_gpu_indexer_nax_enabled(void);
+static int ds4_gpu_indexer_walk_enabled(void);
+static int ds4_gpu_dense_walk_enabled(void);
+static NSUInteger ds4_gpu_morton_grid_1d(NSUInteger gx, NSUInteger gy);
+static NSUInteger ds4_gpu_attn_nr1(void);
+static NSUInteger ds4_gpu_attn_nk(void);
 static int ds4_gpu_encode_mpp_quant_f32_i8(
         id<MTLCommandBuffer> cb,
         id<MTLBuffer>        src,
@@ -5504,9 +5513,12 @@ static int ds4_gpu_indexer_scores_batch_tensor(
                 [enc setBuffer:compbuf offset:ds4_gpu_tensor_offset(index_comp) atIndex:3];
                 [enc setBuffer:scorebuf offset:ds4_gpu_tensor_offset(scores) atIndex:4];
                 [enc setThreadgroupMemoryLength:tgmem atIndex:0];
-                [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_comp + 31u) / 32u,
-                                                      ((NSUInteger)n_tokens + 15u) / 16u, 1)
-                     threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                const NSUInteger idx_gx = ((NSUInteger)n_comp + 31u) / 32u;
+                const NSUInteger idx_gy = ((NSUInteger)n_tokens + 15u) / 16u;
+                MTLSize idx_grid = ds4_gpu_indexer_walk_enabled()
+                    ? MTLSizeMake(ds4_gpu_morton_grid_1d(idx_gx, idx_gy), 1, 1)
+                    : MTLSizeMake(idx_gx, idx_gy, 1);
+                [enc dispatchThreadgroups:idx_grid threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
                 ds4_gpu_end_compute_encoder(cb, enc);
                 if (!ds4_gpu_finish_command_buffer(cb, owned, "indexer prefill scores NAX")) return 0;
                 return 1;
@@ -5896,6 +5908,79 @@ int ds4_gpu_matmul_q8_0_tensor(
             return 1;
         }
 
+        /* int8 (W8A8) dense matmul2d (M5+, opt-in DS4_GPU_DENSE_I8): per-row-scale int8
+         * weight (load-time repack, cached by weight_offset) x per-token-scale int8
+         * activation, int8xint8->int32 with fused rescale -> f32. Validated +1.4-1.5x vs
+         * relaxed float x half (nax_dense_i8_probe.m). NK=128 => in_dim%128==0; NR0=32. */
+        if (ds4_gpu_dense_i8_enabled() && (in_dim % 128u) == 0 && (out_dim % 32u) == 0 && n_tok >= 32u) {
+            ds4_gpu_ensure_nax_fused_library();
+            if (g_dense_i8_fused_pipeline && g_repack_q8_i8_pipeline && g_quant_act_pertoken_i8_pipeline) {
+                /* cached load-time weight repack: Q8_0 -> int8[out x in] + per-row scale */
+                static NSMutableDictionary<NSNumber *, NSArray *> *i8wcache = nil;
+                if (!i8wcache) i8wcache = [NSMutableDictionary dictionary];
+                NSNumber *wkey = @(weight_offset);
+                NSArray *wentry = i8wcache[wkey];
+                id<MTLBuffer> wi8 = wentry ? wentry[0] : nil;
+                id<MTLBuffer> wscale = wentry ? wentry[1] : nil;
+                if (!wentry) {
+                    wi8 = [g_device newBufferWithLength:(NSUInteger)out_dim * in_dim options:MTLResourceStorageModePrivate];
+                    wscale = [g_device newBufferWithLength:(NSUInteger)out_dim * sizeof(float) options:MTLResourceStorageModePrivate];
+                    if (wi8 && wscale) {
+                        id<MTLComputeCommandEncoder> renc = ds4_gpu_compute_encoder(cb);
+                        [renc setComputePipelineState:g_repack_q8_i8_pipeline];
+                        [renc setBuffer:wbuf offset:(NSUInteger)inner_offset atIndex:0];
+                        [renc setBuffer:wi8 offset:0 atIndex:1];
+                        [renc setBuffer:wscale offset:0 atIndex:2];
+                        uint32_t Ku = (uint32_t)in_dim, Mu = (uint32_t)out_dim; uint64_t rb = row_bytes;
+                        [renc setBytes:&Ku length:4 atIndex:3];
+                        [renc setBytes:&Mu length:4 atIndex:4];
+                        [renc setBytes:&rb length:8 atIndex:5];
+                        [renc dispatchThreadgroups:MTLSizeMake((NSUInteger)out_dim, 1, 1)
+                             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+                        ds4_gpu_end_compute_encoder(cb, renc);
+                        i8wcache[wkey] = @[wi8, wscale];
+                    }
+                }
+                if (wi8 && wscale) {
+                    /* growing per-call activation scratch (int8 acts + per-token scale) */
+                    static id<MTLBuffer> i8act = nil, i8ascale = nil;
+                    static NSUInteger i8act_cap = 0, i8ascale_cap = 0;
+                    NSUInteger need_act = (NSUInteger)n_tok * in_dim, need_as = (NSUInteger)n_tok * sizeof(float);
+                    if (i8act_cap < need_act) { i8act = [g_device newBufferWithLength:need_act options:MTLResourceStorageModePrivate]; i8act_cap = need_act; }
+                    if (i8ascale_cap < need_as) { i8ascale = [g_device newBufferWithLength:need_as options:MTLResourceStorageModePrivate]; i8ascale_cap = need_as; }
+                    /* per-token activation quant */
+                    id<MTLComputeCommandEncoder> qenc = ds4_gpu_compute_encoder(cb);
+                    [qenc setComputePipelineState:g_quant_act_pertoken_i8_pipeline];
+                    [qenc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:0];
+                    [qenc setBuffer:i8act offset:0 atIndex:1];
+                    [qenc setBuffer:i8ascale offset:0 atIndex:2];
+                    uint32_t wd = (uint32_t)in_dim, rw = (uint32_t)n_tok;
+                    [qenc setBytes:&wd length:4 atIndex:3];
+                    [qenc setBytes:&rw length:4 atIndex:4];
+                    [qenc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_tok, 1, 1)
+                         threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+                    ds4_gpu_end_compute_encoder(cb, qenc);
+                    /* fused int8 matmul + rescale */
+                    struct { int32_t K, M, N; } da = { (int32_t)in_dim, (int32_t)out_dim, (int32_t)n_tok };
+                    id<MTLComputeCommandEncoder> menc = ds4_gpu_compute_encoder(cb);
+                    [menc setComputePipelineState:g_dense_i8_fused_pipeline];
+                    [menc setBytes:&da length:sizeof(da) atIndex:0];
+                    [menc setBuffer:wi8 offset:0 atIndex:1];
+                    [menc setBuffer:i8act offset:0 atIndex:2];
+                    [menc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:3];
+                    [menc setBuffer:wscale offset:0 atIndex:4];
+                    [menc setBuffer:i8ascale offset:0 atIndex:5];
+                    [menc setThreadgroupMemoryLength:(NSUInteger)32u * 128u + (NSUInteger)32u * 128u * sizeof(int32_t) atIndex:0];
+                    [menc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tok + 127u) / 128u,
+                                                          ((NSUInteger)out_dim + 31u) / 32u, 1)
+                         threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                    ds4_gpu_end_compute_encoder(cb, menc);
+                    if (!ds4_gpu_finish_command_buffer(cb, owned, "Q8_0 dense i8 W8A8")) return 0;
+                    return 1;
+                }
+            }
+        }
+
         /* Dense Q8_0 NAX matmul2d (M5+, opt-in DS4_GPU_DENSE_NAX): ported direct-RHS
          * kernel (NK=32, weight-major 64x128 tile, activation read direct from device).
          * Same args/bindings as the simdgroup kernel_mul_mm_q8_0_f32 path. Large-chunk
@@ -5911,9 +5996,12 @@ int ds4_gpu_matmul_q8_0_tensor(
                 [enc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:2];
                 [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:3];
                 [enc setThreadgroupMemoryLength:(NSUInteger)64u * 32u * sizeof(uint16_t) atIndex:0];
-                [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tok + 127u) / 128u,
-                                                      ((NSUInteger)out_dim + 63u) / 64u, 1)
-                     threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                const NSUInteger dn_gx = ((NSUInteger)n_tok + 127u) / 128u;
+                const NSUInteger dn_gy = ((NSUInteger)out_dim + 63u) / 64u;
+                MTLSize dn_grid = ds4_gpu_dense_walk_enabled()
+                    ? MTLSizeMake(ds4_gpu_morton_grid_1d(dn_gx, dn_gy), 1, 1)
+                    : MTLSizeMake(dn_gx, dn_gy, 1);
+                [enc dispatchThreadgroups:dn_grid threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
                 ds4_gpu_end_compute_encoder(cb, enc);
                 if (!ds4_gpu_finish_command_buffer(cb, owned, "Q8_0 dense NAX direct-rhs")) return 0;
                 return 1;
@@ -10771,8 +10859,9 @@ int ds4_gpu_attention_output_q8_batch_tensor(
                 [enc setBuffer:out_a_buf offset:(NSUInteger)out_a_inner atIndex:1];
                 [enc setBuffer:ds4_gpu_tensor_buffer(heads) offset:ds4_gpu_tensor_offset(heads) atIndex:2];
                 [enc setBuffer:ds4_gpu_tensor_buffer(low) offset:ds4_gpu_tensor_offset(low) atIndex:3];
-                [enc setThreadgroupMemoryLength:(NSUInteger)64u * 32u * sizeof(uint16_t) atIndex:0];
-                [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tokens + 127u) / 128u,
+                const NSUInteger ao_nr1 = ds4_gpu_attn_nr1(), ao_nk = ds4_gpu_attn_nk();
+                [enc setThreadgroupMemoryLength:(NSUInteger)64u * ao_nk * sizeof(uint16_t) atIndex:0];
+                [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tokens + ao_nr1 - 1u) / ao_nr1,
                                                       ((NSUInteger)rank + 63u) / 64u,
                                                       (NSUInteger)n_groups)
                      threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
@@ -19697,6 +19786,31 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     NSError *ferr = nil;
     MTLCompileOptions *fopts = [MTLCompileOptions new];
     fopts.languageVersion = MTLLanguageVersion4_0;
+    /* Autotune knobs injected as preprocessor macros from env (see metal/nax_fused.metal).
+     * Unset env -> macro omitted -> kernel's #ifndef default (shipped behavior). */
+    {
+        NSMutableDictionary *macros = [NSMutableDictionary dictionary];
+        const char *idx_relaxed = getenv("DS4_GPU_INDEXER_RELAXED");
+        if (idx_relaxed && idx_relaxed[0])
+            macros[@"DS4_IDX_RELAXED"] = (atoi(idx_relaxed) != 0) ? @"true" : @"false";
+        const char *idx_walk = getenv("DS4_GPU_INDEXER_WALK");
+        if (idx_walk && idx_walk[0])
+            macros[@"DS4_IDX_WALK"] = (atoi(idx_walk) != 0) ? @"1" : @"0";
+        const char *dense_walk = getenv("DS4_GPU_DENSE_WALK");
+        if (dense_walk && dense_walk[0])
+            macros[@"DS4_DENSE_WALK"] = (atoi(dense_walk) != 0) ? @"1" : @"0";
+        const char *attn_nr1 = getenv("DS4_GPU_ATTN_NR1");
+        if (attn_nr1 && attn_nr1[0])
+            macros[@"DS4_ATTN_NR1"] = (atoi(attn_nr1) == 64) ? @"64" : @"128";
+        const char *attn_nk = getenv("DS4_GPU_ATTN_NK");
+        if (attn_nk && attn_nk[0])
+            macros[@"DS4_ATTN_NK"] = (atoi(attn_nk) == 64) ? @"64" : @"32";
+        if (macros.count) {
+            fopts.preprocessorMacros = macros;
+            fprintf(stderr, "ds4: NAX fused library macros: %s\n",
+                    [[macros description] UTF8String]);
+        }
+    }
     g_nax_fused_library = [g_device newLibraryWithSource:fused_src options:fopts error:&ferr];
     if (!g_nax_fused_library) {
         fprintf(stderr, "ds4: NAX fused matmul library compile failed: %s\n",
@@ -19706,6 +19820,9 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_mpp_iq2_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted");
     g_mpp_q2k_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_counted");
     g_dense_q8_nax_pipeline  = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_dense_q8_nax");
+    g_dense_i8_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_dense_i8_fused");
+    g_repack_q8_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_repack_q8_to_i8_rowscale");
+    g_quant_act_pertoken_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_quant_act_pertoken_i8");
     g_indexer_scores_nax_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_indexer_scores_nax");
     g_attn_out_low_nax_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_attn_out_low_q8_nax");
 }
@@ -19728,6 +19845,48 @@ static int ds4_gpu_dense_q8_nax_enabled(void) {
         const char *env = getenv("DS4_GPU_DENSE_NAX");
         cached = (env && env[0] && atoi(env) != 0) ? 1 : 0;
     }
+    return cached;
+}
+
+/* int8 (W8A8) dense path opt-in (M5+; default off). Validated +1.4-1.5x vs relaxed
+ * float x half (moe-batch-bench/nax_dense_i8_probe.m). Per-row weight scale (load-time
+ * repack), per-token activation scale, fused int8xint8->int32 rescale. */
+static int ds4_gpu_dense_i8_enabled(void) {
+    static int cached = -1;
+    if (cached < 0) {
+        const char *env = getenv("DS4_GPU_DENSE_I8");
+        cached = (env && env[0] && atoi(env) != 0) ? 1 : 0;
+    }
+    return cached;
+}
+
+/* Morton/Z-order tile-walk opt-in (env; default off). Must match the DS4_*_WALK macro
+ * injected into the NAX library so the host grid and the kernel deinterleave agree. */
+static int ds4_gpu_indexer_walk_enabled(void) {
+    static int cached = -1;
+    if (cached < 0) { const char *e = getenv("DS4_GPU_INDEXER_WALK"); cached = (e && e[0] && atoi(e) != 0) ? 1 : 0; }
+    return cached;
+}
+static int ds4_gpu_dense_walk_enabled(void) {
+    static int cached = -1;
+    if (cached < 0) { const char *e = getenv("DS4_GPU_DENSE_WALK"); cached = (e && e[0] && atoi(e) != 0) ? 1 : 0; }
+    return cached;
+}
+/* 1D grid size covering a gx*gy tile grid as a Morton square: (2^bits)^2 with 2^bits >= max(gx,gy). */
+static NSUInteger ds4_gpu_morton_grid_1d(NSUInteger gx, NSUInteger gy) {
+    NSUInteger m = gx > gy ? gx : gy, bits = 0;
+    while (((NSUInteger)1 << bits) < m) bits++;
+    return (NSUInteger)1 << (2 * bits);
+}
+/* attn_out O-proj tile knobs (env; must match DS4_ATTN_NR1/NK macros in nax_fused.metal). */
+static NSUInteger ds4_gpu_attn_nr1(void) {
+    static NSUInteger cached = 0;
+    if (!cached) { const char *e = getenv("DS4_GPU_ATTN_NR1"); NSUInteger v = (e && e[0]) ? (NSUInteger)atoi(e) : 0; cached = (v == 64u) ? 64u : 128u; }
+    return cached;
+}
+static NSUInteger ds4_gpu_attn_nk(void) {
+    static NSUInteger cached = 0;
+    if (!cached) { const char *e = getenv("DS4_GPU_ATTN_NK"); NSUInteger v = (e && e[0]) ? (NSUInteger)atoi(e) : 0; cached = (v == 64u) ? 64u : 32u; }
     return cached;
 }
 

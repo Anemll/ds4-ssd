@@ -1,5 +1,35 @@
 # M5 Max ANE prefill optimization report
 
+> **2026-05-24 — int8 (W8A8) DENSE: +15–20% end-to-end prefill (the loop's one real win).**
+> After exhausting every float NAX knob (indexer relaxed / Morton / attn_out tile — all end-to-end
+> neutral) and int8 indexer (neutral, small slice), the win is **int8×int8 dense projections**:
+> per-row-scale int8 weight (load-time Q8_0→int8 repack, cached) × per-token-scale int8 activation,
+> int8→int32 with fused rescale (kernels `ds4_repack_q8_to_i8_rowscale` / `ds4_quant_act_pertoken_i8`
+> / `ds4_dense_i8_fused`, NR1=128/NR0=32/NK=128). Microbench +30–48% vs relaxed float×half (0.7% rel);
+> **end-to-end +19.8%@8k, +19.5%@16k, +17.1%@24k, +15.1%@32k** (adjacent-pair A/B, both pairs within
+> 2–3%), generation **token-identical** to baseline. Recipe that mattered: NK≥128, weight pre-quantized
+> offline (no per-dispatch dequant), fused rescale (NR0=32 to fit the int32 tile in threadgroup).
+> Env-gated `DS4_GPU_DENSE_I8` (default off; cost = a parallel int8 weight copy in GPU mem). Likely
+> puts the fork **ahead of antirez** (relaxed float×half dense), vs prior ~−5% parity. See memory/*.md.
+
+
+> **2026-05-24 — full 5-kernel NAX autotune (microbench, no model).** Built per-kernel autotuners
+> (`nax_dense_autotune.m`, `nax_attnout_autotune.m`; MoE via `nax_fused_probe.m`; indexer via
+> `nax_autotune.m`) and swept every NAX kernel over NR1/NR0/TM/NK/relaxed/walk(/dtype).
+> | kernel | verdict | note |
+> |---|---|---|
+> | dense_q8 | **optimal, no change** | 128/64/32/relaxed/reg = 37.6 TF/s; relaxed_precision is a ~3× lever (already on); Morton hurts |
+> | attn_out | **optimal, no change** | 128/64/32/relaxed/reg = 33.5 TF/s; microbench marginally likes 64/64/64 but end-to-end NR1=128 won |
+> | indexer | **+3–8%, bit-exact** | ships relaxed=**false**; flip to **true** (stable +2.9/+5.2/+14.6% over 3 runs). int8 = ~2.5× but 5.7% drift → needs coherence A/B |
+> | MoE iq2/q2k | **optimal, no change** | bit-exact, 4.2× the dequant-to-global baseline; int8→int32 so relaxed is a no-op, tile baked; lever is larger M (batching) |
+> Method lessons: (1) microbench has run-to-run variance — repeat the candidate A/B, don't trust one sweep.
+> (2) **Walk order (Morton/regular) cannot be measured in a microbench** — it changes no FLOPs, only L2
+> locality, which needs real cache pressure; the isolated working set is L2-resident so the knob is invisible
+> there. Morton must be A/B'd end-to-end. (3) Tile confirmation is per-kernel: NR1=128/NK=32 was confirmed by
+> microbench only for **dense**; attn_out's microbench best was 64/64/64 (kept 128 on the prior end-to-end
+> win); indexer holds TM=16/NK=32; MoE uses 64/32/256. The one actionable kernel change is **indexer
+> relaxed=true** (free, bit-exact).
+
 > **2026-05-24 RESULT — NAX parity with antirez.** Ported antirez's three NAX matmul2d kernels
 > (dense `direct_rhs`, indexer scores, grouped `attn_out` O-proj) into `metal/nax_fused.metal` with the
 > key tuning (NR1=128 token tile, NK=32, direct-from-device activation). vs antirez current build on M5 Max:
