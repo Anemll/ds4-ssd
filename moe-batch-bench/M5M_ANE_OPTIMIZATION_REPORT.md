@@ -1,5 +1,14 @@
 # M5 Max ANE prefill optimization report
 
+> **2026-05-25 FINAL — full int8 stack (dense + shared + attn_out W8A8, lm_head half) = PARITY vs antirez.**
+> All int8-eligible matmuls covered. Clean run (gen-8, flat): mean +0.5% prefill across 8k-64k. The gen-32 run
+> was thermally bimodal (low-ctx +10-14%, high-ctx -3-6% = thermal drift, not real) → means prefill +2.5%, gen
+> ~-0.4% — still parity, gen flat-to-slightly-behind (possible small fork decode overhead). attn_out int8
+> (+1.46x @shape) added its slice but didn't move the standing (small slice). Coherent throughout. int8-kernel
+> space now exhausted; graph fusion already tight; antirez uses no ANE (pure GPU). Beyond-parity = concurrent
+> GPU+ANE / MoE SSD-prefetch. Cleanroom W8A8 PR task: W8A8_CLEANROOM_TASK.md.
+
+
 > **2026-05-25 — DEFINITIVE all-sizes antirez standing: PARITY.** Comprehensive head-to-head, both built
 > from their own source + run from their own dirs (antirez ds4-bench reads metal/ by relative path), interleaved
 > adjacent pairs, 8k→64k step 8k: ours(int8 dense W8A8 + hints + attn_out-NAX + indexer-NAX) vs antirez(his
