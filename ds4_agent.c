@@ -61,6 +61,8 @@ typedef struct {
     ds4_engine_options engine;
     agent_generation_options gen;
     const char *resume_sha;
+    int moe_prefetch_temporal;
+    int moe_prefetch_topk;
     bool non_interactive;
 } agent_config;
 
@@ -447,6 +449,13 @@ static void usage(FILE *fp) {
         "  --moe-sidecar PATH     Flash-MoE sidecar directory.\n"
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N      Number of routed expert slots per layer. Default: 32\n"
+        "  --moe-prefetch-temporal\n"
+        "                         Enable decode temporal prefetch for sidecar MoE.\n"
+        "  --no-moe-prefetch-temporal\n"
+        "                         Disable decode temporal prefetch for sidecar MoE.\n"
+        "  --moe-prefetch-topk N  During prefill, keep top routed experts/layer\n"
+        "                         in decode slot banks for reuse. Clamped to half\n"
+        "                         the slot bank for headroom; 0 disables it.\n"
         "  -c, --ctx N            Context size. Default: 100000\n"
         "  -n, --tokens N         Max generated tokens per turn. Default: 50000\n"
         "  -p, --prompt TEXT      Submit an initial prompt after startup.\n"
@@ -509,6 +518,8 @@ static agent_config parse_options(int argc, char **argv) {
             .min_p = DS4_DEFAULT_MIN_P,
             .think_mode = DS4_THINK_HIGH,
         },
+        .moe_prefetch_temporal = -1,
+        .moe_prefetch_topk = -1,
     };
 
     bool steering_scale_set = false;
@@ -541,6 +552,28 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--moe-prefetch-temporal")) {
+            if (setenv("DS4_FLASH_MOE_DECODE_PREFETCH", "1", 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_DECODE_PREFETCH");
+                exit(2);
+            }
+            c.moe_prefetch_temporal = 1;
+        } else if (!strcmp(arg, "--no-moe-prefetch-temporal")) {
+            if (setenv("DS4_FLASH_MOE_DECODE_PREFETCH", "0", 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_DECODE_PREFETCH");
+                exit(2);
+            }
+            c.moe_prefetch_temporal = 0;
+        } else if (!strcmp(arg, "--moe-prefetch-topk")) {
+            int topk = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (topk < 0) topk = 0;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", topk);
+            if (setenv("DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK");
+                exit(2);
+            }
+            c.moe_prefetch_topk = topk;
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -8107,6 +8140,14 @@ static void agent_print_resume_hint(agent_worker *w) {
         char *sidecar = agent_shell_quote(cfg->engine.moe_sidecar_path);
         printf(" --moe-sidecar %s", sidecar);
         free(sidecar);
+    }
+    if (cfg->moe_prefetch_temporal == 1) {
+        printf(" --moe-prefetch-temporal");
+    } else if (cfg->moe_prefetch_temporal == 0) {
+        printf(" --no-moe-prefetch-temporal");
+    }
+    if (cfg->moe_prefetch_topk >= 0) {
+        printf(" --moe-prefetch-topk %d", cfg->moe_prefetch_topk);
     }
     if (cfg->engine.directional_steering_file &&
         cfg->engine.directional_steering_file[0])

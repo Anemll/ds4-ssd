@@ -63,6 +63,84 @@ static bool ane_int8w_stats_enabled(void) {
     return (env && env[0] && atoi(env) != 0) || ane_int8w_debug_enabled();
 }
 
+static bool ane_tmp_cleanup_debug_enabled(void) {
+    const char *env = getenv("DS4_ANE_TMP_CLEANUP_DEBUG");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static double ane_tmp_cleanup_age_sec(void) {
+    const char *env = getenv("DS4_ANE_TMP_CLEANUP_AGE_SEC");
+    long age = (env && env[0]) ? atol(env) : 2 * 60 * 60;
+    if (age < 60) age = 60;
+    if (age > 30L * 24L * 60L * 60L) age = 30L * 24L * 60L * 60L;
+    return (double)age;
+}
+
+static bool ane_tmp_cleanup_candidate(NSString *name) {
+    if (!name.length) return false;
+    if ([name hasPrefix:@"ds4-ane-"]) return true;
+    /* Old _ANEInMemoryModel temp directories are named by the private model
+     * hexStringIdentifier.  This middle hash is stable across the DS4 ANE MIL
+     * descriptors observed in the runtime and benchmark artifacts. */
+    return [name containsString:@"_DF3F619804A92FDB4057192DC43DD748EA778ADC52BC498CE80524C014B81119_"];
+}
+
+static void ane_cleanup_stale_tmp_dirs_once(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        @autoreleasepool {
+            const char *enabled = getenv("DS4_ANE_TMP_CLEANUP");
+            if (enabled && enabled[0] && atoi(enabled) == 0) return;
+
+            NSFileManager *fm = [NSFileManager defaultManager];
+            NSString *tmp = NSTemporaryDirectory();
+            NSError *err = nil;
+            NSArray *names = [fm contentsOfDirectoryAtPath:tmp error:&err];
+            if (!names) {
+                if (ane_tmp_cleanup_debug_enabled()) {
+                    fprintf(stderr, "ds4: ANE tmp cleanup list failed: %s\n",
+                            err ? [[err description] UTF8String] : "unknown");
+                }
+                return;
+            }
+
+            const double age_sec = ane_tmp_cleanup_age_sec();
+            NSDate *cutoff = [NSDate dateWithTimeIntervalSinceNow:-age_sec];
+            NSUInteger removed = 0;
+            NSUInteger skipped_recent = 0;
+            NSUInteger failed = 0;
+            for (NSString *name in names) {
+                if (!ane_tmp_cleanup_candidate(name)) continue;
+                NSString *path = [tmp stringByAppendingPathComponent:name];
+                NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
+                if (![attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
+                NSDate *mtime = attrs[NSFileModificationDate];
+                if (mtime && [mtime compare:cutoff] == NSOrderedDescending) {
+                    skipped_recent++;
+                    continue;
+                }
+                NSError *rm_err = nil;
+                if ([fm removeItemAtPath:path error:&rm_err]) {
+                    removed++;
+                } else {
+                    failed++;
+                    if (ane_tmp_cleanup_debug_enabled()) {
+                        fprintf(stderr, "ds4: ANE tmp cleanup failed %s: %s\n",
+                                [path UTF8String],
+                                rm_err ? [[rm_err description] UTF8String] : "unknown");
+                    }
+                }
+            }
+            if (ane_tmp_cleanup_debug_enabled() && (removed || failed || skipped_recent)) {
+                fprintf(stderr,
+                        "ds4: ANE tmp cleanup removed=%lu failed=%lu skipped_recent=%lu age_sec=%.0f root=%s\n",
+                        (unsigned long)removed, (unsigned long)failed,
+                        (unsigned long)skipped_recent, age_sec, [tmp UTF8String]);
+            }
+        }
+    });
+}
+
 static uint64_t g_i8i8_hidden_values;
 static uint64_t g_i8i8_hidden_saturated;
 static float g_i8i8_hidden_abs_max;
@@ -1022,6 +1100,7 @@ static bool compile_and_load_mil(NSString *mil,
                                  void **model_r,
                                  void **tmpDir_r) {
     const bool dbg = ane_int8w_debug_enabled();
+    ane_cleanup_stale_tmp_dirs_once();
     NSError *e = nil;
     NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
     id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
@@ -1066,6 +1145,7 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
     if (mode == 4 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 5 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 6 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
@@ -1307,6 +1387,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
                                                                   const uint16_t *Wa_OI,
                                                                   const uint16_t *Wb_OI) {
     if (H <= 0 || I <= 0 || B <= 0 || !Wa_OI || !Wb_OI) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
@@ -1424,6 +1505,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, i
     if (H <= 0 || I <= 0 || B <= 0) return NULL;
     if (!Wa_q_OI || !Wa_off_O || !Wa_scale_f16_O ||
         !Wb_q_OI || !Wb_off_O || !Wb_scale_f16_O) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) return NULL;
@@ -1643,6 +1725,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
                                                           const uint16_t *Wup_OI,
                                                           const uint16_t *Wdown_OI) {
     if (H <= 0 || I <= 0 || B <= 0 || !Wgate_OI || !Wup_OI || !Wdown_OI) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {

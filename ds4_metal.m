@@ -16387,6 +16387,14 @@ static int ds4_gpu_ane_prefill_dual_stagger_us(void) {
  *
  *   DS4_FLASH_MOE_ANE_THREADS=1 .. 4   explicit worker count
  *   (unset)                            fall back to: DUAL=1 → 2, else 1
+ *
+ * NOTE: a size-adaptive "auto" cap was prototyped and measured on M3U
+ * (chunk-size x thread-count sweep).  Result: worker count 2 vs 3 is within
+ * run-to-run noise (~2-3%) at every chunk size — the engine's internal
+ * chunk_count gate already scales the real worker count by per-expert refs, so
+ * the cap above 2 buys nothing reproducible.  The real prefill levers are the
+ * parallel pread reader pool and the prefill chunk size, not this cap.  Kept as
+ * a plain explicit knob; don't re-chase dynamic threading without fresh data.
  */
 static int ds4_gpu_ane_prefill_threads(void) {
     const char *env = getenv("DS4_FLASH_MOE_ANE_THREADS");
