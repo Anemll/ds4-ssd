@@ -5812,6 +5812,20 @@ int ds4_gpu_matmul_q8_0_tensor(
         uint64_t                out_dim,
         const ds4_gpu_tensor *x,
         uint64_t                n_tok) {
+    return ds4_gpu_matmul_q8_0_tensor_ex(out, model_map, model_size, weight_offset,
+                                         in_dim, out_dim, x, n_tok, DS4_MM_AUTO);
+}
+
+int ds4_gpu_matmul_q8_0_tensor_ex(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok,
+        ds4_mm_hint             hint) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if ((in_dim & 31u) != 0 ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX || n_tok > UINT32_MAX) {
@@ -5912,7 +5926,9 @@ int ds4_gpu_matmul_q8_0_tensor(
          * weight (load-time repack, cached by weight_offset) x per-token-scale int8
          * activation, int8xint8->int32 with fused rescale -> f32. Validated +1.4-1.5x vs
          * relaxed float x half (nax_dense_i8_probe.m). NK=128 => in_dim%128==0; NR0=32. */
-        if (ds4_gpu_dense_i8_enabled() && (in_dim % 128u) == 0 && (out_dim % 32u) == 0 && n_tok >= 32u) {
+        const uint64_t i8_min_tok = (hint == DS4_MM_PREFER_I8) ? 16u : 32u;
+        if (hint != DS4_MM_NO_I8 && ds4_gpu_dense_i8_enabled() &&
+            (in_dim % 128u) == 0 && (out_dim % 32u) == 0 && n_tok >= i8_min_tok) {
             ds4_gpu_ensure_nax_fused_library();
             if (g_dense_i8_fused_pipeline && g_repack_q8_i8_pipeline && g_quant_act_pertoken_i8_pipeline) {
                 /* cached load-time weight repack: Q8_0 -> int8[out x in] + per-row scale */

@@ -21,6 +21,8 @@ void ds4_gpu_cleanup(void);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc_managed(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_view(const ds4_gpu_tensor *base, uint64_t offset, uint64_t bytes);
+ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_size,
+                                          uint64_t offset, uint64_t bytes);
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
@@ -45,6 +47,7 @@ int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint6
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);
 void ds4_gpu_set_quality(bool quality);
 void ds4_gpu_print_memory_report(const char *label);
+int ds4_gpu_mpp_int8_prefill_prewarm(void);
 
 /* =========================================================================
  * Embeddings and Indexer Helpers.
@@ -132,6 +135,27 @@ int ds4_gpu_dsv4_topk_mask_tensor(
  * attention output projections, and DS4's tail-only RoPE.
  */
 
+/* Per-call-site dtype policy for the Q8_0 dense matmul. The caller knows the
+ * functional part (MLA proj / shared expert / lm_head), so it declares intent;
+ * the n_tok size-ladder (GEMV / mul_mv_ext / W8A8) stays internal. */
+typedef enum {
+    DS4_MM_AUTO = 0,    /* env-gated: W8A8 when DS4_GPU_DENSE_I8 + n_tok-eligible */
+    DS4_MM_PREFER_I8,   /* W8A8-friendly part (projections, shared expert) */
+    DS4_MM_NO_I8,       /* quality-sensitive (lm_head): never int8 */
+} ds4_mm_hint;
+
+int ds4_gpu_matmul_q8_0_tensor_ex(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok,
+        ds4_mm_hint             hint);
+
+/* Back-compat wrapper: AUTO policy. */
 int ds4_gpu_matmul_q8_0_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
