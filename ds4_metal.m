@@ -139,6 +139,7 @@ static id<MTLComputePipelineState> g_repack_q8_i8_pipeline;
 static id<MTLComputePipelineState> g_quant_act_pertoken_i8_pipeline;
 static id<MTLComputePipelineState> g_indexer_scores_nax_pipeline;
 static id<MTLComputePipelineState> g_attn_out_low_nax_pipeline;
+static id<MTLComputePipelineState> g_attn_out_low_i8_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_q2_k_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_output_pack_f16_f32_pipeline;
@@ -10886,7 +10887,69 @@ int ds4_gpu_attention_output_q8_batch_tensor(
              * tokens.  This preserves the single-token generation path while
              * keeping prefill accumulation stable.
              */
-            if (n_tokens >= 32u && (group_dim % 32u) == 0 &&
+            if (n_tokens >= 32u && (group_dim % 128u) == 0 && (rank % 32u) == 0 &&
+                ds4_gpu_dense_i8_enabled() &&
+                (ds4_gpu_ensure_nax_fused_library(),
+                 g_attn_out_low_i8_pipeline && g_repack_q8_i8_pipeline && g_quant_act_pertoken_i8_pipeline)) {
+                /* Grouped O-proj W8A8 (DS4_GPU_DENSE_I8): per-(group,row) int8 weight (load-time
+                 * repack, cached) x per-(token,group) int8 activation, fused rescale. +1.46x vs
+                 * the float-half NAX path (nax_attnout_i8_test.m). */
+                static NSMutableDictionary<NSNumber *, NSArray *> *aow8cache = nil;
+                if (!aow8cache) aow8cache = [NSMutableDictionary dictionary];
+                NSNumber *wkey = @(out_a_offset);
+                NSArray *we = aow8cache[wkey];
+                const NSUInteger gm = (NSUInteger)n_groups * (NSUInteger)rank;  /* G*rank weight rows */
+                id<MTLBuffer> wi8 = we ? we[0] : nil, wscale = we ? we[1] : nil;
+                if (!we) {
+                    wi8 = [g_device newBufferWithLength:gm * (NSUInteger)group_dim options:MTLResourceStorageModePrivate];
+                    wscale = [g_device newBufferWithLength:gm * sizeof(float) options:MTLResourceStorageModePrivate];
+                    if (wi8 && wscale) {
+                        id<MTLComputeCommandEncoder> re = ds4_gpu_compute_encoder(cb);
+                        [re setComputePipelineState:g_repack_q8_i8_pipeline];
+                        [re setBuffer:out_a_buf offset:(NSUInteger)out_a_inner atIndex:0];
+                        [re setBuffer:wi8 offset:0 atIndex:1];
+                        [re setBuffer:wscale offset:0 atIndex:2];
+                        uint32_t Ku = (uint32_t)group_dim, Mu = (uint32_t)gm; uint64_t rb = row_a_bytes;
+                        [re setBytes:&Ku length:4 atIndex:3];
+                        [re setBytes:&Mu length:4 atIndex:4];
+                        [re setBytes:&rb length:8 atIndex:5];
+                        [re dispatchThreadgroups:MTLSizeMake(gm, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+                        ds4_gpu_end_compute_encoder(cb, re);
+                        aow8cache[wkey] = @[wi8, wscale];
+                    }
+                }
+                if (wi8 && wscale) {
+                    static id<MTLBuffer> aob = nil, aos = nil; static NSUInteger aob_cap = 0, aos_cap = 0;
+                    const NSUInteger nrows = (NSUInteger)n_tokens * (NSUInteger)n_groups;
+                    NSUInteger need_a = nrows * (NSUInteger)group_dim, need_s = nrows * sizeof(float);
+                    if (aob_cap < need_a) { aob = [g_device newBufferWithLength:need_a options:MTLResourceStorageModePrivate]; aob_cap = need_a; }
+                    if (aos_cap < need_s) { aos = [g_device newBufferWithLength:need_s options:MTLResourceStorageModePrivate]; aos_cap = need_s; }
+                    id<MTLComputeCommandEncoder> qe = ds4_gpu_compute_encoder(cb);
+                    [qe setComputePipelineState:g_quant_act_pertoken_i8_pipeline];
+                    [qe setBuffer:ds4_gpu_tensor_buffer(heads) offset:ds4_gpu_tensor_offset(heads) atIndex:0];
+                    [qe setBuffer:aob offset:0 atIndex:1];
+                    [qe setBuffer:aos offset:0 atIndex:2];
+                    uint32_t wd = (uint32_t)group_dim, rw = (uint32_t)nrows;
+                    [qe setBytes:&wd length:4 atIndex:3];
+                    [qe setBytes:&rw length:4 atIndex:4];
+                    [qe dispatchThreadgroups:MTLSizeMake(nrows, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+                    ds4_gpu_end_compute_encoder(cb, qe);
+                    struct { int32_t K, M, N, G; } aa = { (int32_t)group_dim, (int32_t)rank, (int32_t)n_tokens, (int32_t)n_groups };
+                    id<MTLComputeCommandEncoder> me = ds4_gpu_compute_encoder(cb);
+                    [me setComputePipelineState:g_attn_out_low_i8_pipeline];
+                    [me setBytes:&aa length:sizeof(aa) atIndex:0];
+                    [me setBuffer:wi8 offset:0 atIndex:1];
+                    [me setBuffer:aob offset:0 atIndex:2];
+                    [me setBuffer:ds4_gpu_tensor_buffer(low) offset:ds4_gpu_tensor_offset(low) atIndex:3];
+                    [me setBuffer:wscale offset:0 atIndex:4];
+                    [me setBuffer:aos offset:0 atIndex:5];
+                    [me setThreadgroupMemoryLength:(NSUInteger)32u * 128u + (NSUInteger)32u * 128u * sizeof(int32_t) atIndex:0];
+                    [me dispatchThreadgroups:MTLSizeMake(((NSUInteger)n_tokens + 127u) / 128u,
+                                                         ((NSUInteger)rank + 31u) / 32u, (NSUInteger)n_groups)
+                         threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
+                    ds4_gpu_end_compute_encoder(cb, me);
+                } else { ok = false; }
+            } else if (n_tokens >= 32u && (group_dim % 32u) == 0 &&
                 ds4_gpu_dense_q8_nax_enabled() &&
                 (ds4_gpu_ensure_nax_fused_library(), g_attn_out_low_nax_pipeline != nil)) {
                 /* Grouped O-proj "low" via NAX direct-RHS matmul (M5+). Same
@@ -19867,6 +19930,7 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_quant_act_pertoken_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_quant_act_pertoken_i8");
     g_indexer_scores_nax_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_indexer_scores_nax");
     g_attn_out_low_nax_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_attn_out_low_q8_nax");
+    g_attn_out_low_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_attn_out_low_i8_fused");
 }
 
 /* Indexer score NAX matmul opt-in (M5+; default off). Targets the long-context
