@@ -144,9 +144,11 @@ static id<MTLComputePipelineState> g_attn_out_low_i8_pipeline;
  * parallel int8 copy of every routed dense/attn_out weight and only serve the
  * n_tok>=cutoff prefill matmuls — decode is n_tok==1 GEMV and never touches
  * them. Promoted to file scope so they can be released at the prefill->decode
- * transition (ds4_gpu_release_i8_prefill_cache): leaving them resident next to
- * the mmap'd model evicts page-cache pages and slows MoE SSD streaming during
- * decode (worst % at low ctx where decode is otherwise fastest). */
+ * transition (ds4_gpu_release_i8_prefill_cache): these GBs are dead weight
+ * during generation. Memory-hygiene win (lower peak footprint). NOTE: measured
+ * decode-NEUTRAL on M5 Max (memory headroom) — matched-pair A/B is flat 2k-64k;
+ * the t/s benefit only materializes on memory-constrained hosts where the
+ * resident copies would force page eviction. Keep it: neutral + lower mem. */
 static NSMutableDictionary<NSNumber *, NSArray *> *g_i8_dense_wcache;
 static NSMutableDictionary<NSNumber *, NSArray *> *g_i8_attn_wcache;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
