@@ -1,0 +1,497 @@
+// DS4 fused-dequant NAX int8 MoE matmul kernels.
+//
+// Compiled as a separate MTLLanguageVersion4_0 library (MetalPerformancePrimitives
+// + tensor_ops are not available in the default-options main library).
+//
+// These fuse the iq2_xxs (gate/up) and q2_K (down) weight dequant directly into a
+// NAX matmul2d: per K-tile (256 = QK_K) the weight tile is dequantized into
+// threadgroup memory and fed to matmul2d, so the dequantized int8 weights never
+// round-trip through device memory.  C = A(int8) * dequant_i8(W) accumulated in an
+// int32 cooperative_tensor across K-tiles (multiply_accumulate).  Validated bit-exact
+// and ~4x faster than dequant-to-global + i8xi8 matmul in moe-batch-bench/nax_fused_probe.m.
+#include <metal_stdlib>
+#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>
+using namespace metal;
+using namespace mpp::tensor_ops;
+
+#define QK_K 256
+
+constant uchar ds4nf_ksigns[128] = {
+      0, 129, 130,   3, 132,   5,   6, 135, 136,   9,  10, 139,  12, 141, 142,  15,
+    144,  17,  18, 147,  20, 149, 150,  23,  24, 153, 154,  27, 156,  29,  30, 159,
+    160,  33,  34, 163,  36, 165, 166,  39,  40, 169, 170,  43, 172,  45,  46, 175,
+     48, 177, 178,  51, 180,  53,  54, 183, 184,  57,  58, 187,  60, 189, 190,  63,
+    192,  65,  66, 195,  68, 197, 198,  71,  72, 201, 202,  75, 204,  77,  78, 207,
+     80, 209, 210,  83, 212,  85,  86, 215, 216,  89,  90, 219,  92, 221, 222,  95,
+     96, 225, 226,  99, 228, 101, 102, 231, 232, 105, 106, 235, 108, 237, 238, 111,
+    240, 113, 114, 243, 116, 245, 246, 119, 120, 249, 250, 123, 252, 125, 126, 255,
+};
+
+constant ulong ds4nf_iq2xxs_grid[256] = {
+    0x0808080808080808, 0x080808080808082b, 0x0808080808081919, 0x0808080808082b08,
+    0x0808080808082b2b, 0x0808080808190819, 0x0808080808191908, 0x08080808082b0808,
+    0x08080808082b082b, 0x08080808082b2b08, 0x08080808082b2b2b, 0x0808080819080819,
+    0x0808080819081908, 0x0808080819190808, 0x0808080819192b08, 0x08080808192b0819,
+    0x08080808192b1908, 0x080808082b080808, 0x080808082b08082b, 0x080808082b082b2b,
+    0x080808082b2b082b, 0x0808081908080819, 0x0808081908081908, 0x0808081908190808,
+    0x0808081908191919, 0x0808081919080808, 0x080808192b081908, 0x080808192b192b08,
+    0x0808082b08080808, 0x0808082b0808082b, 0x0808082b082b082b, 0x0808082b2b08082b,
+    0x0808190808080819, 0x0808190808081908, 0x0808190808190808, 0x08081908082b0819,
+    0x08081908082b1908, 0x0808190819080808, 0x080819081908082b, 0x0808190819082b08,
+    0x08081908192b0808, 0x080819082b080819, 0x080819082b081908, 0x080819082b190808,
+    0x080819082b2b1908, 0x0808191908080808, 0x080819190808082b, 0x0808191908082b08,
+    0x08081919082b0808, 0x080819191908192b, 0x08081919192b2b19, 0x080819192b080808,
+    0x080819192b190819, 0x0808192b08082b19, 0x0808192b08190808, 0x0808192b19080808,
+    0x0808192b2b081908, 0x0808192b2b2b1908, 0x08082b0808080808, 0x08082b0808081919,
+    0x08082b0808082b08, 0x08082b0808191908, 0x08082b08082b2b08, 0x08082b0819080819,
+    0x08082b0819081908, 0x08082b0819190808, 0x08082b081919082b, 0x08082b082b082b08,
+    0x08082b1908081908, 0x08082b1919080808, 0x08082b2b0808082b, 0x08082b2b08191908,
+    0x0819080808080819, 0x0819080808081908, 0x0819080808190808, 0x08190808082b0819,
+    0x0819080819080808, 0x08190808192b0808, 0x081908082b081908, 0x081908082b190808,
+    0x081908082b191919, 0x0819081908080808, 0x0819081908082b08, 0x08190819082b0808,
+    0x0819081919190808, 0x0819081919192b2b, 0x081908192b080808, 0x0819082b082b1908,
+    0x0819082b19081919, 0x0819190808080808, 0x0819190808082b08, 0x08191908082b0808,
+    0x08191908082b1919, 0x0819190819082b19, 0x081919082b080808, 0x0819191908192b08,
+    0x08191919192b082b, 0x0819192b08080808, 0x0819192b0819192b, 0x08192b0808080819,
+    0x08192b0808081908, 0x08192b0808190808, 0x08192b0819080808, 0x08192b082b080819,
+    0x08192b1908080808, 0x08192b1908081919, 0x08192b192b2b0808, 0x08192b2b19190819,
+    0x082b080808080808, 0x082b08080808082b, 0x082b080808082b2b, 0x082b080819081908,
+    0x082b0808192b0819, 0x082b08082b080808, 0x082b08082b08082b, 0x082b0819082b2b19,
+    0x082b081919082b08, 0x082b082b08080808, 0x082b082b0808082b, 0x082b190808080819,
+    0x082b190808081908, 0x082b190808190808, 0x082b190819080808, 0x082b19081919192b,
+    0x082b191908080808, 0x082b191919080819, 0x082b1919192b1908, 0x082b192b2b190808,
+    0x082b2b0808082b08, 0x082b2b08082b0808, 0x082b2b082b191908, 0x082b2b2b19081908,
+    0x1908080808080819, 0x1908080808081908, 0x1908080808190808, 0x1908080808192b08,
+    0x19080808082b0819, 0x19080808082b1908, 0x1908080819080808, 0x1908080819082b08,
+    0x190808081919192b, 0x19080808192b0808, 0x190808082b080819, 0x190808082b081908,
+    0x190808082b190808, 0x1908081908080808, 0x19080819082b0808, 0x19080819192b0819,
+    0x190808192b080808, 0x190808192b081919, 0x1908082b08080819, 0x1908082b08190808,
+    0x1908082b19082b08, 0x1908082b1919192b, 0x1908082b192b2b08, 0x1908190808080808,
+    0x1908190808082b08, 0x19081908082b0808, 0x190819082b080808, 0x190819082b192b19,
+    0x190819190819082b, 0x19081919082b1908, 0x1908192b08080808, 0x19082b0808080819,
+    0x19082b0808081908, 0x19082b0808190808, 0x19082b0819080808, 0x19082b0819081919,
+    0x19082b1908080808, 0x19082b1919192b08, 0x19082b19192b0819, 0x19082b192b08082b,
+    0x19082b2b19081919, 0x19082b2b2b190808, 0x1919080808080808, 0x1919080808082b08,
+    0x1919080808190819, 0x1919080808192b19, 0x19190808082b0808, 0x191908082b080808,
+    0x191908082b082b08, 0x1919081908081908, 0x191908191908082b, 0x191908192b2b1908,
+    0x1919082b2b190819, 0x191919082b190808, 0x191919082b19082b, 0x1919191908082b2b,
+    0x1919192b08080819, 0x1919192b19191908, 0x19192b0808080808, 0x19192b0808190819,
+    0x19192b0808192b19, 0x19192b08192b1908, 0x19192b1919080808, 0x19192b2b08082b08,
+    0x192b080808081908, 0x192b080808190808, 0x192b080819080808, 0x192b0808192b2b08,
+    0x192b081908080808, 0x192b081919191919, 0x192b082b08192b08, 0x192b082b192b0808,
+    0x192b190808080808, 0x192b190808081919, 0x192b191908190808, 0x192b19190819082b,
+    0x192b19192b081908, 0x192b2b081908082b, 0x2b08080808080808, 0x2b0808080808082b,
+    0x2b08080808082b2b, 0x2b08080819080819, 0x2b0808082b08082b, 0x2b08081908081908,
+    0x2b08081908192b08, 0x2b08081919080808, 0x2b08082b08190819, 0x2b08190808080819,
+    0x2b08190808081908, 0x2b08190808190808, 0x2b08190808191919, 0x2b08190819080808,
+    0x2b081908192b0808, 0x2b08191908080808, 0x2b0819191908192b, 0x2b0819192b191908,
+    0x2b08192b08082b19, 0x2b08192b19080808, 0x2b08192b192b0808, 0x2b082b080808082b,
+    0x2b082b1908081908, 0x2b082b2b08190819, 0x2b19080808081908, 0x2b19080808190808,
+    0x2b190808082b1908, 0x2b19080819080808, 0x2b1908082b2b0819, 0x2b1908190819192b,
+    0x2b1908192b080808, 0x2b19082b19081919, 0x2b19190808080808, 0x2b191908082b082b,
+    0x2b19190819081908, 0x2b19191919190819, 0x2b192b082b080819, 0x2b192b19082b0808,
+    0x2b2b08080808082b, 0x2b2b080819190808, 0x2b2b08082b081919, 0x2b2b081908082b19,
+    0x2b2b082b08080808, 0x2b2b190808192b08, 0x2b2b2b0819190808, 0x2b2b2b1908081908,
+};
+
+struct block_iq2_xxs { half d; ushort qs[QK_K/8]; };
+struct block_q2_K { uchar scales[QK_K/16]; uchar qs[QK_K/4]; half d; half dmin; };
+struct block_q8_0 { half d; char qs[32]; };
+
+// Dense Q8_0 NAX matmul, ported from antirez kernel_mul_mm_mpp_direct_rhs (Q8_0).
+// C[tokens x out] = activation[tokens x in](f32, read DIRECTLY from device, no staging)
+// * dequant(W[out x in] Q8_0 -> half, staged in threadgroup). matmul2d float x half ->
+// float, NK=32 K-tile, weight-major 64(out) x 128(token) tile. Out is row-major
+// [tokens x out] (dst[token*out + o]), matching the simdgroup mul_mm output.
+struct ds4_mm_args {
+    int32_t ne00, ne02; uint64_t nb01, nb02, nb03; int32_t ne12;
+    uint64_t nb10, nb11, nb12, nb13; int32_t ne0, ne1; int16_t r2, r3;
+};
+inline void ds4_deq_q8(device const block_q8_0 *xb, short il, thread half4x4 &reg) {
+    device const char *qs = (device const char *)xb->qs; const float d = (float)xb->d;
+    for (int i = 0; i < 16; i++) reg[i/4][i%4] = (half)((float)qs[i + 16*il] * d);
+}
+kernel void ds4_dense_q8_nax(
+        constant ds4_mm_args &args [[buffer(0)]],
+        device const char *srcA [[buffer(1)]],   // weight Q8_0 [out x in]
+        device const char *srcB [[buffer(2)]],   // activation f32 [tokens x in]
+        device       char *dst  [[buffer(3)]],   // out f32 [tokens x out]
+        threadgroup  char *shmem [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NL = NK/16, NUM_THREADS = 128;
+    const int K = args.ne00, M = args.ne0, N = args.ne1;
+    const int im = tgpig.z, i12 = im % args.ne12, i13 = im / args.ne12;
+    const int r0 = tgpig.y * NR0, r1 = tgpig.x * NR1;
+    const uint64_t offset0 = (i12/args.r2)*args.nb02 + (i13/args.r3)*args.nb03;
+    threadgroup half *sa = (threadgroup half *)shmem;
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    device float *ptrB = (device float *)(srcB + args.nb12*i12 + args.nb13*i13);
+    const int strideB = args.nb11 / sizeof(float);
+    auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, strideB}));
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+    for (int lk = 0; lk < K; lk += NK) {
+        for (int work = tiitg; work < NR0*NL; work += NUM_THREADS) {
+            const int row = work / NL, kc = work % NL, kpos = lk + kc*16; const short kb = kc*16;
+            if (r0 + row < M) {
+                const int bidx = kpos / (16*2); const short il = (kpos/16) % 2;
+                device const block_q8_0 *rp = (device const block_q8_0 *)(srcA + args.nb01*(r0+row) + offset0);
+                half4x4 t; ds4_deq_q8(rp + bidx, il, t);
+                for (short i = 0; i < 16; i++) sa[row*NK + kb + i] = (kpos+i < K) ? t[i/4][i%4] : (half)0;
+            } else {
+                for (short i = 0; i < 16; i++) sa[row*NK + kb + i] = (half)0;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0); auto mB = tB.slice(lk, r1);
+        mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    device float *db = (device float *)dst + im*N*M;
+    auto tD = tensor(db, dextents<int32_t, 2>(M, N), array<int, 2>({1, M}));
+    auto mD = tD.slice(r0, r1);
+    cT.store(mD);
+}
+
+static inline int8_t ds4nf_f2i8(float x, float qscale) {
+    return int8_t(int(rint(clamp(x * qscale, -128.0f, 127.0f))));
+}
+
+// Dequant one iq2_xxs segment (seg in 0..15 -> 16 values) of block (row n) at k-block
+// kb into the transposed threadgroup tile column nn.  Btile layout [localk*32 + nn].
+inline void ds4nf_iq2_seg(device const block_iq2_xxs *blk, uint seg, float qscale,
+                          threadgroup int8_t *Btile, uint nn) {
+    const uint ib32 = seg / 2u, lane = seg & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = seg * 16u;
+    const ulong gv0 = ds4nf_iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar s0 = ds4nf_ksigns[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((s0 & (1u << j)) ? -1.0f : 1.0f);
+        Btile[(col0 + j) * 32u + nn] = ds4nf_f2i8(v, qscale);
+    }
+    const ulong gv1 = ds4nf_iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar s1 = ds4nf_ksigns[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((s1 & (1u << j)) ? -1.0f : 1.0f);
+        Btile[(col0 + 8u + j) * 32u + nn] = ds4nf_f2i8(v, qscale);
+    }
+}
+
+inline void ds4nf_q2k_seg(device const block_q2_K *blk, uint seg, float qscale,
+                          threadgroup int8_t *Btile, uint nn) {
+    device const uchar *q = blk->qs + 32u * (seg / 8u) + 16u * (seg & 1u);
+    const uchar sc = blk->scales[seg];
+    const uint il = (seg / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = seg * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        Btile[(col0 + j) * 32u + nn] = ds4nf_f2i8(dl * float(q[j] & mask) - ml, qscale);
+    }
+}
+
+// Grouped attention-output (O-proj low) NAX matmul, ported from antirez
+// kernel_attn_out_low_q8_0_mpp_direct_rhs. Per OUT_GROUP: C[tokens x M] += act[tokens x K](f32,
+// direct from device) * dequant(W[M x K] Q8_0 -> half). NR1=64 token tile, NK=32, direct-RHS.
+struct ds4_mm_id_args {
+    int32_t  ne00, ne02; uint64_t nb01, nb02, nb03; int32_t ne11;
+    uint64_t nb10, nb11, nb12, nb13; int32_t ne20, ne21, ne0, ne1; int16_t r2, r3;
+};
+kernel void ds4_attn_out_low_q8_nax(
+        constant ds4_mm_id_args &args [[buffer(0)]],
+        device const char *srcA [[buffer(1)]],
+        device const char *srcB [[buffer(2)]],
+        device       char *dst  [[buffer(3)]],
+        threadgroup  char *shmem [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NL = NK/16, NUM_THREADS = 128;
+    const int K = args.ne00, M = args.ne0, N = args.ne21, G = args.ne1;
+    const int group = tgpig.z;
+    const int r0 = tgpig.y*NR0, r1 = tgpig.x*NR1;
+    const bool full_tile = r0 + NR0 <= M && r1 + NR1 <= N && (K % NK) == 0;
+    threadgroup half *sa = (threadgroup half *)shmem;
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    device float *ptrB = (device float *)(srcB + args.nb11*group);
+    const int strideB = args.nb12 / sizeof(float);
+    auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, strideB}));
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+    for (int loop_k = 0; loop_k < K; loop_k += NK) {
+        for (int work = tiitg; work < NR0*NL; work += NUM_THREADS) {
+            const int row = work/NL, kc = work%NL, kpos = loop_k + kc*16; const short kbase = kc*16;
+            if (full_tile || r0 + row < M) {
+                const int bidx = kpos/32; const short il = (kpos/16)%2;
+                device const block_q8_0 *rp = (device const block_q8_0 *)(srcA + args.nb01*(r0+row) + group*args.nb02);
+                half4x4 t; ds4_deq_q8(rp + bidx, il, t);
+                for (short i = 0; i < 16; i++) sa[row*NK + kbase + i] = (full_tile || kpos+i < K) ? t[i/4][i%4] : (half)0;
+            } else {
+                for (short i = 0; i < 16; i++) sa[row*NK + kbase + i] = (half)0;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0); auto mB = tB.slice(loop_k, r1);
+        mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    device float *dst_group = (device float *)dst + group*M;
+    if (full_tile) {
+        device float *dst_tile = dst_group + r0 + (uint64_t)r1*G*M;
+        auto tD = tensor(dst_tile, dextents<int32_t, 2>(NR0, NR1), array<int, 2>({1, G*M}));
+        cT.store(tD);
+    } else {
+        auto tD = tensor(dst_group, dextents<int32_t, 2>(M, N), array<int, 2>({1, G*M}));
+        auto mD = tD.slice(r0, r1);
+        cT.store(mD);
+    }
+}
+
+// NAX indexer score matmul (the long-context prefill-slope dominator). Computes
+// scores[token x comp] = sum_head relu(Q_head[token] . index_comp[comp]) * w[token][head] * scale
+// over 64 heads (D=128), with a per-token top-k visibility mask. Each head's Q@K^T is a
+// matmul2d half x half -> float; K (head-independent) is staged once into Btile transposed,
+// Q is staged per head, results accumulate (relu*weight) into a float cooperative_tensor.
+// Tile: 64 tokens (m) x 32 comp (n), K=128 (one tile). q/weights/index_comp/scores are float.
+struct ds4_idx_args {
+    uint n_comp, n_tokens, n_head, head_dim, pos0, ratio;
+    ulong q_token_stride, q_head_stride, weights_token_stride, index_row_stride, score_token_stride;
+    float scale;
+};
+// Tuned port of antirez ds4 kernel_dsv4_indexer_scores_nax: 16-token x 32-comp tile
+// (his sweeps found 64-row slower), K-tiled at NK=32 with multiply_accumulate, results
+// stored to a threadgroup buffer then relu/weighted/summed with a flat indexed loop
+// (avoids per-element cooperative-tensor index lookups). transpose_right: C = K @ Q^T.
+kernel void ds4_indexer_scores_nax(
+        constant ds4_idx_args &args [[buffer(0)]],
+        device const char *q [[buffer(1)]],
+        device const char *weights [[buffer(2)]],
+        device const char *index_comp [[buffer(3)]],
+        device       char *scores [[buffer(4)]],
+        threadgroup half *shared [[threadgroup(0)]],
+        uint2  tgpig [[threadgroup_position_in_grid]],
+        ushort tid   [[thread_index_in_threadgroup]]) {
+    constexpr int TM = 16;
+    constexpr int TN = 32;
+    constexpr int NK = 32;
+    constexpr int D  = 128;
+    constexpr int NUM_THREADS = 128;
+
+    const uint c0 = tgpig.x * TN;
+    const uint t0 = tgpig.y * TM;
+
+    threadgroup half  *qtg = shared;               // [16][32]
+    threadgroup half  *ktg = qtg + TM*NK;          // [32][128]
+    threadgroup float *dot = (threadgroup float *)(ktg + TN*D); // [16][32], column-major
+
+    const uint last_token = min(t0 + (uint)TM, args.n_tokens);
+    const uint max_visible = last_token > t0 ?
+        min((args.pos0 + last_token) / args.ratio, args.n_comp) : 0u;
+
+    if (c0 >= max_visible) {
+        for (uint i = tid; i < TM*TN; i += NUM_THREADS) {
+            const uint r = i / TN;
+            const uint cc = i - r*TN;
+            const uint token = t0 + r;
+            const uint comp = c0 + cc;
+            if (token < args.n_tokens && comp < args.n_comp) {
+                device float *dst = (device float *)(scores +
+                    (uint64_t)token * args.score_token_stride) + comp;
+                *dst = -INFINITY;
+            }
+        }
+        return;
+    }
+
+    for (uint work = tid; work < TN*D; work += NUM_THREADS) {
+        const uint cc = work / D;
+        const uint d = work - cc*D;
+        const uint comp = c0 + cc;
+        half v = half(0.0f);
+        if (comp < args.n_comp) {
+            device const float *krow = (device const float *)(index_comp +
+                (uint64_t)comp * args.index_row_stride);
+            v = half(krow[d]);
+        }
+        ktg[cc*D + d] = v;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    float acc[4];
+    #pragma unroll
+    for (uint j = 0; j < 4; j++) {
+        acc[j] = 0.0f;
+    }
+
+    auto tq = tensor(qtg, dextents<int32_t, 2>(NK, TM));
+    auto tk = tensor(ktg, dextents<int32_t, 2>(D, TN));
+    auto td = tensor(dot, dextents<int32_t, 2>(TM, TN), array<int, 2>({1, TM}));
+
+    matmul2d<
+        matmul2d_descriptor(TN, TM, NK, false, true, false,
+            matmul2d_descriptor::mode::multiply_accumulate),
+        execution_simdgroups<4>> mm;
+
+    for (uint head = 0; head < args.n_head; head++) {
+        auto ct = mm.template get_destination_cooperative_tensor<decltype(tk), decltype(tq), float>();
+        #pragma unroll
+        for (uint16_t i = 0; i < ct.get_capacity(); i++) {
+            if (ct.is_valid_element(i)) {
+                ct[i] = 0.0f;
+            }
+        }
+
+        for (uint loop_k = 0; loop_k < D; loop_k += NK) {
+            for (uint work = tid; work < TM*NK; work += NUM_THREADS) {
+                const uint r = work / NK;
+                const uint k = work - r*NK;
+                const uint token = t0 + r;
+                half v = half(0.0f);
+                if (token < args.n_tokens) {
+                    device const float *qrow = (device const float *)(q +
+                        (uint64_t)token * args.q_token_stride +
+                        (uint64_t)head  * args.q_head_stride);
+                    v = half(qrow[loop_k + k]);
+                }
+                qtg[r*NK + k] = v;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            auto mq = tq.slice(0, 0);
+            auto mk = tk.slice(loop_k, 0);
+            mm.run(mk, mq, ct);
+
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        ct.store(td);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        #pragma unroll
+        for (uint j = 0; j < 4; j++) {
+            const uint linear = (uint)tid + j*NUM_THREADS;
+            if (linear < TM*TN) {
+                const uint r = linear / TN;
+                const uint cc = linear - r*TN;
+                const uint token = t0 + r;
+                if (token < args.n_tokens) {
+                    device const float *w = (device const float *)(weights +
+                        (uint64_t)token * args.weights_token_stride);
+                    acc[j] += max(dot[cc*TM + r], 0.0f) * (w[head] * args.scale);
+                }
+            }
+        }
+
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    #pragma unroll
+    for (uint j = 0; j < 4; j++) {
+        const uint linear = (uint)tid + j*NUM_THREADS;
+        if (linear >= TM*TN) {
+            continue;
+        }
+        const uint r = linear / TN;
+        const uint cc = linear - r*TN;
+        const uint token = t0 + r;
+        const uint comp = c0 + cc;
+        if (token < args.n_tokens && comp < args.n_comp) {
+            const uint visible = min((args.pos0 + token + 1u) / args.ratio, args.n_comp);
+            device float *dst = (device float *)(scores +
+                (uint64_t)token * args.score_token_stride) + comp;
+            *dst = comp < visible ? acc[j] : -INFINITY;
+        }
+    }
+}
+
+// Fused gate/up (iq2_xxs).  Indirect-dispatched per expert: grid.x = N tiles (32),
+// grid.y = M tiles (64); M = counts[expert].  A = gathered int8 acts [M x K] row-major,
+// Wq = expert weight [N x K] iq2_xxs, C = int32 [M x N] row-major.
+kernel void ds4_mpp_iq2_i8_i32_counted(
+        device int8_t *A [[buffer(0)]],
+        device const block_iq2_xxs *Wq [[buffer(1)]],
+        device int32_t *C [[buffer(2)]],
+        device const uint *counts [[buffer(3)]],
+        constant uint &expert [[buffer(4)]],
+        constant uint &N [[buffer(5)]],
+        constant uint &K [[buffer(6)]],
+        constant float &qscale [[buffer(7)]],
+        uint2 tgid [[threadgroup_position_in_grid]],
+        uint tidx [[thread_index_in_threadgroup]]) {
+    const uint M = counts[expert];
+    const uint m0 = tgid.y * 64u, n0 = tgid.x * 32u;
+    if (M == 0u || m0 >= M || n0 >= N) return;
+    const uint rows = min(64u, M - m0), bpr = K / 256u;
+    threadgroup int8_t Btile[256 * 32];
+    threadgroup int8_t *bptr = Btile;
+    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<4>> op;
+    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
+    for (uint kb = 0; kb < bpr; ++kb) {
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_iq2_seg(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        op.run(mA, mBt, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
+    cT.store(mC);
+}
+
+// Fused down (q2_K).  Same dispatch convention.
+kernel void ds4_mpp_q2k_i8_i32_counted(
+        device int8_t *A [[buffer(0)]],
+        device const block_q2_K *Wq [[buffer(1)]],
+        device int32_t *C [[buffer(2)]],
+        device const uint *counts [[buffer(3)]],
+        constant uint &expert [[buffer(4)]],
+        constant uint &N [[buffer(5)]],
+        constant uint &K [[buffer(6)]],
+        constant float &qscale [[buffer(7)]],
+        uint2 tgid [[threadgroup_position_in_grid]],
+        uint tidx [[thread_index_in_threadgroup]]) {
+    const uint M = counts[expert];
+    const uint m0 = tgid.y * 64u, n0 = tgid.x * 32u;
+    if (M == 0u || m0 >= M || n0 >= N) return;
+    const uint rows = min(64u, M - m0), bpr = K / 256u;
+    threadgroup int8_t Btile[256 * 32];
+    threadgroup int8_t *bptr = Btile;
+    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<4>> op;
+    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
+    for (uint kb = 0; kb < bpr; ++kb) {
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_q2k_seg(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        op.run(mA, mBt, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
+    cT.store(mC);
+}
