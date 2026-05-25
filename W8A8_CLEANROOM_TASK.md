@@ -1,7 +1,7 @@
 # TASK: Cleanroom W8A8 integration into main ds4 (for antirez PR)
 
 **Owner:** autonomous agent.  **Reference impl:** `/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd`
-(our fork). **Target:** a CLEAN main-ds4 checkout at `/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4_w8a8`.
+(our fork). **Target:** a CLEAN main-ds4 checkout at `/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-w8a8`.
 
 ## Goal
 Re-implement, **cleanly**, the validated W8A8 (int8-weight × int8-activation) **prefill** matmul optimization on top
@@ -52,11 +52,12 @@ Files / symbols:
   `moe-batch-bench/nax_attnout_i8_test.m` (grouped attn_out W8A8, rel + GF/s).
 
 ## Steps
-1. **Setup**: clone antirez main ds4 into `ds4_w8a8` (source: antirez upstream, or the local `../ds4` checkout which
-   IS clean antirez main — confirm it has NO `ane_*`, pure Foundation+Metal). `git checkout -b anemll-NAX-w8a8`.
-   Build it; confirm it runs the resident model
-   `/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf` (no sidecar).
-   **Run antirez's ds4-bench from its own dir** (it reads `metal/*.metal` by relative path).
+1. **Setup**: `ds4-w8a8` is ALREADY cloned — confirmed clean antirez main (branch `main` @ `f91c12b`,
+   `origin = https://github.com/antirez/ds4`, NO ANE, has `DS4_METAL_HAS_TENSOR`/matmul2d in `metal/dense.metal`).
+   PR-ready against upstream. Just `cd ds4-w8a8 && git checkout -b anemll-NAX-w8a8`. Build (`make`); confirm it runs
+   the resident model `/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf`
+   (no sidecar). **Run its ds4-bench FROM `ds4-w8a8/`** (reads `metal/*.metal` by relative path — running from
+   elsewhere loads the wrong shaders and aborts).
 2. **Baseline**: record clean-main prefill (ds4-bench, 8k–64k step 8k) + quality (his eval — see below) BEFORE changes.
 3. **Kernel 1 — dense W8A8**: port the repack + per-token act-quant + fused int8 matmul into his metal + host. Validate
    in isolation with `nax_dense_i8_probe.m` (rel <1%, GF/s ≥ his fp16-NAX). Wire (env-gated), then:
