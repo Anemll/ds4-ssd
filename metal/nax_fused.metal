@@ -649,3 +649,54 @@ kernel void ds4_dense_i8_fused(
         if (o < M && t < N) db[(uint64_t)t*M + o] = (float)sc[m + n*NR0] * ascale[t] * wscale[o];
     }
 }
+
+// Grouped attn_out O-proj W8A8: per group g (tgpig.z), low[t][g][m] = sum_k a_i8[t][g][k]*w_i8[g][m][k],
+// rescaled by ascale[t*G+g]*wscale[g*M+m] -> f32. int8 operands; weight wi8 is [G*M][K] (group-major),
+// activation ai8 is [N*G][K] (row t*G+g, so per-group token stride = G*K). Reuses ds4_repack_q8_to_i8_rowscale
+// (Mrows=G*M) + ds4_quant_act_pertoken_i8 (rows=N*G) to produce wi8/wscale + ai8/ascale. NR1=128/NR0=32/NK=128.
+struct ds4_attn_i8_args { int32_t K, M, N, G; };
+kernel void ds4_attn_out_low_i8_fused(
+        constant ds4_attn_i8_args &args [[buffer(0)]],
+        device const char  *wi8    [[buffer(1)]],   // int8 weight [G*M x K]
+        device const char  *ai8    [[buffer(2)]],   // int8 act [N*G x K]
+        device       char  *dst    [[buffer(3)]],   // f32 low[t][g*M+m] = dst[t*G*M + g*M + m]
+        device const float *wscale [[buffer(4)]],    // [G*M]
+        device const float *ascale [[buffer(5)]],    // [N*G]
+        threadgroup char *shmem [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 32, NK = 128, NL = NK/16, NUM_THREADS = 128;
+    const int K = args.K, M = args.M, N = args.N, G = args.G;
+    const int group = tgpig.z;
+    const int r0 = tgpig.y*NR0, r1 = tgpig.x*NR1;
+    threadgroup int8_t  *sa = (threadgroup int8_t  *)shmem;
+    threadgroup int32_t *sc = (threadgroup int32_t *)(shmem + NR0*NK);
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    device int8_t *ptrB = (device int8_t *)ai8 + (uint64_t)group*K;   // group's columns; token stride = G*K
+    auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, G*K}));
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, false,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0;
+    device const int8_t *wA = (device const int8_t *)wi8 + (uint64_t)group*M*K;  // group's M rows
+    for (int lk = 0; lk < K; lk += NK) {
+        for (int work = tiitg; work < NR0*NL; work += NUM_THREADS) {
+            const int row = work/NL, kb = (work%NL)*16;
+            if (r0 + row < M) { device const int8_t *wr = wA + (uint64_t)(r0+row)*K + lk + kb;
+                for (int i = 0; i < 16; i++) sa[row*NK + kb + i] = (lk+kb+i < K) ? wr[i] : (int8_t)0; }
+            else { for (int i = 0; i < 16; i++) sa[row*NK + kb + i] = 0; }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0); auto mB = tB.slice(lk, r1); mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto tC = tensor(sc, dextents<int32_t, 2>(NR0, NR1), array<int, 2>({1, NR0}));
+    cT.store(tC);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    device float *db = (device float *)dst;
+    for (int w = tiitg; w < NR0*NR1; w += NUM_THREADS) {
+        const int m = w % NR0, n = w / NR0, o = r0 + m, t = r1 + n;
+        if (o < M && t < N)
+            db[(uint64_t)t*G*M + (uint64_t)group*M + o] = (float)sc[m + n*NR0] * ascale[t*G + group] * wscale[group*M + o];
+    }
+}
