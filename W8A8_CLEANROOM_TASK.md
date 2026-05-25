@@ -28,6 +28,19 @@ match it with int8). Recipe:
 - **Gates**: prefill only (`n_tok ≥ 16–32`), `in_dim%128==0`, `out_dim%32==0`. Decode/GEMV untouched.
 
 ## Reference implementation in ds4-ssd (study, don't blind-copy)
+
+**Reference rule (read this first):** You ARE allowed to consult ds4-ssd freely when you hit a perf or
+correctness issue — that's why it's here. "Cleanroom" does NOT mean "don't look." It means: **port the recipe,
+not the plumbing.**
+- **Copy/port:** the metal kernels (`metal/nax_fused.metal`), tuning constants (NK=128, NR1=128/NR0=32, the
+  `{1,NR0}` col-major threadgroup store), the dispatch ladder, the hint policy, the microbench validation, and
+  `W8A8_RESULTS.md` numbers as the target-to-match. Re-deriving these blind just reintroduces bugs we already
+  paid for (rel~1.5 garbage from row-major store; 0.55× from NK=32).
+- **Do NOT lift wholesale:** ds4-ssd's `ds4_metal.m` host glue, env-gate scaffolding, or any fork-specific
+  code. Re-integrate cleanly into antirez's main structure. That fork plumbing is the exact surface the
+  `clean-main+W8A8` vs `ds4-ssd+W8A8` comparison is meant to expose — importing it defeats the
+  localize-degradation goal AND produces a PR antirez won't accept.
+
 Commits (on branch `codex/integrate-ds4-agent`, pushed to `anemll` fork):
 - `f07d649` int8 dense W8A8 (+15–20%) — 3 kernels + host wiring + env gate `DS4_GPU_DENSE_I8`.
 - `2c4230c` dispatch hints `ds4_mm_hint {AUTO,PREFER_I8,NO_I8}` — lm_head→NO_I8, projections→PREFER_I8.
@@ -78,6 +91,39 @@ Files / symbols:
 - **Speed**: ds4-bench prefill A/B (same tool, same flags, **adjacent thermal pairs**, ~2% noise floor — replicate).
   Each kernel must be net-positive end-to-end, not just in microbench (dilution: a kernel that's a small prefill
   slice won't move e2e — dense projections + shared expert are the big slices; attn_out is ~+1%).
+
+## Correctness workflow when you see drift (DO NOT tune a min-token gate to hide it)
+If W8A8 output drifts from the non-NAX baseline, **localize the cause and fix it at the source**. Cranking
+`DS4_GPU_DENSE_I8_MIN_TOK` / `min_tokens` up until the symptom disappears on one test prompt is a band-aid: it
+leaves the bug latent (a longer non-aligned prompt still hits it), throws away the W8A8 win on the gated range
+(largest at small–mid n_tok), and hides the real divergence. The proven ds4-ssd recipe is token-identical at a
+**16/32** cutoff — so any drift here is in YOUR integration, not the recipe.
+
+1. **Reproduce deterministically.** Fixed prompt, temp 0 / greedy, fixed seed. Record the exact token index where
+   output diverges and the top-2 logits there (near-tie vs gross-garbage tells you the failure class).
+2. **Localize — which matmul, which shape.** Use per-call-site hints, NOT the global gate: enable W8A8 one call
+   site at a time (dense vs attn_out vs shared/proj), then bisect on n_tok. Determine whether drift correlates with
+   `n_tok % 128 != 0` (partial tail tile) or appears even on aligned n_tok.
+3. **Classify and fix:**
+   - **(a) Partial-tile bug** — drift only when `n_tok % 128 != 0`. matmul2d's B-slice `tB.slice(lk, r1)` runs past
+     N on the last tile; do not trust in-kernel `tok < N` write-guards + matmul2d OOB-read behavior alone.
+     **Fix = align-split:** dispatch W8A8 over `floor(n_tok/128)*128` tokens only, route the `n_tok % 128`
+     remainder through the existing non-NAX path (`mul_mv_ext`/simdgroup). Tail ≤127 tokens → negligible perf,
+     guaranteed correctness, no magic gate.
+   - **(b) Quant precision drift** — small uniform rel error (~0.7%) flipping near-tie greedy tokens even on aligned
+     n_tok. Expected int8 error; a min-token gate is the wrong lever. Fix via precision policy (keep sensitive
+     matmuls higher precision — lm_head already `NO_I8`) and validate with **perplexity parity**, not exact tokens.
+4. **Numeric diff, not just token diff.** At the suspect layer dump the W8A8 output and the non-NAX reference for the
+   SAME inputs; compute rel error. Target = ds4-ssd microbench (dense 0.7%, attn_out 0.6%). Much higher only at
+   partial tiles → class (a).
+5. **Validate on an alignment matrix.** Prompt lengths spanning aligned + deliberately non-aligned chunks: 127, 129,
+   255, 2017, 4095 tokens, each vs non-NAX baseline. Require token-identical (after a class-(a) fix) across all.
+6. **Remove the band-aid.** Once fixed, restore `min_tokens` to the proven 16/32 so the win is retained; re-run
+   step 5 + the all-sizes bench.
+
+**Shortcut:** the W8A8 metal kernels are byte-equivalent to ds4-ssd (token-identical at 16/32), so `diff` your
+*integration* against ds4-ssd — activation-quant kernel, static scratch-buffer reuse/sizing, per-token scale
+computation, and which call sites get routed. The divergence is there, not in the matmul.
 
 ## Gotchas (cost real time in ds4-ssd; pre-warn the agent)
 - matmul2d operand pointers must be **non-const** ("Input types must match cooperative tensor types").
