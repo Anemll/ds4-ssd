@@ -6720,8 +6720,8 @@ static uint32_t ds4_default_prefill_cap_for_prompt(int prompt_len) {
             if (v <= 0) return cap;
             cap = (uint32_t)v;
         }
-    } else if (prompt_len > 2048) {
-        cap = 2048u;
+    } else if (prompt_len > 4096) {
+        cap = 4096u;
     }
 
     if (cap == 0) cap = 1;
@@ -10083,6 +10083,36 @@ static bool ane_output_proj_enabled_for_run(void) {
     return true;
 }
 
+static bool flash_moe_mpp_partial_tiles_allowed(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES") ||
+           env_flag_enabled("DS4_FLASH_MOE_NAX_ALLOW_PARTIAL_TILES");
+}
+
+static bool resident_moe_mpp_dedup_prefill_enabled(void) {
+    const char *env = getenv("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL");
+    if (!env || !env[0]) env = getenv("DS4_RESIDENT_MOE_NAX_DEDUP_PREFILL");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static double resident_moe_mpp_min_tile_util(void) {
+    if (env_flag_enabled("DS4_RESIDENT_MOE_MPP_FORCE") ||
+        env_flag_enabled("DS4_RESIDENT_MOE_NAX_FORCE")) {
+        return 0.0;
+    }
+    const char *env = getenv("DS4_RESIDENT_MOE_MPP_MIN_TILE_UTIL");
+    if (!env || !env[0]) env = getenv("DS4_RESIDENT_MOE_NAX_MIN_TILE_UTIL");
+    if (!env || !env[0]) env = getenv("DS4_RESIDENT_MPP_INT8_MIN_TILE_UTIL");
+    double v = 0.75;
+    if (env && env[0]) {
+        char *end = NULL;
+        double parsed = strtod(env, &end);
+        if (end != env && isfinite(parsed)) v = parsed;
+    }
+    if (v < 0.0) v = 0.0;
+    if (v > 1.0) v = 1.0;
+    return v;
+}
+
 static uint32_t get_prefill_hybrid_ane_min_refs(void) {
     static int cached = -1;
     if (cached >= 0) return (uint32_t)cached;
@@ -10821,6 +10851,495 @@ static void flash_moe_log_prefill_hist(uint32_t       il,
         fprintf(fp, "%" PRIu64 ",%u,%u,%" PRIu64 ",%u,%d,%d\n",
                 cur, il, n_tokens, n_pairs, n_unique, expert, counts[expert]);
     }
+}
+
+static int flash_moe_run_mpp_int8_safe_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        float                   clamp,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens,
+        bool                   *mid_is_f16) {
+    const uint32_t mpp_m_tile = 64u;
+    if (mid_is_f16) *mid_is_f16 = false;
+    if (n_tokens == 0) return 0;
+
+    if ((n_tokens % mpp_m_tile) == 0 || flash_moe_mpp_partial_tiles_allowed()) {
+        return ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(out,
+                                                                      gate,
+                                                                      up,
+                                                                      mid,
+                                                                      gate_bank,
+                                                                      up_bank,
+                                                                      down_bank,
+                                                                      gate_type,
+                                                                      down_type,
+                                                                      gate_expert_bytes,
+                                                                      gate_row_bytes,
+                                                                      down_expert_bytes,
+                                                                      down_row_bytes,
+                                                                      expert_in_dim,
+                                                                      expert_mid_dim,
+                                                                      out_dim,
+                                                                      selected,
+                                                                      weights,
+                                                                      clamp,
+                                                                      x,
+                                                                      n_tokens,
+                                                                      mid_is_f16);
+    }
+
+    const uint32_t full_tokens = (n_tokens / mpp_m_tile) * mpp_m_tile;
+    const uint32_t tail_tokens = n_tokens - full_tokens;
+    if (full_tokens == 0) return 0;
+
+    static bool warned = false;
+    if (!warned) {
+        fprintf(stderr,
+                "ds4: MPP/NAX int8 partial-tile workaround active "
+                "(64-row MPP tiles, tail rows use legacy GPU; set "
+                "DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)\n");
+        warned = true;
+    }
+
+    bool full_mid_is_f16 = false;
+    if (!ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(out,
+                                                               gate,
+                                                               up,
+                                                               mid,
+                                                               gate_bank,
+                                                               up_bank,
+                                                               down_bank,
+                                                               gate_type,
+                                                               down_type,
+                                                               gate_expert_bytes,
+                                                               gate_row_bytes,
+                                                               down_expert_bytes,
+                                                               down_row_bytes,
+                                                               expert_in_dim,
+                                                               expert_mid_dim,
+                                                               out_dim,
+                                                               selected,
+                                                               weights,
+                                                               clamp,
+                                                               x,
+                                                               full_tokens,
+                                                               &full_mid_is_f16)) {
+        return 0;
+    }
+
+    ds4_gpu_tensor *out_tail = ds4_gpu_tensor_view(
+        out,
+        (uint64_t)full_tokens * out_dim * sizeof(float),
+        (uint64_t)tail_tokens * out_dim * sizeof(float));
+    ds4_gpu_tensor *selected_tail = ds4_gpu_tensor_view(
+        selected,
+        (uint64_t)full_tokens * sizeof(int32_t),
+        (uint64_t)tail_tokens * sizeof(int32_t));
+    ds4_gpu_tensor *weights_tail = ds4_gpu_tensor_view(
+        weights,
+        (uint64_t)full_tokens * sizeof(float),
+        (uint64_t)tail_tokens * sizeof(float));
+    ds4_gpu_tensor *x_tail = ds4_gpu_tensor_view(
+        x,
+        (uint64_t)full_tokens * expert_in_dim * sizeof(float),
+        (uint64_t)tail_tokens * expert_in_dim * sizeof(float));
+
+    bool tail_mid_is_f16 = false;
+    const int tail_ok = out_tail && selected_tail && weights_tail && x_tail &&
+        ds4_gpu_routed_moe_expert_banked_batch_tensor(out_tail,
+                                                      gate,
+                                                      up,
+                                                      mid,
+                                                      gate_bank,
+                                                      up_bank,
+                                                      down_bank,
+                                                      gate_type,
+                                                      down_type,
+                                                      gate_expert_bytes,
+                                                      gate_row_bytes,
+                                                      down_expert_bytes,
+                                                      down_row_bytes,
+                                                      expert_in_dim,
+                                                      expert_mid_dim,
+                                                      out_dim,
+                                                      selected_tail,
+                                                      weights_tail,
+                                                      clamp,
+                                                      x_tail,
+                                                      tail_tokens,
+                                                      &tail_mid_is_f16) != 0;
+    ds4_gpu_tensor_free(x_tail);
+    ds4_gpu_tensor_free(weights_tail);
+    ds4_gpu_tensor_free(selected_tail);
+    ds4_gpu_tensor_free(out_tail);
+
+    if (mid_is_f16) *mid_is_f16 = full_mid_is_f16 || tail_mid_is_f16;
+    return tail_ok;
+}
+
+static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
+        ds4_gpu_graph       *g,
+        const ds4_model     *model,
+        const ds4_layer_weights *layer,
+        uint32_t             il,
+        uint32_t             n_tokens,
+        uint64_t             gate_expert_bytes,
+        uint64_t             gate_row_bytes,
+        uint64_t             down_expert_bytes,
+        uint64_t             down_row_bytes,
+        uint32_t             expert_in_dim,
+        uint32_t             expert_mid_dim,
+        uint32_t             out_dim) {
+    if (!g || !model || !layer || il >= DS4_N_LAYER ||
+        n_tokens == 0 || n_tokens > g->prefill_cap ||
+        !g->batch_ffn_norm || !g->batch_routed_gate ||
+        !g->batch_routed_up || !g->batch_routed_mid ||
+        !g->batch_routed_down || !g->batch_routed_out ||
+        !g->batch_router_selected || !g->batch_router_weights) {
+        return false;
+    }
+
+    const uint64_t n_pairs = (uint64_t)n_tokens * DS4_N_EXPERT_USED;
+    if (n_pairs > SIZE_MAX / sizeof(int32_t) ||
+        n_pairs > SIZE_MAX / sizeof(float) ||
+        n_pairs > UINT32_MAX) {
+        return false;
+    }
+
+    int32_t *true_ids = xmalloc((size_t)n_pairs * sizeof(true_ids[0]));
+    float *pair_weights = xmalloc((size_t)n_pairs * sizeof(pair_weights[0]));
+    int32_t *ref_tokens = xmalloc((size_t)n_pairs * sizeof(ref_tokens[0]));
+    float *ref_weights = xmalloc((size_t)n_pairs * sizeof(ref_weights[0]));
+    int32_t *zero_selected = xcalloc((size_t)n_tokens, sizeof(zero_selected[0]));
+    int32_t counts[DS4_N_EXPERT] = { 0 };
+    int32_t cursor[DS4_N_EXPERT] = { 0 };
+    int32_t expert_to_index[DS4_N_EXPERT];
+    int32_t unique[DS4_N_EXPERT];
+    int32_t offsets[DS4_N_EXPERT + 1];
+    for (uint32_t i = 0; i < DS4_N_EXPERT; i++) expert_to_index[i] = -1;
+
+    bool ok = ds4_gpu_synchronize() != 0;
+    if (ok) {
+        ok = ds4_gpu_tensor_read(g->batch_router_selected,
+                                 0,
+                                 true_ids,
+                                 n_pairs * sizeof(true_ids[0])) != 0 &&
+             ds4_gpu_tensor_read(g->batch_router_weights,
+                                 0,
+                                 pair_weights,
+                                 n_pairs * sizeof(pair_weights[0])) != 0;
+    }
+
+    uint32_t n_unique = 0;
+    for (uint64_t i = 0; ok && i < n_pairs; i++) {
+        const int32_t expert = true_ids[i];
+        if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) {
+            fprintf(stderr, "ds4: resident MPP prefill selected invalid expert id %d in layer %u\n",
+                    expert, il);
+            ok = false;
+            break;
+        }
+        if (counts[expert]++ == 0) unique[n_unique++] = expert;
+    }
+
+    if (ok) {
+        const bool partial_tiles_allowed = flash_moe_mpp_partial_tiles_allowed();
+        const uint32_t mpp_m_tile = 64u;
+        uint64_t mpp_tile_refs = 0;
+        uint32_t mpp_candidate_groups = 0;
+        for (uint32_t i = 0; i < DS4_N_EXPERT; i++) {
+            const uint32_t refs = (uint32_t)counts[i];
+            const uint32_t tile_refs = partial_tiles_allowed ?
+                refs : (refs / mpp_m_tile) * mpp_m_tile;
+            if (tile_refs > 0) {
+                mpp_tile_refs += tile_refs;
+                mpp_candidate_groups++;
+            }
+        }
+        const double tile_util = n_pairs > 0 ? (double)mpp_tile_refs / (double)n_pairs : 0.0;
+        const double min_tile_util = resident_moe_mpp_min_tile_util();
+        if (tile_util < min_tile_util) {
+            if (env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+                env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+                env_flag_enabled("DS4_FLASH_MOE_PROFILE")) {
+                fprintf(stderr,
+                        "ds4: resident MPP/NAX prefill skipped layer=%u "
+                        "tile_refs=%" PRIu64 " total_refs=%" PRIu64
+                        " tile_util=%.1f%% min=%.1f%% candidate_groups=%u\n",
+                        il,
+                        mpp_tile_refs,
+                        n_pairs,
+                        100.0 * tile_util,
+                        100.0 * min_tile_util,
+                        mpp_candidate_groups);
+            }
+            ok = false;
+        }
+    }
+
+    if (!ok) {
+        free(zero_selected);
+        free(ref_weights);
+        free(ref_tokens);
+        free(pair_weights);
+        free(true_ids);
+        return false;
+    }
+
+    static bool announced = false;
+    if (!announced) {
+        fprintf(stderr,
+                "ds4: resident routed MoE using MPP/NAX int8 DeDup prefill "
+                "(coverage-gated, no sidecar/SSD staging)\n");
+        announced = true;
+    }
+
+    if (ok) {
+        qsort(unique, n_unique, sizeof(unique[0]), cmp_i32_asc);
+        offsets[0] = 0;
+        for (uint32_t i = 0; i < n_unique; i++) {
+            const int32_t expert = unique[i];
+            expert_to_index[expert] = (int32_t)i;
+            offsets[i + 1] = offsets[i] + counts[expert];
+            cursor[expert] = offsets[i];
+        }
+
+        for (uint32_t t = 0; t < n_tokens; t++) {
+            for (uint32_t k = 0; k < DS4_N_EXPERT_USED; k++) {
+                const uint64_t pair = (uint64_t)t * DS4_N_EXPERT_USED + k;
+                const int32_t expert = true_ids[pair];
+                const int32_t idx = expert_to_index[expert];
+                if (idx < 0) {
+                    ok = false;
+                    break;
+                }
+                const int32_t dst = cursor[expert]++;
+                ref_tokens[dst] = (int32_t)t;
+                ref_weights[dst] = pair_weights[pair];
+            }
+            if (!ok) break;
+        }
+    }
+
+    const uint64_t router_scratch_rows = (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
+    if (ok &&
+        (router_scratch_rows < (uint64_t)g->prefill_cap + n_tokens ||
+         (uint64_t)g->prefill_cap > UINT64_MAX / sizeof(int32_t))) {
+        ok = false;
+    }
+    if (ok) {
+        ok = ds4_gpu_tensor_write(g->batch_router_selected,
+                                  (uint64_t)g->prefill_cap * sizeof(int32_t),
+                                  zero_selected,
+                                  (uint64_t)n_tokens * sizeof(zero_selected[0])) != 0 &&
+             ds4_gpu_tensor_fill_f32(g->batch_routed_out,
+                                     0.0f,
+                                     (uint64_t)n_tokens * out_dim) != 0;
+    }
+
+    uint32_t mpp_groups = 0;
+    uint32_t fallback_groups = 0;
+    uint64_t mpp_refs = 0;
+    uint64_t fallback_refs = 0;
+    bool commands_open = false;
+
+    for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
+        const int32_t expert = unique[ui];
+        const uint32_t begin = (uint32_t)offsets[ui];
+        const uint32_t refs = (uint32_t)(offsets[ui + 1] - offsets[ui]);
+        if (refs == 0) continue;
+        if (refs > n_tokens) {
+            ok = false;
+            break;
+        }
+
+        ok = ds4_gpu_tensor_write(g->batch_router_selected,
+                                  0,
+                                  ref_tokens + begin,
+                                  (uint64_t)refs * sizeof(ref_tokens[0])) != 0 &&
+             ds4_gpu_tensor_write(g->batch_router_weights,
+                                  0,
+                                  ref_weights + begin,
+                                  (uint64_t)refs * sizeof(ref_weights[0])) != 0;
+        if (!ok) break;
+
+        if (commands_open) {
+            ok = ds4_gpu_end_commands() != 0;
+            commands_open = false;
+            if (!ok) break;
+        }
+        ok = ds4_gpu_begin_commands() != 0;
+        commands_open = ok;
+        if (!ok) break;
+
+        ds4_gpu_tensor *tokens_view = ds4_gpu_tensor_view(
+            g->batch_router_selected, 0, (uint64_t)refs * sizeof(int32_t));
+        ds4_gpu_tensor *selected_zero_view = ds4_gpu_tensor_view(
+            g->batch_router_selected,
+            (uint64_t)g->prefill_cap * sizeof(int32_t),
+            (uint64_t)refs * sizeof(int32_t));
+        ds4_gpu_tensor *weights_view = ds4_gpu_tensor_view(
+            g->batch_router_weights, 0, (uint64_t)refs * sizeof(float));
+        ds4_gpu_tensor *gate_tmp = ds4_gpu_tensor_view(
+            g->batch_routed_gate, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *up_tmp = ds4_gpu_tensor_view(
+            g->batch_routed_up, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *mid_tmp = ds4_gpu_tensor_view(
+            g->batch_routed_mid, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *x_tmp = ds4_gpu_tensor_view(
+            g->batch_routed_down, 0, (uint64_t)refs * expert_in_dim * sizeof(float));
+        ds4_gpu_tensor *out_tmp = ds4_gpu_tensor_view(
+            g->batch_routed_down,
+            (uint64_t)g->prefill_cap * out_dim * sizeof(float),
+            (uint64_t)refs * out_dim * sizeof(float));
+        ds4_gpu_tensor *gate_model = ds4_gpu_model_tensor_view(
+            model->map,
+            model->size,
+            layer->ffn_gate_exps->abs_offset + (uint64_t)expert * gate_expert_bytes,
+            gate_expert_bytes);
+        ds4_gpu_tensor *up_model = ds4_gpu_model_tensor_view(
+            model->map,
+            model->size,
+            layer->ffn_up_exps->abs_offset + (uint64_t)expert * gate_expert_bytes,
+            gate_expert_bytes);
+        ds4_gpu_tensor *down_model = ds4_gpu_model_tensor_view(
+            model->map,
+            model->size,
+            layer->ffn_down_exps->abs_offset + (uint64_t)expert * down_expert_bytes,
+            down_expert_bytes);
+
+        bool mid_is_f16 = false;
+        int used_mpp = 0;
+        ok = tokens_view && selected_zero_view && weights_view &&
+             gate_tmp && up_tmp && mid_tmp && x_tmp && out_tmp &&
+             gate_model && up_model && down_model &&
+             ds4_gpu_gather_rows_f32_tensor(x_tmp,
+                                            g->batch_ffn_norm,
+                                            tokens_view,
+                                            refs,
+                                            DS4_N_EMBD) != 0;
+        if (ok) {
+            used_mpp = flash_moe_run_mpp_int8_safe_tensor(out_tmp,
+                                                          gate_tmp,
+                                                          up_tmp,
+                                                          mid_tmp,
+                                                          gate_model,
+                                                          up_model,
+                                                          down_model,
+                                                          layer->ffn_gate_exps->type,
+                                                          layer->ffn_down_exps->type,
+                                                          gate_expert_bytes,
+                                                          gate_row_bytes,
+                                                          down_expert_bytes,
+                                                          down_row_bytes,
+                                                          expert_in_dim,
+                                                          expert_mid_dim,
+                                                          out_dim,
+                                                          selected_zero_view,
+                                                          weights_view,
+                                                          DS4_SWIGLU_CLAMP_EXP,
+                                                          x_tmp,
+                                                          refs,
+                                                          &mid_is_f16);
+            if (!used_mpp) {
+                ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(out_tmp,
+                                                                   gate_tmp,
+                                                                   up_tmp,
+                                                                   mid_tmp,
+                                                                   gate_model,
+                                                                   up_model,
+                                                                   down_model,
+                                                                   layer->ffn_gate_exps->type,
+                                                                   layer->ffn_down_exps->type,
+                                                                   gate_expert_bytes,
+                                                                   gate_row_bytes,
+                                                                   down_expert_bytes,
+                                                                   down_row_bytes,
+                                                                   expert_in_dim,
+                                                                   expert_mid_dim,
+                                                                   out_dim,
+                                                                   selected_zero_view,
+                                                                   weights_view,
+                                                                   DS4_SWIGLU_CLAMP_EXP,
+                                                                   x_tmp,
+                                                                   refs,
+                                                                   &mid_is_f16) != 0;
+            }
+        }
+        if (ok) {
+            ok = ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out,
+                                                     out_tmp,
+                                                     tokens_view,
+                                                     refs,
+                                                     out_dim) != 0;
+        }
+        if (ok) {
+            if (used_mpp) {
+                mpp_groups++;
+                mpp_refs += refs;
+            } else {
+                fallback_groups++;
+                fallback_refs += refs;
+            }
+        }
+        if (mid_is_f16) g->batch_routed_mid_is_f16 = true;
+
+        ds4_gpu_tensor_free(down_model);
+        ds4_gpu_tensor_free(up_model);
+        ds4_gpu_tensor_free(gate_model);
+        ds4_gpu_tensor_free(out_tmp);
+        ds4_gpu_tensor_free(x_tmp);
+        ds4_gpu_tensor_free(mid_tmp);
+        ds4_gpu_tensor_free(up_tmp);
+        ds4_gpu_tensor_free(gate_tmp);
+        ds4_gpu_tensor_free(weights_view);
+        ds4_gpu_tensor_free(selected_zero_view);
+        ds4_gpu_tensor_free(tokens_view);
+    }
+    if (commands_open) {
+        ok = ds4_gpu_end_commands() != 0 && ok;
+        commands_open = false;
+    }
+
+    if (ok && (env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+               env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+               env_flag_enabled("DS4_FLASH_MOE_PROFILE"))) {
+        fprintf(stderr,
+                "ds4: resident MPP/NAX prefill layer=%u mpp_groups=%u mpp_refs=%" PRIu64
+                " fallback_groups=%u fallback_refs=%" PRIu64 "\n",
+                il,
+                mpp_groups,
+                mpp_refs,
+                fallback_groups,
+                fallback_refs);
+    }
+    if (ok) {
+        ok = ds4_gpu_begin_commands() != 0;
+    }
+
+    free(zero_selected);
+    free(ref_weights);
+    free(ref_tokens);
+    free(pair_weights);
+    free(true_ids);
+    return ok;
 }
 
 static int32_t *flash_moe_slot_to_expert(ds4_gpu_graph *g, uint32_t il) {
@@ -12664,28 +13183,28 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 }
             }
             if (!deferred_ane && !ane_ok && (try_mpp_for_group || try_mpp_int8_prefill)) {
-                ane_ok = ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(g->flash_prefill_out,
-                                                                                g->flash_prefill_gate,
-                                                                                g->flash_prefill_up,
-                                                                                g->flash_prefill_mid,
-                                                                                gate_b,
-                                                                                up_b,
-                                                                                down_b,
-                                                                                layer->ffn_gate_exps->type,
-                                                                                layer->ffn_down_exps->type,
-                                                                                gate_expert_bytes,
-                                                                                gate_row_bytes,
-                                                                                down_expert_bytes,
-                                                                                down_row_bytes,
-                                                                                expert_in_dim,
-                                                                                expert_mid_dim,
-                                                                                out_dim,
-                                                                                g->flash_prefill_selected,
-                                                                                weights_for_refs,
-                                                                                DS4_SWIGLU_CLAMP_EXP,
-                                                                                g->flash_prefill_x,
-                                                                                refs,
-                                                                                &mid_is_f16) != 0;
+                ane_ok = flash_moe_run_mpp_int8_safe_tensor(g->flash_prefill_out,
+                                                            g->flash_prefill_gate,
+                                                            g->flash_prefill_up,
+                                                            g->flash_prefill_mid,
+                                                            gate_b,
+                                                            up_b,
+                                                            down_b,
+                                                            layer->ffn_gate_exps->type,
+                                                            layer->ffn_down_exps->type,
+                                                            gate_expert_bytes,
+                                                            gate_row_bytes,
+                                                            down_expert_bytes,
+                                                            down_row_bytes,
+                                                            expert_in_dim,
+                                                            expert_mid_dim,
+                                                            out_dim,
+                                                            g->flash_prefill_selected,
+                                                            weights_for_refs,
+                                                            DS4_SWIGLU_CLAMP_EXP,
+                                                            g->flash_prefill_x,
+                                                            refs,
+                                                            &mid_is_f16) != 0;
                 used_mpp = ane_ok;
             }
             if (!deferred_ane && !ane_ok) {
@@ -16658,6 +17177,7 @@ static bool metal_graph_encode_layer_ffn_batch(
     }
     DS4_METAL_PROFILE_FFN_STAGE("router");
 
+    bool resident_mpp_done = false;
     if (ok && g->flash_moe) {
         g->batch_routed_mid_is_f16 = false;
         ok = metal_graph_flash_moe_run_prefill_dedup(g,
@@ -16671,7 +17191,33 @@ static bool metal_graph_encode_layer_ffn_batch(
                                                       (uint32_t)expert_in_dim,
                                                       (uint32_t)down_in_dim,
                                                       (uint32_t)routed_out_dim);
-    } else if (ok) {
+    } else if (ok && resident_moe_mpp_dedup_prefill_enabled()) {
+        g->batch_routed_mid_is_f16 = false;
+        resident_mpp_done = metal_graph_resident_moe_run_mpp_prefill_dedup(g,
+                                                                           model,
+                                                                           layer,
+                                                                           il,
+                                                                           n_tokens,
+                                                                           gate_expert_bytes,
+                                                                           gate_row_bytes,
+                                                                           down_expert_bytes,
+                                                                           down_row_bytes,
+                                                                           (uint32_t)expert_in_dim,
+                                                                           (uint32_t)down_in_dim,
+                                                                           (uint32_t)routed_out_dim);
+        if (!resident_mpp_done) {
+            static bool warned_resident_mpp_fallback = false;
+            if (!warned_resident_mpp_fallback) {
+                fprintf(stderr,
+                        "ds4: resident MPP/NAX int8 DeDup prefill unavailable; "
+                        "falling back to existing resident Metal routed MoE\n");
+                warned_resident_mpp_fallback = true;
+            }
+            (void)ds4_gpu_synchronize();
+            ok = ds4_gpu_begin_commands() != 0;
+        }
+    }
+    if (ok && !g->flash_moe && !resident_mpp_done) {
         g->batch_routed_mid_is_f16 = false;
         ok = ds4_gpu_routed_moe_batch_tensor(g->batch_routed_out,
                                              g->batch_routed_gate,
@@ -17385,7 +17931,7 @@ static bool metal_graph_prefill_layer_major(
                                                 0,
                                                 (uint32_t)n_tokens);
             if (show_progress) {
-                fprintf(stderr, "ds4: gpu prefill layer %u/%u\r", il + 1, (uint32_t)DS4_N_LAYER);
+                fprintf(stderr, "ds4: metal prefill layer %u/%u\r", il + 1, (uint32_t)DS4_N_LAYER);
                 fflush(stderr);
             }
             metal_graph_report_prefill_display_progress(display_progress,
@@ -17546,7 +18092,7 @@ static bool metal_graph_prefill_layer_major(
             return false;
         }
         if (show_progress) {
-            fprintf(stderr, "ds4: gpu prefill layer %u/%u\r", il + 1, (uint32_t)DS4_N_LAYER);
+            fprintf(stderr, "ds4: metal prefill layer %u/%u\r", il + 1, (uint32_t)DS4_N_LAYER);
             fflush(stderr);
         }
         metal_graph_report_prefill_display_progress(display_progress,
@@ -18133,7 +18679,8 @@ static uint32_t metal_graph_raw_cap_for_context(int ctx_size, uint32_t prefill_c
 }
 
 /* Choose the prefill ubatch size.  Whole-batch is fastest for normal prompts;
- * long prompts default to 2048-token chunks. */
+ * long prompts default to 4096-token chunks (raw-KV cap auto-follows to chunk+SWA,
+ * padded to 256). Override with DS4_METAL_PREFILL_CHUNK. */
 static uint32_t metal_graph_prefill_cap_for_prompt(int prompt_len) {
     return ds4_default_prefill_cap_for_prompt(prompt_len);
 }
@@ -21524,14 +22071,27 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 #endif
 
 #ifndef DS4_NO_GPU
-    /* Pre-warm the ANE shared-expert cache for all layers when enabled.
-     * Without this the ~4 s of one-time Q8_0→fp16 dequant + ANE compile is
-     * paid inside the first prefill, hiding the per-token speedup the
-     * async eval delivers.  Runs once at engine open, before any prefill
-     * timer is started by the CLI/server. */
-    if (graph_backend && e->metal_ready) {
-        const char *env = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
-        if (env && env[0] && atoi(env) != 0) {
+	    /* Pre-warm the ANE shared-expert cache for all layers when enabled.
+	     * Without this the ~4 s of one-time Q8_0→fp16 dequant + ANE compile is
+	     * paid inside the first prefill, hiding the per-token speedup the
+	     * async eval delivers.  Runs once at engine open, before any prefill
+	     * timer is started by the CLI/server. */
+	    if (graph_backend && e->metal_ready) {
+	        if (env_flag_enabled("DS4_RESIDENT_MOE_MPP_INT8_PREFILL") ||
+	            env_flag_enabled("DS4_RESIDENT_MOE_NAX_INT8_PREFILL") ||
+	            env_flag_enabled("DS4_RESIDENT_MPP_INT8_PREFILL")) {
+	            const double prewarm_t0 = now_sec();
+	            if (ds4_gpu_mpp_int8_prefill_prewarm()) {
+	                fprintf(stderr,
+	                        "ds4: resident MPP/NAX int8 prewarm: %.1f ms total (paid before prefill timer)\n",
+	                        (now_sec() - prewarm_t0) * 1000.0);
+	            } else {
+	                fprintf(stderr,
+	                        "ds4: resident MPP/NAX int8 prewarm failed; MPP prefill will fall back if needed\n");
+	            }
+	        }
+	        const char *env = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
+	        if (env && env[0] && atoi(env) != 0) {
             const double prewarm_t0 = now_sec();
             uint32_t prewarmed = 0;
             for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
