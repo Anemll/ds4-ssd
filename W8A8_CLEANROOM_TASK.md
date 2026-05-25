@@ -135,6 +135,11 @@ for that caller (the `ds4_mm_hint`-style per-site policy — AUTO/PREFER_I8/NO_I
 - PR description with the recipe + measured deltas + quality evidence.
 - **Per-caller decision table**: every matmul call site → routed W8A8 or fp16-NAX-fallback, with its measured
   per-site Δ; W8A8 enabled ONLY where it's a clear end-to-end win, fp16-NAX retained everywhere else.
+- **Final delivery — live prefill t/s readout** (the on-screen format, "as in our version"): run a long-context
+  pass (e.g. `-c 100000`) and capture ds4/ds4-agent's live prefill progress line, baseline vs +W8A8, e.g.
+  `ctx 51.9k/100k | prefill [▶▶▶▶▶▶▶▶················] 364/1305 27.9% 253.4 t/s`. Show both so the on-screen prefill
+  t/s is directly comparable to our version's reference (`W8A8_RESULTS.md`: ours ~359/341/321/307/296/283/271/260
+  t/s at 8k→64k). If clean-main+W8A8 beats our t/s (esp. at high ctx), that localizes a regression in our fork.
 
 Reference details + measured numbers + the full investigation are in ds4-ssd
 `memory/nax-kernel-tuning-playbook.md` and `moe-batch-bench/M5M_ANE_OPTIMIZATION_REPORT.md`.
