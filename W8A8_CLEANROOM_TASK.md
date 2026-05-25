@@ -118,12 +118,36 @@ leaves the bug latent (a longer non-aligned prompt still hits it), throws away t
    partial tiles → class (a).
 5. **Validate on an alignment matrix.** Prompt lengths spanning aligned + deliberately non-aligned chunks: 127, 129,
    255, 2017, 4095 tokens, each vs non-NAX baseline. Require token-identical (after a class-(a) fix) across all.
-6. **Remove the band-aid.** Once fixed, restore `min_tokens` to the proven 16/32 so the win is retained; re-run
-   step 5 + the all-sizes bench.
+6. **Remove the band-aid.** Once a *correctness* drift is fixed, do NOT leave a high min-token gate in place to
+   mask it. Set the cutoff from the **performance** crossover instead (see next section), and re-run step 5 +
+   the all-sizes bench.
 
 **Shortcut:** the W8A8 metal kernels are byte-equivalent to ds4-ssd (token-identical at 16/32), so `diff` your
 *integration* against ds4-ssd — activation-quant kernel, static scratch-buffer reuse/sizing, per-token scale
 computation, and which call sites get routed. The divergence is there, not in the matmul.
+
+## Low-end cutoff & int8-weight-cache lifetime (REQUIRED — both regress low-ctx if ignored)
+Observed in the cleanroom A/B (`DS4_GPU_DENSE_I8=1 DS4_GPU_ATTN_OUT_I8=1`, gen-32): with the cutoff at 16/32,
+W8A8 fires at ctx 512–4096 and **loses** there (prefill −2.7%…−10.7%), and **generation regresses −10.9%…−20%
+at 1k–2k** (worst at low ctx, ~0 by 128K). Two distinct, separable causes — fix BOTH:
+
+1. **Cutoff too low for end-to-end.** The "1.7× @ n_tok=16" figure is a microbench of matmul GF/s *in isolation*;
+   it excludes the per-call quant-activation pass + extra encoder/barrier overhead. That overhead is a fixed
+   cost the small matmul can't amortize, so single-pass fp16-NAX wins below the real crossover. **Only e2e was
+   validated at ctx ≥ 8k.** Action: A/B sweep 512/1k/2k/4k/8k/16k as **interleaved adjacent pairs** (kills thermal
+   ordering — a chunk of the −20% is likely thermal, since warm noise is ~2%), find where W8A8 turns net-positive
+   (expected ~8192), and set `min_tokens` there, per-hint. This is the legitimate, data-driven version of the
+   earlier 3072 instinct — justified by throughput, not by hiding drift.
+2. **Resident int8-weight cache pressures decode.** The repack cache (`i8w_cache`) keeps a full `in_dim*out_dim`
+   int8 copy of every routed weight and is **never freed** — GBs resident next to the 81G mmap'd model. Decode is
+   n_tok=1 GEMV (W8A8 never fires), so base vs on differ *only* by this resident memory, which evicts page-cache
+   pages and increases MoE SSD streaming → slower decode. It's a fixed cost → large % when decode is fast (low
+   ctx) and ~0 when decode is already memory/KV-bound (128K+) — exactly the measured shape. **Action: scope the
+   cache to prefill** — release `i8w_cache` (and the static act/scale scratch) at the prefill→decode transition.
+   W8A8 only helps prefill, so nothing is lost. Verify gen returns to flat at low ctx after the release.
+
+Acceptance for this section: with both fixed, low-ctx prefill is **≥ baseline** (gated off below crossover) and
+low-ctx **gen Δ ≈ 0**, while the ≥8k prefill win is retained.
 
 ## Gotchas (cost real time in ds4-ssd; pre-warn the agent)
 - matmul2d operand pointers must be **non-const** ("Input types must match cooperative tensor types").
