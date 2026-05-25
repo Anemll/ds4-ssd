@@ -2064,6 +2064,7 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void);
 static void ds4_gpu_ensure_nax_fused_library(void);
 static int ds4_gpu_dense_q8_nax_enabled(void);
 static int ds4_gpu_dense_i8_enabled(void);
+static uint64_t ds4_gpu_dense_i8_min_tokens(void);
 static int ds4_gpu_indexer_nax_enabled(void);
 static int ds4_gpu_indexer_walk_enabled(void);
 static int ds4_gpu_dense_walk_enabled(void);
@@ -5990,7 +5991,7 @@ int ds4_gpu_matmul_q8_0_tensor_ex(
          * weight (load-time repack, cached by weight_offset) x per-token-scale int8
          * activation, int8xint8->int32 with fused rescale -> f32. Validated +1.4-1.5x vs
          * relaxed float x half (nax_dense_i8_probe.m). NK=128 => in_dim%128==0; NR0=32. */
-        const uint64_t i8_min_tok = (hint == DS4_MM_PREFER_I8) ? 16u : 32u;
+        const uint64_t i8_min_tok = ds4_gpu_dense_i8_min_tokens();
         if (hint != DS4_MM_NO_I8 && ds4_gpu_dense_i8_enabled() &&
             (in_dim % 128u) == 0 && (out_dim % 32u) == 0 && n_tok >= i8_min_tok) {
             ds4_gpu_ensure_nax_fused_library();
@@ -6064,8 +6065,12 @@ int ds4_gpu_matmul_q8_0_tensor_ex(
         /* Dense Q8_0 NAX matmul2d (M5+, opt-in DS4_GPU_DENSE_NAX): ported direct-RHS
          * kernel (NK=32, weight-major 64x128 tile, activation read direct from device).
          * Same args/bindings as the simdgroup kernel_mul_mm_q8_0_f32 path. Large-chunk
-         * win; falls through to simdgroup otherwise. */
-        if (ds4_gpu_dense_q8_nax_enabled() && (in_dim % 32u) == 0) {
+         * win; falls through to simdgroup otherwise. Also serves as the sub-cutoff
+         * fallback when DENSE_I8 is on (n_tok < W8A8 cutoff): fp16-NAX beats both W8A8
+         * and simdgroup at small n_tok, so route here instead of dropping to simdgroup. */
+        if ((ds4_gpu_dense_q8_nax_enabled() ||
+             (hint != DS4_MM_NO_I8 && ds4_gpu_dense_i8_enabled())) &&
+            (in_dim % 32u) == 0) {
             ds4_gpu_ensure_nax_fused_library();
             if (g_dense_q8_nax_pipeline) {
                 ds4_gpu_mul_mm_args mm_args = ds4_gpu_make_mm_args(in_dim, out_dim, n_tok, row_bytes);
@@ -10924,7 +10929,7 @@ int ds4_gpu_attention_output_q8_batch_tensor(
              * tokens.  This preserves the single-token generation path while
              * keeping prefill accumulation stable.
              */
-            if (n_tokens >= 32u && (group_dim % 128u) == 0 && (rank % 32u) == 0 &&
+            if (n_tokens >= ds4_gpu_dense_i8_min_tokens() && (group_dim % 128u) == 0 && (rank % 32u) == 0 &&
                 ds4_gpu_dense_i8_enabled() &&
                 (ds4_gpu_ensure_nax_fused_library(),
                  g_attn_out_low_i8_pipeline && g_repack_q8_i8_pipeline && g_quant_act_pertoken_i8_pipeline)) {
@@ -10987,10 +10992,11 @@ int ds4_gpu_attention_output_q8_batch_tensor(
                     ds4_gpu_end_compute_encoder(cb, me);
                 } else { ok = false; }
             } else if (n_tokens >= 32u && (group_dim % 32u) == 0 &&
-                ds4_gpu_dense_q8_nax_enabled() &&
+                (ds4_gpu_dense_q8_nax_enabled() || ds4_gpu_dense_i8_enabled()) &&
                 (ds4_gpu_ensure_nax_fused_library(), g_attn_out_low_nax_pipeline != nil)) {
                 /* Grouped O-proj "low" via NAX direct-RHS matmul (M5+). Same
-                 * mul_mm_id args as the simdgroup path; large-M prefill win. */
+                 * mul_mm_id args as the simdgroup path; large-M prefill win. Also the
+                 * sub-cutoff fallback when DENSE_I8 is on (n_tokens < W8A8 cutoff). */
                 ds4_gpu_mul_mm_id_args mm_args =
                     ds4_gpu_make_mul_mm_id_args((uint32_t)group_dim, (uint32_t)rank, n_groups,
                                                 row_a_bytes, (uint64_t)rank * row_a_bytes,
@@ -19989,6 +19995,23 @@ static int ds4_gpu_dense_q8_nax_enabled(void) {
         cached = (env && env[0] && atoi(env) != 0) ? 1 : 0;
     }
     return cached;
+}
+
+/* W8A8 dense fires only at n_tok >= this; below it fp16-NAX wins. The per-call
+ * int8 activation-quant pass + extra encoders/barriers are a fixed cost the small
+ * matmul can't amortize, so single-pass fp16-NAX is faster at small n_tok. Clean
+ * M5 Max crossover (fans max, no power throttle): W8A8 loses to our own fp16-NAX
+ * at n_tok 512-2048 (-5.8..-1.2%), ties ~4096, wins 8k+ (+2.8..+4.4%). Default
+ * 4096; tunable via DS4_GPU_DENSE_I8_MIN_TOK. (The old 16/32 was from isolated
+ * matmul GF/s microbench, which excluded per-call overhead.) */
+static uint64_t ds4_gpu_dense_i8_min_tokens(void) {
+    static long cached = -1;
+    if (cached < 0) {
+        const char *env = getenv("DS4_GPU_DENSE_I8_MIN_TOK");
+        cached = (env && env[0]) ? atol(env) : 4096;
+        if (cached < 1) cached = 4096;
+    }
+    return (uint64_t)cached;
 }
 
 /* int8 (W8A8) dense path opt-in (M5+; default off). Validated +1.4-1.5x vs relaxed
