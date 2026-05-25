@@ -89,6 +89,28 @@ Files / symbols:
   Q8_0 matmuls (dense projections, shared expert, attn_out) benefit.
 - The matmul2d library compile is a one-time ~30–60s cost (pre-warm for startup timing).
 
+## Existing gates to audit — DO NOT contaminate the A/B or the fusion (CRITICAL)
+antirez's main has gates/flags that, if mishandled, silently corrupt the W8A8 result:
+- **Baseline must be his SHIPPED default**, which uses his **fp16-NAX dense** (`kernel_mul_mm_f16_f32_mpp_direct_rhs`
+  _n128/_n64) + `kernel_attn_out_low_q8_0_mpp_direct_rhs`, gated by his `tensor_matmul` flag. The honest A/B is
+  **W8A8 vs his fp16-NAX**, NOT vs his simdgroup fallback. If you disable tensor_matmul in the baseline, W8A8 will
+  look hugely (and falsely) faster. Confirm tensor_matmul is ON in BOTH arms (it's the default).
+- **Hold ALL his flags constant across A and B**: drift-patch `hc_stable / norm_unify / kv_raw_f32 /
+  rope_exp2_log2 / math_safe / tensor_matmul` (logged together in ds4_metal.m ~3028), `prefill_chunk`, and any
+  `DS4_METAL_*` env. Toggle ONLY the new W8A8 gate between arms. Never change two things at once.
+- **Respect his per-batch tile gating** (_n128 vs _n64 selected by batch size). Size-gate W8A8 so it only fires
+  where it wins (large n_tok); don't let it pre-empt his tuned path in regimes where his is faster.
+- **Fusion must not regress**: his main HAS `g_batch_cb` + shared `g_batch_enc` (ds4_metal.m ~38, 241, 250).
+  Wire the W8A8 sub-ops (repack one-time, then per-call act-quant + matmul) via `ds4_gpu_compute_encoder(cb)` so
+  they reuse the batch encoder — NO raw encoders, NO commit/flush/`close_batch_encoder` between act-quant and
+  matmul (that injects an encoder switch / sync the baseline doesn't have, contaminating both speed and the
+  comparison). The load-time repack writes a buffer the matmul reads in the SAME cb — encoder ordering guarantees
+  visibility, no flush needed. **Verify**: per-token fusion-boundary count (owned-commit/wait/flush/enc_end) with
+  W8A8 on must equal baseline (port ds4-ssd's `DS4_METAL_FUSION_PROFILE` instrumentation, or count manually). If
+  W8A8 adds any owned-commit/wait/flush per token, it's a wiring bug, not a kernel cost.
+- **Weight-repack cache**: key by weight_offset so the Q8_0→int8 repack runs ONCE/weight at first use, not per
+  dispatch (per-dispatch repack erases the win AND adds an encoder every call).
+
 ## Acceptance
 - `anemll-NAX-w8a8` branch on a clean main-ds4: dense + attn_out W8A8 (lm_head half), env-gated, builds clean.
 - Each kernel: quality-neutral + speed-positive, validated.
