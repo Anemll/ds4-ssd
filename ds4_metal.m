@@ -41,6 +41,22 @@ static id<MTLDevice> g_device;
 static id<MTLCommandQueue> g_queue;
 static id<MTLLibrary> g_library;
 static id<MTLCommandBuffer> g_batch_cb;
+/* Graph-fusion instrumentation (env DS4_METAL_FUSION_PROFILE): count fusion-boundary
+ * events so we can spot wasted interruptions / false syncs. owned_commit and wait are
+ * real stalls (should be ~0 mid-graph); flush is an async submission; enc_end is an
+ * encoder re-setup. Dumped + reset per token/chunk via ds4_gpu_fusion_profile_dump. */
+static long g_fz_owned_commit, g_fz_flush, g_fz_enc_end, g_fz_wait;
+static int ds4_gpu_fusion_profile_on(void) {
+    static int c = -1;
+    if (c < 0) { const char *e = getenv("DS4_METAL_FUSION_PROFILE"); c = (e && e[0] && atoi(e)) ? 1 : 0; }
+    return c;
+}
+void ds4_gpu_fusion_profile_dump(const char *tag) {
+    if (!ds4_gpu_fusion_profile_on()) return;
+    fprintf(stderr, "ds4-fusion[%s]: owned_commit+wait=%ld flush=%ld enc_end=%ld wait=%ld\n",
+            tag ? tag : "", g_fz_owned_commit, g_fz_flush, g_fz_enc_end, g_fz_wait);
+    g_fz_owned_commit = g_fz_flush = g_fz_enc_end = g_fz_wait = 0;
+}
 static id<MTLComputeCommandEncoder> g_batch_enc;
 static NSMutableArray<id<MTLCommandBuffer>> *g_pending_cbs;
 static id<MTLComputePipelineState> g_set_rows_f32_i32_pipeline;
@@ -736,16 +752,19 @@ static id<MTLComputeCommandEncoder> ds4_gpu_compute_encoder(id<MTLCommandBuffer>
 static void ds4_gpu_end_compute_encoder(id<MTLCommandBuffer> cb, id<MTLComputeCommandEncoder> enc) {
     if (!enc) return;
     if (g_batch_cb && cb == g_batch_cb && enc == g_batch_enc) return;
+    g_fz_enc_end++;
     [enc endEncoding];
 }
 
 static void ds4_gpu_close_batch_encoder(void) {
     if (!g_batch_enc) return;
+    g_fz_enc_end++;
     [g_batch_enc endEncoding];
     g_batch_enc = nil;
 }
 
 static int ds4_gpu_wait_command_buffer(id<MTLCommandBuffer> cb, const char *label) {
+    g_fz_wait++;
     [cb waitUntilCompleted];
     if (cb.status == MTLCommandBufferStatusError) {
         fprintf(stderr, "ds4: Metal %s failed: %s\n",
@@ -766,6 +785,7 @@ static int ds4_gpu_wait_pending_command_buffers(const char *label) {
 
 static int ds4_gpu_finish_command_buffer(id<MTLCommandBuffer> cb, int owned, const char *label) {
     if (!owned) return 1;
+    g_fz_owned_commit++;
 
     [cb commit];
     int ok = ds4_gpu_wait_pending_command_buffers(label);
@@ -4637,6 +4657,7 @@ int ds4_gpu_begin_commands(void) {
 int ds4_gpu_flush_commands(void) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!g_batch_cb) return 0;
+    g_fz_flush++;
 
     ds4_gpu_close_batch_encoder();
     id<MTLCommandBuffer> cb = g_batch_cb;
@@ -4658,12 +4679,17 @@ int ds4_gpu_end_commands(void) {
     ds4_gpu_close_batch_encoder();
     id<MTLCommandBuffer> cb = g_batch_cb;
     g_batch_cb = nil;
-    return ds4_gpu_finish_command_buffer(cb, 1, "command batch");
+    int r = ds4_gpu_finish_command_buffer(cb, 1, "command batch");
+    /* per-token/chunk fusion-boundary dump (env DS4_METAL_FUSION_PROFILE). The 1 owned_commit
+     * + 1 wait here are the legitimate end sync; >1 means extra mid-graph syncs (the waste). */
+    ds4_gpu_fusion_profile_dump("batch");
+    return r;
 }
 
 int ds4_gpu_synchronize(void) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (g_batch_cb) return ds4_gpu_end_commands();
+    if (g_batch_cb) return ds4_gpu_end_commands();  /* end_commands dumps "batch" */
+    ds4_gpu_fusion_profile_dump("sync");
     if ([g_pending_cbs count] != 0) {
         int ok = ds4_gpu_wait_pending_command_buffers("synchronize");
         [g_transient_buffers removeAllObjects];
