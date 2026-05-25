@@ -1,5 +1,14 @@
 # M5 Max ANE prefill optimization report
 
+> **2026-05-25 — DEFINITIVE all-sizes antirez standing: PARITY.** Comprehensive head-to-head, both built
+> from their own source + run from their own dirs (antirez ds4-bench reads metal/ by relative path), interleaved
+> adjacent pairs, 8k→64k step 8k: ours(int8 dense W8A8 + hints + attn_out-NAX + indexer-NAX) vs antirez(his
+> fp16 NAX): 8k +0.6, 16k +1.7, 24k −0.1, 32k −0.1, 40k +0.4, 48k +0.6, 56k +0.3, 64k +0.5 (mean **+0.5%**,
+> within noise = **dead-even**). int8 dense moved the fork from ~−5% behind → parity (we match his tuned-fp16-NAX
+> using int8). NOT ahead — tied. (Earlier 2-frontier "+2.4%/+5%" reads were noise.) Remaining small levers to
+> tip parity→ahead: attn_out O-proj W8A8 (~+1% prefill), comp_kv W8A8 probe. See memory/*.md.
+
+
 > **2026-05-24 — int8 (W8A8) DENSE: +15–20% end-to-end prefill (the loop's one real win).**
 > After exhausting every float NAX knob (indexer relaxed / Morton / attn_out tile — all end-to-end
 > neutral) and int8 indexer (neutral, small slice), the win is **int8×int8 dense projections**:
@@ -9,8 +18,12 @@
 > **end-to-end +19.8%@8k, +19.5%@16k, +17.1%@24k, +15.1%@32k** (adjacent-pair A/B, both pairs within
 > 2–3%), generation **token-identical** to baseline. Recipe that mattered: NK≥128, weight pre-quantized
 > offline (no per-dispatch dequant), fused rescale (NR0=32 to fit the int32 tile in threadgroup).
-> Env-gated `DS4_GPU_DENSE_I8` (default off; cost = a parallel int8 weight copy in GPU mem). Likely
-> puts the fork **ahead of antirez** (relaxed float×half dense), vs prior ~−5% parity. See memory/*.md.
+> Env-gated `DS4_GPU_DENSE_I8` (default off; cost = a parallel int8 weight copy in GPU mem).
+> **Direct antirez head-to-head** (both run from their own dirs, interleaved, 8k-32k): 8k −0.8%, 16k +4.6%,
+> 24k +5.4%, 32k +0.2% (mean ~+2.4%) → **parity-to-slightly-ahead** (tied at the ends within noise, ~+5% at
+> mid-context). int8 dense moved the fork from ~−5% behind to parity/slight-edge — NOT a large lead. (Harness
+> note: antirez's ds4-bench reads metal/dense.metal by relative path, so run it from ../ds4 or it loads our
+> fork's shaders and aborts; the 408 t/s @4k was just the low-context frontier.) See memory/*.md.
 
 
 > **2026-05-24 — full 5-kernel NAX autotune (microbench, no model).** Built per-kernel autotuners
