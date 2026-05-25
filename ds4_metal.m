@@ -140,6 +140,15 @@ static id<MTLComputePipelineState> g_quant_act_pertoken_i8_pipeline;
 static id<MTLComputePipelineState> g_indexer_scores_nax_pipeline;
 static id<MTLComputePipelineState> g_attn_out_low_nax_pipeline;
 static id<MTLComputePipelineState> g_attn_out_low_i8_pipeline;
+/* W8A8 repacked-int8 weight caches (keyed by weight_offset). These hold a
+ * parallel int8 copy of every routed dense/attn_out weight and only serve the
+ * n_tok>=cutoff prefill matmuls — decode is n_tok==1 GEMV and never touches
+ * them. Promoted to file scope so they can be released at the prefill->decode
+ * transition (ds4_gpu_release_i8_prefill_cache): leaving them resident next to
+ * the mmap'd model evicts page-cache pages and slows MoE SSD streaming during
+ * decode (worst % at low ctx where decode is otherwise fastest). */
+static NSMutableDictionary<NSNumber *, NSArray *> *g_i8_dense_wcache;
+static NSMutableDictionary<NSNumber *, NSArray *> *g_i8_attn_wcache;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_q2_k_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_output_pack_f16_f32_pipeline;
@@ -5843,6 +5852,17 @@ int ds4_gpu_matmul_q8_0_tensor(
                                          in_dim, out_dim, x, n_tok, DS4_MM_AUTO);
 }
 
+/* Release the W8A8 repacked-int8 weight caches. The int8 weight copies only
+ * serve prefill (n_tok>=cutoff) matmuls; decode is n_tok==1 GEMV off the
+ * original Q8_0 weights, so during generation they are dead weight resident
+ * next to the 81G mmap. Freeing them at the prefill->decode transition relieves
+ * page-cache pressure on MoE SSD streaming. Cheap to rebuild: the next prefill
+ * chunk repacks lazily on first use. Idempotent. */
+void ds4_gpu_release_i8_prefill_cache(void) {
+    if (g_i8_dense_wcache) [g_i8_dense_wcache removeAllObjects];
+    if (g_i8_attn_wcache)  [g_i8_attn_wcache  removeAllObjects];
+}
+
 int ds4_gpu_matmul_q8_0_tensor_ex(
         ds4_gpu_tensor       *out,
         const void             *model_map,
@@ -5857,6 +5877,21 @@ int ds4_gpu_matmul_q8_0_tensor_ex(
     if ((in_dim & 31u) != 0 ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX || n_tok > UINT32_MAX) {
         return 0;
+    }
+
+    /* Prefill->decode transition: the first n_tok==1 dense matmul (the final
+     * logits at the end of prefill) marks the end of the n_tok>=cutoff phase.
+     * Release the resident int8 weight caches so they don't pressure decode.
+     * No-op once empty; rebuilt lazily if another prefill follows (multi-turn). */
+    {
+        /* DS4_GPU_I8_KEEP_CACHE=1 disables the release (A/B harness only). */
+        static int keep_cache = -1;
+        if (keep_cache < 0) { const char *e = getenv("DS4_GPU_I8_KEEP_CACHE"); keep_cache = (e && e[0] && atoi(e)) ? 1 : 0; }
+        if (n_tok == 1 && !keep_cache &&
+            ((g_i8_dense_wcache && g_i8_dense_wcache.count) ||
+             (g_i8_attn_wcache  && g_i8_attn_wcache.count))) {
+            ds4_gpu_release_i8_prefill_cache();
+        }
     }
 
     @autoreleasepool {
@@ -5959,8 +5994,8 @@ int ds4_gpu_matmul_q8_0_tensor_ex(
             ds4_gpu_ensure_nax_fused_library();
             if (g_dense_i8_fused_pipeline && g_repack_q8_i8_pipeline && g_quant_act_pertoken_i8_pipeline) {
                 /* cached load-time weight repack: Q8_0 -> int8[out x in] + per-row scale */
-                static NSMutableDictionary<NSNumber *, NSArray *> *i8wcache = nil;
-                if (!i8wcache) i8wcache = [NSMutableDictionary dictionary];
+                if (!g_i8_dense_wcache) g_i8_dense_wcache = [NSMutableDictionary dictionary];
+                NSMutableDictionary<NSNumber *, NSArray *> *i8wcache = g_i8_dense_wcache;
                 NSNumber *wkey = @(weight_offset);
                 NSArray *wentry = i8wcache[wkey];
                 id<MTLBuffer> wi8 = wentry ? wentry[0] : nil;
@@ -10894,8 +10929,8 @@ int ds4_gpu_attention_output_q8_batch_tensor(
                 /* Grouped O-proj W8A8 (DS4_GPU_DENSE_I8): per-(group,row) int8 weight (load-time
                  * repack, cached) x per-(token,group) int8 activation, fused rescale. +1.46x vs
                  * the float-half NAX path (nax_attnout_i8_test.m). */
-                static NSMutableDictionary<NSNumber *, NSArray *> *aow8cache = nil;
-                if (!aow8cache) aow8cache = [NSMutableDictionary dictionary];
+                if (!g_i8_attn_wcache) g_i8_attn_wcache = [NSMutableDictionary dictionary];
+                NSMutableDictionary<NSNumber *, NSArray *> *aow8cache = g_i8_attn_wcache;
                 NSNumber *wkey = @(out_a_offset);
                 NSArray *we = aow8cache[wkey];
                 const NSUInteger gm = (NSUInteger)n_groups * (NSUInteger)rank;  /* G*rank weight rows */

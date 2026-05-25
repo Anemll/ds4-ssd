@@ -48,6 +48,10 @@ int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t contex
 void ds4_gpu_set_quality(bool quality);
 void ds4_gpu_print_memory_report(const char *label);
 int ds4_gpu_mpp_int8_prefill_prewarm(void);
+/* Free the W8A8 repacked-int8 weight caches (prefill-only; dead weight during
+ * decode). Called automatically at the first n_tok==1 matmul after prefill;
+ * also safe to call explicitly at a prefill->decode boundary. Idempotent. */
+void ds4_gpu_release_i8_prefill_cache(void);
 
 /* =========================================================================
  * Embeddings and Indexer Helpers.
