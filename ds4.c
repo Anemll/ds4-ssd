@@ -9853,6 +9853,7 @@ static bool metal_graph_alloc(
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
 static int get_prefill_dedup_prefetch(void);
 static int get_prefill_slot_cache_topk(uint32_t slot_bank);
+static void metal_graph_log_prefill_compute_once(void);
 
 static bool metal_graph_enable_flash_moe(
         ds4_gpu_graph                *g,
@@ -9985,6 +9986,10 @@ static bool metal_graph_enable_flash_moe(
             (uint32_t)DS4_N_LAYER,
             sidecar->slot_bank,
             (double)total_bank_bytes / 1048576.0);
+
+    /* Resolved prefill compute path (routed/dense + precision), printed right
+     * here alongside the slot-bank line so it shows at startup. */
+    metal_graph_log_prefill_compute_once();
 
     /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
     {
@@ -10956,6 +10961,7 @@ static int flash_moe_run_mpp_int8_safe_tensor(
                                                                x,
                                                                full_tokens,
                                                                &full_mid_is_f16)) {
+        if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] FAIL routed MPP-int8 FULL part full_tokens=%u (of n=%u)\n", full_tokens, n_tokens);
         return 0;
     }
 
@@ -11000,6 +11006,9 @@ static int flash_moe_run_mpp_int8_safe_tensor(
                                                       x_tail,
                                                       tail_tokens,
                                                       &tail_mid_is_f16) != 0;
+    if (!tail_ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr,
+        "ds4: [resume-dbg] FAIL routed TAIL part tail_tokens=%u (full=%u n=%u) views(out=%d sel=%d w=%d x=%d)\n",
+        tail_tokens, full_tokens, n_tokens, out_tail!=NULL, selected_tail!=NULL, weights_tail!=NULL, x_tail!=NULL);
     ds4_gpu_tensor_free(x_tail);
     ds4_gpu_tensor_free(weights_tail);
     ds4_gpu_tensor_free(selected_tail);
@@ -11405,6 +11414,55 @@ static void metal_graph_flash_moe_record_prefill_slot_cache(
     }
 }
 
+/* Single eviction policy shared by every slot-acquisition path over the one
+ * per-layer slot bank (prefill install + decode reserve). The bank is shared
+ * between prefill and decode, so both MUST agree on how a slot is chosen or the
+ * decode->resume-prefill transition desyncs. Order:
+ *   1. an empty, non-reserved slot;
+ *   2. the LRU non-reserved, non-protected slot;
+ *   3. the LRU non-reserved slot (protection is a SOFT prefetch hint -- evicting
+ *      a protected expert only costs one SSD re-read, never correctness).
+ * reserved_slots / protected_experts may be NULL.
+ *   - install passes reserved_slots == NULL  -> step 3 scans every slot, so it
+ *     CANNOT fail when slot_bank > 0 (no more spurious resume-prefill aborts).
+ *   - reserve passes reserved_slots (in-flight this decode step, a HARD
+ *     constraint) -> fails only if every slot is reserved, i.e. the step routed
+ *     more distinct experts than the bank holds. */
+static uint32_t metal_graph_flash_moe_pick_slot(
+        ds4_gpu_graph  *g,
+        const int32_t  *slot_to_expert,
+        const uint64_t *slot_age,
+        const bool     *protected_experts,
+        const bool     *reserved_slots) {
+    if (!g || g->flash_slot_bank == 0) return UINT32_MAX;
+    /* 1. empty, non-reserved */
+    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
+        if (reserved_slots && reserved_slots[i]) continue;
+        if (slot_to_expert[i] < 0) return i;
+    }
+    /* 2. LRU among non-reserved, non-protected */
+    uint32_t slot = UINT32_MAX;
+    uint64_t oldest = UINT64_MAX;
+    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
+        if (reserved_slots && reserved_slots[i]) continue;
+        const int32_t resident = slot_to_expert[i];
+        if (protected_experts &&
+            resident >= 0 && resident < (int32_t)DS4_N_EXPERT &&
+            protected_experts[resident]) {
+            continue;
+        }
+        if (slot_age[i] < oldest) { oldest = slot_age[i]; slot = i; }
+    }
+    if (slot != UINT32_MAX) return slot;
+    /* 3. LRU among non-reserved (ignore soft protection) */
+    oldest = UINT64_MAX;
+    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
+        if (reserved_slots && reserved_slots[i]) continue;
+        if (slot_age[i] < oldest) { oldest = slot_age[i]; slot = i; }
+    }
+    return slot;
+}
+
 static bool metal_graph_flash_moe_install(
         ds4_gpu_graph *g,
         uint32_t       il,
@@ -11430,29 +11488,13 @@ static bool metal_graph_flash_moe_install(
     }
 
     g->flash_misses++;
-    uint32_t slot = UINT32_MAX;
-    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-        if (slot_to_expert[i] < 0) {
-            slot = i;
-            break;
-        }
-    }
-    if (slot == UINT32_MAX) {
-        uint64_t oldest = UINT64_MAX;
-        for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-            const int32_t resident = slot_to_expert[i];
-            if (protected_experts &&
-                resident >= 0 && resident < (int32_t)DS4_N_EXPERT &&
-                protected_experts[resident]) {
-                continue;
-            }
-            if (slot_age[i] < oldest) {
-                oldest = slot_age[i];
-                slot = i;
-            }
-        }
-    }
-    if (slot == UINT32_MAX) return false;
+    /* Prefill install: no per-step reservations; protection is a soft hint.
+     * pick_slot() never fails here when slot_bank > 0, so a resume-prefill over a
+     * decode-populated bank can no longer hard-fail (which would abort the whole
+     * extend and trip the "metal resumed prefill failed" path). */
+    const uint32_t slot = metal_graph_flash_moe_pick_slot(
+            g, slot_to_expert, slot_age, protected_experts, NULL);
+    if (slot == UINT32_MAX) return false;  /* only reachable if slot_bank == 0 */
 
     const int32_t evicted = slot_to_expert[slot];
 
@@ -11538,32 +11580,12 @@ static bool metal_graph_flash_moe_reserve_decode_slot(
     }
 
     g->flash_misses++;
-    uint32_t slot = UINT32_MAX;
-    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-        if ((reserved_slots && reserved_slots[i]) || slot_to_expert[i] >= 0) {
-            continue;
-        }
-        slot = i;
-        break;
-    }
-    if (slot == UINT32_MAX) {
-        uint64_t oldest = UINT64_MAX;
-        for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-            if (reserved_slots && reserved_slots[i]) {
-                continue;
-            }
-            const int32_t resident = slot_to_expert[i];
-            if (protected_experts &&
-                resident >= 0 && resident < (int32_t)DS4_N_EXPERT &&
-                protected_experts[resident]) {
-                continue;
-            }
-            if (slot_age[i] < oldest) {
-                oldest = slot_age[i];
-                slot = i;
-            }
-        }
-    }
+    /* Decode reserve: reserved_slots are in-flight this step (HARD); protection
+     * is a soft hint. Same picker as prefill install -> the shared bank evicts
+     * identically on both sides. Fails only if every slot is reserved (the step
+     * routed more distinct experts than the bank holds). */
+    const uint32_t slot = metal_graph_flash_moe_pick_slot(
+            g, slot_to_expert, slot_age, protected_experts, reserved_slots);
     if (slot == UINT32_MAX) return false;
 
     *slot_out = (int32_t)slot;
@@ -12364,6 +12386,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
     const double t0 = profile ? now_sec() : 0.0;
     bool ok = ds4_gpu_end_commands() != 0;
+    if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL @entry end_commands il=%u n_tokens=%u\n", il, n_tokens);
     const double t_sync = profile ? now_sec() : 0.0;
 
     uint32_t n_unique = 0;
@@ -12477,6 +12500,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                      DS4_N_EXPERT_USED) != 0;
             }
             gpu_compacted = ok;
+            if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL dedup_compact il=%u n_pairs=%llu\n", il, (unsigned long long)n_pairs);
 
         } else {
             for (uint32_t t = 0; t < n_tokens; t++) {
@@ -12502,6 +12526,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         ok = ds4_gpu_tensor_fill_f32(g->batch_routed_out,
                                      0.0f,
                                      (uint64_t)n_tokens * DS4_N_EMBD) != 0;
+        if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL fill batch_routed_out il=%u n_tokens=%u\n", il, n_tokens);
     }
 
     const bool try_ane_prefill = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
@@ -12637,6 +12662,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         for (int i = 0; i < prefetch && i < (int)exec_n; i++) {
             const uint32_t future = plan ? plan[i].ui : (uint32_t)i;
             if (future >= n_unique) {
+                if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL prefetch future=%u >= n_unique=%u il=%u plan=%d exec_n=%u\n", future, n_unique, il, plan!=NULL, exec_n);
                 ok = false;
                 break;
             }
@@ -12649,7 +12675,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             const uint32_t future_refs =
                 plan ? plan[i].refs : (uint32_t)(offsets[future + 1] - offsets[future]);
             ok = metal_graph_flash_moe_stage_prefill_expert(g, il, future_expert, bank, future_refs);
-            if (!ok) break;
+            if (!ok) { if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL stage_prefill_expert il=%u expert=%d bank=%d refs=%u\n", il, future_expert, bank, future_refs); break; }
             staged_prefill_expert[bank] = future_expert;
         }
     }
@@ -12801,6 +12827,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         }
         const uint32_t ui = plan ? plan[exec_i].ui : exec_i;
         if (ui >= n_unique) {
+            if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL exec ui=%u >= n_unique=%u il=%u exec_i=%u plan=%d exec_n=%u\n", ui, n_unique, il, exec_i, plan!=NULL, exec_n);
             ok = false;
             break;
         }
@@ -12864,7 +12891,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (use_slot_cache && commands_open) {
             ok = ds4_gpu_end_commands() != 0;
             commands_open = false;
-            if (!ok) break;
+            if (!ok) { if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL pre-stage end_commands il=%u exec_i=%u expert=%d refs=%u\n", il, exec_i, expert, refs); break; }
         }
 
         if (gpu_compacted) {
@@ -12915,7 +12942,21 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                           refs,
                                                                           wants_slot_prefetch ?
                                                                           &slot_prefetch_src : NULL);
-                    slot_prefetch_src_owned = slot_prefetch_src != NULL;
+                    if (!ok) {
+                        /* No async prefetch slot for this expert. On a resume over a
+                         * decode-populated bank, SUBMIT cancels the pread for any
+                         * expert already resident in a slot -- but a non-slot-cached
+                         * expert still takes this staging path, so find_locked()
+                         * returns -1. The async prefetch is only an optimization;
+                         * fall back to a synchronous stage so a canceled/missing
+                         * prefetch can never abort the (resume-)prefill. */
+                        slot_prefetch_src = NULL;
+                        slot_prefetch_src_owned = false;
+                        ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set, refs);
+                        if (ok && wants_slot_prefetch) slot_prefetch_src = g->flash_install_buf;
+                    } else {
+                        slot_prefetch_src_owned = slot_prefetch_src != NULL;
+                    }
                 } else {
                     ok = token_view && weight_view &&
                          metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set, refs);
@@ -12961,7 +13002,21 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                           refs,
                                                                           wants_slot_prefetch ?
                                                                           &slot_prefetch_src : NULL);
-                    slot_prefetch_src_owned = slot_prefetch_src != NULL;
+                    if (!ok) {
+                        /* No async prefetch slot for this expert. On a resume over a
+                         * decode-populated bank, SUBMIT cancels the pread for any
+                         * expert already resident in a slot -- but a non-slot-cached
+                         * expert still takes this staging path, so find_locked()
+                         * returns -1. The async prefetch is only an optimization;
+                         * fall back to a synchronous stage so a canceled/missing
+                         * prefetch can never abort the (resume-)prefill. */
+                        slot_prefetch_src = NULL;
+                        slot_prefetch_src_owned = false;
+                        ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set, refs);
+                        if (ok && wants_slot_prefetch) slot_prefetch_src = g->flash_install_buf;
+                    } else {
+                        slot_prefetch_src_owned = slot_prefetch_src != NULL;
+                    }
                 } else {
                     ok = metal_graph_flash_moe_stage_prefill_expert(g, il, expert, bank_set, refs);
                     if (ok && wants_slot_prefetch) slot_prefetch_src = g->flash_install_buf;
@@ -12977,6 +13032,10 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                       (uint64_t)refs * sizeof(ref_weights[0])) != 0;
         }
         if (!ok) {
+            if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr,
+                "ds4: [resume-dbg] flashmoe FAIL stage/install il=%u exec_i=%u expert=%d refs=%u use_slot_cache=%d gpu_compacted=%d tok_v=%d w_v=%d sg_v=%d su_v=%d sd_v=%d\n",
+                il, exec_i, expert, refs, use_slot_cache, gpu_compacted,
+                token_view!=NULL, weight_view!=NULL, slot_gate_view!=NULL, slot_up_view!=NULL, slot_down_view!=NULL);
             if (slot_prefetch_src_owned) free(slot_prefetch_src);
             ds4_gpu_tensor_free(slot_down_view);
             ds4_gpu_tensor_free(slot_up_view);
@@ -13046,11 +13105,11 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (commands_open) {
             ok = ds4_gpu_end_commands() != 0;
             commands_open = false;
-            if (!ok) break;
+            if (!ok) { if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL pre-compute end_commands il=%u exec_i=%u expert=%d refs=%u\n", il, exec_i, expert, refs); break; }
         }
 
         ok = ds4_gpu_begin_commands() != 0;
-        if (!ok) break;
+        if (!ok) { if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL pre-compute begin_commands il=%u exec_i=%u expert=%d refs=%u\n", il, exec_i, expert, refs); break; }
         commands_open = true;
 
         bool mid_is_f16 = false;
@@ -13069,6 +13128,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                             tokens_for_refs,
                                             refs,
                                             DS4_N_EMBD) != 0;
+        if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL gather_rows il=%u exec_i=%u expert=%d refs=%u tok_for_refs=%d\n", il, exec_i, expert, refs, tokens_for_refs!=NULL);
         bool deferred_ane = false;
         if (ok) {
             bool ane_ok = false;
@@ -13270,6 +13330,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                          tokens_for_refs,
                                                          refs,
                                                          DS4_N_EMBD) != 0;
+                if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL scatter_add il=%u exec_i=%u expert=%d refs=%u used_mpp_or_ane\n", il, exec_i, expert, refs);
                 const double scatter_t1 = now_sec();
                 g->flash_prefill_scatter_ms += (scatter_t1 - scatter_t0) * 1000.0;
                 ds4_prefill_trace_interval_ms("scatter_encode",
@@ -13343,6 +13404,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     if (!commands_open && ok) {
         ok = ds4_gpu_begin_commands() != 0;
         commands_open = ok;
+        if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL post-loop begin_commands il=%u\n", il);
     }
 
     const double t_done = (profile || scheduler_stats) ? now_sec() : 0.0;
@@ -18183,8 +18245,16 @@ static bool metal_graph_prefill_raw_swa(
         void                  *display_progress_ud) {
     if (n_tokens <= 0 || n_tokens > prompt->len) return false;
     if ((uint32_t)n_tokens > g->prefill_cap) return false;
-    return metal_graph_prefill_layer_major(g, model, weights, prompt, n_tokens, logits, show_progress, NULL,
-                                           display_progress, display_progress_ud);
+    const double prefill_wall_t0 = now_sec();
+    const bool ok = metal_graph_prefill_layer_major(g, model, weights, prompt, n_tokens, logits, show_progress, NULL,
+                                                    display_progress, display_progress_ud);
+    if (ok) {
+        const double prefill_ms = (now_sec() - prefill_wall_t0) * 1000.0;
+        const double tps = prefill_ms > 0.0 ? (double)n_tokens / (prefill_ms / 1000.0) : 0.0;
+        fprintf(stderr, "ds4: prefill full: %d tokens in %.1f ms (%.1f t/s)\n",
+                n_tokens, prefill_ms, tps);
+    }
+    return ok;
 }
 
 static bool metal_graph_prefill_batch_row_logits(
@@ -18220,6 +18290,42 @@ static bool metal_graph_prefill_batch_row_logits(
  * compression windows and row finalization follow the same schedule after the
  * cached prefix.
  */
+/* One-time banner naming the resolved prefill compute path (routed experts +
+ * dense projections, with precision), printed like the other startup lines. */
+static void metal_graph_log_prefill_compute_once(void) {
+    static bool logged = false;
+    if (logged) return;
+    logged = true;
+
+    const bool try_ane = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const char *mpp_env = getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL");
+    const bool try_mpp = mpp_env && atoi(mpp_env) != 0;
+    const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
+
+    const char *routed;
+    if (hybrid)       routed = "ANE i8i8 (W8A8) + GPU MPP-int8/NAX (W8A8) hybrid";
+    else if (try_ane) routed = "ANE i8i8 (W8A8)";
+    else if (try_mpp) routed = "GPU MPP-int8 / NAX (W8A8)";
+    else              routed = "GPU fp32";
+
+    const char *dense;
+    switch (ds4_gpu_dense_backend_kind()) {
+        case 2:  dense = "W8A8 int8"; break;
+        case 1:  dense = "fp16-NAX (half x half)"; break;
+        default: dense = "fp32 (legacy)"; break;
+    }
+    if (ds4_gpu_dense_backend_kind() == 2) {
+        fprintf(stderr,
+                "ds4: prefill compute: routed experts = %s | dense proj = %s (>= %llu tok, else fp16-NAX)\n",
+                routed, dense,
+                (unsigned long long)ds4_gpu_dense_i8_min_tokens_public());
+    } else {
+        fprintf(stderr,
+                "ds4: prefill compute: routed experts = %s | dense proj = %s\n",
+                routed, dense);
+    }
+}
+
 static bool metal_graph_prefill_chunked_range(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -18252,7 +18358,14 @@ static bool metal_graph_prefill_chunked_range(
             if (to_boundary < first_chunk) first_chunk = to_boundary;
         }
     }
-    if (!metal_graph_warmup_prefill_kernels(g, model, weights, first_chunk)) return false;
+    const double prefill_wall_t0 = now_sec();
+    const bool dbg_resume = getenv("DS4_DEBUG_RESUME") != NULL;
+    if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] start=%u n_tokens=%u prompt_len=%d prefill_cap=%u raw_cap=%u raw_window=%u chunk_cap=%u first_chunk=%u\n",
+                            start, n_tokens, prompt->len, g->prefill_cap, g->raw_cap, raw_window, chunk_cap, first_chunk);
+    if (!metal_graph_warmup_prefill_kernels(g, model, weights, first_chunk)) {
+        if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] FAIL warmup_prefill_kernels(first_chunk=%u)\n", first_chunk);
+        return false;
+    }
     if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL")) {
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
@@ -18292,17 +18405,25 @@ static bool metal_graph_prefill_chunked_range(
                                                              prompt,
                                                              pos0,
                                                              chunk);
-        if (!ok) return false;
+        if (!ok) {
+            if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] FAIL upload tokens/embeddings pos0=%u chunk=%u\n", pos0, chunk);
+            return false;
+        }
 
         for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
             const double t_layer0 = profile ? now_sec() : 0.0;
             ok = ds4_gpu_begin_commands() != 0;
-            if (ok) ok = metal_graph_encode_layer_batch(g,
+            if (ok) {
+                ok = metal_graph_encode_layer_batch(g,
                                                         model,
                                                         &weights->layer[il],
                                                         il,
                                                         pos0,
                                                         chunk);
+                if (!ok && dbg_resume) fprintf(stderr, "ds4: [resume-dbg] FAIL encode_layer_batch il=%u pos0=%u chunk=%u ratio=%u\n", il, pos0, chunk, ds4_layer_compress_ratio(il));
+            } else if (dbg_resume) {
+                fprintf(stderr, "ds4: [resume-dbg] FAIL begin_commands il=%u pos0=%u\n", il, pos0);
+            }
             const double t_encoded = profile ? now_sec() : 0.0;
             if (ok) ok = ds4_gpu_end_commands() != 0;
             const double t_done = profile ? now_sec() : 0.0;
@@ -18392,6 +18513,12 @@ static bool metal_graph_prefill_chunked_range(
                 execute_s * 1000.0,
                 (t_read - t_before_read) * 1000.0,
                 (t_read - t0) * 1000.0);
+    }
+    if (ok) {
+        const double prefill_ms = (now_sec() - prefill_wall_t0) * 1000.0;
+        const double tps = prefill_ms > 0.0 ? (double)n_tokens / (prefill_ms / 1000.0) : 0.0;
+        fprintf(stderr, "ds4: prefill %s: %u tokens in %.1f ms (%.1f t/s)\n",
+                start > 0 ? "resume" : "full", n_tokens, prefill_ms, tps);
     }
     return ok;
 }
@@ -22416,9 +22543,23 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                                                         s->display_progress_ud,
                                                         NULL);
             if (!ok) {
-                snprintf(err, errlen, "%s resumed prefill failed while extending checkpoint", backend_name);
+                /* Chunked resume-after-generation can fail inside the slot-bank
+                 * MoE prefill scheduler (pre-existing bug, only on the resume
+                 * path). Rather than abort the request, fall back to a full
+                 * re-prefill from scratch: the zero-prefix path is the proven,
+                 * always-working path. Slower for this one turn, but correct and
+                 * robust -- the agent keeps working instead of erroring out. */
+                static bool warned_resume_fallback = false;
+                if (!warned_resume_fallback) {
+                    fprintf(stderr,
+                            "ds4: %s resume prefill failed; falling back to full re-prefill "
+                            "(correct, slower this turn)\n",
+                            backend_name);
+                    warned_resume_fallback = true;
+                }
                 s->checkpoint_valid = false;
-                return 1;
+                (void)ds4_gpu_synchronize();   /* flush any half-open state from the failed resume */
+                goto full_reprefill;
             }
             ds4_tokens_copy(&s->checkpoint, prompt);
             s->checkpoint_valid = true;
@@ -22440,6 +22581,7 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
         return 0;
     }
 
+full_reprefill: ;
     bool ok;
     const uint32_t effective_prefill_cap = metal_graph_effective_prefill_cap(&s->graph);
     if (effective_prefill_cap < (uint32_t)prompt->len) {

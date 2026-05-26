@@ -50,7 +50,16 @@ DS4_RUN_ARGS=(
 echo "log: $LOG"
 echo "summary: $SUMMARY"
 
+# Prefetch pass-through (./ds4 reads these env vars directly; same as the agent's
+# --moe-prefetch-* flags): MOE_PREFETCH_TOPK -> prefill slot-cache top-k,
+# MOE_PREFETCH_TEMPORAL=1 -> decode prefetch. (Dense-on-ANE knobs are N/A here --
+# this is the GPU-only A/B baseline with ANE forced off.)
+EXTRA_ENV=()
+[[ -n "${MOE_PREFETCH_TOPK:-}" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK="$MOE_PREFETCH_TOPK")
+[[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_DECODE_PREFETCH=1)
+
 env \
+  ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} \
   DS4_LOCK_FILE="$DS4_LOCK_FILE" \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
   DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-8704}" \

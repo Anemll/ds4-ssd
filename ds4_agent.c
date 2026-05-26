@@ -23,6 +23,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -8047,11 +8048,54 @@ static bool agent_prompt_yes_no(const char *prompt) {
     }
 }
 
+/* Save-session prompt with low-friction defaults: a single keypress decides.
+ *   Enter = save (the common case),  Esc / Ctrl-D = don't save,  y / n explicit.
+ * Falls back to line input when stdin is not a TTY (empty or 'y' => save). */
+static bool agent_prompt_save_session(void) {
+    const char *prompt = "Save current session? (Enter=save, Esc=no, y/n) ";
+    printf("%s", prompt);
+    fflush(stdout);
+
+    if (!isatty(STDIN_FILENO)) {
+        char buf[32];
+        if (!fgets(buf, sizeof(buf), stdin)) return false;   /* EOF on a pipe: don't save */
+        char *p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        return !(*p == 'n' || *p == 'N');                    /* empty/y => save, n => no */
+    }
+
+    struct termios oldt, raw;
+    if (tcgetattr(STDIN_FILENO, &oldt) != 0) {               /* no raw mode: degrade to y/n */
+        return agent_prompt_yes_no("");
+    }
+    raw = oldt;
+    raw.c_lflag &= ~((tcflag_t)(ICANON | ECHO));
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+
+    bool result = false;
+    for (;;) {
+        unsigned char c;
+        ssize_t n = read(STDIN_FILENO, &c, 1);
+        if (n <= 0)                     { result = false; break; }  /* EOF/error => no */
+        if (c == '\r' || c == '\n')     { result = true;  break; }  /* Enter      => save */
+        if (c == 0x1b || c == 0x04)     { result = false; break; }  /* Esc/Ctrl-D => no */
+        if (c == 'y' || c == 'Y')       { result = true;  break; }
+        if (c == 'n' || c == 'N')       { result = false; break; }
+        /* ignore any other key and keep waiting */
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    printf("%s\n", result ? "save" : "no");                  /* echo choice (ECHO was off) */
+    fflush(stdout);
+    return result;
+}
+
 /* Ask before discarding a dirty user session.  Fresh sessions that contain only
  * the system prompt are deliberately ignored. */
 static bool agent_maybe_save_before_leaving_session(agent_worker *w) {
     if (!agent_worker_needs_save(w)) return true;
-    if (!agent_prompt_yes_no("Save current session? (y/n) ")) return true;
+    if (!agent_prompt_save_session()) return true;
     char err[160] = {0};
     if (agent_worker_save_session(w, err, sizeof(err))) return true;
     printf("save failed: %s\n", err);
@@ -8069,7 +8113,7 @@ typedef enum {
  * model/Metal resources instead of waiting for orderly teardown. */
 static agent_exit_save_result agent_maybe_save_before_exiting(agent_worker *w) {
     if (!agent_worker_needs_save(w)) return AGENT_EXIT_CLEAN;
-    if (!agent_prompt_yes_no("Save current session? (y/n) ")) return AGENT_EXIT_NOW;
+    if (!agent_prompt_save_session()) return AGENT_EXIT_NOW;
     char err[160] = {0};
     if (agent_worker_save_session(w, err, sizeof(err))) return AGENT_EXIT_CLEAN;
     printf("save failed: %s\n", err);

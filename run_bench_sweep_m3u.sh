@@ -48,7 +48,15 @@ fi
 echo "csv: $CSV"
 echo "sweep: ctx $CTX_START..$CTX_MAX step $STEP_INCR gen $GEN_TOKENS  chunk=$PREFILL_CHUNK slots=$DS4_SLOTS"
 
+# Prefetch pass-through (ds4-bench reads these env vars directly; same as the
+# agent's --moe-prefetch-* flags): MOE_PREFETCH_TOPK -> prefill slot-cache top-k,
+# MOE_PREFETCH_TEMPORAL=1 -> decode prefetch.
+EXTRA_ENV=()
+[[ -n "${MOE_PREFETCH_TOPK:-}" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK="$MOE_PREFETCH_TOPK")
+[[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_DECODE_PREFETCH=1)
+
 env \
+  ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} \
   DS4_LOCK_FILE="$DS4_LOCK_FILE" \
   DS4_METAL_PREFILL_CHUNK="$PREFILL_CHUNK" \
   DS4_METAL_GRAPH_RAW_CAP="$RAW_CAP" \
@@ -80,6 +88,10 @@ env \
   DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS="${DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS:-1}" \
   DS4_FLASH_MOE_SCHED_ANE_REL_SPEED="${DS4_FLASH_MOE_SCHED_ANE_REL_SPEED:-99}" \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
+  `# dense-on-ANE (M3 Ultra dual cluster). Default off; set to 1 to test moving` \
+  `# the shared-expert FFN and/or attention O-proj onto the ANE.` \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
   "$DS4_BIN" -m "$DS4_MODEL" --metal \
     --moe-sidecar "$DS4_SIDECAR" --moe-mode slot-bank --moe-slot-bank "$DS4_SLOTS" \
     --prompt-file "$DS4_PROMPT_FILE" \

@@ -20048,6 +20048,18 @@ static int ds4_gpu_dense_i8_enabled(void) {
     return cached;
 }
 
+/* Public accessor for the resolved dense-projection backend, for the startup
+ * compute banner: 2 = W8A8 int8, 1 = fp16-NAX (half x half), 0 = fp32 legacy. */
+int ds4_gpu_dense_backend_kind(void) {
+    if (ds4_gpu_dense_i8_enabled()) return 2;
+    if (ds4_gpu_dense_q8_nax_enabled()) return 1;
+    return 0;
+}
+
+uint64_t ds4_gpu_dense_i8_min_tokens_public(void) {
+    return ds4_gpu_dense_i8_min_tokens();
+}
+
 /* Morton/Z-order tile-walk opt-in (env; default off). Must match the DS4_*_WALK macro
  * injected into the NAX library so the host grid and the kernel deinterleave agree. */
 static int ds4_gpu_indexer_walk_enabled(void) {

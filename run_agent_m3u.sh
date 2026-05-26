@@ -28,7 +28,16 @@ DS4_SIDECAR="${DS4_SIDECAR:-/Volumes/optane/dsv4-iq2xxs-expert-major}"
 CTX="${CTX:-100000}"
 SLOTS="${SLOTS:-64}"
 
+# Prefetch pass-through (the engine reads these env vars directly; the agent's
+# --moe-prefetch-* flags just set the same). Mirrors run_*_ssd_agent_m5max.sh:
+#   MOE_PREFETCH_TOPK=N      -> DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=N (prefill slot-cache top-k)
+#   MOE_PREFETCH_TEMPORAL=1  -> DS4_FLASH_MOE_DECODE_PREFETCH=1        (decode prefetch)
+EXTRA_ENV=()
+[[ -n "${MOE_PREFETCH_TOPK:-}" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK="$MOE_PREFETCH_TOPK")
+[[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_DECODE_PREFETCH=1)
+
 env \
+  ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} \
   DS4_METAL_PREFILL_CHUNK="${DS4_METAL_PREFILL_CHUNK:-16384}" \
   DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-16896}" \
   `# parallel SSD reader pool (the prefill win)` \
@@ -60,6 +69,10 @@ env \
   `# the knobs that actually push work onto ANE (binary default keeps it on GPU)` \
   DS4_FLASH_MOE_SCHED_ANE_REL_SPEED="${DS4_FLASH_MOE_SCHED_ANE_REL_SPEED:-99}" \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
+  `# dense-on-ANE (M3 Ultra dual cluster). Default off; flip to 1 to test moving` \
+  `# the shared-expert FFN and/or attention O-proj onto the ANE.` \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
   ./ds4-agent --model "$DS4_MODEL" --moe-sidecar "$DS4_SIDECAR" \
     --moe-mode slot-bank --moe-slot-bank "$SLOTS" \
     --metal --ctx "$CTX" "$@"

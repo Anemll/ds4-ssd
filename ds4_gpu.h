@@ -1086,4 +1086,10 @@ int ds4_gpu_matmul_q8_0_hc_expand_tensor(
         uint32_t                n_embd,
         uint32_t                n_hc);
 
+/* Resolved dense-projection backend for the startup compute banner:
+ * 2 = W8A8 int8, 1 = fp16-NAX (half x half), 0 = fp32 legacy. */
+int ds4_gpu_dense_backend_kind(void);
+/* Token-count cutoff below which the dense W8A8 path falls back to NAX/fp16. */
+uint64_t ds4_gpu_dense_i8_min_tokens_public(void);
+
 #endif

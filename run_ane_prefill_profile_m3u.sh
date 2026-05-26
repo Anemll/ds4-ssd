@@ -61,7 +61,15 @@ DS4_RUN_ARGS=(
 echo "log: $LOG"
 echo "summary: $SUMMARY"
 
+# Prefetch pass-through (./ds4 reads these env vars directly; same as the agent's
+# --moe-prefetch-* flags): MOE_PREFETCH_TOPK -> prefill slot-cache top-k,
+# MOE_PREFETCH_TEMPORAL=1 -> decode prefetch.
+EXTRA_ENV=()
+[[ -n "${MOE_PREFETCH_TOPK:-}" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK="$MOE_PREFETCH_TOPK")
+[[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]] && EXTRA_ENV+=(DS4_FLASH_MOE_DECODE_PREFETCH=1)
+
 env \
+  ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} \
   `# --- Infra ---` \
   DS4_LOCK_FILE="$DS4_LOCK_FILE" \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
@@ -106,6 +114,10 @@ env \
   `# Scheduler routing weights between ANE and GPU paths ` \
   DS4_FLASH_MOE_SCHED_ANE_REL_SPEED="${DS4_FLASH_MOE_SCHED_ANE_REL_SPEED:-99}" \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
+  `# --- dense-on-ANE (M3 Ultra dual cluster). Default off; set to 1 to test ---` \
+  `# moving the shared-expert FFN and/or attention O-proj onto the ANE. ---` \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
   `# --- Staging / pread tuning (8K winner: async + prefetch=3 + after-stage) ---` \
   DS4_FLASH_MOE_PREFETCH="${DS4_FLASH_MOE_PREFETCH:-3}" \
   DS4_FLASH_MOE_ASYNC_PREAD="${DS4_FLASH_MOE_ASYNC_PREAD:-1}" \
