@@ -23,6 +23,37 @@ byte-identical to baseline).
 6. **Correctness**: NAX byte-identical; full dense path verified via `tests/layerwise_prefill_100.txt`.
 7. **Then** (constrained): merge `SSD-prefetch-ANE` branch — only after the above is settled.
 
+## ds4-agent test flags (Dedup-MoE prefill)
+`ds4-agent` shares the same metal backend (CORE_OBJS = ds4.o + ds4_metal.o), so all flags apply. The 81G
+sidecar model auto-uses the Dedup-MoE (Flash-MoE) prefill — no flag needed to enable it.
+Base: `./ds4-agent -m /Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-...-chat-v2.gguf`
+
+GPU dense NAX / W8A8 / indexer (env, all read in ds4_metal.m):
+| flag | default | what |
+|---|---|---|
+| `DS4_GPU_DENSE_NAX` | **ON (M5+)** | fp16-NAX dense (q/kv/shared/O-proj). `=0` → old simdgroup baseline; `=1` force on |
+| `DS4_GPU_DENSE_I8` | off | W8A8 (int8) dense+attn_out, opt-in (−1.9% vs antirez but long-ctx token drift). `=1` |
+| `DS4_GPU_DENSE_I8_MIN_TOK` | 4096 | W8A8 fires only ≥ this n_tok (below → fp16-NAX) |
+| `DS4_GPU_I8_KEEP_CACHE` | off | `=1` keeps int8 weight cache through decode (A/B only; default releases it) |
+| `DS4_GPU_INDEXER_NAX` | off | indexer-scores NAX (+2.4% @64k, −1.1% @8k). `=1`; best ≥16–24k ctx |
+| `DS4_METAL_LAYER_STAGE_PROFILE` | off | `=1` per-stage ms (q_path/shared_*/routed_moe/...) for profiling |
+
+ANE (env, read in ds4.c) — for the Dedup-MoE shared-expert/routed overlap:
+| flag | what | M5 / M3U |
+|---|---|---|
+| `DS4_FLASH_MOE_ANE_SHARED_EXPERT=1` | shared expert → ANE (overlaps routed→GPU) | M5 −24% (skip); **M3U the +22.6% win** |
+| `DS4_FLASH_MOE_ANE_DUAL=1` | use BOTH M3U ANE clusters (needs n_tokens≥128) | **M3U only** — pair with SHARED_EXPERT |
+| `DS4_FLASH_MOE_ANE_MULTI_ACTIVE=1` | enable the dual-cluster multi-active scheduler | M3U (with DUAL) |
+| `DS4_FLASH_MOE_ANE_FP16W=1` | shared-expert ANE in fp16 weights (prod default mode) | both |
+| `DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1` | attn O-proj → ANE (has serial-join cost; see OPROJ doc) | M3U; benches as bubble-prone |
+| `DS4_FLASH_MOE_ANE_PREFILL=1` (+ `_BATCHES`,`_MAX_REFS=512`,`_CHUNK_BIG_REFS=1`,`_MIN_REFS=32`) | routed experts → ANE (combined path) | M3U experiment (ANE_INT8_COMBINED doc) |
+
+**Recommended test matrix:**
+- **M5 (this host):** default (NAX on) is the win; A/B vs `DS4_GPU_DENSE_NAX=0`. Try `DS4_GPU_DENSE_I8=1`
+  for +1–3% (but eval quality). Do NOT enable ANE on M5 (loses).
+- **M3 Ultra:** GPU NAX auto-falls-back (matmul2d M5-only) → the win is ANE:
+  `DS4_FLASH_MOE_ANE_SHARED_EXPERT=1 DS4_FLASH_MOE_ANE_DUAL=1 DS4_FLASH_MOE_ANE_MULTI_ACTIVE=1` (the +22.6% combo).
+
 ## Confirmed on M5 (carry to M3U)
 - **Dense projection NAX** (`DS4_GPU_DENSE_NAX=1` or `DS4_GPU_DENSE_I8=1`): per-stage 1.7–2.7× (q 2.1×,
   O-proj 2.7×, shared 2.5×/1.7×). Byte-identical output. **Recommend: validate as a prefill default on M3U.**
