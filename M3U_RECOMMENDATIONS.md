@@ -73,9 +73,13 @@ about his F16 path, not q8). The gap is **NAX kernel TUNING**:
 - antirez ships **n128 / n64 / n32 token-tile variants** and picks by `n_tok%128`/`%64` (best tile per chunk).
   Ours is **fixed NR1=128/NR0=64/NK=32** → non-128-aligned (tail/remainder) chunks pad to 128 wastefully.
 - Likely also NR0/NK/simdgroup tuning differences vs his internal constants.
-**Fix (next session, use nax-kernel-tuning skill + `nax_autotune.m`):** add n64/n32 variants + autotune NR0/NK.
-Expected to recover much of the −4.8%. NOT attempted unattended (kernel surgery, risk). **W8A8 sidesteps this
-(−1.9%, our well-tuned int8 kernel)** → the pragmatic near-parity path is W8A8, not more NAX tuning.
+**Autotuner result (nax_dense_autotune, microbench):** our config NR1=128/NR0=64/NK=32/relaxed IS at/near the
+BEST (NK=32 wins 2/3 shapes, ~40–41k GF/s; NK=64 within run-noise). So **the dense NAX kernel is NOT mistuned**
+— re-tuning the tile won't recover the −4.8%. The residual is **diffuse**: (a) we force NR1=128 even on the
+tail/remainder chunk (antirez has n64/n32 variants — but tail is a small fraction), (b) other per-layer stages,
+(c) CPU command-encode overhead (prior docs: ~95% of the wall is CPU encode). Not a single fixable knob → NOT
+worth risky unattended surgery; needs a deeper per-stage profile vs clean-ds4. **W8A8 (−1.9%, our well-tuned
+int8 kernel) is the pragmatic near-parity path** — recommend it over chasing the diffuse NAX residual.
 
 ## Recommendation hierarchy (M5)
 1. **Ship: NAX default-ON** (done, 4858878) — safe, byte-correct, +20–24% over old default.
