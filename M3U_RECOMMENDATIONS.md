@@ -7,6 +7,22 @@ M5 evidence behind each. All benches: fans max, battery healthy, interleaved/mat
 (`DS4_METAL_LAYER_STAGE_PROFILE`) for per-stage. Correctness via `tests/layerwise_prefill_100.txt` (greedy,
 byte-identical to baseline).
 
+## TL;DR (read first)
+1. **SHIPPED: NAX default-ON for prefill** (commit 4858878) — `DS4_GPU_DENSE_NAX` was default-OFF, leaving
+   **+20–24% prefill** on the table; now default-on (M5+), byte-identical output, decode unaffected,
+   auto-falls-back to simdgroup on M3U/M4 (no crash). **Lands at −4.8% vs antirez** (was −20–34% on the old
+   simdgroup default).
+2. **W8A8 opt-in** (`DS4_GPU_DENSE_I8=1`): −1.9% vs antirez (best M5 perf) BUT **8% greedy token-flip on long
+   context** → not a default until a `ds4-eval` quality pass. fp16-NAX default is the safe choice.
+3. **ANE is per-host**: OFF on M5 (single ANE = −24%), ON on M3U (dual cluster = +22.6%, prior). The M3U prefill
+   win is ANE, not GPU NAX (matmul2d is M5-only → M3U uses simdgroup + ANE).
+4. **Prefill chunks ≥4096** — NAX is 10–30× more efficient per token than small chunks (resident/regular path
+   should also use ≥4096-chunk NAX; the user's "faster for regular too" hypothesis — test on M3U).
+5. **Residual −4.8% (NAX) is diffuse fork overhead** (NOT a kernel mistune — autotuner confirms our tile is
+   ~optimal; NOT dtype). Needs per-stage profile vs clean-ds4; W8A8 is the pragmatic near-parity path.
+6. **Correctness**: NAX byte-identical; full dense path verified via `tests/layerwise_prefill_100.txt`.
+7. **Then** (constrained): merge `SSD-prefetch-ANE` branch — only after the above is settled.
+
 ## Confirmed on M5 (carry to M3U)
 - **Dense projection NAX** (`DS4_GPU_DENSE_NAX=1` or `DS4_GPU_DENSE_I8=1`): per-stage 1.7–2.7× (q 2.1×,
   O-proj 2.7×, shared 2.5×/1.7×). Byte-identical output. **Recommend: validate as a prefill default on M3U.**
@@ -81,12 +97,20 @@ tail/remainder chunk (antirez has n64/n32 variants — but tail is a small fract
 worth risky unattended surgery; needs a deeper per-stage profile vs clean-ds4. **W8A8 (−1.9%, our well-tuned
 int8 kernel) is the pragmatic near-parity path** — recommend it over chasing the diffuse NAX residual.
 
+## W8A8 quality — drift IS real on long context (measured)
+With a 4351-token prompt (W8A8 fires, ≥4096): vs fp16-NAX default, greedy **token match 22/24 (8% flip),
+max|Δlogit|=2.08, max|Δlogprob|=0.15**. (The earlier "byte-identical" was a 100-tok prompt where W8A8 never
+fired.) So W8A8's int8 drift measurably changes greedy output on long context — not necessarily *worse*, but not
+free. **Therefore fp16-NAX is the correct safe default; W8A8 must pass a real perplexity/capability eval
+(`ds4-eval` GPQA/AIME) before it can be a default — spot-checks are insufficient.**
+
 ## Recommendation hierarchy (M5)
-1. **Ship: NAX default-ON** (done, 4858878) — safe, byte-correct, +20–24% over old default.
-2. **Recommend W8A8 opt-in** for the extra ~3% (−1.9% vs antirez) AFTER a wider perplexity eval confirms the
-   0.7% int8 weight-quant drift is benign (byte-identical on the spot-checks so far). Don't make it the
-   unattended default until that eval. Cache-release fix (87f1d48) handles its memory.
+1. **Ship: NAX default-ON** (done, 4858878) — safe, **byte-identical** output, +20–24% over old default. ✅
+2. **W8A8 opt-in only** (`DS4_GPU_DENSE_I8=1`): −1.9% vs antirez (best perf) BUT 8% token-flip on long context.
+   Do NOT default it. Gate behind a `ds4-eval` quality pass first. Cache-release fix (87f1d48) handles memory.
 3. Keep cutoff fix (W8A8≥4096, fp16-NAX below) + cache-release.
+4. ANE: per-host — OFF on M5 (−24%), ON on M3U (dual cluster, +22.6%).
+5. Keep prefill chunks ≥4096 (NAX 10–30× more efficient than small chunks).
 
 ## Follow-up task (CONSTRAINED — do NOT start until all NAX / W8A8 / ANE work below is complete)
 Review the **`SSD-prefetch-ANE`** branch (M3 Ultra was working on it) and **merge it with these changes**.
