@@ -16,6 +16,17 @@ DS4_SIDECAR="${DS4_SIDECAR:-/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major}
 DS4_SLOTS="${DS4_SLOTS:-48}"
 DS4_PREFILL_CHUNK="${DS4_PREFILL_CHUNK:-16000}"
 
+# Optional flags from the SSD-prefetch-ANE branch (omitted unless set; safe on codex branch).
+# Set once that branch is merged:
+#   MOE_PREFETCH_TEMPORAL=1  -> --moe-prefetch-temporal (enables DECODE prefetch). NOTE: for ANE
+#                              prefill this does NOT auto-enable prefill top-k slot population (it
+#                              benchmarked slower) -> you must force it explicitly below.
+#   MOE_PREFETCH_TOPK=N      -> --moe-prefetch-topk N. For ANE prefill, force N=32 (with --moe-slot-bank
+#                              >=64 the clamp-to-half makes N=64 run as 32; with slot-bank 48 it clamps to 24).
+EXTRA_ARGS=()
+if [[ -n "${MOE_PREFETCH_TOPK:-}" ]]; then EXTRA_ARGS+=(--moe-prefetch-topk "$MOE_PREFETCH_TOPK"); fi
+if [[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]]; then EXTRA_ARGS+=(--moe-prefetch-temporal); fi
+
 env \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
   DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-8704}" \
@@ -59,4 +70,5 @@ env \
     --moe-mode slot-bank \
     --moe-slot-bank "$DS4_SLOTS" \
     --metal \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
     "$@"

@@ -14,6 +14,16 @@ DS4_SIDECAR="${DS4_SIDECAR:-/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major}
 DS4_SLOTS="${DS4_SLOTS:-48}"
 DS4_PREFILL_CHUNK="${DS4_PREFILL_CHUNK:-16000}"
 
+# Optional flags from the SSD-prefetch-ANE branch (omitted unless set, so this is safe
+# on codex/integrate-ds4-agent which doesn't parse them yet; set once that branch is merged):
+#   MOE_PREFETCH_TOPK=N      -> --moe-prefetch-topk N  (prefill top-k slot population from the
+#                              already-read buffer -> avoids a 2nd SSD read; clamped to half slot-bank).
+#                              For the GPU-routed path this can cut sidecar preads; try N=slot-bank.
+#   MOE_PREFETCH_TEMPORAL=1  -> --moe-prefetch-temporal (enables decode prefetch).
+EXTRA_ARGS=()
+if [[ -n "${MOE_PREFETCH_TOPK:-}" ]]; then EXTRA_ARGS+=(--moe-prefetch-topk "$MOE_PREFETCH_TOPK"); fi
+if [[ "${MOE_PREFETCH_TEMPORAL:-0}" == "1" ]]; then EXTRA_ARGS+=(--moe-prefetch-temporal); fi
+
 env \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
   DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-8704}" \
@@ -46,4 +56,5 @@ env \
     --moe-mode slot-bank \
     --moe-slot-bank "$DS4_SLOTS" \
     --metal \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
     "$@"

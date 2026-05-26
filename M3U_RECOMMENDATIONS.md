@@ -147,6 +147,17 @@ free. **Therefore fp16-NAX is the correct safe default; W8A8 must pass a real pe
    captured the overlap). **Recommend default-ON only above ~16–24k ctx** (tune the n_comp gate; current
    n_comp≥3072 fires too low → the −1.1% @8k). Not flipped unattended (crossover needs threshold validation).
 
+## SSD-prefetch-ANE branch — features to preserve in the merge (per user, 2026-05-26)
+Not on `codex/integrate-ds4-agent`; lives on `SSD-prefetch-ANE` (M3U work). What it adds:
+- Prefill first checks if an expert is **already resident** in that layer's slot bank → uses the slot-bank
+  view and **skips the sidecar pread**. If not resident, the normal async/read-ahead staging path is intact.
+- **Prefill top-k slot population from the already-read buffer** → avoids a *second* SSD read.
+- CLI `--moe-prefetch-topk N` — clamped to **half the slot bank** (with `--moe-slot-bank 64`, N=64 runs as 32).
+- CLI `--moe-prefetch-temporal` — enables **decode** prefetch. For **ANE prefill it does NOT auto-enable the
+  prefill top-k slot population** (benchmarked slower) → **force it with `--moe-prefetch-topk 32`**.
+- Launchers are forward-compatible: set `MOE_PREFETCH_TOPK=N` / `MOE_PREFETCH_TEMPORAL=1` env to append these
+  flags (omitted on the current branch so they don't error). For ANE: `MOE_PREFETCH_TOPK=32` (slot-bank ≥64).
+
 ## Follow-up task (CONSTRAINED — do NOT start until all NAX / W8A8 / ANE work below is complete)
 Review the **`SSD-prefetch-ANE`** branch (M3 Ultra was working on it) and **merge it with these changes**.
 Rationale: my changes carry higher signal because the NAX path is validated here (correctness byte-identical,
