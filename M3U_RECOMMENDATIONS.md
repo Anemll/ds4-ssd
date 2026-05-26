@@ -16,10 +16,13 @@ byte-identical to baseline).
 - **int8 weight-cache release** at prefill→decode (`87f1d48`): memory hygiene, decode-neutral on M5
   (headroom); **may help M3U/constrained more.**
 
-## To finalize this session (results filled as benches land)
-- [ ] Big-chunk: does shared/q NAX ms/token drop with chunk size? → chunk-size recommendation.
-- [ ] ANE shared-expert on M5 (`DS4_FLASH_MOE_ANE_SHARED_EXPERT=1`): correctness + perf.
-- [ ] routed-MoE concurrent-ANE feasibility (`ANE_INT8_COMBINED_BENCH_PROCEDURE.md`).
+## To finalize this session
+- [x] Big-chunk: NAX ms/token drops ~10–30× from small→4096 chunks → keep chunks ≥4096 (see below).
+- [x] ANE shared-expert on M5: correct but −24% (M5 single ANE); WIN on M3U → per-host gate.
+- [x] NAX default-ON flip (4858878): +20–24% e2e, byte-correct, M3U-safe fallback.
+- [x] Final standing vs antirez: NAX −4.8%, W8A8 −1.9% (residual = fork dispatch overhead, finding #1).
+- [ ] routed-MoE concurrent-ANE: M5 would lose (single ANE); M3U lever — validate on M3U.
+- [ ] Finding #1 (fork dispatch overhead, −4.8%): localize ds4-ssd vs clean-ds4 host/dispatch. IN PROGRESS.
 
 ### ANE shared-expert on M5 — CORRECT but −24% (don't enable on M5)
 `DS4_FLASH_MOE_ANE_SHARED_EXPERT=1`: functional (per-layer fp16w split-matmul init ~115ms one-time), greedy
@@ -28,7 +31,17 @@ output **byte-identical** to baseline. But prefill: ctx4096 339.6→254.9 (**−
 **Confirms the hardware split: ANE shared LOSES on M5 (1 ANE), WINS on M3U (2 ANE, +22.6% prior).**
 **Recommendation: ANE shared-expert OFF on M5, ON on M3U — per-host gate is mandatory, not optional.**
 
-### ⚠️ NAX is DEFAULT-OFF — likely the biggest latent win
+### ✅ NAX default-ON flip — DONE (commit 4858878), the biggest win
+Flipped `DS4_GPU_DENSE_NAX` to default-ON when the matmul2d lib compiles (M5+; M3U/M4 fall back to simdgroup,
+no crash). Validated clean (fans max, batt 100%):
+- e2e prefill vs old simdgroup default: **+20.3% @4096, +24.0% @8192** (and small-ctx +5.4/+10.9/+15.9/+17.9%
+  @256/512/1024/2048 — wins at EVERY size, no n_tok floor needed).
+- Greedy 100-tok output **byte-IDENTICAL**; decode unaffected.
+- `DS4_GPU_DENSE_NAX=0` restores old path; W8A8 (`DS4_GPU_DENSE_I8=1`) opt-in for +1–3% more.
+**M3U action:** matmul2d is M5-only, so on M3U this auto-falls-back to simdgroup — the M3U prefill win must come
+from **ANE (dual cluster)**, not GPU NAX. Verify the fallback path is clean on M3U.
+
+### (historical) NAX was DEFAULT-OFF — likely the biggest latent win
 `DS4_GPU_DENSE_NAX` / `DS4_GPU_DENSE_I8` both default OFF (no `setenv` anywhere); antirez's NAX is default-ON.
 So our **default** prefill runs the slow simdgroup path on q/kv/shared/O-proj while NAX (2–2.7×/stage) sits
 dormant. **Recommend: make `DS4_GPU_DENSE_NAX` default-ON when MPP is available (M5+), W8A8 opt-in** (W8A8≈NAX,
@@ -39,6 +52,26 @@ fp16-NAX is cleaner: no int8 cache, no quality risk). Decode unaffected (n_tok=1
 - **Dual-cluster ANE shared-expert** (+22.6% prior): re-validate at current code; the lever is overlap
   (shared→ANE ∥ routed→GPU), not kernel TFLOPs. Wall = GPU command-encode (~277 t/s cap on M5).
 - ANE ships regardless of M5 NAX-vs-ANE (per directive): M3U dual cluster flips the calculus.
+
+## Final M5 standing (new default vs antirez, clean, prefill t/s)
+| ctx | antirez | ours default(NAX) | ours +W8A8 | NAX Δ | W8A8 Δ |
+|---|---|---|---|---|---|
+| 8k | 431.9 | 416.9 | 429.1 | −3.5% | −0.7% |
+| 16k | 419.1 | 399.1 | 410.3 | −4.8% | −2.1% |
+| 32k | 394.8 | 374.7 | 384.4 | −5.1% | −2.7% |
+| 64k | 357.1 | 336.4 | 344.1 | −5.8% | −2.2% |
+| mean | | | | **−4.8%** | **−1.9%** |
+- The default flip moved us from ~−20–34% (simdgroup default) to **−4.8% (NAX default)** vs antirez.
+- **W8A8 opt-in (`DS4_GPU_DENSE_I8=1`) → −1.9%** (near parity). Decode ~−2% (fork-side, both).
+- Residual −4.8%/−1.9% = **fork dispatch/host overhead (finding #1, still OPEN)** — not in the kernels
+  (cleanroom = antirez with same kernels). Next frontier: diff ds4-ssd host/dispatch vs clean ds4.
+
+## Recommendation hierarchy (M5)
+1. **Ship: NAX default-ON** (done, 4858878) — safe, byte-correct, +20–24% over old default.
+2. **Recommend W8A8 opt-in** for the extra ~3% (−1.9% vs antirez) AFTER a wider perplexity eval confirms the
+   0.7% int8 weight-quant drift is benign (byte-identical on the spot-checks so far). Don't make it the
+   unattended default until that eval. Cache-release fix (87f1d48) handles its memory.
+3. Keep cutoff fix (W8A8≥4096, fp16-NAX below) + cache-release.
 
 ## Follow-up task (CONSTRAINED — do NOT start until all NAX / W8A8 / ANE work below is complete)
 Review the **`SSD-prefetch-ANE`** branch (M3 Ultra was working on it) and **merge it with these changes**.
