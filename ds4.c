@@ -4023,6 +4023,15 @@ static void matmul_q8_0_pair_batch_prequant(
 
 /* Batched Q8_0 matmul for prefill: quantize all token activations, then scan
  * weight rows once per output channel. */
+/* TODO(ANE-OPT): CPU int8xint8 batched matmul -- NOT NAX/GPU (per-token
+ * quantize_q8_0_activation_batch + ds4_parallel_for over output rows). Drives the
+ * prefill-batch (n_tok hidden states) for: shared-expert down-proj
+ * (layer_shared_ffn_batch:5741), attn O-proj-b (5599), MLA q_a/q_b/kv
+ * (7752/7760/7770). Dense, batched, per-token => prime ANE offload candidates
+ * (W8A16, batch-friendly). NOTE: the M5 metal prefill uses the GPU NAX path
+ * (batch_shared_gate/up/out + batch_qr via ds4_gpu_matmul_q8_0_tensor_ex) instead; this is the
+ * --cpu backend/fallback. GPU-side ANE shared-expert scaffold already exists:
+ * DS4_FLASH_MOE_ANE_SHARED_EXPERT -> ds4_gpu_shared_expert_ane_async_*. */
 static void matmul_q8_0_batch(
         float           * out,
         const ds4_model * m,
@@ -4043,6 +4052,12 @@ static void matmul_q8_0_batch(
     free(xq);
 }
 
+/* TODO(ANE-OPT): CPU int8xint8 PAIRED batched matmul -- NOT NAX/GPU. Computes
+ * gate+up together for the prefill-batch shared-expert (layer_shared_ffn_batch:5727,
+ * n_tok hidden states). Same ANE-offload rationale as matmul_q8_0_batch above; the
+ * gate+up pair sharing one activation quant maps well to a single ANE MLP pass
+ * (cf. moe-batch-bench/ane_ds4_mlp_int8w.m). M5 metal prefill uses the GPU NAX path
+ * (batch_shared_gate/up) instead; this is the --cpu backend/fallback. */
 static void matmul_q8_0_pair_batch(
         float           * out0,
         float           * out1,
