@@ -19987,12 +19987,26 @@ static int ds4_gpu_indexer_nax_enabled(void) {
     return cached;
 }
 
-/* Dense Q8_0 NAX matmul opt-in (M5+; default off until tuned/validated). */
+/* Dense Q8_0 fp16-NAX matmul. DEFAULT-ON when MPP is available (M5+): clean e2e
+ * bench (fans max, batt 100%) showed +21% prefill vs the simdgroup default
+ * (4096 +20.9%, 8192 +20.6%, 16384 +21.1%), byte-identical greedy output, decode
+ * unaffected (n_tok=1 GEMV never hits NAX). Matches antirez (his NAX is default-on).
+ * Env override: DS4_GPU_DENSE_NAX=0 forces the old simdgroup path; =1 forces on
+ * even without MPP detection. W8A8 (DS4_GPU_DENSE_I8) stays opt-in (+1-3% more,
+ * but adds an int8 weight cache + quant). */
 static int ds4_gpu_dense_q8_nax_enabled(void) {
     static int cached = -1;
     if (cached < 0) {
         const char *env = getenv("DS4_GPU_DENSE_NAX");
-        cached = (env && env[0] && atoi(env) != 0) ? 1 : 0;
+        if (env && env[0]) {
+            cached = (atoi(env) != 0) ? 1 : 0;          /* explicit override */
+        } else {
+            /* Default ON iff the matmul2d (MTLLanguageVersion4_0) library actually
+             * compiled — true on M5+, nil on M3/M4 (and M3 Ultra) where it falls back
+             * to the simdgroup path with no crash. So this is a safe M5+ auto-default. */
+            ds4_gpu_ensure_nax_fused_library();
+            cached = (g_dense_q8_nax_pipeline != nil) ? 1 : 0;
+        }
     }
     return cached;
 }
