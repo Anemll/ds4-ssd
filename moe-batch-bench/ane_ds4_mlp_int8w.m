@@ -63,6 +63,84 @@ static bool ane_int8w_stats_enabled(void) {
     return (env && env[0] && atoi(env) != 0) || ane_int8w_debug_enabled();
 }
 
+static bool ane_tmp_cleanup_debug_enabled(void) {
+    const char *env = getenv("DS4_ANE_TMP_CLEANUP_DEBUG");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static double ane_tmp_cleanup_age_sec(void) {
+    const char *env = getenv("DS4_ANE_TMP_CLEANUP_AGE_SEC");
+    long age = (env && env[0]) ? atol(env) : 2 * 60 * 60;
+    if (age < 60) age = 60;
+    if (age > 30L * 24L * 60L * 60L) age = 30L * 24L * 60L * 60L;
+    return (double)age;
+}
+
+static bool ane_tmp_cleanup_candidate(NSString *name) {
+    if (!name.length) return false;
+    if ([name hasPrefix:@"ds4-ane-"]) return true;
+    /* Old _ANEInMemoryModel temp directories are named by the private model
+     * hexStringIdentifier.  This middle hash is stable across the DS4 ANE MIL
+     * descriptors observed in the runtime and benchmark artifacts. */
+    return [name containsString:@"_DF3F619804A92FDB4057192DC43DD748EA778ADC52BC498CE80524C014B81119_"];
+}
+
+static void ane_cleanup_stale_tmp_dirs_once(void) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        @autoreleasepool {
+            const char *enabled = getenv("DS4_ANE_TMP_CLEANUP");
+            if (enabled && enabled[0] && atoi(enabled) == 0) return;
+
+            NSFileManager *fm = [NSFileManager defaultManager];
+            NSString *tmp = NSTemporaryDirectory();
+            NSError *err = nil;
+            NSArray *names = [fm contentsOfDirectoryAtPath:tmp error:&err];
+            if (!names) {
+                if (ane_tmp_cleanup_debug_enabled()) {
+                    fprintf(stderr, "ds4: ANE tmp cleanup list failed: %s\n",
+                            err ? [[err description] UTF8String] : "unknown");
+                }
+                return;
+            }
+
+            const double age_sec = ane_tmp_cleanup_age_sec();
+            NSDate *cutoff = [NSDate dateWithTimeIntervalSinceNow:-age_sec];
+            NSUInteger removed = 0;
+            NSUInteger skipped_recent = 0;
+            NSUInteger failed = 0;
+            for (NSString *name in names) {
+                if (!ane_tmp_cleanup_candidate(name)) continue;
+                NSString *path = [tmp stringByAppendingPathComponent:name];
+                NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
+                if (![attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
+                NSDate *mtime = attrs[NSFileModificationDate];
+                if (mtime && [mtime compare:cutoff] == NSOrderedDescending) {
+                    skipped_recent++;
+                    continue;
+                }
+                NSError *rm_err = nil;
+                if ([fm removeItemAtPath:path error:&rm_err]) {
+                    removed++;
+                } else {
+                    failed++;
+                    if (ane_tmp_cleanup_debug_enabled()) {
+                        fprintf(stderr, "ds4: ANE tmp cleanup failed %s: %s\n",
+                                [path UTF8String],
+                                rm_err ? [[rm_err description] UTF8String] : "unknown");
+                    }
+                }
+            }
+            if (ane_tmp_cleanup_debug_enabled() && (removed || failed || skipped_recent)) {
+                fprintf(stderr,
+                        "ds4: ANE tmp cleanup removed=%lu failed=%lu skipped_recent=%lu age_sec=%.0f root=%s\n",
+                        (unsigned long)removed, (unsigned long)failed,
+                        (unsigned long)skipped_recent, age_sec, [tmp UTF8String]);
+            }
+        }
+    });
+}
+
 static uint64_t g_i8i8_hidden_values;
 static uint64_t g_i8i8_hidden_saturated;
 static float g_i8i8_hidden_abs_max;
@@ -894,21 +972,33 @@ static NSData *ane_build_blob_n(const uint8_t * const *data_ptrs,
 static NSString *gen_mil_int8w_linear_constexpr_conv(int H, int I, int B,
                                                      NSString *blob_path,
                                                      uint64_t off_wa_q, uint64_t off_wa_off, uint64_t off_wa_scale,
-                                                     uint64_t off_wb_q, uint64_t off_wb_off, uint64_t off_wb_scale) {
+                                                     uint64_t off_wb_q, uint64_t off_wb_off, uint64_t off_wb_scale,
+                                                     bool input_i8, float x_scale) {
     NSMutableString *m = [NSMutableString string];
     [m appendString:
         @"program(1.3)\n"
         @"[buildInfo = dict<string, string>({"
         @"{\"coremlc-component-MIL\", \"3520.4.1\"}, "
         @"{\"coremlc-version\", \"3520.5.1\"}})]\n{\n"];
-    [m appendFormat:@"    func main<ios18>(tensor<fp16, [%d, %d]> X) {\n", B, H];
+    if (input_i8) {
+        [m appendFormat:@"    func main<ios18>(tensor<int8, [%d, %d]> Xq) {\n", B, H];
+    } else {
+        [m appendFormat:@"    func main<ios18>(tensor<fp16, [%d, %d]> X) {\n", B, H];
+    }
     [m appendString:
         @"            tensor<int32, [2]> perm2 = const()[name = string(\"perm2\"), val = tensor<int32, [2]>([1, 0])];\n"
         @"            string pad_type = const()[name = string(\"pad_type\"), val = string(\"valid\")];\n"
         @"            tensor<int32, [2]> strides = const()[name = string(\"strides\"), val = tensor<int32, [2]>([1, 1])];\n"
         @"            tensor<int32, [4]> pad = const()[name = string(\"pad\"), val = tensor<int32, [4]>([0, 0, 0, 0])];\n"
         @"            tensor<int32, [2]> dilations = const()[name = string(\"dilations\"), val = tensor<int32, [2]>([1, 1])];\n"
-        @"            int32 groups = const()[name = string(\"groups\"), val = int32(1)];\n"];
+        @"            int32 groups = const()[name = string(\"groups\"), val = int32(1)];\n"
+        @"            int8 zp = const()[name = string(\"zp\"), val = int8(0)];\n"];
+    if (input_i8) {
+        [m appendFormat:@"            fp16 xscale = const()[name = string(\"xscale\"), val = fp16(%a)];\n",
+                        (double)x_scale];
+        [m appendFormat:@"            tensor<fp16, [%d, %d]> X = dequantize(input = Xq, scale = xscale, zero_point = zp)[name = string(\"X\")];\n",
+                        B, H];
+    }
     [m appendFormat:@"            tensor<int32, [4]> x_shape = const()[name = string(\"x_shape\"), val = tensor<int32, [4]>([1, %d, 1, %d])];\n", H, B];
     [m appendFormat:@"            tensor<int32, [2]> y_shape = const()[name = string(\"y_shape\"), val = tensor<int32, [2]>([%d, %d])];\n", H, B];
 
@@ -1022,6 +1112,7 @@ static bool compile_and_load_mil(NSString *mil,
                                  void **model_r,
                                  void **tmpDir_r) {
     const bool dbg = ane_int8w_debug_enabled();
+    ane_cleanup_stale_tmp_dirs_once();
     NSError *e = nil;
     NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
     id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
@@ -1066,6 +1157,7 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
     if (mode == 4 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 5 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 6 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
@@ -1307,6 +1399,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
                                                                   const uint16_t *Wa_OI,
                                                                   const uint16_t *Wb_OI) {
     if (H <= 0 || I <= 0 || B <= 0 || !Wa_OI || !Wb_OI) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
@@ -1414,16 +1507,20 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
  * channel fp16 scales (mode 11).  Wa_q/Wb_q already in ggml-native [O, I]
  * layout (rows = out channels).  Wa/Wb_scale: per-output-channel fp16 scalars.
  * Wa/Wb_off: per-output-channel int8 zero points (all zero for symmetric). */
-ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, int B,
-                                                                  const int8_t   *Wa_q_OI,
-                                                                  const int8_t   *Wa_off_O,
-                                                                  const uint16_t *Wa_scale_f16_O,
-                                                                  const int8_t   *Wb_q_OI,
-                                                                  const int8_t   *Wb_off_O,
-                                                                  const uint16_t *Wb_scale_f16_O) {
+static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create_common(int H, int I, int B,
+                                                                                bool input_i8,
+                                                                                float x_scale,
+                                                                                const int8_t   *Wa_q_OI,
+                                                                                const int8_t   *Wa_off_O,
+                                                                                const uint16_t *Wa_scale_f16_O,
+                                                                                const int8_t   *Wb_q_OI,
+                                                                                const int8_t   *Wb_off_O,
+                                                                                const uint16_t *Wb_scale_f16_O) {
     if (H <= 0 || I <= 0 || B <= 0) return NULL;
+    if (input_i8 && (!(x_scale > 0.0f) || !isfinite(x_scale))) return NULL;
     if (!Wa_q_OI || !Wa_off_O || !Wa_scale_f16_O ||
         !Wb_q_OI || !Wb_off_O || !Wb_scale_f16_O) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) return NULL;
@@ -1459,7 +1556,8 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, i
         NSString *mil = gen_mil_int8w_linear_constexpr_conv(
             H, I, B, blob_path_in_mil,
             offs[0], offs[1], offs[2],
-            offs[3], offs[4], offs[5]);
+            offs[3], offs[4], offs[5],
+            input_i8, x_scale);
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         NSError *e = nil;
         NSDictionary *weights = @{
@@ -1502,11 +1600,11 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, i
             [fm removeItemAtPath:td error:nil];
             return NULL;
         }
-        ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 11;
-        ctx->w_scale = 1.0f; ctx->x_scale = 1.0f; ctx->mid_scale = 1.0f;
-        ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
+        ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = input_i8 ? 12 : 11;
+        ctx->w_scale = 1.0f; ctx->x_scale = input_i8 ? x_scale : 1.0f; ctx->mid_scale = 1.0f;
+        ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * (input_i8 ? sizeof(int8_t) : sizeof(uint16_t));
         ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
-        ctx->io_x   = make_surface_typed(ctx->x_bytes, 2u);
+        ctx->io_x   = make_surface_typed(ctx->x_bytes, input_i8 ? 1u : 2u);
         ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
         if (!ctx->io_x || !ctx->io_out) {
             ds4_ane_mlp_int8w_destroy(ctx);
@@ -1532,8 +1630,35 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, i
     }
 }
 
-/* Attach N additional input IOSurfaces to an existing mode-11 ctx by creating
- * N new requests, each bound to one of the supplied input IOSurfaces (with the
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create(int H, int I, int B,
+                                                                  const int8_t   *Wa_q_OI,
+                                                                  const int8_t   *Wa_off_O,
+                                                                  const uint16_t *Wa_scale_f16_O,
+                                                                  const int8_t   *Wb_q_OI,
+                                                                  const int8_t   *Wb_off_O,
+                                                                  const uint16_t *Wb_scale_f16_O) {
+    return ds4_ane_mlp_int8w_linear_constexpr_create_common(
+        H, I, B, false, 1.0f,
+        Wa_q_OI, Wa_off_O, Wa_scale_f16_O,
+        Wb_q_OI, Wb_off_O, Wb_scale_f16_O);
+}
+
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_i8x_linear_constexpr_create(int H, int I, int B,
+                                                                      float x_scale,
+                                                                      const int8_t   *Wa_q_OI,
+                                                                      const int8_t   *Wa_off_O,
+                                                                      const uint16_t *Wa_scale_f16_O,
+                                                                      const int8_t   *Wb_q_OI,
+                                                                      const int8_t   *Wb_off_O,
+                                                                      const uint16_t *Wb_scale_f16_O) {
+    return ds4_ane_mlp_int8w_linear_constexpr_create_common(
+        H, I, B, true, x_scale,
+        Wa_q_OI, Wa_off_O, Wa_scale_f16_O,
+        Wb_q_OI, Wb_off_O, Wb_scale_f16_O);
+}
+
+/* Attach N additional input IOSurfaces to an existing mode-11/mode-12 ctx by
+ * creating N requests, each bound to one of the supplied input IOSurfaces (with the
  * ctx's existing io_out as the shared output).  After this, eval_at_chunk(k)
  * uses chunk_requests[k] instead of request_r — ANE reads the matching
  * external IOSurface for that chunk.  Caller owns the IOSurfaces' lifetime. */
@@ -1543,7 +1668,7 @@ bool ds4_ane_mlp_int8w_linear_constexpr_attach_chunks(
         int n_chunks) {
     if (!ctx || !chunk_input_iosurfaces || n_chunks <= 0) return false;
     if (n_chunks > 64) return false;
-    if (ctx->mode != 11) return false;
+    if (ctx->mode != 11 && ctx->mode != 12) return false;
     resolve_classes();
     if (!g_ReqCls || !g_IOCls) return false;
     @autoreleasepool {
@@ -1573,7 +1698,7 @@ bool ds4_ane_mlp_int8w_linear_constexpr_eval_at_chunk(
         int chunk_idx,
         uint16_t *output_f16) {
     if (!ctx || !output_f16) return false;
-    if (ctx->mode != 11) return false;
+    if (ctx->mode != 11 && ctx->mode != 12) return false;
     if (chunk_idx < 0 || chunk_idx >= ctx->n_chunk_requests) return false;
     const bool dbg = ane_int8w_debug_enabled();
     @autoreleasepool {
@@ -1615,6 +1740,29 @@ bool ds4_ane_mlp_int8w_linear_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
     }
 }
 
+bool ds4_ane_mlp_int8w_i8x_linear_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
+                                                  const int8_t *input_i8,
+                                                  uint16_t *output_f16) {
+    if (!ctx || !input_i8 || !output_f16) return false;
+    if (ctx->mode != 12) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_x, input_i8, ctx->x_bytes)) return false;
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x-linear constexpr eval failed: %s\n",
+                             e ? [[e description] UTF8String] : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) return false;
+        return true;
+    }
+}
+
 bool ds4_ane_mlp_fp16w_linear_constexpr_eval(ds4_ane_mlp_int8w_ctx *ctx,
                                               const uint16_t *input_f16,
                                               uint16_t *output_f16) {
@@ -1643,6 +1791,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
                                                           const uint16_t *Wup_OI,
                                                           const uint16_t *Wdown_OI) {
     if (H <= 0 || I <= 0 || B <= 0 || !Wgate_OI || !Wup_OI || !Wdown_OI) return NULL;
+    ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {

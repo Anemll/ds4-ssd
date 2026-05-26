@@ -36,6 +36,9 @@ typedef struct {
     double step_mul;
     bool warm_weights;
     bool quality;
+    const char *moe_sidecar_path;
+    ds4_moe_mode moe_mode;
+    int moe_slot_bank;
 } bench_config;
 
 static double bench_now_sec(void) {
@@ -68,6 +71,9 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where applicable.\n"
         "  --warm-weights         Touch mapped tensor pages before benchmarking.\n"
+        "  --moe-sidecar DIR      Flash-MoE expert sidecar dir (enables dedup MoE).\n"
+        "  --moe-mode NAME        off | slot-bank. Default: off (slot-bank if sidecar set).\n"
+        "  --moe-slot-bank N      Routed expert slots/layer (6..256). Default: 8.\n"
         "\n"
         "Sweep:\n"
         "  --ctx-start N          First measured frontier. Default: 2048\n"
@@ -178,6 +184,8 @@ static bench_config parse_options(int argc, char **argv) {
         .step_incr = 2048,
         .gen_tokens = 128,
         .step_mul = 1.0,
+        .moe_mode = DS4_MOE_MODE_OFF,
+        .moe_slot_bank = 8,
     };
 
     for (int i = 1; i < argc; i++) {
@@ -187,6 +195,17 @@ static bench_config parse_options(int argc, char **argv) {
             exit(0);
         } else if (!strcmp(arg, "-m") || !strcmp(arg, "--model")) {
             c.model_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-sidecar")) {
+            c.moe_sidecar_path = need_arg(&i, argc, argv, arg);
+            /* Convenience: a sidecar implies slot-bank mode unless overridden. */
+            if (c.moe_mode == DS4_MOE_MODE_OFF) c.moe_mode = DS4_MOE_MODE_SLOT_BANK;
+        } else if (!strcmp(arg, "--moe-mode")) {
+            const char *m = need_arg(&i, argc, argv, arg);
+            if (!strcmp(m, "off")) c.moe_mode = DS4_MOE_MODE_OFF;
+            else if (!strcmp(m, "slot-bank")) c.moe_mode = DS4_MOE_MODE_SLOT_BANK;
+            else { fprintf(stderr, "ds4-bench: valid MoE modes are: off, slot-bank\n"); exit(2); }
+        } else if (!strcmp(arg, "--moe-slot-bank")) {
+            c.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--prompt-file")) {
             c.prompt_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--chat-prompt-file")) {
@@ -293,6 +312,9 @@ int main(int argc, char **argv) {
         .n_threads = cfg.threads,
         .warm_weights = cfg.warm_weights,
         .quality = cfg.quality,
+        .moe_sidecar_path = cfg.moe_sidecar_path,
+        .moe_mode = cfg.moe_mode,
+        .moe_slot_bank = cfg.moe_slot_bank,
     };
     ds4_engine *engine = NULL;
     if (ds4_engine_open(&engine, &opt) != 0) return 1;

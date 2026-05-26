@@ -41,6 +41,10 @@ int ds4_gpu_synchronize(void);
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);
 int ds4_gpu_set_model_fd(int fd);
 int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size);
+ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
+                                          uint64_t    model_size,
+                                          uint64_t    offset,
+                                          uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
 int ds4_gpu_cache_model_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, const char *label);
 int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, uint64_t in_dim, uint64_t out_dim, const char *label);
@@ -878,6 +882,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         bool                    *mid_is_f16);
 
 int ds4_gpu_ane_prefill_precompile_from_env(void);
+
+int ds4_gpu_mpp_int8_prefill_prewarm(void);
 
 int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         ds4_gpu_tensor       *out,

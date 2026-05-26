@@ -88,8 +88,9 @@ env \
   `# GPU_OUTPUT_PACK=1: GPU does the f16->f32 + route-weight scaling ` \
   `# PREFLUSH_EVERY=4: batch every 4 calls' dequant kernels into one CB commit ` \
   DS4_FLASH_MOE_ANE_DUAL="${DS4_FLASH_MOE_ANE_DUAL:-1}" \
-  `# THREADS overrides DUAL: 2 = current dual; 3/4 oversubscribes the 2 ` \
-  `# physical clusters to probe pipeline overlap (experimental). ` \
+  `# THREADS overrides DUAL: 2 = current dual (both physical ANEx16 clusters). ` \
+  `# 3/4 oversubscribe; measured on M3U (chunk x threads sweep) to be within ` \
+  `# run-to-run noise vs 2 at every chunk size, so 2 stays the default. ` \
   DS4_FLASH_MOE_ANE_THREADS="${DS4_FLASH_MOE_ANE_THREADS:-2}" \
   DS4_FLASH_MOE_ANE_MULTI_ACTIVE="${DS4_FLASH_MOE_ANE_MULTI_ACTIVE:-1}" \
   DS4_FLASH_MOE_ANE_OUTPUT_QUEUE="${DS4_FLASH_MOE_ANE_OUTPUT_QUEUE:-4}" \
@@ -109,6 +110,11 @@ env \
   DS4_FLASH_MOE_PREFETCH="${DS4_FLASH_MOE_PREFETCH:-3}" \
   DS4_FLASH_MOE_ASYNC_PREAD="${DS4_FLASH_MOE_ASYNC_PREAD:-1}" \
   DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE="${DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE:-1}" \
+  `# Parallel pread reader pool + deep read-ahead.  One reader serializes the` \
+  `# SSD at ~5-7 GB/s; the NVMe sustains far more with several outstanding` \
+  `# reads, so this is the dominant short-prefill win (expert streaming bound).` \
+  DS4_FLASH_MOE_PREAD_THREADS="${DS4_FLASH_MOE_PREAD_THREADS:-6}" \
+  DS4_FLASH_MOE_ASYNC_READAHEAD="${DS4_FLASH_MOE_ASYNC_READAHEAD:-12}" \
   `# Quantization scales (still set so the MPP path is correctly tuned if invoked) ` \
   DS4_FLASH_MOE_MPP_INT8_QSCALE="${DS4_FLASH_MOE_MPP_INT8_QSCALE:-512}" \
   DS4_FLASH_MOE_MPP_INT8_X_QSCALE="${DS4_FLASH_MOE_MPP_INT8_X_QSCALE:-32}" \
