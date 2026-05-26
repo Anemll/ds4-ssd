@@ -95,6 +95,9 @@ moe-batch-bench/ane_ds4_mlp_int8w.o: moe-batch-bench/ane_ds4_mlp_int8w.m moe-bat
 moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke: moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
 	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
+moe-batch-bench/ane_ds4_mlp_conversion_smoke: moe-batch-bench/ane_ds4_mlp_conversion_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_conversion_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+
 moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke: moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
 	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 

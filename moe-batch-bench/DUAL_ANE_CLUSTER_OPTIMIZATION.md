@@ -185,6 +185,34 @@ All defaulted in `run_ane_prefill_profile_m3u.sh`:
 | `DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS` | 384 | Refs < this go to GPU instead of ANE |
 | `DS4_FLASH_MOE_ANE_FUSED_DEQUANT` | 0 | Use fused gate+up+down dequant kernel (no measured benefit, see below) |
 
+### Prefetch naming trap
+
+There are three different "prefetch" concepts in this path:
+
+| Knob | Human meaning |
+|---|---|
+| `DS4_FLASH_MOE_PREFETCH=N` | Transient prefill bank lookahead distance. Clamped to `0..3` because the prefill path has 4 banks. `N=3` means full 4-bank pipeline, not top-k 3. |
+| `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=N` / `--moe-prefetch-topk N` | Keep the top routed experts per layer in decode slot banks after prefill. For DSv4, `DS4_N_EXPERT_USED=6`, so `N=6` means "cover all routed experts". |
+| `DS4_FLASH_MOE_DECODE_PREFETCH=1` / `--moe-prefetch-temporal` | During decode, prefetch the actual next layer's selected routed experts. This path already has arrays sized to `DS4_N_EXPERT_USED=6`. |
+
+Do not use `DS4_FLASH_MOE_PREFETCH=6` to mean "six DSv4 experts"; it is
+clamped to 3 and logs `DS4_FLASH_MOE_PREFETCH=6 clamped to 3`.
+
+On one M3U 8K+50-token decode sample, explicit `TOPK=6` did not improve
+generation despite filling all decode slots:
+
+| Config | Prefill t/s | Generation t/s | Decode prefetch loads | Slot hit-rate |
+|---|---:|---:|---:|---:|
+| bank lookahead 1, no explicit topk | 285.71 | 5.66 | 3350 | 41.5% |
+| bank lookahead 3, no explicit topk | 284.61 | 5.20 | 4289 | 37.4% |
+| bank lookahead 1, `TOPK=6` | 285.21 | 5.47 | 3899 | 38.7% |
+| bank lookahead 3, `TOPK=6` | 287.30 | 5.50 | 4031 | 38.1% |
+
+Interpretation: `TOPK=6` is the DSv4-correct full-coverage setting, but this
+short decode sample is still dominated by dynamic temporal prefetch behavior
+and run-to-run routing variance. Treat it as a sweep knob, not an automatic
+win.
+
 ## Measured results
 
 DSv4 IQ2_XXS, 8423-token prefill on the coding_8k prompt:
@@ -197,6 +225,28 @@ DSv4 IQ2_XXS, 8423-token prefill on the coding_8k prompt:
 | Best observed run | 283.97 | 1.288x |
 
 Run-to-run variance is ~±5 t/s; sustained typical is ~275-280 t/s.
+
+### Mode 7 int8-output update
+
+The int8-output ANE graph (`i8w-i8x-tiled-fused-i8out`, mode 7) now works in
+the production async pipeline, including the dual-cluster path and GPU output
+pack back to f32 for scatter.  On this M3 Ultra, it does **not** beat the
+fp16-output production baseline yet:
+
+| Config | Prefill t/s | ANE wall est | Notes |
+|---|---:|---:|---|
+| Mode 6 fp16 output, dual pipeline | 284.84 | 10.55 s | Previous clean baseline |
+| Mode 7 int8 output, dual pipeline | 285.64 | 11.21 s | Output pack is hidden; ANE eval is slightly slower |
+| Mode 7 int8 output, single pipeline | 268.29 | 30.39 s | Shows why dual-cluster is still required |
+| Mode 7 int8 output, sync/no pipeline | 77.91 | 55.55 s | Correctness smoke only; not a performance config |
+
+Interpretation: mode 7 saves output payload size, but in the current fused MLP
+graph the ANE eval itself is not faster than mode 6 (`3.77 ms` average eval
+call vs `3.57 ms` for fp16 output in the clean run), and output conversion is
+already hidden by GPU output pack.  The important dual-cluster result remains:
+single-cluster mode 7 spends `30.39 s` in ANE eval wall, while dual-cluster
+mode 7 drops that to `11.21 s`.  End-to-end prefill only improves 6.5% because
+the run is capped by pread/Metal scheduling/host gaps once dual ANE is on.
 
 **ANE-side metrics** at the optimized config (1238 ANE prefill calls, 4945
 chunks across 60 layers):

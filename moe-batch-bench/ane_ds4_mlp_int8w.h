@@ -145,6 +145,62 @@ bool ds4_ane_mlp_int8w_i8x_linear_constexpr_eval(
     const int8_t *input_i8,
     uint16_t     *output_f16);
 
+/* Single dense projection: int8 per-output-channel constexpr weights,
+ * fp16 activations, fp16 output.  This is the ANE-native W8A16 counterpart
+ * of the GPU W8A8 dense prefill path.  Weight layout is [O, I] row-major.
+ * Mode 13. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_dense_i8w_fp16x_constexpr_create(
+    int H,
+    int O,
+    int B,
+    const int8_t   *W_q_OI,
+    const int8_t   *W_off_O,
+    const uint16_t *W_scale_f16_O);
+
+bool ds4_ane_dense_i8w_fp16x_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const uint16_t *input_f16,
+    uint16_t       *output_f16);
+
+/* Same single dense projection, but X is supplied as int8 and dequantized
+ * inside the graph with a fixed x_scale.  Output remains fp16.  This is the
+ * ANE dense W8A8-style test path; it does not model GPU per-token x scales.
+ * Mode 14. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_dense_i8w_i8x_constexpr_create(
+    int H,
+    int O,
+    int B,
+    float x_scale,
+    const int8_t   *W_q_OI,
+    const int8_t   *W_off_O,
+    const uint16_t *W_scale_f16_O);
+
+bool ds4_ane_dense_i8w_i8x_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *input_i8,
+    uint16_t    *output_f16);
+
+/* Two independent dense projections sharing one input and one ANE eval.
+ * Weight layouts are [O0, H] and [O1, H] row-major.  Mode 15. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_dense2_i8w_i8x_constexpr_create(
+    int H,
+    int O0,
+    int O1,
+    int B,
+    float x_scale,
+    const int8_t   *W0_q_OI,
+    const int8_t   *W0_off_O,
+    const uint16_t *W0_scale_f16_O,
+    const int8_t   *W1_q_OI,
+    const int8_t   *W1_off_O,
+    const uint16_t *W1_scale_f16_O);
+
+bool ds4_ane_dense2_i8w_i8x_constexpr_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *input_i8,
+    uint16_t    *output0_f16,
+    uint16_t    *output1_f16);
+
 /* Attach N external input IOSurfaces to an existing mode-11/mode-12 ctx —
  * creates one ANE request per IOSurface, all sharing the ctx's existing io_out.
  * After this, eval_at_chunk dispatches via the request for the requested
