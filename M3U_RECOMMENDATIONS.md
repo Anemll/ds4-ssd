@@ -66,6 +66,17 @@ fp16-NAX is cleaner: no int8 cache, no quality risk). Decode unaffected (n_tok=1
 - Residual −4.8%/−1.9% = **fork dispatch/host overhead (finding #1, still OPEN)** — not in the kernels
   (cleanroom = antirez with same kernels). Next frontier: diff ds4-ssd host/dispatch vs clean ds4.
 
+## Finding #1 (the −4.8% NAX residual vs antirez) — LOCALIZED
+NOT the kernels-are-different story and NOT a dtype bug (checked: both our `ds4_dense_q8_nax` and antirez's
+`kernel_mul_mm_q8_0_f32_nax_direct_rhs` are float×half for q8 — the `[[dense-nax-findings]]` "half×half" note is
+about his F16 path, not q8). The gap is **NAX kernel TUNING**:
+- antirez ships **n128 / n64 / n32 token-tile variants** and picks by `n_tok%128`/`%64` (best tile per chunk).
+  Ours is **fixed NR1=128/NR0=64/NK=32** → non-128-aligned (tail/remainder) chunks pad to 128 wastefully.
+- Likely also NR0/NK/simdgroup tuning differences vs his internal constants.
+**Fix (next session, use nax-kernel-tuning skill + `nax_autotune.m`):** add n64/n32 variants + autotune NR0/NK.
+Expected to recover much of the −4.8%. NOT attempted unattended (kernel surgery, risk). **W8A8 sidesteps this
+(−1.9%, our well-tuned int8 kernel)** → the pragmatic near-parity path is W8A8, not more NAX tuning.
+
 ## Recommendation hierarchy (M5)
 1. **Ship: NAX default-ON** (done, 4858878) — safe, byte-correct, +20–24% over old default.
 2. **Recommend W8A8 opt-in** for the extra ~3% (−1.9% vs antirez) AFTER a wider perplexity eval confirms the
