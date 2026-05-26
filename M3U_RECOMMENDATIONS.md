@@ -111,6 +111,10 @@ free. **Therefore fp16-NAX is the correct safe default; W8A8 must pass a real pe
 3. Keep cutoff fix (W8A8≥4096, fp16-NAX below) + cache-release.
 4. ANE: per-host — OFF on M5 (−24%), ON on M3U (dual cluster, +22.6%).
 5. Keep prefill chunks ≥4096 (NAX 10–30× more efficient than small chunks).
+6. **Indexer NAX** (`DS4_GPU_INDEXER_NAX`, also default-OFF): marginal on top of dense-NAX = −1.1% @8k,
+   +0.4% @16k, +1.2% @32k, **+2.4% @64k** (crossover ~16k). Modest (not the prior +4–8.5% — dense-NAX default
+   captured the overlap). **Recommend default-ON only above ~16–24k ctx** (tune the n_comp gate; current
+   n_comp≥3072 fires too low → the −1.1% @8k). Not flipped unattended (crossover needs threshold validation).
 
 ## Follow-up task (CONSTRAINED — do NOT start until all NAX / W8A8 / ANE work below is complete)
 Review the **`SSD-prefetch-ANE`** branch (M3 Ultra was working on it) and **merge it with these changes**.
