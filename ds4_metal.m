@@ -14814,7 +14814,20 @@ static id<MTLComputePipelineState> ds4_gpu_routed_mm_f16_rhs_pipeline(uint32_t t
  * aligned prefill batches. Only q2_K/q4_K/iq2_xxs have wide kernels. The encode
  * grid-X must match the selected kernel's NR1 exactly (see _mapped_tile). */
 static uint32_t ds4_gpu_moe_mm_tile_n(uint32_t gate_type, uint32_t n_tokens) {
-    const uint32_t tile_max = ds4_gpu_env_u32_default("DS4_METAL_MOE_TILE_MAX", 128u);
+    /* Wide routed-MoE tiles (n64/n128) DEFAULT OFF (32).
+     *
+     * The kernel_mul_mm_id wide tiles are now CORRECT (each threadgroup computes
+     * all NR1 rows; verified byte-identical logits vs n32 at 2048 and 8192 with
+     * neh1>32 — the case the buggy upstream PR #264 silently corrupted). But a
+     * correct wide tile is a net LOSS: its output staging needs NR1*NR0*4 of
+     * threadgroup memory (16KB at n64, 32KB at n128), which collapses GPU
+     * occupancy on real prefill chunks. Measured on M5 Max, IQ2XXS resident:
+     *   ctx 2048:  n32 373  n64 379  n128 379   (wide ~+1.6%)
+     *   ctx 8192:  n32 422  n64 396  n128  40   (n64 -6%, n128 -90%)
+     * The original "+40%" was the bug skipping rows 33+ while keeping 8KB smem.
+     * Kernels are retained behind DS4_METAL_MOE_TILE_MAX=64/128 for experiments;
+     * do not re-enable by default. (Upstream reverted #264 for the same reason.) */
+    const uint32_t tile_max = ds4_gpu_env_u32_default("DS4_METAL_MOE_TILE_MAX", 32u);
     if (tile_max <= 32u) {
         return 32u;
     }
@@ -15200,7 +15213,9 @@ static int ds4_gpu_encode_mul_mm_id_mapped_tile(
     [enc setBuffer:g_moe_id_map_buffer offset:0 atIndex:3];
     [enc setBuffer:g_moe_id_map_buffer offset:tpe_bytes atIndex:4];
     [enc setBuffer:dst offset:dst_off atIndex:5];
-    [enc setThreadgroupMemoryLength:8192u atIndex:0];
+    /* Output staging reuses shmem as NR1 tokens x NR0(64) floats; the wide tiles
+     * compute all NR1 rows now, so scale: 8192 (n32) / 16384 (n64) / 32768 (n128). */
+    [enc setThreadgroupMemoryLength:(NSUInteger)tile_n * 64u * sizeof(float) atIndex:0];
     [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)mm_args->ne21 + tile_n - 1u) / tile_n,
                                           ((NSUInteger)mm_args->ne0 + 63u) / 64u,
                                           (NSUInteger)mm_args->ne02)

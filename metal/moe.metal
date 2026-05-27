@@ -1878,10 +1878,6 @@ kernel void kernel_mul_mm_id(
 
     short il = il0;
 
-    const int id = ids_i32[im*args.ne21 + r1 + lr1];
-
-    const short i11 = (id % args.ne20) % args.ne11;
-    const short i12 = (id / args.ne20);
     const short i13 = 0;
 
     const uint64_t offset0 = im*args.nb02 + i13*args.nb03;
@@ -1891,18 +1887,35 @@ kernel void kernel_mul_mm_id(
 
     const short iy = 8*(tiitg % NL1);
 
-    device const T1 * y = (device const T1 *)(src1
-        + args.nb13*i13
-        + args.nb12*i12
-        + args.nb11*i11
-        + args.nb10*iy);
+    /* Correct wide-tile: a threadgroup owns NR1 tokens, but the 128 threads only
+     * address 32 token-slots (tiitg/NL1). Process the tokens as NT = NR1/32
+     * sub-tiles of 32, each with its own activation pointer gathered by that
+     * token's routed id. The A (weight) tile `sa` is identical for every
+     * sub-tile, so it is loaded once per K-step and re-used — that shared
+     * dequant is the actual win. (Upstream PR #264 computed only 32 rows
+     * regardless of NR1, silently corrupting an expert's tokens 32+.) */
+    constexpr int NT = NR1 / 32;
+    device const T1 * ys[NT];
+    const short lr1b = (short)tiitg/NL1;
+    for (short s = 0; s < NT; ++s) {
+        const short t  = lr1b + s*32;
+        const short tc = (t < nr1) ? t : (nr1 - 1);
+        const int   id = ids_i32[im*args.ne21 + r1 + tc];
+        const short i11 = (id % args.ne20) % args.ne11;
+        const short i12 = (id / args.ne20);
+        ys[s] = (device const T1 *)(src1
+            + args.nb13*i13
+            + args.nb12*i12
+            + args.nb11*i11
+            + args.nb10*iy);
+    }
 
     S0_8x8 ma[4];
     S1_8x8 mb[2];
 
-    simdgroup_float8x8 mc[8];
+    simdgroup_float8x8 mc[8*NT];
 
-    for (short i = 0; i < 8; i++){
+    for (short i = 0; i < 8*NT; i++){
         mc[i] = make_filled_simdgroup_matrix<float, 8>(0.f);
     }
 
@@ -1940,38 +1953,41 @@ kernel void kernel_mul_mm_id(
             }
         }
 
-        if (FC_mul_mm_bc_inp) {
-            for (short i = 0; i < 8; ++i) {
+        for (short s = 0; s < NT; ++s) {
+            threadgroup S1 * sb_s = sb + s*1024;   // 1024 S1 = one 32-token sub-tile
+            device const T1 * y = ys[s];
+            if (FC_mul_mm_bc_inp) {
+                for (short i = 0; i < 8; ++i) {
+                    const short sx = (tiitg%NL1);
+                    const short sy = (tiitg/NL1)/8;
+
+                    const short lx = i;
+                    const short ly = (tiitg/NL1)%8;
+
+                    const short ib = 4*sx + sy;
+
+                    *(sb_s + 64*ib + 8*ly + lx) = loop_k + iy + i < args.ne00 ? (S1) *((device T1 *) y + i) : 0;
+                }
+            } else {
                 const short sx = (tiitg%NL1);
                 const short sy = (tiitg/NL1)/8;
 
-                const short lx = i;
                 const short ly = (tiitg/NL1)%8;
 
                 const short ib = 4*sx + sy;
 
-                *(sb + 64*ib + 8*ly + lx) = loop_k + iy + i < args.ne00 ? (S1) *((device T1 *) y + i) : 0;
+                *(threadgroup S1_2x4 *)(sb_s + 64*ib + 8*ly) = (S1_2x4)(*((device T1_2x4 *) y));
             }
-        } else {
-            const short sx = (tiitg%NL1);
-            const short sy = (tiitg/NL1)/8;
-
-            const short ly = (tiitg/NL1)%8;
-
-            const short ib = 4*sx + sy;
-
-            *(threadgroup S1_2x4 *)(sb + 64*ib + 8*ly) = (S1_2x4)(*((device T1_2x4 *) y));
         }
 
         il = (il + 2 < nl) ? il + 2 : il % 2;
         x  = (il < 2) ? x + (2 + nl - 1)/nl : x;
 
-        y += NK;
+        for (short s = 0; s < NT; ++s) ys[s] += NK;
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         threadgroup const S0 * lsma = (sa + 4*64*(sgitg%2));
-        threadgroup const S1 * lsmb = (sb + 2*64*(sgitg/2));
 
         // M5 compiles this as a tighter simdgroup_matrix load/MMA chain without no-op barriers.
         FOR_UNROLL (short ik = 0; ik < NK/8; ik++) {
@@ -1981,29 +1997,35 @@ kernel void kernel_mul_mm_id(
                 simdgroup_load(ma[i], lsma + 64*i, 8, 0, false);
             }
 
-            if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+            // Shared weight tile `ma` is multiplied against every token sub-tile.
+            for (short s = 0; s < NT; ++s) {
+                threadgroup const S1 * lsmb = sb + s*1024 + 2*64*(sgitg/2) + ik*4*64;
 
-            FOR_UNROLL (short i = 0; i < 2; i++) {
-                simdgroup_load(mb[i], lsmb + 64*i, 8, 0, false);
-            }
+                if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
 
-            if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+                FOR_UNROLL (short i = 0; i < 2; i++) {
+                    simdgroup_load(mb[i], lsmb + 64*i, 8, 0, false);
+                }
 
-            FOR_UNROLL (short i = 0; i < 8; i++){
-                simdgroup_multiply_accumulate(mc[i], mb[i/4], ma[i%4], mc[i]);
+                if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+
+                FOR_UNROLL (short i = 0; i < 8; i++){
+                    simdgroup_multiply_accumulate(mc[s*8+i], mb[i/4], ma[i%4], mc[s*8+i]);
+                }
             }
 
             lsma += 8*64;
-            lsmb += 4*64;
         }
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    threadgroup float * temp_str = ((threadgroup float *) shmem) + 32*(sgitg&1) + (16*(sgitg >> 1))*NR0;
+    for (short s = 0; s < NT; ++s) {
+        threadgroup float * temp_str = ((threadgroup float *) shmem) + s*32*NR0 + 32*(sgitg&1) + (16*(sgitg >> 1))*NR0;
 
-    for (short i = 0; i < 8; i++) {
-        simdgroup_store(mc[i], temp_str + 8*(i%4) + 8*NR0*(i/4), NR0, 0, false);
+        for (short i = 0; i < 8; i++) {
+            simdgroup_store(mc[s*8+i], temp_str + 8*(i%4) + 8*NR0*(i/4), NR0, 0, false);
+        }
     }
 
     threadgroup_barrier(mem_flags::mem_threadgroup);
