@@ -22564,7 +22564,7 @@ int ds4_gpu_routed_moe_batch_tensor(
 	                    DS4_METAL_PROFILE_MOE_STAGE("mpp_down");
 
 	                    if (ok && hybrid_pairrow) {
-	                        ok = ds4_gpu_encode_mul_mm_id_mapped(cb,
+	                        ok = ds4_gpu_encode_mul_mm_id_mapped_tile(cb,
 	                                                             gate_mm_pipeline,
 	                                                             &gate_mm_args,
 	                                                             gate_buf,
@@ -22572,7 +22572,8 @@ int ds4_gpu_routed_moe_batch_tensor(
 	                                                             xbuf,
 	                                                             ds4_gpu_tensor_offset(x),
 	                                                             gatebuf,
-	                                                             ds4_gpu_tensor_offset(gate));
+	                                                             ds4_gpu_tensor_offset(gate),
+	                                                             gate_mm_tile_n);
 	                    }
 	                    DS4_METAL_PROFILE_MOE_STAGE("hybrid_gpu_gate");
 
@@ -22902,7 +22903,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                     for (uint32_t expert = 0; expert < total_model_experts; expert++) {
                         if (mpp_mask[expert]) counts[expert] = 0;
                     }
-                    ok = ds4_gpu_encode_mul_mm_id_mapped(cb,
+                    ok = ds4_gpu_encode_mul_mm_id_mapped_tile(cb,
                                                          gate_mm_pipeline,
                                                          &gate_mm_args,
                                                          gate_buf,
@@ -22910,7 +22911,8 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                          xbuf,
                                                          ds4_gpu_tensor_offset(x),
                                                          gatebuf,
-                                                         ds4_gpu_tensor_offset(gate));
+                                                         ds4_gpu_tensor_offset(gate),
+                                                         gate_mm_tile_n);
                 }
                 DS4_METAL_PROFILE_MOE_STAGE("hybrid_gpu_gate");
 
@@ -22954,7 +22956,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                 }
                 }
             } else if (ok) {
-                ok = ds4_gpu_encode_mul_mm_id_mapped(cb,
+                ok = ds4_gpu_encode_mul_mm_id_mapped_tile(cb,
                                                    gate_mm_pipeline,
                                                    &gate_mm_args,
                                                    gate_buf,
@@ -22962,11 +22964,12 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                    xbuf,
                                                    ds4_gpu_tensor_offset(x),
                                                    gatebuf,
-                                                   ds4_gpu_tensor_offset(gate));
+                                                   ds4_gpu_tensor_offset(gate),
+                                                   gate_mm_tile_n);
                 DS4_METAL_PROFILE_MOE_STAGE("gate");
             }
             if (ok && !resident_mpp_completed) {
-                ok = ds4_gpu_encode_mul_mm_id_mapped(cb,
+                ok = ds4_gpu_encode_mul_mm_id_mapped_tile(cb,
                                                    gate_mm_pipeline,
                                                    &gate_mm_args,
                                                    up_buf,
@@ -22974,7 +22977,8 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                    xbuf,
                                                    ds4_gpu_tensor_offset(x),
                                                    upbuf,
-                                                   ds4_gpu_tensor_offset(up));
+                                                   ds4_gpu_tensor_offset(up),
+                                                   gate_mm_tile_n);
                 DS4_METAL_PROFILE_MOE_STAGE("up");
             }
         } else if (use_tiny_pair_mv) {
@@ -23147,7 +23151,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                      down_smem,
                                                      2);
             } else if (use_mm_id) {
-                ok = ds4_gpu_encode_mul_mm_id_mapped(cb,
+                ok = ds4_gpu_encode_mul_mm_id_mapped_tile(cb,
                                                        down_mm_pipeline,
                                                        &down_mm_args,
                                                        down_buf,
@@ -23155,7 +23159,8 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                        midbuf,
                                                        ds4_gpu_tensor_offset(mid),
                                                        down_dst,
-                                                       down_dst_off);
+                                                       down_dst_off,
+                                                       down_mm_tile_n);
             } else {
                 ok = ds4_gpu_encode_mul_mv_id(cb,
                                                      down_mv_pipeline,
