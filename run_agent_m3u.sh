@@ -12,12 +12,13 @@
 #   CTX=200000 SLOTS=128 ./run_agent_m3u.sh   # override ctx / slot bank
 #   any extra args are passed straight through to ds4-agent.
 #
-# Memory/decode notes (96 GiB box): model ~8.4 + slot-bank(64)=18.5 GB gpu-bank
-# + ctx(100k)=~5.9 + scratch ~= 38 GiB.  SLOTS=64 is the measured sweet spot:
-# decode ~4.6 t/s @16k ctx (51% expert hit-rate).  Do NOT raise to 128 -- the
-# 37 GiB gpu-bank hits a wired-memory cliff and decode COLLAPSES to ~0.7 t/s
-# (measured) despite a higher hit-rate; prefill is unaffected (slot bank is a
-# decode cache).  If anything, sweep DOWN (32/48) if you need more headroom.
+# Memory/decode notes (96 GiB box): model ~8.4 + slot-bank gpu-bank + ctx + scratch.
+# Default raised to SLOTS=96 (~27.9 GiB gpu-bank) per request. CAUTION: 64 was the
+# previously-measured sweet spot (decode ~4.6 t/s @16k, 51% hit-rate). Raising
+# slots eventually hits a wired-memory cliff -- 128 (~37 GiB bank) COLLAPSES decode
+# to ~0.7 t/s (measured) despite a higher hit-rate. 96 sits between the two and is
+# NOT yet validated for sustained decode; if decode tanks, fall back to SLOTS=64.
+# (prefill is unaffected -- the slot bank is a decode cache.)
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +27,7 @@ cd "$ROOT"
 DS4_MODEL="${DS4_MODEL:-/Volumes/optane/dsv4-iq2xxs-expert-major/dense/model-dense.gguf}"
 DS4_SIDECAR="${DS4_SIDECAR:-/Volumes/optane/dsv4-iq2xxs-expert-major}"
 CTX="${CTX:-100000}"
-SLOTS="${SLOTS:-64}"
+SLOTS="${SLOTS:-96}"
 
 # Prefetch pass-through (the engine reads these env vars directly; the agent's
 # --moe-prefetch-* flags just set the same). Mirrors run_*_ssd_agent_m5max.sh:
@@ -71,8 +72,8 @@ env \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
   `# dense-on-ANE (M3 Ultra dual cluster). Default off; flip to 1 to test moving` \
   `# the shared-expert FFN and/or attention O-proj onto the ANE.` \
-  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
-  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-1}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-1}" \
   ./ds4-agent --model "$DS4_MODEL" --moe-sidecar "$DS4_SIDECAR" \
     --moe-mode slot-bank --moe-slot-bank "$SLOTS" \
     --metal --ctx "$CTX" "$@"

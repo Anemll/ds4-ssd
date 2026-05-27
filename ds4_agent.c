@@ -457,6 +457,13 @@ static void usage(FILE *fp) {
         "  --moe-prefetch-topk N  During prefill, keep top routed experts/layer\n"
         "                         in decode slot banks for reuse. Clamped to half\n"
         "                         the slot bank for headroom; 0 disables it.\n"
+        "  --moe-cache-io-split N Split each decode/slot-bank expert read into N\n"
+        "                         page-aligned concurrent reads (deeper NVMe queue).\n"
+        "                         Default 1 (off); page-misaligned sizes fall back to 1.\n"
+        "  --moe-prefill-io-split N  Same, for prefill expert reads. Falls back to\n"
+        "                         --moe-cache-io-split when unset.\n"
+        "  --moe-prefill-banks N  Transient prefill expert banks (read-ahead depth).\n"
+        "                         Default 4. Raise DS4_FLASH_MOE_PREFETCH to N-1.\n"
         "  -c, --ctx N            Context size. Default: 100000\n"
         "  -n, --tokens N         Max generated tokens per turn. Default: 50000\n"
         "  -p, --prompt TEXT      Submit an initial prompt after startup.\n"
@@ -575,6 +582,33 @@ static agent_config parse_options(int argc, char **argv) {
                 exit(2);
             }
             c.moe_prefetch_topk = topk;
+        } else if (!strcmp(arg, "--moe-cache-io-split")) {
+            int n = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (n < 1) n = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", n);
+            if (setenv("DS4_FLASH_MOE_CACHE_IO_SPLIT", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_CACHE_IO_SPLIT");
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--moe-prefill-io-split")) {
+            int n = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (n < 1) n = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", n);
+            if (setenv("DS4_FLASH_MOE_PREFILL_IO_SPLIT", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_PREFILL_IO_SPLIT");
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--moe-prefill-banks")) {
+            int n = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (n < 1) n = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", n);
+            if (setenv("DS4_FLASH_MOE_PREFILL_BANKS", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_FLASH_MOE_PREFILL_BANKS");
+                exit(2);
+            }
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {

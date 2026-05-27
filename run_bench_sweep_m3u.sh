@@ -21,7 +21,7 @@ cd "$ROOT"
 DS4_BIN="${DS4_BIN:-./ds4-bench}"
 DS4_MODEL="${DS4_MODEL:-/Volumes/optane/dsv4-iq2xxs-expert-major/dense/model-dense.gguf}"
 DS4_SIDECAR="${DS4_SIDECAR:-/Volumes/optane/dsv4-iq2xxs-expert-major}"
-DS4_SLOTS="${DS4_SLOTS:-8}"
+DS4_SLOTS="${DS4_SLOTS:-96}"
 DS4_LOCK_FILE="${DS4_LOCK_FILE:-/tmp/ds4-codex.lock}"
 
 CTX_START="${CTX_START:-4096}"
@@ -90,8 +90,8 @@ env \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
   `# dense-on-ANE (M3 Ultra dual cluster). Default off; set to 1 to test moving` \
   `# the shared-expert FFN and/or attention O-proj onto the ANE.` \
-  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
-  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-1}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-1}" \
   "$DS4_BIN" -m "$DS4_MODEL" --metal \
     --moe-sidecar "$DS4_SIDECAR" --moe-mode slot-bank --moe-slot-bank "$DS4_SLOTS" \
     --prompt-file "$DS4_PROMPT_FILE" \

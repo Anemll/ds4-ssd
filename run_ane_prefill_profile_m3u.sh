@@ -24,7 +24,7 @@ DS4_SIDECAR="${DS4_SIDECAR:-/Volumes/optane/dsv4-iq2xxs-expert-major}"
 DS4_CTX="${DS4_CTX:-9000}"
 DS4_TOKENS="${DS4_TOKENS:-1}"
 DS4_PREFILL_CHUNK="${DS4_PREFILL_CHUNK:-16384}"
-DS4_SLOTS="${DS4_SLOTS:-4}"
+DS4_SLOTS="${DS4_SLOTS:-96}"
 DS4_LOCK_FILE="${DS4_LOCK_FILE:-/tmp/ds4-codex.lock}"
 DS4_LOG_DIR="${DS4_LOG_DIR:-$ROOT/moe-batch-bench/profile_runs}"
 DS4_RUN_NAME="${DS4_RUN_NAME:-m3u_ane_prefill_$(date +%Y%m%d_%H%M%S)}"
@@ -116,8 +116,8 @@ env \
   DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL="${DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL:-0.0}" \
   `# --- dense-on-ANE (M3 Ultra dual cluster). Default off; set to 1 to test ---` \
   `# moving the shared-expert FFN and/or attention O-proj onto the ANE. ---` \
-  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-0}" \
-  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-0}" \
+  DS4_FLASH_MOE_ANE_SHARED_EXPERT="${DS4_FLASH_MOE_ANE_SHARED_EXPERT:-1}" \
+  DS4_FLASH_MOE_ANE_OUTPUT_PROJ="${DS4_FLASH_MOE_ANE_OUTPUT_PROJ:-1}" \
   `# --- Staging / pread tuning (8K winner: async + prefetch=3 + after-stage) ---` \
   DS4_FLASH_MOE_PREFETCH="${DS4_FLASH_MOE_PREFETCH:-3}" \
   DS4_FLASH_MOE_ASYNC_PREAD="${DS4_FLASH_MOE_ASYNC_PREAD:-1}" \

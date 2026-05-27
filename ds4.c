@@ -8927,6 +8927,13 @@ typedef struct {
     uint32_t flash_slot_bank;
     bool quality;
     bool mtp_enabled;
+    /* Persistent cross-layer prefill prefetch reader (DS4_FLASH_MOE_XLAYER_PREFETCH).
+     * Held across per-layer run_prefill_dedup calls so the next layer's experts
+     * can stream during the current layer's compute. Type is
+     * ds4_flash_prefill_async_reader* (void* to avoid a forward-decl here). */
+    void *flash_prefill_xreader;
+    uint64_t flash_prefill_xlayer_queued;  /* cross-layer experts queued */
+    uint64_t flash_prefill_xlayer_calls;   /* layers that queued a prefetch */
 } ds4_gpu_graph;
 
 static void metal_graph_flash_moe_slot_occupancy(
@@ -8956,8 +8963,28 @@ static void metal_graph_flash_moe_slot_occupancy(
     if (max_layer_out) *max_layer_out = max_layer;
 }
 
+/* Forward decl: the persistent cross-layer prefetch reader type and its
+ * destructor are defined further down; metal_graph_free tears the reader down. */
+struct ds4_flash_prefill_async_reader;
+static void ds4_flash_prefill_async_destroy(struct ds4_flash_prefill_async_reader *r);
+
 /* Release every Metal tensor owned by the whole-model graph runtime. */
 static void metal_graph_free(ds4_gpu_graph *g) {
+    if (g->flash_prefill_xlayer_calls) {
+        fprintf(stderr,
+                "ds4: Flash-MoE cross-layer prefetch layers=%" PRIu64
+                " experts_queued=%" PRIu64 " (avg=%.1f/layer)\n",
+                g->flash_prefill_xlayer_calls,
+                g->flash_prefill_xlayer_queued,
+                (double)g->flash_prefill_xlayer_queued /
+                    (double)g->flash_prefill_xlayer_calls);
+    }
+    if (g->flash_prefill_xreader) {
+        ds4_flash_prefill_async_destroy(
+            (struct ds4_flash_prefill_async_reader *)g->flash_prefill_xreader);
+        free(g->flash_prefill_xreader);
+        g->flash_prefill_xreader = NULL;
+    }
     if (g->flash_moe && (g->flash_hits || g->flash_misses)) {
         const uint64_t total = g->flash_hits + g->flash_misses;
         const double hit_rate = total ? (100.0 * (double)g->flash_hits / (double)total) : 0.0;
@@ -9853,7 +9880,7 @@ static bool metal_graph_alloc(
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
 static int get_prefill_dedup_prefetch(void);
 static int get_prefill_slot_cache_topk(uint32_t slot_bank);
-static void metal_graph_log_prefill_compute_once(void);
+static void metal_graph_log_prefill_compute_once(uint32_t slot_bank);
 
 static bool metal_graph_enable_flash_moe(
         ds4_gpu_graph                *g,
@@ -9989,7 +10016,7 @@ static bool metal_graph_enable_flash_moe(
 
     /* Resolved prefill compute path (routed/dense + precision), printed right
      * here alongside the slot-bank line so it shows at startup. */
-    metal_graph_log_prefill_compute_once();
+    metal_graph_log_prefill_compute_once(sidecar->slot_bank);
 
     /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
     {
@@ -10504,6 +10531,105 @@ static bool flash_moe_pread_full(int fd, uint64_t offset, uint8_t *dst, uint64_t
     return true;
 }
 
+/* --- io-split: split one expert's SSD read into N page-aligned ranges issued
+ * concurrently, so a single expert read keeps several NVMe requests in flight
+ * (deeper queue depth -> closer to the drive's real bandwidth). Page-aligned so
+ * each range is a whole number of pages; if the expert size isn't page-aligned
+ * we fall back to a single read. Opt-in: default 1 (no split). */
+#define DS4_FLASH_MOE_IO_PAGE_BYTES 16384u
+#define DS4_FLASH_MOE_MAX_IO_SPLIT  16
+
+/* Decode/slot-bank read split. Default 4 (page-aligned reads fall back to 1):
+ * fanning each expert read into 4 concurrent NVMe requests ~2x's read bandwidth
+ * with no regression (split=1 == baseline). Prefill inherits this when its own
+ * split is unset. Override with DS4_FLASH_MOE_CACHE_IO_SPLIT. */
+static int flash_moe_cache_io_split(void) {
+    const char *env = getenv("DS4_FLASH_MOE_CACHE_IO_SPLIT");
+    int n = (env && env[0]) ? atoi(env) : 4;
+    if (n < 1) n = 1;
+    if (n > DS4_FLASH_MOE_MAX_IO_SPLIT) n = DS4_FLASH_MOE_MAX_IO_SPLIT;
+    return n;
+}
+
+/* Prefill read split; falls back to the cache split when unset (mirrors llama). */
+static int flash_moe_prefill_io_split(void) {
+    const char *env = getenv("DS4_FLASH_MOE_PREFILL_IO_SPLIT");
+    if (env && env[0]) {
+        int n = atoi(env);
+        if (n < 1) n = 1;
+        if (n > DS4_FLASH_MOE_MAX_IO_SPLIT) n = DS4_FLASH_MOE_MAX_IO_SPLIT;
+        return n;
+    }
+    return flash_moe_cache_io_split();
+}
+
+/* Effective split for a given byte count + desired split: only split when the
+ * size is an exact multiple of the page, and never into more ranges than pages. */
+static uint32_t flash_moe_active_io_split(uint64_t bytes, int want) {
+    if (want <= 1 || bytes == 0 || (bytes % DS4_FLASH_MOE_IO_PAGE_BYTES) != 0) return 1u;
+    const uint64_t pages = bytes / DS4_FLASH_MOE_IO_PAGE_BYTES;
+    uint32_t n = (uint32_t)want;
+    if ((uint64_t)n > pages) n = (uint32_t)pages;
+    if (n > DS4_FLASH_MOE_MAX_IO_SPLIT) n = DS4_FLASH_MOE_MAX_IO_SPLIT;
+    if (n < 1u) n = 1u;
+    return n;
+}
+
+/* Byte range [off,off+len) for chunk c of an nsplit-way page-aligned split. */
+static void flash_moe_io_split_range(uint64_t bytes, uint32_t nsplit, uint32_t c,
+                                     uint64_t *off, uint64_t *len) {
+    if (nsplit <= 1u) { *off = 0; *len = bytes; return; }
+    const uint64_t pages = bytes / DS4_FLASH_MOE_IO_PAGE_BYTES;
+    const uint64_t ppc = pages / nsplit;            /* >=1: active_io_split clamps n<=pages */
+    const uint64_t page_start = (uint64_t)c * ppc;
+    *off = page_start * DS4_FLASH_MOE_IO_PAGE_BYTES;
+    *len = (c == nsplit - 1u) ? (bytes - *off) : (ppc * DS4_FLASH_MOE_IO_PAGE_BYTES);
+}
+
+/* Synchronous N-way page-aligned read using a transient thread fan-out. Used by
+ * the synchronous staging paths (decode install / sync prefill stage). */
+typedef struct {
+    int fd;
+    uint64_t offset;
+    uint8_t *dst;
+    uint64_t len;
+    bool ok;
+} ds4_flash_io_split_job;
+
+static void *ds4_flash_io_split_worker(void *arg) {
+    ds4_flash_io_split_job *j = (ds4_flash_io_split_job *)arg;
+    j->ok = flash_moe_pread_full(j->fd, j->offset, j->dst, j->len);
+    return NULL;
+}
+
+static bool flash_moe_pread_split(int fd, uint64_t offset, uint8_t *dst,
+                                  uint64_t bytes, int want) {
+    const uint32_t nsplit = flash_moe_active_io_split(bytes, want);
+    if (nsplit <= 1u) return flash_moe_pread_full(fd, offset, dst, bytes);
+    pthread_t th[DS4_FLASH_MOE_MAX_IO_SPLIT];
+    ds4_flash_io_split_job jobs[DS4_FLASH_MOE_MAX_IO_SPLIT];
+    uint32_t started = 0;
+    for (uint32_t c = 0; c < nsplit; c++) {
+        uint64_t coff = 0, clen = 0;
+        flash_moe_io_split_range(bytes, nsplit, c, &coff, &clen);
+        jobs[c].fd = fd; jobs[c].offset = offset + coff;
+        jobs[c].dst = dst + coff; jobs[c].len = clen; jobs[c].ok = false;
+        if (c == nsplit - 1u ||
+            pthread_create(&th[c], NULL, ds4_flash_io_split_worker, &jobs[c]) != 0) {
+            /* Read the last (or any un-spawnable) chunk inline on this thread. */
+            jobs[c].ok = flash_moe_pread_full(fd, jobs[c].offset, jobs[c].dst, jobs[c].len);
+            continue;
+        }
+        started |= (1u << c);
+    }
+    bool ok = true;
+    for (uint32_t c = 0; c < nsplit; c++) {
+        if (started & (1u << c)) pthread_join(th[c], NULL);
+        ok = ok && jobs[c].ok;
+    }
+    return ok;
+}
+
 typedef struct {
     int fd;
     uint64_t offset;
@@ -10540,14 +10666,60 @@ static void *ds4_flash_decode_read_thread(void *arg) {
     ds4_flash_decode_read_job *job = (ds4_flash_decode_read_job *)arg;
     if (!job) return NULL;
     job->pread_t0_ms = now_sec() * 1000.0;
-    if (!flash_moe_pread_full(job->fd, job->offset, job->buf, job->bytes)) {
+    if (!flash_moe_pread_split(job->fd, job->offset, job->buf, job->bytes,
+                               flash_moe_cache_io_split())) {
         job->err = errno ? errno : EIO;
     }
     job->pread_t1_ms = now_sec() * 1000.0;
     return NULL;
 }
 
-#define DS4_FLASH_PREFILL_ASYNC_SLOTS 24
+/* Host-side pread slot pool. Bumped from 24 to 160 to give the cross-layer
+ * prefetch (DS4_FLASH_MOE_XLAYER_PREFETCH) room to pre-stage a full next-layer
+ * top-K (up to ~150 experts) on top of the within-layer read-ahead. Buffers are
+ * plain malloc (lazy pages), so the off path that only touches ~24 slots keeps
+ * the same resident footprint; the extra address space is untouched. */
+#define DS4_FLASH_PREFILL_ASYNC_SLOTS 160
+
+/* Cross-layer prefill prefetch. run_prefill_dedup keeps one persistent async
+ * reader and, at the end of each layer, queues the next layer's hottest experts
+ * (predicted from this layer's routed set, ~92% overlap on DSv4) so they stream
+ * from SSD during the next layer's attention/dense/router compute instead of
+ * stalling its MoE. Auto-policy: enabled by default for SHORT prefill
+ * (n_tokens <= 6000), where the reader idles between layers so prefetch fills
+ * the gap (+3-8%); off at larger context where the SSD is already saturated and
+ * prefetch only adds contention (measured net-negative at 8k). Force with
+ * DS4_FLASH_MOE_XLAYER_PREFETCH=0/1. */
+static bool flash_moe_xlayer_prefetch_enabled(uint32_t n_tokens) {
+    const char *env = getenv("DS4_FLASH_MOE_XLAYER_PREFETCH");
+    if (env && env[0]) return atoi(env) != 0;
+    return n_tokens > 0 && n_tokens <= 6000;
+}
+
+/* How many of the current layer's hottest experts to pre-stage for the next
+ * layer. Default `dflt` (the caller passes slot_bank/2); clamped so the pool
+ * keeps headroom for the within-layer read-ahead and so a single layer's queue
+ * cannot exhaust the slot pool (which would block submit forever between
+ * layers). Override with DS4_FLASH_MOE_XLAYER_TOPK. */
+static int flash_moe_xlayer_topk(int dflt) {
+    int k = dflt > 0 ? dflt : 1;
+    const char *env = getenv("DS4_FLASH_MOE_XLAYER_TOPK");
+    if (env && env[0]) k = atoi(env);
+    if (k < 1) k = 1;
+    const int cap = DS4_FLASH_PREFILL_ASYNC_SLOTS - 8;  /* leave readahead headroom */
+    if (k > cap) k = cap;
+    return k;
+}
+
+/* When set (default on with xlayer), pause speculative cross-layer reads during
+ * the ANE expert-eval loop so they only stream in the attention/dense/router
+ * window and never compete with ANE eval for memory bandwidth. Set
+ * DS4_FLASH_MOE_XLAYER_ATTN_ONLY=0 to let prefetch run through eval (A/B). */
+static bool flash_moe_xlayer_attn_only(void) {
+    const char *env = getenv("DS4_FLASH_MOE_XLAYER_ATTN_ONLY");
+    if (env && env[0]) return atoi(env) != 0;
+    return true;
+}
 
 typedef enum ds4_flash_async_state {
     DS4_FLASH_ASYNC_EMPTY = 0,
@@ -10569,6 +10741,11 @@ typedef struct ds4_flash_prefill_async_slot {
     uint64_t bytes;
     int err;
     bool canceled;
+    bool speculative;   /* cross-layer prefetch read; paused during ANE eval */
+    bool any_err;       /* any chunk of this slot failed */
+    uint32_t nsplit;        /* number of page-aligned io-split chunks (1 = whole) */
+    uint32_t chunks_claimed; /* chunks picked up by a worker */
+    uint32_t chunks_done;    /* chunks finished reading */
     double pread_t0_ms;
     double pread_t1_ms;
     uint8_t *buf;
@@ -10587,6 +10764,13 @@ typedef struct ds4_flash_prefill_async_reader {
     uint64_t canceled_reading;
     uint64_t canceled_ready;
     uint64_t canceled_finished;
+    /* When set, reader threads will not START new *speculative* (cross-layer
+     * prefetch) reads -- only on-demand within-layer reads proceed. Toggled on
+     * during the ANE expert-eval (exec) loop so the prefetch streams the next
+     * layer only in the attention/dense/router window and never competes with
+     * ANE eval for unified-memory bandwidth (DS4_FLASH_MOE_XLAYER_ATTN_ONLY). */
+    int xlayer_paused;
+    int io_split;   /* desired page-aligned read split per expert (1 = none) */
     ds4_flash_prefill_async_slot slots[DS4_FLASH_PREFILL_ASYNC_SLOTS];
 } ds4_flash_prefill_async_reader;
 
@@ -10630,11 +10814,20 @@ static void *ds4_flash_prefill_async_thread(void *arg) {
         pthread_mutex_lock(&r->mu);
         int idx = -1;
         while (!r->stop) {
+            /* Claim the next unread io-split chunk of any slot that still has
+             * one. A slot is claimable while it has chunks left to start and is
+             * not canceled; the first claim moves QUEUED -> READING. Multiple
+             * workers can claim different chunks of the same expert, so one
+             * expert's read fans out across the pool (deeper NVMe queue). */
             for (int i = 0; i < DS4_FLASH_PREFILL_ASYNC_SLOTS; i++) {
-                if (r->slots[i].state == DS4_FLASH_ASYNC_QUEUED) {
-                    idx = i;
-                    break;
-                }
+                ds4_flash_prefill_async_slot *s = &r->slots[i];
+                if (s->state != DS4_FLASH_ASYNC_QUEUED &&
+                    s->state != DS4_FLASH_ASYNC_READING) continue;
+                if (s->canceled) continue;
+                if (s->chunks_claimed >= s->nsplit) continue;
+                if (r->xlayer_paused && s->speculative) continue;
+                idx = i;
+                break;
             }
             if (idx >= 0) break;
             pthread_cond_wait(&r->cv, &r->mu);
@@ -10644,28 +10837,39 @@ static void *ds4_flash_prefill_async_thread(void *arg) {
             break;
         }
         ds4_flash_prefill_async_slot *slot = &r->slots[idx];
-        slot->state = DS4_FLASH_ASYNC_READING;
+        if (slot->state == DS4_FLASH_ASYNC_QUEUED) {
+            slot->state = DS4_FLASH_ASYNC_READING;
+            slot->pread_t0_ms = now_sec() * 1000.0;
+        }
+        const uint32_t chunk = slot->chunks_claimed++;
         const int fd = slot->fd;
-        const uint64_t offset = slot->offset;
+        const uint64_t base_offset = slot->offset;
         const uint64_t bytes = slot->bytes;
+        const uint32_t nsplit = slot->nsplit;
         uint8_t *buf = slot->buf;
         pthread_mutex_unlock(&r->mu);
 
-        const double t0 = now_sec() * 1000.0;
-        const bool ok = flash_moe_pread_full(fd, offset, buf, bytes);
+        uint64_t coff = 0, clen = 0;
+        flash_moe_io_split_range(bytes, nsplit, chunk, &coff, &clen);
+        const bool ok = flash_moe_pread_full(fd, base_offset + coff, buf + coff, clen);
         const double t1 = now_sec() * 1000.0;
-        const int err = ok ? 0 : errno;
 
         pthread_mutex_lock(&r->mu);
+        slot->chunks_done++;
+        if (!ok) { slot->any_err = true; if (!slot->err) slot->err = errno; }
+        /* A non-canceled slot finalizes when every chunk has been read; a
+         * canceled slot finalizes once its already-claimed chunks drain (no new
+         * chunks are claimed for it). */
+        const bool all_claimed_done = slot->chunks_done == slot->chunks_claimed;
         if (slot->canceled) {
-            slot->state = DS4_FLASH_ASYNC_EMPTY;
-            slot->canceled = false;
-            r->canceled_finished++;
-        } else {
-            slot->pread_t0_ms = t0;
+            if (all_claimed_done) {
+                slot->state = DS4_FLASH_ASYNC_EMPTY;
+                slot->canceled = false;
+                r->canceled_finished++;
+            }
+        } else if (slot->chunks_claimed >= nsplit && all_claimed_done) {
             slot->pread_t1_ms = t1;
-            slot->err = err;
-            slot->state = ok ? DS4_FLASH_ASYNC_READY : DS4_FLASH_ASYNC_ERROR;
+            slot->state = slot->any_err ? DS4_FLASH_ASYNC_ERROR : DS4_FLASH_ASYNC_READY;
         }
         pthread_cond_broadcast(&r->cv);
         pthread_mutex_unlock(&r->mu);
@@ -10688,6 +10892,7 @@ static bool ds4_flash_prefill_async_init(ds4_flash_prefill_async_reader *r,
         r->slots[i].buf = xmalloc((size_t)buf_bytes);
     }
     r->initialized = 1;
+    r->io_split = flash_moe_prefill_io_split();  /* prefill reader uses prefill split */
     r->n_threads = ds4_flash_prefill_reader_threads();
     int spawned = 0;
     for (int i = 0; i < r->n_threads; i++) {
@@ -10728,16 +10933,56 @@ static int ds4_flash_prefill_async_find_locked(ds4_flash_prefill_async_reader *r
                                                uint32_t layer,
                                                int32_t expert,
                                                int bank) {
+    /* Match on (layer, expert) only, ignoring bank. Each expert appears at most
+     * once in a layer's unique[] list, so within a layer this is identical to
+     * matching the bank too. Ignoring bank is what lets a cross-layer prefetch
+     * (submitted before the layer runs, with a placeholder bank) be consumed
+     * regardless of the bank the layer ultimately assigns; slot->bank is unused
+     * for the upload, which takes its bank from the caller's parameter. */
+    (void)bank;
     for (int i = 0; i < DS4_FLASH_PREFILL_ASYNC_SLOTS; i++) {
         ds4_flash_prefill_async_slot *slot = &r->slots[i];
         if (slot->state != DS4_FLASH_ASYNC_EMPTY &&
             slot->layer == layer &&
-            slot->expert == expert &&
-            slot->bank == bank) {
+            slot->expert == expert) {
             return i;
         }
     }
     return -1;
+}
+
+/* Cancel every non-empty slot (queued/reading/ready/error), reclaiming the pool.
+ * Used at a layer boundary to drop mispredicted cross-layer prefetches before
+ * queuing the next layer's set, so the speculative reads can't exhaust slots. */
+static void ds4_flash_prefill_async_cancel_all(ds4_flash_prefill_async_reader *r) {
+    if (!r || !r->initialized) return;
+    pthread_mutex_lock(&r->mu);
+    for (int i = 0; i < DS4_FLASH_PREFILL_ASYNC_SLOTS; i++) {
+        ds4_flash_prefill_async_slot *slot = &r->slots[i];
+        switch (slot->state) {
+        case DS4_FLASH_ASYNC_QUEUED:
+        case DS4_FLASH_ASYNC_ERROR:
+            slot->state = DS4_FLASH_ASYNC_EMPTY;
+            slot->canceled = false;
+            r->canceled_queued++;
+            break;
+        case DS4_FLASH_ASYNC_READING:
+            slot->canceled = true;   /* reader thread discards on completion */
+            r->canceled_reading++;
+            break;
+        case DS4_FLASH_ASYNC_READY:
+            slot->state = DS4_FLASH_ASYNC_EMPTY;
+            slot->canceled = false;
+            r->canceled_ready++;
+            break;
+        case DS4_FLASH_ASYNC_CONSUMING:
+        case DS4_FLASH_ASYNC_EMPTY:
+        default:
+            break;
+        }
+    }
+    pthread_cond_broadcast(&r->cv);
+    pthread_mutex_unlock(&r->mu);
 }
 
 static void ds4_flash_prefill_async_cancel_expert(
@@ -10782,6 +11027,54 @@ static void ds4_flash_prefill_async_cancel_expert(
     pthread_mutex_unlock(&r->mu);
 }
 
+/* Gate the cross-layer prefetch the moment the layer's real routing is known:
+ * cancel every queued/in-flight speculative read for `layer` whose expert was
+ * NOT actually routed (counts[expert]==0). The reads were queued speculatively
+ * from the previous layer's routing; once this layer's router has run the
+ * mispredictions are dead weight stealing SSD/memory bandwidth from the experts
+ * that ARE needed, so drop them immediately. Reads that hit (counts>0) are kept
+ * and consumed normally. counts[] is indexed by expert id, length DS4_N_EXPERT. */
+static void ds4_flash_prefill_async_cancel_layer_mispredicted(
+        ds4_flash_prefill_async_reader *r,
+        uint32_t                        layer,
+        const int32_t                  *counts) {
+    if (!r || !r->initialized || !counts) return;
+    pthread_mutex_lock(&r->mu);
+    for (int i = 0; i < DS4_FLASH_PREFILL_ASYNC_SLOTS; i++) {
+        ds4_flash_prefill_async_slot *slot = &r->slots[i];
+        if (slot->state == DS4_FLASH_ASYNC_EMPTY ||
+            slot->state == DS4_FLASH_ASYNC_CONSUMING ||
+            slot->layer != layer) {
+            continue;
+        }
+        const int32_t e = slot->expert;
+        if (e >= 0 && e < (int32_t)DS4_N_EXPERT && counts[e] > 0) {
+            continue;  /* expert is actually routed this layer: keep it */
+        }
+        switch (slot->state) {
+        case DS4_FLASH_ASYNC_QUEUED:
+        case DS4_FLASH_ASYNC_ERROR:
+            slot->state = DS4_FLASH_ASYNC_EMPTY;
+            slot->canceled = false;
+            r->canceled_queued++;
+            break;
+        case DS4_FLASH_ASYNC_READING:
+            slot->canceled = true;
+            r->canceled_reading++;
+            break;
+        case DS4_FLASH_ASYNC_READY:
+            slot->state = DS4_FLASH_ASYNC_EMPTY;
+            slot->canceled = false;
+            r->canceled_ready++;
+            break;
+        default:
+            break;
+        }
+    }
+    pthread_cond_broadcast(&r->cv);
+    pthread_mutex_unlock(&r->mu);
+}
+
 static bool ds4_flash_prefill_async_submit(ds4_flash_prefill_async_reader *r,
                                            uint32_t layer,
                                            int32_t expert,
@@ -10789,10 +11082,18 @@ static bool ds4_flash_prefill_async_submit(ds4_flash_prefill_async_reader *r,
                                            uint32_t refs,
                                            int fd,
                                            uint64_t offset,
-                                           uint64_t bytes) {
+                                           uint64_t bytes,
+                                           bool speculative) {
     if (!r || !r->initialized || bytes == 0 || bytes > r->buf_bytes) return false;
     pthread_mutex_lock(&r->mu);
-    if (ds4_flash_prefill_async_find_locked(r, layer, expert, bank) >= 0) {
+    const int found = ds4_flash_prefill_async_find_locked(r, layer, expert, bank);
+    if (found >= 0) {
+        /* Already queued/reading/ready. A non-speculative (on-demand) request
+         * must promote a speculative slot so a paused reader serves it now. */
+        if (!speculative && r->slots[found].speculative) {
+            r->slots[found].speculative = false;
+            pthread_cond_broadcast(&r->cv);
+        }
         pthread_mutex_unlock(&r->mu);
         return true;
     }
@@ -10818,11 +11119,26 @@ static bool ds4_flash_prefill_async_submit(ds4_flash_prefill_async_reader *r,
     slot->bytes = bytes;
     slot->err = 0;
     slot->canceled = false;
+    slot->speculative = speculative;
+    slot->any_err = false;
+    slot->nsplit = flash_moe_active_io_split(bytes, r->io_split);
+    slot->chunks_claimed = 0;
+    slot->chunks_done = 0;
     slot->pread_t0_ms = 0.0;
     slot->pread_t1_ms = 0.0;
     pthread_cond_broadcast(&r->cv);
     pthread_mutex_unlock(&r->mu);
     return true;
+}
+
+/* Toggle the speculative-read pause (held during ANE expert eval). */
+static void ds4_flash_prefill_async_set_paused(ds4_flash_prefill_async_reader *r,
+                                               int paused) {
+    if (!r || !r->initialized) return;
+    pthread_mutex_lock(&r->mu);
+    r->xlayer_paused = paused;
+    if (!paused) pthread_cond_broadcast(&r->cv);  /* wake readers to resume */
+    pthread_mutex_unlock(&r->mu);
 }
 
 static int cmp_i32_asc(const void *a, const void *b) {
@@ -11500,10 +11816,11 @@ static bool metal_graph_flash_moe_install(
 
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
     const uint64_t record_offset = (uint64_t)true_expert * layer->expert_stride;
-    if (!flash_moe_pread_full(layer->fd,
-                              record_offset,
-                              g->flash_install_buf,
-                              layer->expert_stride)) {
+    if (!flash_moe_pread_split(layer->fd,
+                               record_offset,
+                               g->flash_install_buf,
+                               layer->expert_stride,
+                               flash_moe_cache_io_split())) {
         fprintf(stderr,
                 "ds4: Flash-MoE failed to read layer %u expert %d: %s\n",
                 il,
@@ -12078,11 +12395,22 @@ static bool metal_graph_flash_moe_stage_prefill_expert_async(
     if (!reader || !reader->initialized) return false;
     pthread_mutex_lock(&reader->mu);
     int idx = ds4_flash_prefill_async_find_locked(reader, il, true_expert, bank_set);
+    /* This is an on-demand consume: if the matching slot is a paused speculative
+     * read, promote it so a reader serves it now -- otherwise the wait below
+     * would deadlock against the pause held during ANE eval. */
+    if (idx >= 0 && reader->slots[idx].speculative) {
+        reader->slots[idx].speculative = false;
+        pthread_cond_broadcast(&reader->cv);
+    }
     while (idx >= 0 &&
            reader->slots[idx].state != DS4_FLASH_ASYNC_READY &&
            reader->slots[idx].state != DS4_FLASH_ASYNC_ERROR) {
         pthread_cond_wait(&reader->cv, &reader->mu);
         idx = ds4_flash_prefill_async_find_locked(reader, il, true_expert, bank_set);
+        if (idx >= 0 && reader->slots[idx].speculative) {
+            reader->slots[idx].speculative = false;
+            pthread_cond_broadcast(&reader->cv);
+        }
     }
     if (idx < 0) {
         pthread_mutex_unlock(&reader->mu);
@@ -12207,10 +12535,11 @@ static bool metal_graph_flash_moe_stage_prefill_expert(
                                       g->flash_prefill_stage_last_end_ms,
                                       pread_t0_ms);
     }
-    if (!flash_moe_pread_full(layer->fd,
-                              src,
-                              g->flash_install_buf,
-                              layer->expert_stride)) {
+    if (!flash_moe_pread_split(layer->fd,
+                               src,
+                               g->flash_install_buf,
+                               layer->expert_stride,
+                               flash_moe_prefill_io_split())) {
         fprintf(stderr,
                 "ds4: Flash-MoE failed to read prefill layer %u expert %d: %s\n",
                 il,
@@ -12465,6 +12794,17 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         }
         flash_moe_log_prefill_hist(il, n_tokens, n_pairs, n_unique, unique, counts);
 
+        /* Cross-layer prefetch gate: this layer's router has now run, so its real
+         * routed set (counts[]) is known. Cancel the speculative reads queued for
+         * this layer from the previous layer's prediction that turned out wrong,
+         * before they steal bandwidth from the experts this layer actually needs.
+         * Reads that predicted correctly stay and are consumed by the loop below. */
+        if (flash_moe_xlayer_prefetch_enabled(n_tokens) && g->flash_prefill_xreader) {
+            ds4_flash_prefill_async_cancel_layer_mispredicted(
+                (ds4_flash_prefill_async_reader *)g->flash_prefill_xreader,
+                il, counts);
+        }
+
         const int slot_cache_topk = get_prefill_slot_cache_target(g->flash_slot_bank);
         for (int rank = 0; rank < slot_cache_topk && rank < (int)n_unique; rank++) {
             int32_t best = -1;
@@ -12600,12 +12940,32 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     const bool async_pread_enabled = env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
     const bool async_pread_after_stage =
         async_pread_enabled && env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE");
-    ds4_flash_prefill_async_reader async_reader;
-    memset(&async_reader, 0, sizeof(async_reader));
+    /* The reader is normally a per-layer local (created/destroyed each call).
+     * With cross-layer prefetch it must outlive the call so the next layer's
+     * experts queued at the end of THIS call survive to be consumed next call;
+     * use the persistent reader held on the graph. The async_reader macro lets
+     * the rest of this function reference whichever one is active unchanged. */
+    ds4_flash_prefill_async_reader local_async_reader;
+    const bool xlayer_prefetch = flash_moe_xlayer_prefetch_enabled(n_tokens);
+    ds4_flash_prefill_async_reader *p_async_reader = &local_async_reader;
+    bool xlayer_reader_ready = false;
+    if (xlayer_prefetch) {
+        if (!g->flash_prefill_xreader) {
+            g->flash_prefill_xreader =
+                xmalloc(sizeof(ds4_flash_prefill_async_reader));
+            memset(g->flash_prefill_xreader, 0,
+                   sizeof(ds4_flash_prefill_async_reader));
+        }
+        p_async_reader = (ds4_flash_prefill_async_reader *)g->flash_prefill_xreader;
+        xlayer_reader_ready = p_async_reader->initialized != 0;
+    } else {
+        memset(&local_async_reader, 0, sizeof(local_async_reader));
+    }
+#define async_reader (*p_async_reader)
     bool async_reader_ok = false;
     bool *async_submitted = NULL;
     if (async_pread_enabled && ok && g->flash_moe && g->flash_moe->max_expert_stride != 0) {
-        async_reader_ok =
+        async_reader_ok = xlayer_reader_ready ? true :
             ds4_flash_prefill_async_init(&async_reader, g->flash_moe->max_expert_stride);
         if (async_reader_ok) {
             async_submitted = (bool *)xcalloc((size_t)exec_n ? (size_t)exec_n : 1u,
@@ -12642,7 +13002,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                         _refs, \
                                                         _side_layer->fd, \
                                                         _src, \
-                                                        _side_layer->expert_stride); \
+                                                        _side_layer->expert_stride, \
+                                                        false /* on-demand within-layer */); \
                     if (!ok) break; \
                 } \
                 async_submitted[_exec_idx] = true; \
@@ -12819,6 +13180,12 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             } \
         } \
     } while (0)
+    /* ANE expert eval begins here: pause speculative cross-layer prefetch so it
+     * stops competing with eval for memory bandwidth. On-demand within-layer
+     * reads are promoted past the pause as the loop consumes them. */
+    if (xlayer_prefetch && async_reader_ok && flash_moe_xlayer_attn_only()) {
+        ds4_flash_prefill_async_set_paused(p_async_reader, 1);
+    }
     for (uint32_t exec_i = 0; ok && exec_i < exec_n; exec_i++) {
         if (async_reader_ok && !async_pread_after_stage) {
             const uint32_t submit_i = exec_i + (uint32_t)ds4_flash_prefill_readahead();
@@ -13372,6 +13739,55 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             }
         }
     }
+
+    /* --- Cross-layer prefetch (DS4_FLASH_MOE_XLAYER_PREFETCH) ---
+     * This layer's experts are all consumed now (reader slots freed). Queue the
+     * next layer's hottest experts, predicted from THIS layer's routed counts
+     * (~92% expert-set overlap on DSv4). The persistent reader's threads stream
+     * them from SSD during the next layer's attention/dense/router compute, so
+     * its MoE finds them already read instead of stalling the SSD at the layer
+     * boundary (the ~15s cross_layer_post gap). cancel_all first reclaims any
+     * mispredicted reads queued for THIS layer that it didn't end up using. */
+    if (xlayer_prefetch && async_reader_ok && ok && g->flash_moe &&
+        (uint32_t)(il + 1u) < DS4_N_LAYER) {
+        ds4_flash_prefill_async_cancel_all(p_async_reader);
+        const uint32_t next_il = il + 1u;
+        const ds4_flash_moe_layer_sidecar *next_layer = &g->flash_moe->layer[next_il];
+        if (next_layer->fd >= 0 && next_layer->expert_stride != 0 &&
+            next_layer->expert_stride <= p_async_reader->buf_bytes) {
+            const int xk = flash_moe_xlayer_topk((int)(g->flash_slot_bank / 2u));
+            bool chosen[DS4_N_EXPERT];
+            memset(chosen, 0, sizeof(chosen));
+            uint32_t xqueued = 0;
+            for (int rank = 0; rank < xk && rank < (int)n_unique; rank++) {
+                int32_t best = -1;
+                int32_t best_refs = -1;
+                for (uint32_t i = 0; i < n_unique; i++) {
+                    const int32_t e = unique[i];
+                    if (e < 0 || e >= (int32_t)DS4_N_EXPERT || chosen[e]) continue;
+                    if (counts[e] > best_refs) { best_refs = counts[e]; best = e; }
+                }
+                if (best < 0) break;
+                chosen[best] = true;
+                /* Skip experts already resident in the next layer's slot bank. */
+                if (metal_graph_flash_moe_find_resident_slot(g, next_il, best, NULL)) continue;
+                const uint64_t src = (uint64_t)best * next_layer->expert_stride;
+                if (!ds4_flash_prefill_async_submit(p_async_reader, next_il, best,
+                                                    0, (uint32_t)best_refs,
+                                                    next_layer->fd, src,
+                                                    next_layer->expert_stride,
+                                                    true /* speculative cross-layer */)) {
+                    break;  /* pool full or submit error: stop queuing */
+                }
+                xqueued++;
+            }
+            if (scheduler_stats) {
+                g->flash_prefill_xlayer_queued += xqueued;
+                g->flash_prefill_xlayer_calls++;
+            }
+        }
+    }
+
     if (ane_pipeline_prefill && active_ane_job) {
         ds4_gpu_ane_prefill_job *predicted_ane_job = NULL;
         ds4_gpu_tensor *predicted_ane_tokens = NULL;
@@ -13497,8 +13913,17 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                     async_reader.canceled_finished);
         }
     }
-    ds4_flash_prefill_async_destroy(&async_reader);
+    /* Leaving the eval phase: resume speculative reads so the next layer's
+     * prefetch (queued just above) streams during the upcoming attention window. */
+    if (xlayer_prefetch && async_reader_ok && flash_moe_xlayer_attn_only()) {
+        ds4_flash_prefill_async_set_paused(p_async_reader, 0);
+    }
+    /* The persistent cross-layer reader is kept alive (it still holds the next
+     * layer's queued reads, and its threads are reused); it is torn down in
+     * metal_graph_free. Only a per-layer local reader is destroyed here. */
+    if (!xlayer_prefetch) ds4_flash_prefill_async_destroy(&async_reader);
     free(async_submitted);
+#undef async_reader
 #undef DS4_SUBMIT_ASYNC_PREAD
     free(plan);
     free(ref_weights);
@@ -18292,7 +18717,7 @@ static bool metal_graph_prefill_batch_row_logits(
  */
 /* One-time banner naming the resolved prefill compute path (routed experts +
  * dense projections, with precision), printed like the other startup lines. */
-static void metal_graph_log_prefill_compute_once(void) {
+static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
     static bool logged = false;
     if (logged) return;
     logged = true;
@@ -18324,6 +18749,29 @@ static void metal_graph_log_prefill_compute_once(void) {
                 "ds4: prefill compute: routed experts = %s | dense proj = %s\n",
                 routed, dense);
     }
+
+    /* I/O + prefetch settings actually in effect, for prefill and decode. */
+    const int prefill_split = flash_moe_prefill_io_split();
+    const int decode_split  = flash_moe_cache_io_split();
+    const bool async_pread  = env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
+    const int  pread_thr    = ds4_flash_prefill_reader_threads();
+    const int  readahead    = ds4_flash_prefill_readahead();
+    const int  bank_pf      = get_prefill_dedup_prefetch();
+    const char *xl_env      = getenv("DS4_FLASH_MOE_XLAYER_PREFETCH");
+    const int  xl_topk      = flash_moe_xlayer_topk((int)(slot_bank / 2u));
+    char xlayer_desc[64];
+    if (xl_env && xl_env[0]) {
+        if (atoi(xl_env) != 0) snprintf(xlayer_desc, sizeof(xlayer_desc), "forced-on topk=%d", xl_topk);
+        else                   snprintf(xlayer_desc, sizeof(xlayer_desc), "off");
+    } else {
+        snprintf(xlayer_desc, sizeof(xlayer_desc), "auto<=6k-tok topk=%d", xl_topk);
+    }
+    fprintf(stderr,
+            "ds4: prefill I/O: io-split=%d async-pread=%s pread-threads=%d readahead=%d bank-prefetch=%d xlayer=%s\n",
+            prefill_split, async_pread ? "on" : "off", pread_thr, readahead, bank_pf, xlayer_desc);
+    fprintf(stderr,
+            "ds4: decode  I/O: io-split=%d temporal-prefetch=%s slots=%u\n",
+            decode_split, flash_moe_decode_prefetch_enabled() ? "on" : "off", slot_bank);
 }
 
 static bool metal_graph_prefill_chunked_range(
