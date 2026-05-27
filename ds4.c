@@ -19679,6 +19679,7 @@ struct ds4_engine {
 #endif
     ds4_moe_mode moe_mode;
     uint32_t moe_slot_bank;
+    int power_percent;
     bool quality;
     bool metal_ready;
     bool mtp_ready;
@@ -22508,6 +22509,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     e->mtp_model.fd = -1;
     e->backend = opt->backend;
     e->quality = opt->quality;
+    e->power_percent = opt->power_percent > 0 ? opt->power_percent : 100;
+    if (e->power_percent > 100) e->power_percent = 100;
     e->mtp_draft_tokens = opt->mtp_draft_tokens > 0 ? opt->mtp_draft_tokens : 1;
     if (e->mtp_draft_tokens > 16) e->mtp_draft_tokens = 16;
     e->mtp_margin = opt->mtp_margin >= 0.0f ? opt->mtp_margin : 3.0f;
@@ -22545,14 +22548,18 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_acquire_instance_lock();
 
     const bool graph_backend = ds4_backend_uses_graph(opt->backend);
-    model_open(&e->model, opt->model_path, graph_backend, true);
+    model_open(&e->model, opt->model_path, graph_backend, !opt->inspect_only);
     if (opt->warm_weights && e->moe_mode == DS4_MOE_MODE_SLOT_BANK) {
         fprintf(stderr, "ds4: --warm-weights skipped in Flash-MoE slot-bank mode to avoid touching resident routed experts\n");
     } else if (opt->warm_weights) {
         model_warm_weights(&e->model);
     }
-    vocab_load(&e->vocab, &e->model);
+    if (!opt->inspect_only) vocab_load(&e->vocab, &e->model);
     config_validate_model(&e->model);
+    if (opt->inspect_only) {
+        *out = e;
+        return 0;
+    }
     const ds4_flash_moe_sidecar *flash_moe_weights = NULL;
 #ifndef DS4_NO_GPU
     if (e->moe_mode == DS4_MOE_MODE_SLOT_BANK &&
@@ -22740,6 +22747,30 @@ void ds4_engine_summary(ds4_engine *e) {
     model_summary(&e->model);
 }
 
+int ds4_engine_vocab_size(ds4_engine *e) {
+    return e ? e->vocab.n_vocab : 0;
+}
+
+int ds4_engine_power(ds4_engine *e) {
+    return e ? e->power_percent : 100;
+}
+
+int ds4_engine_set_power(ds4_engine *e, int power_percent) {
+    if (!e || power_percent < 1 || power_percent > 100) return 1;
+    e->power_percent = power_percent;
+    return 0;
+}
+
+const char *ds4_engine_model_name(ds4_engine *e) {
+    (void)e;
+    return "flash";
+}
+
+int ds4_engine_model_id(ds4_engine *e) {
+    (void)e;
+    return 0;
+}
+
 void ds4_engine_close(ds4_engine *e) {
     if (!e) return;
     weights_free(&e->weights);
@@ -22828,6 +22859,17 @@ void ds4_session_free(ds4_session *s) {
     free(s->logits);
     free(s->mtp_logits);
     free(s);
+}
+
+int ds4_session_power(ds4_session *s) {
+    if (!s || !s->engine) return 100;
+    return s->engine->power_percent;
+}
+
+int ds4_session_set_power(ds4_session *s, int power_percent) {
+    if (!s || !s->engine || power_percent < 1 || power_percent > 100) return 1;
+    s->engine->power_percent = power_percent;
+    return 0;
 }
 
 void ds4_session_set_progress(ds4_session *s, ds4_session_progress_fn fn, void *ud) {
@@ -23211,6 +23253,12 @@ int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out) {
     out->logit = s->logits[token];
     out->logprob = isfinite(out->logit) ? (float)((double)out->logit - logsum) : DS4_NEG_INF;
     return 1;
+}
+
+int ds4_session_copy_logits(ds4_session *s, float *out, int cap) {
+    if (!s || !out || cap < (int)DS4_N_VOCAB) return 0;
+    memcpy(out, s->logits, (size_t)DS4_N_VOCAB * sizeof(out[0]));
+    return (int)DS4_N_VOCAB;
 }
 
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
