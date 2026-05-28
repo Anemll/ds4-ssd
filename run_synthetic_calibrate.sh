@@ -25,12 +25,15 @@ cc -O2 -fobjc-arc moe-batch-bench/fused_kernel_probe.m -o "$TMPDIR_BUILD/fused_p
   && echo "  fused_kernel_probe OK" || { echo "  fused_kernel_probe FAILED"; }
 cc -O2 -fobjc-arc moe-batch-bench/nax_fused_probe.m -o "$TMPDIR_BUILD/nax_fused_probe" $FW 2>/dev/null \
   && echo "  nax_fused_probe OK" || echo "  nax_fused_probe FAILED (optional)"
+cc -O2 -fobjc-arc moe-batch-bench/nax_multiexpert_probe.m -o "$TMPDIR_BUILD/nax_multi" $FW 2>/dev/null \
+  && echo "  nax_multiexpert_probe OK" || echo "  nax_multiexpert_probe FAILED (optional)"
 
 echo
 echo "==================================================================="
 echo " NAX-half (h_h_f) fused gate+up+swiglu vs separate   N=$N K=$K"
 echo "==================================================================="
 echo "M | separate_ms | fused_best_ms | speedup | best_tile/SG"
+SUMMARY_ROWS=""   # "M speedup tile" per line, for the auto-recommendation parse
 for M in $MS; do
   sleep "$COOLDOWN"
   out=$("$TMPDIR_BUILD/fused_probe" "$M" "$N" "$K" "$ITERS" 2>&1 || true)
@@ -39,6 +42,8 @@ for M in $MS; do
   spd=$(echo "$out"  | grep "^--- best:" | grep -oE "speedup vs separate = [0-9.]+" | grep -oE "[0-9.]+$")
   tile=$(echo "$out" | grep "^--- best:" | grep -oE "fused_v[0-9_]+" | head -1)
   echo "$M | ${sep:-?} | ${best:-?} | ${spd:-?} | ${tile:-?}"
+  SUMMARY_ROWS="${SUMMARY_ROWS}${M} ${spd:-0} ${tile:-?}
+"
 done
 
 if [ -x "$TMPDIR_BUILD/nax_fused_probe" ]; then
@@ -47,6 +52,14 @@ if [ -x "$TMPDIR_BUILD/nax_fused_probe" ]; then
   echo " NAX-int8 fused-dequant matmul2d (baseline kernel)"
   echo "==================================================================="
   "$TMPDIR_BUILD/nax_fused_probe" 2>&1 | grep -iE "GF/s|ms|max_abs|verify|OK|FAIL" | head -20
+fi
+
+if [ -x "$TMPDIR_BUILD/nax_multi" ]; then
+  echo
+  echo "==================================================================="
+  echo " ALU / multi-expert single-dispatch matmul2d"
+  echo "==================================================================="
+  "$TMPDIR_BUILD/nax_multi" 2>&1 | grep -iE "GF/s|ms|verify|OK|FAIL|TOTAL|single_dispatch" | head -10
 fi
 
 cat <<'NOTES'
@@ -63,3 +76,38 @@ READING THE TABLE -> GATES (per THIS GPU; slow GPU differs from M5 Max)
 * On a SLOW GPU the absolute ms are larger but the SPEEDUP ratio is what sets
   the gate; expect the fused win to hold or grow.
 NOTES
+
+# ---- recommended gate for THIS GPU (auto-parsed from the NAX-half table) ----
+# Find the lowest M from which speedup stays > 1 for every larger M (an unbroken
+# winning suffix). A low-M dip (e.g. M=64 on M5 Max) thus raises MIN_REFS instead
+# of false-positiving to 0.
+first_win_M=""; broke=0; saw_sg4=0
+# iterate DESCENDING so we extend the winning suffix until it breaks
+rows_desc=$(printf '%s' "$SUMMARY_ROWS" | awk 'NF' | sort -rn)
+while IFS=' ' read -r rM rSpd rTile; do
+  [ -z "$rM" ] && continue
+  case "$rTile" in *_4) saw_sg4=1 ;; esac
+  win=$(awk -v s="$rSpd" 'BEGIN{print (s>1.0)?1:0}')
+  if [ "$broke" -eq 0 ] && [ "$win" -eq 1 ]; then first_win_M="$rM"
+  elif [ "$win" -eq 0 ]; then broke=1
+  fi
+done <<< "$rows_desc"
+
+echo
+echo "==================================================================="
+echo " RECOMMENDED GATE FOR THIS GPU"
+echo "==================================================================="
+if [ -z "$first_win_M" ]; then
+  echo " fused never beats separate -> keep it OFF:"
+  echo "     export DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=999999"
+else
+  lowest_M=$(printf '%s' "$SUMMARY_ROWS" | awk 'NF{print $1}' | sort -n | head -1)
+  if [ "$first_win_M" = "$lowest_M" ]; then
+    echo " fused wins at EVERY tested M -> fuse every expert:"
+    echo "     export DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0"
+  else
+    echo " fused wins from M=$first_win_M upward (lower M dips) -> gate there:"
+    echo "     export DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=$first_win_M"
+  fi
+fi
+[ "$saw_sg4" -eq 1 ] && echo " note: an SG=4 (Path C / ALU) tile won at some M — ALU regime present at small M."
