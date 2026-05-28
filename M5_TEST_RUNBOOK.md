@@ -2,14 +2,36 @@
 
 Branch: `agent-clean`. Build: `make ds4-agent ds4-bench`.
 
-Two distinct regimes — pick by machine:
+Two distinct regimes — pick by machine **by RAM**:
 
-| Regime | Mode | Model | RAM | Machine |
+| Regime | Mode | Model | RAM needed | Machine |
 |---|---|---|---|---|
-| **SSD slot-bank** | experts paged from sidecar | `dense/model-dense.gguf` (8.8 GB) + `--moe-sidecar` | small | base M5, M4 Pro, M3U |
-| **Resident** | all experts in RAM | full `...chat-v2.gguf` (81 GB) `--moe-mode off` | ~81 GB | M5 Max only |
+| **SSD slot-bank** | experts paged from sidecar | `dense/model-dense.gguf` (8.8 GB) + `--moe-sidecar` | ~10–16 GB | **base M5 (32 GB)**, M4 Pro, M3U |
+| **Resident** | all experts in RAM | full `...chat-v2.gguf` (81 GB) `--moe-mode off` | **~81 GB** | M5 Max only |
 
-`DS4_MODEL` / `DS4_SIDECAR` paths are env-overridable in every launcher.
+> **32 GB M5 cannot run resident** (the 81 GB model won't fit). On the 32 GB M5 use
+> **(A) SSD-mode e2e** + **(C) synthetic calibration** below. Resident sweep (B) is
+> M5 Max only. `DS4_MODEL` / `DS4_SIDECAR` are env-overridable in every launcher.
+
+---
+
+## C. Synthetic kernel calibration  (ANY machine — NO model load, runs on 32 GB)
+
+The fastest, cleanest way to set the kernel gates for a given GPU: microbenchmark
+the routed-MoE matmul kernels per per-expert batch size M. No 81 GB model, no SSD
+I/O — just the kernels. **This is how the 32 GB M5 calibrates its gates.**
+
+```bash
+./run_synthetic_calibrate.sh                 # builds probes, sweeps M=32..1024
+# knobs: MS="32 64 128 256 512 1024"  N=2048  K=4096  ITERS=30
+```
+Reads out, per M: NAX-half fused gate+up+swiglu vs separate (speedup + best tile/SG)
+and the NAX-int8 kernel. **Gate rule:** fused speedup > 1 at all M ⇒
+`DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0`; if it only wins above M*, set MIN_REFS=M*.
+On a slow GPU the absolute ms grow but the speedup ratio (which sets the gate) holds.
+
+M5 Max reference (per M, NAX-half fused speedup vs separate): 32→1.20, 64→1.26,
+128→1.31, 256→1.17, 512→1.48, 1024→1.42 — fused wins everywhere ⇒ MIN_REFS=0.
 
 ---
 
