@@ -21,6 +21,8 @@ void ds4_gpu_cleanup(void);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc_managed(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_view(const ds4_gpu_tensor *base, uint64_t offset, uint64_t bytes);
+ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_size,
+                                          uint64_t offset, uint64_t bytes);
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
@@ -39,12 +41,21 @@ int ds4_gpu_synchronize(void);
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);
 int ds4_gpu_set_model_fd(int fd);
 int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size);
+ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
+                                          uint64_t    model_size,
+                                          uint64_t    offset,
+                                          uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
 int ds4_gpu_cache_model_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, const char *label);
 int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, uint64_t in_dim, uint64_t out_dim, const char *label);
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);
 void ds4_gpu_set_quality(bool quality);
 void ds4_gpu_print_memory_report(const char *label);
+int ds4_gpu_mpp_int8_prefill_prewarm(void);
+/* Free the W8A8 repacked-int8 weight caches (prefill-only; dead weight during
+ * decode). Called automatically at the first n_tok==1 matmul after prefill;
+ * also safe to call explicitly at a prefill->decode boundary. Idempotent. */
+void ds4_gpu_release_i8_prefill_cache(void);
 
 /* =========================================================================
  * Embeddings and Indexer Helpers.
@@ -132,6 +143,27 @@ int ds4_gpu_dsv4_topk_mask_tensor(
  * attention output projections, and DS4's tail-only RoPE.
  */
 
+/* Per-call-site dtype policy for the Q8_0 dense matmul. The caller knows the
+ * functional part (MLA proj / shared expert / lm_head), so it declares intent;
+ * the n_tok size-ladder (GEMV / mul_mv_ext / W8A8) stays internal. */
+typedef enum {
+    DS4_MM_AUTO = 0,    /* env-gated: W8A8 when DS4_GPU_DENSE_I8 + n_tok-eligible */
+    DS4_MM_PREFER_I8,   /* W8A8-friendly part (projections, shared expert) */
+    DS4_MM_NO_I8,       /* quality-sensitive (lm_head): never int8 */
+} ds4_mm_hint;
+
+int ds4_gpu_matmul_q8_0_tensor_ex(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok,
+        ds4_mm_hint             hint);
+
+/* Back-compat wrapper: AUTO policy. */
 int ds4_gpu_matmul_q8_0_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
@@ -153,6 +185,98 @@ int ds4_gpu_shared_gate_up_swiglu_q8_0_tensor(
         uint64_t                in_dim,
         uint64_t                out_dim,
         const ds4_gpu_tensor *x);
+
+/* ANE evaluator for the per-layer shared expert FFN (gate + up + SwiGLU +
+ * down).  Replaces the 3 Q8_0 GPU matmuls + 1 SwiGLU for the shared expert
+ * path.  Weights are pre-dequantized from Q8_0 to fp16 on first call per
+ * layer (cached for the run).  fp16-weight ANE mode preserves precision
+ * exactly modulo fp32→fp16 input rounding.
+ *
+ * Async variant: start_tensor attaches a completion handler to the current
+ * GPU command buffer (which produces `in`), flushes the CB, and spawns a
+ * worker thread.  The worker does CPU fp32↔fp16 conversion + ANE eval +
+ * writeback into `out` MTLBuffer.contents() in parallel with GPU encoding
+ * subsequent ops.  finish_tensor pthread_joins the worker before the
+ * caller encodes any downstream dispatch that reads `out`.  Gated behind
+ * DS4_FLASH_MOE_ANE_SHARED_EXPERT=1. */
+struct ds4_gpu_shared_expert_ane_job;
+typedef struct ds4_gpu_shared_expert_ane_job ds4_gpu_shared_expert_ane_job;
+
+ds4_gpu_shared_expert_ane_job *ds4_gpu_shared_expert_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim,
+        uint32_t                n_tokens);
+
+int ds4_gpu_shared_expert_ane_async_finish_tensor(
+        ds4_gpu_shared_expert_ane_job *job);
+
+/* Pre-warm a layer's shared-expert ANE cache: pre-dequantize Q8_0 → fp16
+ * weights and create the shared compiled context.  Idempotent — safe to
+ * call multiple times for the same layer.  Returns 1 on success, 0 on
+ * failure (failure is sticky for that layer).  Call from model-load /
+ * prefill warmup so the ~4 s of init is paid outside prefill timing. */
+int ds4_gpu_shared_expert_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim);
+
+/* Synchronous wrapper around start+finish — same observable behaviour. */
+int ds4_gpu_shared_expert_ane_sync_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *in,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint64_t                in_dim,
+        uint64_t                mid_dim,
+        uint32_t                n_tokens);
+
+/* Attention output projection (O-proj) ANE path — async fp16w linear two-stage
+ * matmul (attn_output_a, attn_output_b).  Same lifecycle as shared expert.
+ * Gated behind DS4_FLASH_MOE_ANE_OUTPUT_PROJ=1. */
+struct ds4_gpu_oproj_ane_job;
+typedef struct ds4_gpu_oproj_ane_job ds4_gpu_oproj_ane_job;
+
+ds4_gpu_oproj_ane_job *ds4_gpu_oproj_ane_async_start_tensor(
+        const ds4_gpu_tensor *in,
+        ds4_gpu_tensor       *out,
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd,
+        uint32_t                n_tokens);
+
+int ds4_gpu_oproj_ane_async_finish_tensor(ds4_gpu_oproj_ane_job *job);
+
+int ds4_gpu_oproj_ane_prewarm(
+        int                     layer_idx,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                a_offset,
+        uint64_t                b_offset,
+        uint64_t                in_dim,
+        uint64_t                out_low_dim,
+        uint64_t                n_embd);
 
 int ds4_gpu_matmul_f16_tensor(
         ds4_gpu_tensor       *out,
@@ -706,6 +830,85 @@ int ds4_gpu_routed_moe_expert_banked_batch_tensor(
         uint32_t                n_tokens,
         bool                   *mid_is_f16);
 
+int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        float                   clamp,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens,
+        bool                   *mid_is_f16);
+
+typedef struct ds4_gpu_ane_prefill_job ds4_gpu_ane_prefill_job;
+
+ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens);
+
+int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
+        ds4_gpu_ane_prefill_job *job);
+
+int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+        ds4_gpu_ane_prefill_job *job,
+        ds4_gpu_tensor          *out,
+        bool                    *mid_is_f16);
+
+int ds4_gpu_ane_prefill_precompile_from_env(void);
+
+int ds4_gpu_mpp_int8_prefill_prewarm(void);
+
+int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        float                   clamp,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens,
+        bool                   *mid_is_f16);
+
 /* GPU dedup for Flash-MoE prefill (histogram of router top-k over n_pairs) */
 int ds4_gpu_flash_moe_dedup_histogram(const ds4_gpu_tensor *selected,
                                       ds4_gpu_tensor       *counts256,
@@ -882,5 +1085,11 @@ int ds4_gpu_matmul_q8_0_hc_expand_tensor(
         const ds4_gpu_tensor *split,
         uint32_t                n_embd,
         uint32_t                n_hc);
+
+/* Resolved dense-projection backend for the startup compute banner:
+ * 2 = W8A8 int8, 1 = fp16-NAX (half x half), 0 = fp32 legacy. */
+int ds4_gpu_dense_backend_kind(void);
+/* Token-count cutoff below which the dense W8A8 path falls back to NAX/fp16. */
+uint64_t ds4_gpu_dense_i8_min_tokens_public(void);
 
 #endif

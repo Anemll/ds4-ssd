@@ -62,6 +62,7 @@ struct ds4_metal_args_dsv4_indexed_attention {
     uint64_t dst_token_stride;
     uint64_t dst_head_stride;
     float    scale;
+    uint32_t comp_kv_f16;   // 1 = comp_kv is an F16 read-side shadow (comp_row_stride halved)
 };
 
 struct ds4_metal_args_dsv4_indexer_scores_fused {
@@ -523,6 +524,17 @@ static inline void dsv4_attend_sink(
 // rows are the same for all heads of a token, so K/V is staged once in
 // threadgroup memory and reused by the eight simdgroups. It keeps the DS4 F16
 // attention rounding by casting Q/K/V to half before the dot/value update.
+// Flat F32->F16 conversion for the indexed-attention compressed-KV read-side shadow.
+// Converts `count` contiguous floats (offsets applied via buffer binding).
+kernel void kernel_dsv4_comp_f32_to_f16(
+        device const float *src [[buffer(0)]],
+        device       half  *dst [[buffer(1)]],
+        constant uint &count [[buffer(2)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= count) return;
+    dst[tid] = (half)src[tid];
+}
+
 kernel void kernel_dsv4_indexed_mixed_attention_heads8(
         constant ds4_metal_args_dsv4_indexed_attention & args,
         device const char *q,
@@ -596,9 +608,15 @@ kernel void kernel_dsv4_indexed_mixed_attention_heads8(
         if ((uint)idx >= visible) {
             break;
         }
-        device const float4 *src = (device const float4 *)(comp_kv +
-            (uint64_t)(uint)idx * args.comp_row_stride);
-        if (tid < 128) kv_shared[tid] = src[tid];
+        if (args.comp_kv_f16) {
+            device const half4 *src = (device const half4 *)(comp_kv +
+                (uint64_t)(uint)idx * args.comp_row_stride);
+            if (tid < 128) kv_shared[tid] = (float4)src[tid];
+        } else {
+            device const float4 *src = (device const float4 *)(comp_kv +
+                (uint64_t)(uint)idx * args.comp_row_stride);
+            if (tid < 128) kv_shared[tid] = src[tid];
+        }
         threadgroup_barrier(mem_flags::mem_threadgroup);
         dsv4_attend_shared_f32_row_as_f16(kv_shared,
                                           q0, q1, q2, q3,
@@ -718,12 +736,22 @@ kernel void kernel_dsv4_indexed_mixed_attention_heads8_rb4(
         if (n_rows == 0) {
             continue;
         }
-        for (uint off = (uint)tid; off < n_rows * 128u; off += 256u) {
-            const uint r = off >> 7;
-            const uint c = off & 127u;
-            device const float4 *src = (device const float4 *)(comp_kv +
-                (uint64_t)rows[r] * args.comp_row_stride);
-            kv_shared[off] = src[c];
+        if (args.comp_kv_f16) {
+            for (uint off = (uint)tid; off < n_rows * 128u; off += 256u) {
+                const uint r = off >> 7;
+                const uint c = off & 127u;
+                device const half4 *src = (device const half4 *)(comp_kv +
+                    (uint64_t)rows[r] * args.comp_row_stride);
+                kv_shared[off] = (float4)src[c];
+            }
+        } else {
+            for (uint off = (uint)tid; off < n_rows * 128u; off += 256u) {
+                const uint r = off >> 7;
+                const uint c = off & 127u;
+                device const float4 *src = (device const float4 *)(comp_kv +
+                    (uint64_t)rows[r] * args.comp_row_stride);
+                kv_shared[off] = src[c];
+            }
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint r = 0; r < n_rows; r++) {
