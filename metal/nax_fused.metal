@@ -700,3 +700,71 @@ kernel void ds4_attn_out_low_i8_fused(
             db[(uint64_t)t*G*M + (uint64_t)group*M + o] = (float)sc[m + n*NR0] * ascale[t*G + group] * wscale[group*M + o];
     }
 }
+
+// iter-4 Path C: fused gate + up + swiglu (in-kernel NAX∥ALU concurrency)
+// Replaces 3 separate launches per expert (gate matmul, up matmul, swiglu) with
+// one shader that runs two matmul2d ops on cooperative tensors and applies the
+// SiLU(gate)*up activation per-element on the cooperative tile before storing
+// mid. Targets the ~1.46x in-kernel NAX∥ALU overlap measured by the expert.
+//
+// Inputs:
+//   X     [M x K]   half  (gathered activations for this expert's tokens)
+//   gateW [N x K]   half  (gate weights, dequant'd elsewhere)
+//   upW   [N x K]   half  (up weights, dequant'd elsewhere)
+// Output:
+//   mid   [M x N]   float (SiLU(gate(x)) * up(x))
+//
+// Per threadgroup: 32 (rows of M) x 32 (cols of N) output tile, 1 simdgroup.
+// Grid: ((N + 31)/32, (M + 31)/32).  tg threads = 32.
+// Tile/SG selected via synthetic sweep (moe-batch-bench/fused_kernel_probe.m):
+// at realistic per-expert M=256..1024 this beats NR0=64 SG=4 by 1.44–1.69x
+// against the separate matmul+matmul+swiglu reference (vs ~1.1x for SG=4).
+// =============================================================================
+kernel void ds4_mpp_fused_gate_up_swiglu_h_h_f_n32(
+        device half  *X         [[buffer(0)]],
+        device half  *gateW     [[buffer(1)]],
+        device half  *upW       [[buffer(2)]],
+        device float *mid       [[buffer(3)]],
+        constant uint &M        [[buffer(4)]],
+        constant uint &N        [[buffer(5)]],
+        constant uint &K        [[buffer(6)]],
+        constant float &clamp_v [[buffer(7)]],
+        uint2 tgid [[threadgroup_position_in_grid]])
+{
+    constexpr int NR0 = 32, NR1 = 32, NK = 32;
+    constexpr auto desc = matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<1>> mm;
+
+    auto tX  = tensor(X,     dextents<int32_t, 2>{(int32_t)K, (int32_t)M}, array<int32_t, 2>{1, (int32_t)K});
+    auto tG  = tensor(gateW, dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});
+    auto tU  = tensor(upW,   dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});
+    auto tM  = tensor(mid,   dextents<int32_t, 2>{(int32_t)N, (int32_t)M}, array<int32_t, 2>{1, (int32_t)N});
+
+    auto mX  = tX.slice(0, tgid.y * NR0);
+    auto mGw = tG.slice(tgid.x * NR1, 0);
+    auto mUw = tU.slice(tgid.x * NR1, 0);
+    auto mMo = tM.slice(tgid.x * NR1, tgid.y * NR0);
+
+    auto cG = mm.get_destination_cooperative_tensor<decltype(mGw), decltype(mX), float>();
+    auto cU = mm.get_destination_cooperative_tensor<decltype(mUw), decltype(mX), float>();
+    for (uint16_t i = 0; i < cG.get_capacity(); ++i) if (cG.is_valid_element(i)) cG[i] = 0.0f;
+    for (uint16_t i = 0; i < cU.get_capacity(); ++i) if (cU.is_valid_element(i)) cU[i] = 0.0f;
+
+    // Two matmuls — the runtime can overlap NAX (tensor) and ALU dispatch within
+    // this single kernel; the goal of the fusion is in-kernel NAX∥ALU pipelining.
+    mm.run(mGw, mX, cG);
+    mm.run(mUw, mX, cU);
+
+    // Per-element swiglu on cooperative tile: mid = SiLU(gate) * up
+    // SiLU(x) = x / (1 + exp(-x)). Clamp gate to avoid exp overflow if clamp_v>0.
+    for (uint16_t i = 0; i < cG.get_capacity(); ++i) {
+        if (!cG.is_valid_element(i)) continue;
+        float g = cG[i];
+        if (clamp_v > 0.0f) g = metal::min(metal::max(g, -clamp_v), clamp_v);
+        const float silu_g = g / (1.0f + metal::exp(-g));
+        cG[i] = silu_g * cU[i];   // reuse cG as the output cooperative tile
+    }
+
+    cG.store(mMo);
+}
