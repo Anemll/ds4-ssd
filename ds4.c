@@ -11500,6 +11500,17 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
     uint64_t fallback_refs = 0;
     bool commands_open = false;
 
+    /* iter-4 MVP: sync ANE-vs-GPU per-expert swap in the dedup path. With the
+     * flag on and refs >= threshold, call the ANE sync variant (NPU) instead of
+     * the GPU MPP int8 matmul. This is the integration test (no async, no
+     * concurrency yet) — it should produce correct output but not necessarily
+     * beat the bar; async + double-buffer comes next once correctness lands. */
+    const char *ane_hybrid_env = getenv("DS4_RESIDENT_MOE_ANE_HYBRID");
+    const bool use_ane_hybrid =
+        ane_hybrid_env && ane_hybrid_env[0] && atoi(ane_hybrid_env) != 0;
+    const uint32_t ane_min_refs_local =
+        (uint32_t)atoi(getenv("DS4_RESIDENT_MOE_ANE_MIN_REFS") ?: "129");
+
     for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
         const int32_t expert = unique[ui];
         const uint32_t begin = (uint32_t)offsets[ui];
@@ -17719,6 +17730,311 @@ static bool metal_graph_encode_layer_ffn_batch(
             ok = ds4_gpu_begin_commands() != 0;
         }
     }
+    /* iter-13 pending ANE state shared between outer-pre-hook and post-routed
+     * drain. Function-scope so both blocks see it. Static so the out scratch
+     * persists across calls (allocated lazily on first ANE-eligible call). */
+    ds4_gpu_ane_prefill_job *_pending_ane_jobs[256] = {0};
+    ds4_gpu_tensor          *_pending_ane_gate_views[256] = {0};
+    ds4_gpu_tensor          *_pending_ane_up_views[256]   = {0};
+    ds4_gpu_tensor          *_pending_ane_down_views[256] = {0};
+    ds4_gpu_ane_direct_job  *_pending_ane_direct_jobs[256] = {0};
+    int                      _pending_ane_count = 0;
+    int                      _pending_ane_direct_count = 0;
+    static ds4_gpu_tensor   *_static_ane_out_scratch = NULL;
+
+    /* iter-8 ANE+NAX resident hybrid (option A): outer caller integration
+     * point. The shared g_batch_cb is owned at this layer, so we can safely
+     * end_commands / synchronize / begin_commands here without breaking any
+     * inner state. When DS4_RESIDENT_MOE_ANE_HYBRID=1 + DS4_RESIDENT_MOE_ANE_HYBRID_OUTER=1:
+     * (future) read back counts, identify ANE-eligible experts (refs >=
+     * ane_min_refs), prepare per-expert inputs, submit ANE via _eval (in
+     * pthread for concurrency), and pass an `ane_skip_mask` to
+     * routed_moe_batch_tensor so the GPU path doesn't double-compute.
+     * For now: just verify the env-gated hook fires before the GPU call. */
+    if (ok && !g->flash_moe && !resident_mpp_done) {
+        const char *_ane_outer_env = getenv("DS4_RESIDENT_MOE_ANE_HYBRID_OUTER");
+        if (_ane_outer_env && atoi(_ane_outer_env) != 0) {
+            /* Drain in-flight GPU work so router_select results are CPU-visible. */
+            (void)ds4_gpu_synchronize();
+            const int32_t *selected =
+                (const int32_t *)ds4_gpu_tensor_contents(g->batch_router_selected);
+            if (selected) {
+                uint32_t per_expert_counts[256] = {0};
+                const uint32_t total_routings = n_tokens * DS4_N_EXPERT_USED;
+                for (uint32_t i = 0; i < total_routings; i++) {
+                    const int32_t e = selected[i];
+                    if (e >= 0 && e < 256) per_expert_counts[e]++;
+                }
+                const uint32_t ane_min_refs = getenv("DS4_RESIDENT_MOE_ANE_MIN_REFS") ?
+                    (uint32_t)atoi(getenv("DS4_RESIDENT_MOE_ANE_MIN_REFS")) : 128u;
+                /* Multi-call ANE: ds4_ane_mlp_i8w_i8x_tiled_fused_eval_xonly
+                 * reuses weights, so an expert with refs > 256 can be split
+                 * across ceil(refs/256) calls. Weight write is paid once;
+                 * each evaluate adds ~1.1 ms (parallel_ctx_bench at B=256).
+                 * Cost model: ~0.4 ms weight-write + N × 1.1 ms evaluate.
+                 * For refs ≤ 1024, total ≤ ~4.8 ms — still useful. */
+                const uint32_t ane_max_chain_refs = 1024u;
+                uint32_t eligible = 0, eligible_refs = 0;
+                uint32_t too_hot_for_ane = 0, too_hot_refs = 0, max_refs = 0;
+                uint32_t buckets[8] = {0};  /* 0..32, 32..64, 64..128, 128..192, 192..256, 256..384, 384..512, 512+ */
+                uint32_t multi_call_experts = 0, multi_call_refs = 0;
+                double total_ane_wall_ms = 0.0;
+                for (uint32_t e = 0; e < 256; e++) {
+                    const uint32_t r = per_expert_counts[e];
+                    if (r > max_refs) max_refs = r;
+                    if (r >= ane_min_refs && r <= 256u) {
+                        eligible++;
+                        eligible_refs += r;
+                        total_ane_wall_ms += 1.1;  /* 1 call */
+                    } else if (r > 256u && r <= ane_max_chain_refs) {
+                        const uint32_t n_calls = (r + 255u) / 256u;  /* ceil */
+                        multi_call_experts++;
+                        multi_call_refs += r;
+                        total_ane_wall_ms += 0.4 + (double)n_calls * 1.1;
+                    }
+                    if (r > ane_max_chain_refs) { too_hot_for_ane++; too_hot_refs += r; }
+                    if      (r < 32u)  buckets[0]++;
+                    else if (r < 64u)  buckets[1]++;
+                    else if (r < 128u) buckets[2]++;
+                    else if (r < 192u) buckets[3]++;
+                    else if (r < 256u) buckets[4]++;
+                    else if (r < 384u) buckets[5]++;
+                    else if (r < 512u) buckets[6]++;
+                    else               buckets[7]++;
+                }
+                static int _outer_logged_layers = 0;
+                if (_outer_logged_layers < 2 && il == 0) {
+                    _outer_logged_layers++;
+                    fprintf(stderr,
+                            "ds4: [ane-hybrid-outer] layer=%u n_tokens=%u total_refs=%u max_refs=%u\n"
+                            "ds4: [ane-hybrid-outer] ANE 1-call [%u-256]: experts=%u refs=%u (%.1f%% of total)\n"
+                            "ds4: [ane-hybrid-outer] ANE multi-call [257-1024]: experts=%u refs=%u (%.1f%% of total)\n"
+                            "ds4: [ane-hybrid-outer] too hot (refs>1024): experts=%u refs=%u\n"
+                            "ds4: [ane-hybrid-outer] total ANE wall (sequential): %.2f ms (4-cluster: %.2f ms)\n"
+                            "ds4: [ane-hybrid-outer] refs bucket distribution: <32:%u, <64:%u, <128:%u, <192:%u, <256:%u, <384:%u, <512:%u, >=512:%u\n",
+                            il, n_tokens, total_routings, max_refs,
+                            ane_min_refs, eligible, eligible_refs,
+                            100.0 * eligible_refs / total_routings,
+                            multi_call_experts, multi_call_refs,
+                            100.0 * multi_call_refs / total_routings,
+                            too_hot_for_ane, too_hot_refs,
+                            total_ane_wall_ms, total_ane_wall_ms / 4.0,
+                            buckets[0], buckets[1], buckets[2], buckets[3],
+                            buckets[4], buckets[5], buckets[6], buckets[7]);
+                }
+                /* Iter-11: actual ANE invocation. Pick the hottest expert that
+                 * fits in single-call window [min_refs, 256], build its hids
+                 * list on CPU, gather x + weights via existing GPU kernels,
+                 * build per-expert weight bank views, fire _ane_start_tensor
+                 * + _ane_finish_tensor synchronously. Throwaway output (no
+                 * scatter-add to outbuf yet); just lights up ANE on activity
+                 * monitor + measures real wall time. */
+                /* Iterate eligible experts: start ANE (async, returns job),
+                 * defer finish to after GPU pass. Build skip-mask for GPU.
+                 * Optional cap via DS4_RESIDENT_MOE_ANE_HYBRID_MAX_EXPERTS=K
+                 * to sweep the work-split tradeoff (0 = no cap, process all). */
+                const uint32_t ane_max_experts_per_layer =
+                    getenv("DS4_RESIDENT_MOE_ANE_HYBRID_MAX_EXPERTS") ?
+                    (uint32_t)atoi(getenv("DS4_RESIDENT_MOE_ANE_HYBRID_MAX_EXPERTS")) : 0u;
+                int ane_fired_count = 0;
+                double ane_total_wall_ms = 0.0;
+                uint8_t ane_handled_mask[256] = {0};
+                /* iter-18: one sync per LAYER (not per expert) so additional
+                 * ANE experts don't each pay the drain+begin overhead. */
+                int _layer_sync_done = 0;
+                /* iter-20 fix: build candidate list of in-window eligible
+                 * experts (refs in [min_refs, 256]), sort by refs DESCENDING
+                 * so K=N picks the N hottest, not the first N by id. */
+	                int candidate_idx[256];
+	                int candidate_count = 0;
+	                const bool direct_skip_only =
+	                    env_flag_enabled("DS4_RESIDENT_MOE_ANE_DIRECT_SKIP_ONLY") ||
+	                    env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID_DIRECT_SKIP_ONLY");
+	                const bool use_direct_eval =
+	                    direct_skip_only ||
+	                    env_flag_enabled("DS4_RESIDENT_MOE_ANE_DIRECT_EVAL") ||
+	                    env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID_DIRECT_EVAL");
+	                for (int e = 0; e < 256; e++) {
+                    const uint32_t r = per_expert_counts[e];
+	                    if (r >= ane_min_refs &&
+	                        (r <= 256u || (direct_skip_only && r <= ane_max_chain_refs))) {
+	                        candidate_idx[candidate_count++] = e;
+	                    }
+                }
+                /* Simple selection-sort descending by refs (at most 256 items). */
+                for (int a = 0; a < candidate_count; a++) {
+                    int best = a;
+                    for (int b = a + 1; b < candidate_count; b++) {
+                        if (per_expert_counts[candidate_idx[b]] >
+                            per_expert_counts[candidate_idx[best]]) best = b;
+                    }
+                    if (best != a) {
+                        int tmp = candidate_idx[a];
+                        candidate_idx[a] = candidate_idx[best];
+                        candidate_idx[best] = tmp;
+                    }
+                }
+                /* Per-call diag of the picked experts (first 2 layers). */
+                int _picked_log_first_n =
+                    (ane_max_experts_per_layer > 0 &&
+                     ane_max_experts_per_layer < 8u) ? (int)ane_max_experts_per_layer : 8;
+                if (il < 2 && getenv("DS4_RESIDENT_MOE_ANE_HYBRID_DIAG")) {
+                    fprintf(stderr, "ds4: [ane-hybrid-outer] layer=%u candidates=%d picked-refs(top%d):",
+                            il, candidate_count, _picked_log_first_n);
+                    for (int p = 0; p < _picked_log_first_n && p < candidate_count; p++) {
+                        fprintf(stderr, " e%d=%u",
+                                candidate_idx[p], per_expert_counts[candidate_idx[p]]);
+                    }
+                    fprintf(stderr, "\n");
+                }
+                for (int slot = 0; slot < candidate_count; slot++) {
+	                    const int hottest_eligible = candidate_idx[slot];
+	                    const uint32_t hottest_refs = per_expert_counts[hottest_eligible];
+	                    if (ane_max_experts_per_layer > 0 &&
+	                        (uint32_t)ane_fired_count >= ane_max_experts_per_layer) break;
+	                    if (direct_skip_only) {
+	                        ane_fired_count++;
+	                        ane_handled_mask[hottest_eligible] = 1;
+	                        continue;
+	                    }
+	                    if (!use_direct_eval && !_layer_sync_done) {
+	                        (void)ds4_gpu_synchronize();
+	                        (void)ds4_gpu_begin_commands();
+	                        _layer_sync_done = 1;
+	                    }
+                    /* Lazy-alloc per-call scratches (refs ≤ 256, in_dim=4096). */
+	                    static ds4_gpu_tensor *s_outer_x_scratch = NULL;
+	                    static ds4_gpu_tensor *s_outer_w_scratch = NULL;
+	                    static ds4_gpu_tensor *s_outer_hids = NULL;
+	                    if (!use_direct_eval && !s_outer_x_scratch)
+	                        s_outer_x_scratch = ds4_gpu_tensor_alloc((uint64_t)256 * expert_in_dim * sizeof(float));
+	                    if (!use_direct_eval && !s_outer_w_scratch)
+	                        s_outer_w_scratch = ds4_gpu_tensor_alloc((uint64_t)256 * sizeof(float));
+	                    if (!s_outer_hids)
+	                        s_outer_hids = ds4_gpu_tensor_alloc((uint64_t)256 * sizeof(int32_t));
+	                    if (!use_direct_eval && !_static_ane_out_scratch)
+	                        _static_ane_out_scratch = ds4_gpu_tensor_alloc((uint64_t)256 * routed_out_dim * sizeof(float));
+
+	                    if (s_outer_hids &&
+	                        (use_direct_eval ||
+	                         (s_outer_x_scratch && s_outer_w_scratch && _static_ane_out_scratch))) {
+                        /* Build per-expert hids on CPU: for each token i, find the slot
+                         * where selected[i*n_expert+slot] == hottest_eligible. The hids
+                         * value the ANE function uses is a pair-index = i*n_expert+slot
+                         * (matches the swiglu kernel's id = hids[row] semantics). */
+                        int32_t *hids_cpu = (int32_t *)ds4_gpu_tensor_contents(s_outer_hids);
+                        uint32_t built_refs = 0;
+                        if (hids_cpu) {
+                            for (uint32_t i = 0; i < n_tokens && built_refs < hottest_refs; i++) {
+                                for (uint32_t slot = 0; slot < DS4_N_EXPERT_USED; slot++) {
+                                    const int32_t e = selected[i * DS4_N_EXPERT_USED + slot];
+                                    if (e == hottest_eligible) {
+                                        hids_cpu[built_refs++] = (int32_t)(i * DS4_N_EXPERT_USED + slot);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+	                        if (built_refs == hottest_refs) {
+	                            const double ane_t0 = (now_sec() * 1000.0);
+	                            if (use_direct_eval) {
+	                                ds4_gpu_ane_direct_job *direct_job = direct_skip_only ? NULL :
+	                                    ds4_gpu_ane_direct_eval_one_expert_start(
+	                                    g->batch_ffn_norm,
+	                                    s_outer_hids,
+	                                    model->map, model->size,
+	                                    layer->ffn_gate_exps->abs_offset,
+	                                    layer->ffn_up_exps->abs_offset,
+	                                    layer->ffn_down_exps->abs_offset,
+	                                    gate_expert_bytes, down_expert_bytes,
+	                                    (uint32_t)hottest_eligible, hottest_refs,
+	                                    (uint32_t)expert_in_dim,
+	                                    (uint32_t)down_in_dim,
+	                                    (uint32_t)routed_out_dim,
+	                                    DS4_N_EXPERT_USED);
+	                                const double ane_wall_ms = (now_sec() * 1000.0) - ane_t0;
+	                                if (direct_skip_only) {
+	                                    ane_fired_count++;
+	                                    ane_total_wall_ms += ane_wall_ms;
+	                                    ane_handled_mask[hottest_eligible] = 1;
+	                                } else if (direct_job && _pending_ane_direct_count < 256) {
+	                                    _pending_ane_direct_jobs[_pending_ane_direct_count++] = direct_job;
+	                                    ane_fired_count++;
+	                                    ane_total_wall_ms += ane_wall_ms;
+	                                    ane_handled_mask[hottest_eligible] = 1;
+	                                } else if (direct_job) {
+	                                    (void)ds4_gpu_ane_direct_eval_one_expert_finish(direct_job);
+	                                }
+	                            } else {
+	                                const uint64_t gate_w_off  = layer->ffn_gate_exps->abs_offset + (uint64_t)hottest_eligible * gate_expert_bytes;
+	                                const uint64_t up_w_off    = layer->ffn_up_exps->abs_offset   + (uint64_t)hottest_eligible * gate_expert_bytes;
+	                                const uint64_t down_w_off  = layer->ffn_down_exps->abs_offset + (uint64_t)hottest_eligible * down_expert_bytes;
+	                                ds4_gpu_tensor *gate_view = ds4_gpu_model_tensor_view(model->map, model->size, gate_w_off, gate_expert_bytes);
+	                                ds4_gpu_tensor *up_view   = ds4_gpu_model_tensor_view(model->map, model->size, up_w_off, gate_expert_bytes);
+	                                ds4_gpu_tensor *down_view = ds4_gpu_model_tensor_view(model->map, model->size, down_w_off, down_expert_bytes);
+	
+	                                int gx_ok = 0, gw_ok = 0;
+	                                if (gate_view && up_view && down_view) {
+	                                    gx_ok = ds4_gpu_gather_rows_f32_tensor(
+	                                        s_outer_x_scratch, g->batch_ffn_norm, s_outer_hids,
+	                                        hottest_refs, (uint32_t)expert_in_dim);
+	                                    gw_ok = ds4_gpu_gather_rows_f32_tensor(
+	                                        s_outer_w_scratch, g->batch_router_weights, s_outer_hids,
+	                                        hottest_refs, 1);
+	                                }
+	                                ds4_gpu_ane_prefill_job *ane_job = NULL;
+	                                if (gx_ok && gw_ok && gate_view && up_view && down_view) {
+	                                    ane_job = ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(
+	                                        gate_view, up_view, down_view,
+	                                        layer->ffn_gate_exps->type,
+	                                        layer->ffn_down_exps->type,
+	                                        gate_expert_bytes, gate_row_bytes,
+	                                        down_expert_bytes, down_row_bytes,
+	                                        (uint32_t)expert_in_dim,
+	                                        (uint32_t)down_in_dim,
+	                                        (uint32_t)routed_out_dim,
+	                                        s_outer_w_scratch,
+	                                        s_outer_x_scratch,
+	                                        hottest_refs);
+	                                }
+	                                const double ane_wall_ms = (now_sec() * 1000.0) - ane_t0;
+	                                if (ane_job && _pending_ane_count < 256) {
+	                                    _pending_ane_jobs[_pending_ane_count] = ane_job;
+	                                    _pending_ane_gate_views[_pending_ane_count] = gate_view;
+	                                    _pending_ane_up_views[_pending_ane_count]   = up_view;
+	                                    _pending_ane_down_views[_pending_ane_count] = down_view;
+	                                    _pending_ane_count++;
+	                                    ane_fired_count++;
+	                                    ane_total_wall_ms += ane_wall_ms;
+	                                    ane_handled_mask[hottest_eligible] = 1;
+	                                    gate_view = up_view = down_view = NULL; /* ownership transferred */
+	                                }
+	                                if (gate_view) ds4_gpu_tensor_free(gate_view);
+	                                if (up_view)   ds4_gpu_tensor_free(up_view);
+	                                if (down_view) ds4_gpu_tensor_free(down_view);
+	                            }
+	                        }
+                    }
+                }
+                static int _outer_ane_layer_logged = 0;
+                if (_outer_ane_layer_logged < 4 && ane_fired_count > 0) {
+                    _outer_ane_layer_logged++;
+                    fprintf(stderr,
+                            "ds4: [ane-hybrid-outer] layer=%u fired %d ANE experts, total wall=%.2f ms\n",
+                            il, ane_fired_count, ane_total_wall_ms);
+                }
+                /* Hand off skip-mask + leave ANE jobs running. They'll be drained
+                 * after the GPU pass below. ANE output still dropped to scratch
+                 * (no scatter-add yet) → generated text diverges from Plan A. */
+                if (ane_fired_count > 0 &&
+                    getenv("DS4_RESIDENT_MOE_ANE_HYBRID_SKIP")) {
+                    ds4_gpu_set_ane_skip_mask(ane_handled_mask, 256u);
+                }
+	            }
+            (void)ds4_gpu_begin_commands();
+        }
+    }
     if (ok && !g->flash_moe && !resident_mpp_done) {
         g->batch_routed_mid_is_f16 = false;
         ok = ds4_gpu_routed_moe_batch_tensor(g->batch_routed_out,
@@ -17747,6 +18063,52 @@ static bool metal_graph_encode_layer_ffn_batch(
                                              g->batch_ffn_norm,
                                              n_tokens,
                                              &g->batch_routed_mid_is_f16) != 0;
+        /* Clear the skip-mask immediately after the GPU routed-MoE call so
+         * subsequent layers / decode aren't affected by the previous layer's
+         * ANE handling. */
+        ds4_gpu_clear_ane_skip_mask();
+
+	        /* Drain pending ANE jobs (started before routed_moe call). They have
+	         * been running concurrently with the GPU work above. */
+	        if (_pending_ane_direct_count > 0) {
+	            const double drain_t0 = now_sec() * 1000.0;
+	            for (int j = 0; j < _pending_ane_direct_count; j++) {
+	                if (_pending_ane_direct_jobs[j]) {
+	                    (void)ds4_gpu_ane_direct_eval_one_expert_finish(_pending_ane_direct_jobs[j]);
+	                }
+	            }
+	            const double drain_ms = (now_sec() * 1000.0) - drain_t0;
+	            static int _direct_drain_logged = 0;
+	            if (_direct_drain_logged < 8) {
+	                _direct_drain_logged++;
+	                fprintf(stderr,
+	                        "ds4: [ane-direct] post-GPU drain: %d jobs, wall=%.2f ms\n",
+	                        _pending_ane_direct_count, drain_ms);
+	            }
+	            _pending_ane_direct_count = 0;
+	        }
+	        if (_pending_ane_count > 0 && _static_ane_out_scratch) {
+            const double drain_t0 = now_sec() * 1000.0;
+            for (int j = 0; j < _pending_ane_count; j++) {
+                if (_pending_ane_jobs[j]) {
+                    bool mid_is_f16 = false;
+                    (void)ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+                        _pending_ane_jobs[j], _static_ane_out_scratch, &mid_is_f16);
+                }
+                if (_pending_ane_gate_views[j]) ds4_gpu_tensor_free(_pending_ane_gate_views[j]);
+                if (_pending_ane_up_views[j])   ds4_gpu_tensor_free(_pending_ane_up_views[j]);
+                if (_pending_ane_down_views[j]) ds4_gpu_tensor_free(_pending_ane_down_views[j]);
+            }
+            const double drain_ms = (now_sec() * 1000.0) - drain_t0;
+            static int _drain_logged = 0;
+            if (_drain_logged < 4) {
+                _drain_logged++;
+                fprintf(stderr,
+                        "ds4: [ane-hybrid-outer] post-GPU drain: %d ANE jobs, wall=%.2f ms\n",
+                        _pending_ane_count, drain_ms);
+            }
+            _pending_ane_count = 0;
+        }
     }
     if (ok) {
         metal_graph_debug_dump_tensor("ffn_moe_gate_clamped", g->batch_routed_gate,
@@ -18399,7 +18761,8 @@ static bool metal_graph_prefill_layer_major(
     if (!ok) return false;
 
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, (uint32_t)n_tokens)) return false;
-    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL")) {
+    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") ||
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID")) {
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 
@@ -18814,7 +19177,8 @@ static bool metal_graph_prefill_chunked_range(
         if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] FAIL warmup_prefill_kernels(first_chunk=%u)\n", first_chunk);
         return false;
     }
-    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL")) {
+    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") ||
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID")) {
         (void)ds4_gpu_ane_prefill_precompile_from_env();
     }
 
@@ -22676,15 +23040,16 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 	    if (graph_backend && e->metal_ready) {
 	        if (env_flag_enabled("DS4_RESIDENT_MOE_MPP_INT8_PREFILL") ||
 	            env_flag_enabled("DS4_RESIDENT_MOE_NAX_INT8_PREFILL") ||
-	            env_flag_enabled("DS4_RESIDENT_MPP_INT8_PREFILL")) {
+	            env_flag_enabled("DS4_RESIDENT_MPP_INT8_PREFILL") ||
+	            env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF")) {
 	            const double prewarm_t0 = now_sec();
 	            if (ds4_gpu_mpp_int8_prefill_prewarm()) {
 	                fprintf(stderr,
-	                        "ds4: resident MPP/NAX int8 prewarm: %.1f ms total (paid before prefill timer)\n",
+	                        "ds4: resident MPP/NAX prewarm: %.1f ms total (paid before prefill timer)\n",
 	                        (now_sec() - prewarm_t0) * 1000.0);
 	            } else {
 	                fprintf(stderr,
-	                        "ds4: resident MPP/NAX int8 prewarm failed; MPP prefill will fall back if needed\n");
+	                        "ds4: resident MPP/NAX prewarm failed; MPP prefill will fall back if needed\n");
 	            }
 	        }
 	        const char *env = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");

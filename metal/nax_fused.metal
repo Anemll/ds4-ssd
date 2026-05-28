@@ -498,6 +498,113 @@ kernel void ds4_mpp_iq2_i8_i32_counted(
     cT.store(mC);
 }
 
+// =============================================================================
+// Multi-expert iq2 fused matmul — one dispatch covers G experts.
+// Collapses E per-expert dispatches into 1 single grouped dispatch. Each output
+// tile reads its expert id from te[tile_y], A row offset from tr0[tile_y], row
+// count from trc[tile_y]. A is packed acts concatenated by expert; C is output
+// packed in the same order. Wq is laid out as one [N x K] iq2_xxs slab per
+// expert, indexed by expert id.
+// Synthetic validation: moe-batch-bench/nax_multiexpert_probe.{m,binary}
+//   E=64 TOTAL=25108 (rows 256-512/expert) N=2048 K=7168 → ~39 TFLOPS, max_abs=0.
+// Dispatch convention (host-driven, NOT counted-indirect):
+//   grid = (ceil(N/32), n_tiles, 1) where n_tiles = sum_e ceil(M_e / 64).
+//   tg   = (32 * 4, 1, 1) = 128 threads (4 simdgroups).
+kernel void ds4_mpp_iq2_i8_i32_multi(
+        device int8_t *A                    [[buffer(0)]],
+        device const block_iq2_xxs *Wq      [[buffer(1)]],
+        device int32_t *C                   [[buffer(2)]],
+        device const uint *te               [[buffer(3)]],   // expert id per tile
+        device const uint *tr0              [[buffer(4)]],   // A row offset per tile
+        device const uint *trc              [[buffer(5)]],   // rows per tile
+        constant uint   &N                  [[buffer(6)]],
+        constant uint   &K                  [[buffer(7)]],
+        constant float  &qscale             [[buffer(8)]],
+        uint2 tgid [[threadgroup_position_in_grid]],
+        uint  tidx [[thread_index_in_threadgroup]]) {
+    const uint n0     = tgid.x * 32u;
+    if (n0 >= N) return;
+    const uint expert = te[tgid.y];
+    const uint a0     = tr0[tgid.y];
+    const uint rows   = trc[tgid.y];
+    if (rows == 0u) return;
+    const uint bpr = K / 256u;
+    device int8_t  *Ae = A + (ulong)a0 * K;
+    device int32_t *Ce = C + (ulong)a0 * N;
+    device const block_iq2_xxs *We = Wq + (ulong)expert * (ulong)N * (ulong)bpr;
+
+    threadgroup int8_t Btile[256 * 32];
+    threadgroup int8_t *bptr = Btile;
+    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<4>> op;
+    auto mA0  = tensor(Ae, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
+    for (uint kb = 0; kb < bpr; ++kb) {
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_iq2_seg(We + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA  = tensor(Ae + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        op.run(mA, mBt, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto mC = tensor(Ce + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
+    cT.store(mC);
+}
+
+// q2_K multi-expert variant. Same layout: one [N x K] q2_K slab per expert in Wq.
+kernel void ds4_mpp_q2k_i8_i32_multi(
+        device int8_t *A                    [[buffer(0)]],
+        device const block_q2_K *Wq         [[buffer(1)]],
+        device int32_t *C                   [[buffer(2)]],
+        device const uint *te               [[buffer(3)]],
+        device const uint *tr0              [[buffer(4)]],
+        device const uint *trc              [[buffer(5)]],
+        constant uint   &N                  [[buffer(6)]],
+        constant uint   &K                  [[buffer(7)]],
+        constant float  &qscale             [[buffer(8)]],
+        uint2 tgid [[threadgroup_position_in_grid]],
+        uint  tidx [[thread_index_in_threadgroup]]) {
+    const uint n0     = tgid.x * 32u;
+    if (n0 >= N) return;
+    const uint expert = te[tgid.y];
+    const uint a0     = tr0[tgid.y];
+    const uint rows   = trc[tgid.y];
+    if (rows == 0u) return;
+    const uint bpr = K / 256u;
+    device int8_t  *Ae = A + (ulong)a0 * K;
+    device int32_t *Ce = C + (ulong)a0 * N;
+    device const block_q2_K *We = Wq + (ulong)expert * (ulong)N * (ulong)bpr;
+
+    threadgroup int8_t Btile[256 * 32];
+    threadgroup int8_t *bptr = Btile;
+    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<4>> op;
+    auto mA0  = tensor(Ae, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
+    for (uint kb = 0; kb < bpr; ++kb) {
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_q2k_seg(We + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA  = tensor(Ae + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        op.run(mA, mBt, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    auto mC = tensor(Ce + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
+    cT.store(mC);
+}
+
 // Fused down (q2_K).  Same dispatch convention.
 kernel void ds4_mpp_q2k_i8_i32_counted(
         device int8_t *A [[buffer(0)]],
@@ -698,5 +805,197 @@ kernel void ds4_attn_out_low_i8_fused(
         const int m = w % NR0, n = w / NR0, o = r0 + m, t = r1 + n;
         if (o < M && t < N)
             db[(uint64_t)t*G*M + (uint64_t)group*M + o] = (float)sc[m + n*NR0] * ascale[t*G + group] * wscale[group*M + o];
+    }
+}
+
+// =============================================================================
+// iter-4 Path C: fused gate + up + swiglu (in-kernel NAX∥ALU concurrency)
+// Replaces 3 separate launches per expert (gate matmul, up matmul, swiglu) with
+// one shader that runs two matmul2d ops on cooperative tensors and applies the
+// SiLU(gate)*up activation per-element on the cooperative tile before storing
+// mid. Targets the ~1.46x in-kernel NAX∥ALU overlap measured by the expert.
+//
+// Inputs:
+//   X     [M x K]   half  (gathered activations for this expert's tokens)
+//   gateW [N x K]   half  (gate weights, dequant'd elsewhere)
+//   upW   [N x K]   half  (up weights, dequant'd elsewhere)
+// Output:
+//   mid   [M x N]   float (SiLU(gate(x)) * up(x))
+//
+// Per threadgroup: 32 (rows of M) x 32 (cols of N) output tile, 1 simdgroup.
+// Grid: ((N + 31)/32, (M + 31)/32).  tg threads = 32.
+// Tile/SG selected via synthetic sweep (moe-batch-bench/fused_kernel_probe.m):
+// at realistic per-expert M=256..1024 this beats NR0=64 SG=4 by 1.44–1.69x
+// against the separate matmul+matmul+swiglu reference (vs ~1.1x for SG=4).
+// =============================================================================
+kernel void ds4_mpp_fused_gate_up_swiglu_h_h_f_n32(
+        device half  *X         [[buffer(0)]],
+        device half  *gateW     [[buffer(1)]],
+        device half  *upW       [[buffer(2)]],
+        device float *mid       [[buffer(3)]],
+        constant uint &M        [[buffer(4)]],
+        constant uint &N        [[buffer(5)]],
+        constant uint &K        [[buffer(6)]],
+        constant float &clamp_v [[buffer(7)]],
+        uint2 tgid [[threadgroup_position_in_grid]])
+{
+    constexpr int NR0 = 32, NR1 = 32, NK = 32;
+    constexpr auto desc = matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<1>> mm;
+
+    auto tX  = tensor(X,     dextents<int32_t, 2>{(int32_t)K, (int32_t)M}, array<int32_t, 2>{1, (int32_t)K});
+    auto tG  = tensor(gateW, dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});
+    auto tU  = tensor(upW,   dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});
+    auto tM  = tensor(mid,   dextents<int32_t, 2>{(int32_t)N, (int32_t)M}, array<int32_t, 2>{1, (int32_t)N});
+
+    auto mX  = tX.slice(0, tgid.y * NR0);
+    auto mGw = tG.slice(tgid.x * NR1, 0);
+    auto mUw = tU.slice(tgid.x * NR1, 0);
+    auto mMo = tM.slice(tgid.x * NR1, tgid.y * NR0);
+
+    auto cG = mm.get_destination_cooperative_tensor<decltype(mGw), decltype(mX), float>();
+    auto cU = mm.get_destination_cooperative_tensor<decltype(mUw), decltype(mX), float>();
+    for (uint16_t i = 0; i < cG.get_capacity(); ++i) if (cG.is_valid_element(i)) cG[i] = 0.0f;
+    for (uint16_t i = 0; i < cU.get_capacity(); ++i) if (cU.is_valid_element(i)) cU[i] = 0.0f;
+
+    // Two matmuls — the runtime can overlap NAX (tensor) and ALU dispatch within
+    // this single kernel; the goal of the fusion is in-kernel NAX∥ALU pipelining.
+    mm.run(mGw, mX, cG);
+    mm.run(mUw, mX, cU);
+
+    // Per-element swiglu on cooperative tile: mid = SiLU(gate) * up
+    // SiLU(x) = x / (1 + exp(-x)). Clamp gate to avoid exp overflow if clamp_v>0.
+    for (uint16_t i = 0; i < cG.get_capacity(); ++i) {
+        if (!cG.is_valid_element(i)) continue;
+        float g = cG[i];
+        if (clamp_v > 0.0f) g = metal::min(metal::max(g, -clamp_v), clamp_v);
+        const float silu_g = g / (1.0f + metal::exp(-g));
+        cG[i] = silu_g * cU[i];   // reuse cG as the output cooperative tile
+    }
+
+    cG.store(mMo);
+}
+
+// =============================================================================
+// Path C / non-dedup: fused iq2-gate + iq2-up + swiglu + routing-weight +
+// int8 quantize, counted-indirect. Drop-in replacement for the chain:
+//   ds4_mpp_iq2_i8_i32_counted (gate, → gate_i32)
+//   ds4_mpp_iq2_i8_i32_counted (up,   → up_i32)
+//   ds4_mpp_swiglu_i32_hids_weight_i8_counted (gate_i32, up_i32, weights, → mid_i8)
+// Three wins layered:
+//   (1) two matmul2d ops in one kernel → in-kernel NAX∥ALU overlap window
+//       (the 1.46–1.69x regime measured by fused_kernel_probe.m at M≥256).
+//   (2) eliminates two device-memory round-trips: gate_i32 / up_i32 never
+//       materialize in global memory (they stay in cooperative + threadgroup).
+//   (3) one dispatch instead of three (smaller front-end / barrier cost).
+// Type-juggling pattern (cooperative i32 → tg i32 → per-thread float) validated
+// in moe-batch-bench/probe_b_int8_typejuggle.m (max_abs = 0 vs separate ref).
+// Per-element math matches ds4_mpp_swiglu_i32_hids_weight_i8_counted exactly:
+//   g = float(gate_i32) * input_scale;  u = float(up_i32) * input_scale;
+//   if (clamp_value > 1e-6) { g = min(g, clamp_value); u = clamp(u, ±clamp); }
+//   v = silu(g) * u * weights[hids[row]] * mid_qscale;
+//   mid[row, col] = sat_int8(rint(v));
+// Dispatch convention: same as ds4_mpp_iq2_i8_i32_counted —
+//   grid.x = ceil(N/32), grid.y = ceil(M/64), M = counts[expert], tg = 128.
+kernel void ds4_mpp_iq2_fused_gate_up_swiglu_counted(
+        device int8_t *A                    [[buffer(0)]],
+        device const block_iq2_xxs *Wq_gate [[buffer(1)]],
+        device const block_iq2_xxs *Wq_up   [[buffer(2)]],
+        device int8_t *mid                  [[buffer(3)]],
+        device const float *weights         [[buffer(4)]],
+        device const int32_t *hids          [[buffer(5)]],
+        device const uint  *counts          [[buffer(6)]],
+        constant uint   &expert             [[buffer(7)]],
+        constant uint   &N                  [[buffer(8)]],
+        constant uint   &K                  [[buffer(9)]],
+        constant float  &qscale             [[buffer(10)]],
+        constant float  &input_scale        [[buffer(11)]],
+        constant float  &clamp_value        [[buffer(12)]],
+        constant float  &mid_qscale         [[buffer(13)]],
+        uint2 tgid [[threadgroup_position_in_grid]],
+        uint  tidx [[thread_index_in_threadgroup]]) {
+    const uint M = counts[expert];
+    const uint m0 = tgid.y * 64u;
+    const uint n0 = tgid.x * 32u;
+    if (M == 0u || m0 >= M || n0 >= N) return;
+    const uint rows = min(64u, M - m0);
+    const uint bpr  = K / 256u;
+
+    // Shared TG scratch: two int8 dequant tiles during K-loop (8KB each = 16KB),
+    // reinterpreted as two int32 staging tiles after the K-loop (8KB each = 16KB).
+    // Same physical memory, different views — total 16KB threadgroup usage.
+    threadgroup int8_t  Btile_buf[2 * 256 * 32];
+    threadgroup int8_t *Btile_g = Btile_buf;
+    threadgroup int8_t *Btile_u = Btile_buf + (256u * 32u);
+    // Per-row routing weights cached in TG (1 fetch per row instead of per element).
+    threadgroup float   row_weights[64];
+
+    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
+                                              matmul2d_descriptor::mode::multiply_accumulate);
+    matmul2d<desc, execution_simdgroups<4>> op;
+
+    auto mA0  = tensor(A,       dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
+    auto tBg0 = tensor(Btile_g, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+    auto cT_g = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBg0), int32_t>();
+    auto cT_u = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBg0), int32_t>();
+    for (uint16_t i = 0; i < cT_g.get_capacity(); ++i) if (cT_g.is_valid_element(i)) cT_g[i] = 0;
+    for (uint16_t i = 0; i < cT_u.get_capacity(); ++i) if (cT_u.is_valid_element(i)) cT_u[i] = 0;
+
+    for (uint kb = 0; kb < bpr; ++kb) {
+        // 128 threads cooperatively dequant 32 cols × 16 segs = 512 calls per bank.
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_iq2_seg(Wq_gate + (n0 + nn) * bpr + kb, seg, qscale, Btile_g, nn);
+        }
+        for (uint w = tidx; w < 512u; w += 128u) {
+            uint nn = w & 31u, seg = w >> 5;
+            ds4nf_iq2_seg(Wq_up + (n0 + nn) * bpr + kb, seg, qscale, Btile_u, nn);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        auto mA  = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
+        auto mBg = tensor(Btile_g, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        auto mBu = tensor(Btile_u, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
+        // Two matmuls — the runtime can overlap NAX (tensor) and ALU dispatch within
+        // this single kernel (in-kernel NAX∥ALU pipelining is the key Path C win).
+        op.run(mA, mBg, cT_g);
+        op.run(mA, mBu, cT_u);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    // ===== type-juggle: cooperative i32 → TG i32 → per-thread float swiglu =====
+    // Reuse Btile_buf as int32 output staging (same memory; K-loop has finished
+    // reading the dequant tiles by the barrier above).
+    threadgroup int32_t *tg_g = (threadgroup int32_t *)Btile_buf;             // [64 x 32] i32 = 8KB
+    threadgroup int32_t *tg_u = (threadgroup int32_t *)(Btile_buf + 8192u);   // next 8KB
+    auto mTg = tensor(tg_g, dextents<int32_t, 2>{32, 64}, array<int32_t, 2>{1, 32});
+    auto mTu = tensor(tg_u, dextents<int32_t, 2>{32, 64}, array<int32_t, 2>{1, 32});
+    cT_g.store(mTg);
+    cT_u.store(mTu);
+    // Pre-load per-row routing weights once (1 fetch/row, then everyone reads tg).
+    if (tidx < 64u && tidx < rows) {
+        const int32_t tok_id = hids[m0 + tidx];
+        row_weights[tidx] = weights[tok_id];
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    // Per-thread int32 → float → swiglu → routing-weight → int8 quantize.
+    // Output tile is rows × 32 elements; 128 threads × ≤16 elems each.
+    const uint total = rows * 32u;
+    for (uint p = tidx; p < total; p += 128u) {
+        const uint r = p >> 5;       // p / 32
+        const uint c = p & 31u;      // p % 32
+        if (n0 + c >= N) continue;
+        const float route_weight = row_weights[r];
+        float g = (float)tg_g[r * 32u + c] * input_scale;
+        float u = (float)tg_u[r * 32u + c] * input_scale;
+        if (clamp_value > 1.0e-6f) {
+            g = metal::min(g, clamp_value);
+            u = metal::clamp(u, -clamp_value, clamp_value);
+        }
+        const float silu_g = g / (1.0f + metal::exp(-g));
+        const float v = silu_g * u * route_weight * mid_qscale;
+        mid[(m0 + r) * N + (n0 + c)] = int8_t(int(rint(metal::clamp(v, -128.0f, 127.0f))));
     }
 }

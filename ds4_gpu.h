@@ -38,6 +38,13 @@ int ds4_gpu_flush_commands(void);
 int ds4_gpu_end_commands(void);
 int ds4_gpu_synchronize(void);
 
+/* iter-4 ANE+NAX hybrid: side-channel mask of experts that ANE has already
+ * computed (so the routed_moe GPU loop can skip them). Set by the outer
+ * caller before invoking ds4_gpu_routed_moe_batch_tensor; cleared by the
+ * outer caller after. NULL or all-zeros mask = no ANE handling. */
+void ds4_gpu_set_ane_skip_mask(const uint8_t *mask, uint32_t n_experts);
+void ds4_gpu_clear_ane_skip_mask(void);
+
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);
 int ds4_gpu_set_model_fd(int fd);
 int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size);
@@ -855,6 +862,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
         bool                   *mid_is_f16);
 
 typedef struct ds4_gpu_ane_prefill_job ds4_gpu_ane_prefill_job;
+typedef struct ds4_gpu_ane_direct_job ds4_gpu_ane_direct_job;
 
 ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(
         ds4_gpu_tensor       *gate_bank,
@@ -882,6 +890,55 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         bool                    *mid_is_f16);
 
 int ds4_gpu_ane_prefill_precompile_from_env(void);
+
+/* Synchronous direct-eval probe kept for ad-hoc value checks. The routed
+ * overlap experiment uses ds4_gpu_ane_direct_eval_one_expert_start below. */
+int ds4_gpu_ane_direct_eval_one_expert(
+        const ds4_gpu_tensor *x_f32,           /* full f32 acts [n_tokens x in_dim] */
+        const ds4_gpu_tensor *weights_f32,     /* routing weights [n_tokens x n_expert] */
+        const ds4_gpu_tensor *hids,            /* per-expert pair-ids [refs x int32] */
+        const void           *model_map,
+        uint64_t              model_size,
+        uint64_t              gate_offset,
+        uint64_t              up_offset,
+        uint64_t              down_offset,
+        uint64_t              gate_expert_bytes,
+        uint64_t              down_expert_bytes,
+        uint32_t              expert,
+        uint32_t              refs,
+        uint32_t              expert_in_dim,
+        uint32_t              expert_mid_dim,
+        uint32_t              out_dim,
+        uint32_t              selected_experts,
+        float                 w_qscale,
+        float                 x_qscale,
+        float                 mid_qscale,
+        ds4_gpu_tensor       *out_f16);        /* [refs x out_dim] fp16 output */
+
+/* Gated upper-bound probe for resident ANE+NAX: encode one expert's int8 prep
+ * into the current Metal command buffer, flush it asynchronously, then run the
+ * ANE tiled fused eval from a pthread while the caller encodes/runs GPU routed
+ * MoE. Output is intentionally internal/discarded; this measures overlap and
+ * producer overhead before adding scatter-add correctness. */
+ds4_gpu_ane_direct_job *ds4_gpu_ane_direct_eval_one_expert_start(
+        const ds4_gpu_tensor *x_f32,
+        const ds4_gpu_tensor *hids,
+        const void           *model_map,
+        uint64_t              model_size,
+        uint64_t              gate_offset,
+        uint64_t              up_offset,
+        uint64_t              down_offset,
+        uint64_t              gate_expert_bytes,
+        uint64_t              down_expert_bytes,
+        uint32_t              expert,
+        uint32_t              refs,
+        uint32_t              expert_in_dim,
+        uint32_t              expert_mid_dim,
+        uint32_t              out_dim,
+        uint32_t              selected_experts);
+
+int ds4_gpu_ane_direct_eval_one_expert_finish(
+        ds4_gpu_ane_direct_job *job);
 
 int ds4_gpu_mpp_int8_prefill_prewarm(void);
 

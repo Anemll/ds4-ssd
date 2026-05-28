@@ -501,6 +501,9 @@ static void usage(FILE *fp) {
         "  --mtp FILE             Optional MTP support GGUF.\n"
         "  --mtp-draft N          Maximum MTP draft tokens. Default: 1\n"
         "  --mtp-margin F         MTP verifier margin. Default: 3\n"
+        "  --moe-sidecar PATH     Flash-MoE sidecar directory.\n"
+        "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
+        "  --moe-slot-bank N      Number of routed expert slots per layer. Default: 32\n"
         "  -c, --ctx N            Context size. Default: 100000\n"
         "  -n, --tokens N         Max generated tokens per turn. Default: 50000\n"
         "  -p, --prompt TEXT      Submit an initial prompt after startup.\n"
@@ -549,6 +552,16 @@ static const char *need_arg(int *i, int argc, char **argv, const char *opt) {
     return argv[++(*i)];
 }
 
+/* Restored after antirez merge b5e01a8 dropped the agent's Flash-MoE CLI
+ * parsing (the merge took upstream's ds4_agent.c wholesale). Engine struct
+ * fields (moe_sidecar_path/moe_mode/moe_slot_bank) survived in ds4.h. */
+static ds4_moe_mode agent_parse_moe_mode(const char *s) {
+    if (!strcmp(s, "off")) return DS4_MOE_MODE_OFF;
+    if (!strcmp(s, "slot-bank")) return DS4_MOE_MODE_SLOT_BANK;
+    fprintf(stderr, "ds4-agent: valid MoE modes are: off, slot-bank\n");
+    exit(2);
+}
+
 static agent_config parse_options(int argc, char **argv) {
     agent_config c = {
         .engine = {
@@ -556,6 +569,8 @@ static agent_config parse_options(int argc, char **argv) {
             .backend = default_backend(),
             .mtp_draft_tokens = 1,
             .mtp_margin = 3.0f,
+            .moe_mode = DS4_MOE_MODE_OFF,
+            .moe_slot_bank = 32,
         },
         .gen = {
             .system = "You are a helpful coding assistant running inside ds4-agent.",
@@ -590,6 +605,12 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.mtp_draft_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {
             c.engine.mtp_margin = parse_float_range(need_arg(&i, argc, argv, arg), arg, 0.0f, 1000.0f);
+        } else if (!strcmp(arg, "--moe-sidecar")) {
+            c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-mode")) {
+            c.engine.moe_mode = agent_parse_moe_mode(need_arg(&i, argc, argv, arg));
+        } else if (!strcmp(arg, "--moe-slot-bank")) {
+            c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -647,6 +668,10 @@ static agent_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !steering_scale_set)
         c.engine.directional_steering_ffn = 1.0f;
+    if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
+        fprintf(stderr, "ds4-agent: --moe-sidecar requires --moe-mode slot-bank\n");
+        exit(2);
+    }
     return c;
 }
 

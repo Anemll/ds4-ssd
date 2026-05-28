@@ -1,0 +1,9 @@
+ANE+GPU concurrency probe
+gpu_cmd=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/moe-batch-bench --backend ds4 --batches 8192 --iters 80
+ane_cmd=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3 -bench-shape 7168 18432 3 128 5 40
+solo_gpu_wall_s=3.481 gpu_ms=33.427
+solo_ane_wall_s=1.270 ane_ms=20.244
+concurrent_wall_s=2.952 gpu_concurrent_ms=33.376975 ane_concurrent_ms=20.248
+sequential_wall_s=4.751
+overlap_speedup_vs_sequential=1.610
+efficiency_vs_ideal_max_wall=1.179

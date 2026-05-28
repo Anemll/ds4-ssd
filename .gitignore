@@ -16,3 +16,10 @@ __pycache__/
 /misc/
 .*.swp
 .DS_Store
+fp4_samples/
+moe-batch-bench/profile_runs/
+moe-batch-bench/optim_logs/
+moe-batch-bench/loop_logs/
+moe-batch-bench/coreml_exports/
+moe-batch-bench/*.log
+moe-batch-bench/*.summary.txt
