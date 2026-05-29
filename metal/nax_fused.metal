@@ -877,6 +877,30 @@ kernel void ds4_mpp_fused_gate_up_swiglu_h_h_f_n32(
     cG.store(mMo);
 }
 
+// Per-row routing-weight reapply for the Plan A fused path. The fused kernel
+// above writes mid = SiLU(gate)*up WITHOUT the per-token routing weight (it has
+// no weights input), whereas the separate-path ds4_gpu_encode_mpp_swiglu_weight
+// folds it in. In the slot-bank banked path the per-expert mid is contiguous and
+// row-aligned with the per-token weights buffer, so a single per-row scalar
+// multiply restores parity: mid[row, :] *= weights[row].
+// Layout matches ds4_mpp_fused_gate_up_swiglu_h_h_f_n32's mid tensor (token row m
+// occupies [m*width, m*width+width)). Dispatch: grid = rows threadgroups, nth
+// threads each striding over width (mirrors ds4_gpu_encode_mpp_swiglu_weight).
+kernel void ds4_mpp_mul_rows_weight_f32(
+        device float        *mid     [[buffer(0)]],
+        device const float  *weights [[buffer(1)]],
+        constant uint        &width  [[buffer(2)]],
+        constant uint        &rows   [[buffer(3)]],
+        uint  row [[threadgroup_position_in_grid]],
+        uint  lid [[thread_position_in_threadgroup]],
+        uint  nth [[threads_per_threadgroup]])
+{
+    if (row >= rows) return;
+    const float w = weights[row];
+    device float *r = mid + (uint64_t)row * (uint64_t)width;
+    for (uint c = lid; c < width; c += nth) r[c] *= w;
+}
+
 // =============================================================================
 // Path C / non-dedup: fused iq2-gate + iq2-up + swiglu + routing-weight +
 // int8 quantize, counted-indirect. Drop-in replacement for the chain:

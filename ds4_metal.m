@@ -143,6 +143,7 @@ static id<MTLComputePipelineState> g_mpp_dequant_gud_i8_pipeline;
 static id<MTLLibrary>              g_nax_fused_library;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
 static id<MTLComputePipelineState> g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline;
+static id<MTLComputePipelineState> g_mpp_mul_rows_weight_f32_pipeline;        // Plan A: reapply routing weight
 static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_pipeline;   // Path C non-dedup
 static id<MTLComputePipelineState> g_mpp_iq2_i8_i32_multi_pipeline;            // multi-expert iq2
 static id<MTLComputePipelineState> g_mpp_q2k_i8_i32_multi_pipeline;            // multi-expert q2k
@@ -20682,6 +20683,8 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_mpp_iq2_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted");
     g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_fused_gate_up_swiglu_h_h_f_n32");
+    g_mpp_mul_rows_weight_f32_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_mul_rows_weight_f32");
     g_mpp_iq2_fused_gate_up_swiglu_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_fused_gate_up_swiglu_counted");
     g_mpp_iq2_i8_i32_multi_pipeline =
@@ -21327,6 +21330,38 @@ static int ds4_gpu_encode_mpp_fused_gate_up_swiglu(
     [enc setBytes:&K length:sizeof(K) atIndex:6];
     [enc setBytes:&clamp_v length:sizeof(clamp_v) atIndex:7];
     [enc dispatchThreadgroups:grid threadsPerThreadgroup:tg];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+/* Reapply per-token routing weight after the Plan A fused gate+up+swiglu kernel
+ * (which omits it). mid[row, 0..width) *= weights[row], rows = n_tokens. Used by
+ * the slot-bank banked path where mid is per-expert contiguous and row-aligned
+ * with the weights buffer. */
+static int ds4_gpu_encode_mpp_mul_rows_weight_f32(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        mid,
+        NSUInteger           mid_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        uint32_t             width,
+        uint32_t             rows) {
+    if (!cb || !mid || !weights || width == 0 || rows == 0 ||
+        !g_mpp_mul_rows_weight_f32_pipeline) {
+        return 0;
+    }
+    NSUInteger nth = g_mpp_mul_rows_weight_f32_pipeline.maxTotalThreadsPerThreadgroup;
+    if (nth > 256u) nth = 256u;
+    if (nth > width) nth = width;
+    if (nth == 0) nth = 1u;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mpp_mul_rows_weight_f32_pipeline];
+    [enc setBuffer:mid offset:mid_off atIndex:0];
+    [enc setBuffer:weights offset:weights_off atIndex:1];
+    [enc setBytes:&width length:sizeof(width) atIndex:2];
+    [enc setBytes:&rows length:sizeof(rows) atIndex:3];
+    [enc dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
+         threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);
     return 1;
 }
@@ -22432,6 +22467,19 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         id<MTLComputePipelineState> h_h_down_pipe =
             (h_h_tile == 128u) ? g_mpp_f_h_f_n128_pipeline :
             (h_h_tile == 64u)  ? g_mpp_f_h_f_n64_pipeline  : g_mpp_f_h_f_n32_pipeline;
+        /* Plan A (NAX+ALU): replace the separate gate/up matmul + weighted swiglu
+         * in the use_h_h path with the single fused gate+up+swiglu kernel, then
+         * reapply the per-token routing weight (the fused kernel omits it). Gated
+         * by the same envs as resident: DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP (on/off)
+         * + DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS (min per-expert tokens; default 128,
+         * set 0 to fuse every expert). Requires use_h_h (f16 weight bank). */
+        const char *fused_gu_env = getenv("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP");
+        const bool use_fused_gate_up =
+            use_h_h && fused_gu_env && fused_gu_env[0] && atoi(fused_gu_env) != 0 &&
+            g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline != nil &&
+            g_mpp_mul_rows_weight_f32_pipeline != nil;
+        const uint32_t fused_min_refs =
+            ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS", 128u);
         float mpp_i8_qscale = 8.0f;
         const char *qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_QSCALE");
         if (!qscale_env || !qscale_env[0]) qscale_env = getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE");
@@ -22587,23 +22635,54 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
                                                      ds4_gpu_tensor_offset(down_bank),
                                                      g_mpp_prefill_down_f16_buffer,
                                                      out_dim,
-                                                     expert_mid_dim) &&
-                 ds4_gpu_encode_mpp_matmul_tile(cb, h_h_gate_pipe, h_h_tile,
-                                                g_mpp_prefill_x_half_buffer, 0,
-                                                g_mpp_prefill_gate_f16_buffer,
-                                                gatebuf, ds4_gpu_tensor_offset(gate),
-                                                n_tokens, expert_mid_dim, expert_in_dim) &&
-                 ds4_gpu_encode_mpp_matmul_tile(cb, h_h_gate_pipe, h_h_tile,
-                                                g_mpp_prefill_x_half_buffer, 0,
-                                                g_mpp_prefill_up_f16_buffer,
-                                                upbuf, ds4_gpu_tensor_offset(up),
-                                                n_tokens, expert_mid_dim, expert_in_dim) &&
-                 ds4_gpu_encode_mpp_swiglu_weight(cb,
-                                                   gatebuf, ds4_gpu_tensor_offset(gate),
-                                                   upbuf, ds4_gpu_tensor_offset(up),
-                                                   midbuf, ds4_gpu_tensor_offset(mid),
-                                                   weightsbuf, ds4_gpu_tensor_offset(weights),
-                                                   expert_mid_dim, n_tokens, clamp, 1.0f) &&
+                                                     expert_mid_dim);
+            if (ok && use_fused_gate_up && n_tokens >= fused_min_refs) {
+                /* Plan A (NAX+ALU): one fused gate+up+swiglu kernel writes mid
+                 * (= SiLU(gate)*up, no routing weight), then reapply the per-token
+                 * routing weight. Replaces the 2 separate matmuls + weighted swiglu
+                 * below. f16 dequant bakes the real scale, so no int8 rescale. */
+                if (getenv("DS4_FLASH_MOE_NAX_FUSED_DIAG")) {
+                    static int s_fused_diag_once = 0;
+                    if (!s_fused_diag_once) {
+                        s_fused_diag_once = 1;
+                        fprintf(stderr,
+                                "ds4: [slot-bank nax-fused] Plan A engaged "
+                                "(n_tokens=%u >= min_refs=%u)\n",
+                                n_tokens, fused_min_refs);
+                    }
+                }
+                ok = ds4_gpu_encode_mpp_fused_gate_up_swiglu(cb,
+                                                             g_mpp_prefill_x_half_buffer, 0,
+                                                             g_mpp_prefill_gate_f16_buffer,
+                                                             g_mpp_prefill_up_f16_buffer,
+                                                             midbuf, ds4_gpu_tensor_offset(mid),
+                                                             n_tokens, expert_mid_dim, expert_in_dim,
+                                                             clamp) &&
+                     ds4_gpu_encode_mpp_mul_rows_weight_f32(cb,
+                                                            midbuf, ds4_gpu_tensor_offset(mid),
+                                                            weightsbuf, ds4_gpu_tensor_offset(weights),
+                                                            expert_mid_dim, n_tokens);
+            } else if (ok) {
+                /* Separate gate/up matmul + weighted swiglu (NAX-half). swiglu
+                 * scale = 1.0 (f16 dequant baked the real scale). */
+                ok = ds4_gpu_encode_mpp_matmul_tile(cb, h_h_gate_pipe, h_h_tile,
+                                                    g_mpp_prefill_x_half_buffer, 0,
+                                                    g_mpp_prefill_gate_f16_buffer,
+                                                    gatebuf, ds4_gpu_tensor_offset(gate),
+                                                    n_tokens, expert_mid_dim, expert_in_dim) &&
+                     ds4_gpu_encode_mpp_matmul_tile(cb, h_h_gate_pipe, h_h_tile,
+                                                    g_mpp_prefill_x_half_buffer, 0,
+                                                    g_mpp_prefill_up_f16_buffer,
+                                                    upbuf, ds4_gpu_tensor_offset(up),
+                                                    n_tokens, expert_mid_dim, expert_in_dim) &&
+                     ds4_gpu_encode_mpp_swiglu_weight(cb,
+                                                       gatebuf, ds4_gpu_tensor_offset(gate),
+                                                       upbuf, ds4_gpu_tensor_offset(up),
+                                                       midbuf, ds4_gpu_tensor_offset(mid),
+                                                       weightsbuf, ds4_gpu_tensor_offset(weights),
+                                                       expert_mid_dim, n_tokens, clamp, 1.0f);
+            }
+            ok = ok &&
                  ds4_gpu_encode_mpp_matmul_tile(cb, h_h_down_pipe, h_h_tile,
                                                 midbuf, ds4_gpu_tensor_offset(mid),
                                                 g_mpp_prefill_down_f16_buffer,
