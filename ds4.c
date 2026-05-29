@@ -12683,7 +12683,22 @@ static uint32_t metal_graph_effective_prefill_cap(const ds4_gpu_graph *g) {
     if (flash_cap < cap) cap = flash_cap;
     const uint32_t raw_window = g->raw_window ? g->raw_window : DS4_N_SWA;
     const uint32_t raw_chunk_cap = g->raw_cap > raw_window ? g->raw_cap - raw_window : 1u;
-    if (raw_chunk_cap < cap) cap = raw_chunk_cap;
+    if (raw_chunk_cap < cap) {
+        /* The raw-KV cap is too small to hold the requested chunk, so it gets
+         * clamped. With the auto raw_cap this no longer happens, but an explicit
+         * DS4_METAL_GRAPH_RAW_CAP that is too small still can — make it loud
+         * (once) and name the value needed, so we don't silently step on it. */
+        static int warned_raw_cap_clamp = 0;
+        if (!warned_raw_cap_clamp) {
+            warned_raw_cap_clamp = 1;
+            fprintf(stderr,
+                "ds4: WARNING: prefill chunk %u clamped to %u by raw-KV cap "
+                "(raw_cap=%u, window=%u). Set DS4_METAL_GRAPH_RAW_CAP >= %u "
+                "(window + chunk) — or unset it to auto-size — to honor the chunk.\n",
+                cap, raw_chunk_cap, g->raw_cap, raw_window, raw_window + cap);
+        }
+        cap = raw_chunk_cap;
+    }
     return cap ? cap : 1u;
 }
 
@@ -19614,7 +19629,15 @@ static uint32_t metal_graph_raw_cap_for_context(int ctx_size, uint32_t prefill_c
     if (wanted > (uint32_t)ctx_size) wanted = (uint32_t)ctx_size;
     if (wanted == 0) wanted = 1;
     wanted = align_up(wanted, 256u);
-    if (wanted > 8192u) wanted = 8192u;
+    /* No fixed 8192 ceiling here. `wanted` is already
+     * align256(min(raw_window + prefill_cap, ctx_size)), so it exactly covers
+     * the requested prefill chunk. A lower cap silently shrank explicitly-large
+     * DS4_METAL_PREFILL_CHUNK values, because metal_graph_effective_prefill_cap()
+     * limits the chunk to (raw_cap - raw_window) — the chunk/raw-cap mismatch
+     * trap. Default prompts use prefill_cap <= 4096 (-> wanted <= 4352 with
+     * DS4_N_SWA=128), so dropping the ceiling only changes behavior when a large
+     * chunk was explicitly requested, which is exactly when we want raw_cap to
+     * follow it. Still bounded by ctx_size above. */
     uint32_t raw_cap = (uint32_t)wanted;
     if (raw_cap < raw_window) raw_cap = raw_window;
 

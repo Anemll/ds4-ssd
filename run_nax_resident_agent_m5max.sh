@@ -19,7 +19,6 @@ DS4_PREFILL_CHUNK="${DS4_PREFILL_CHUNK:-16384}"
 
 env \
   DS4_METAL_PREFILL_CHUNK="$DS4_PREFILL_CHUNK" \
-  DS4_METAL_GRAPH_RAW_CAP="${DS4_METAL_GRAPH_RAW_CAP:-8704}" \
   `# ---- dense projections: fp16-NAX (default-ON on M5+; explicit for clarity) ----` \
   DS4_GPU_DENSE_NAX="${DS4_GPU_DENSE_NAX:-1}" \
   DS4_GPU_DENSE_I8="${DS4_GPU_DENSE_I8:-0}" \

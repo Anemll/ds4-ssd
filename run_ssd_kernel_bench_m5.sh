@@ -29,7 +29,6 @@ run_one() {  # $1=label  $2..=extra env "K=V"
   echo "============================== $label =============================="
   { cat "$DS4_PROMPT"; printf '\n/quit\n'; } | env \
     DS4_METAL_PREFILL_CHUNK="${DS4_METAL_PREFILL_CHUNK:-16000}" \
-    DS4_METAL_GRAPH_RAW_CAP=8704 \
     DS4_FLASH_MOE_SLOT_BANK_SLOTS="$DS4_SLOTS" \
     DS4_FLASH_MOE_PREFETCH=3 DS4_FLASH_MOE_ASYNC_PREAD=1 DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE=1 \
     DS4_GPU_DENSE_NAX=1 \
