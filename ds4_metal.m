@@ -145,6 +145,8 @@ static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
 static id<MTLComputePipelineState> g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline;
 static id<MTLComputePipelineState> g_mpp_mul_rows_weight_f32_pipeline;        // Plan A: reapply routing weight
 static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_pipeline;   // Path C non-dedup
+static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline; // Path C slot-bank
+static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline; // Path C slot-bank tail
 static id<MTLComputePipelineState> g_mpp_iq2_i8_i32_multi_pipeline;            // multi-expert iq2
 static id<MTLComputePipelineState> g_mpp_q2k_i8_i32_multi_pipeline;            // multi-expert q2k
 static id<MTLComputePipelineState> g_mpp_q2k_fused_pipeline;
@@ -347,6 +349,27 @@ static NSUInteger g_direct_eval_down_bytes;
 static NSUInteger g_direct_eval_x_bytes;
 static NSUInteger g_direct_eval_out_f16_bytes;
 static int        g_direct_eval_inflight;
+
+#define DS4_ANE_DIRECT_WEIGHT_CACHE_MAX 64
+typedef struct {
+    __strong id<MTLBuffer> gate_i8;
+    __strong id<MTLBuffer> up_i8;
+    __strong id<MTLBuffer> down_i8;
+    NSUInteger gate_i8_bytes;
+    NSUInteger up_i8_bytes;
+    NSUInteger down_i8_bytes;
+    const void *model_map;
+    uint64_t model_size;
+    uint64_t gate_offset;
+    uint64_t up_offset;
+    uint64_t down_offset;
+    uint64_t gate_expert_bytes;
+    uint64_t down_expert_bytes;
+    uint32_t expert;
+    int valid;
+} ds4_ane_direct_weight_cache_entry;
+static ds4_ane_direct_weight_cache_entry g_direct_weight_cache[DS4_ANE_DIRECT_WEIGHT_CACHE_MAX];
+static uint32_t g_direct_weight_cache_evict;
 static NSUInteger g_ane_prefill_gate_f16_bytes;
 static NSUInteger g_ane_prefill_up_f16_bytes;
 static NSUInteger g_ane_prefill_down_f16_bytes;
@@ -4864,6 +4887,8 @@ void ds4_gpu_cleanup(void) {
         g_mpp_dequant_iq2_xxs_i8_counted_pipeline = nil;
         g_mpp_dequant_q2_k_i8_counted_pipeline = nil;
         g_mpp_dequant_gud_i8_pipeline = nil;
+        g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline = nil;
+        g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline = nil;
         g_ane_dequant_iq2_xxs_f16_pipeline = nil;
         g_ane_dequant_q2_k_f16_pipeline = nil;
         g_ane_output_pack_f16_f32_pipeline = nil;
@@ -4936,6 +4961,16 @@ void ds4_gpu_cleanup(void) {
         g_direct_eval_down_i8_buf = nil;
         g_direct_eval_x_i8_buf = nil;
         g_direct_eval_out_f16_buf = nil;
+        for (uint32_t i = 0; i < DS4_ANE_DIRECT_WEIGHT_CACHE_MAX; i++) {
+            g_direct_weight_cache[i].gate_i8 = nil;
+            g_direct_weight_cache[i].up_i8 = nil;
+            g_direct_weight_cache[i].down_i8 = nil;
+            g_direct_weight_cache[i].gate_i8_bytes = 0;
+            g_direct_weight_cache[i].up_i8_bytes = 0;
+            g_direct_weight_cache[i].down_i8_bytes = 0;
+            g_direct_weight_cache[i].valid = 0;
+        }
+        g_direct_weight_cache_evict = 0;
         g_ane_prefill_gate_f16_buffer = nil;
         g_ane_prefill_up_f16_buffer = nil;
         g_ane_prefill_down_f16_buffer = nil;
@@ -17707,6 +17742,80 @@ static void ds4_gpu_ane_direct_job_free(ds4_gpu_ane_direct_job *job) {
     free(job);
 }
 
+static ds4_ane_direct_weight_cache_entry *ds4_gpu_ane_direct_weight_cache_lookup(
+        const void *model_map,
+        uint64_t model_size,
+        uint64_t gate_offset,
+        uint64_t up_offset,
+        uint64_t down_offset,
+        uint64_t gate_expert_bytes,
+        uint64_t down_expert_bytes,
+        uint32_t expert) {
+    for (uint32_t i = 0; i < DS4_ANE_DIRECT_WEIGHT_CACHE_MAX; i++) {
+        ds4_ane_direct_weight_cache_entry *e = &g_direct_weight_cache[i];
+        if (e->valid &&
+            e->model_map == model_map &&
+            e->model_size == model_size &&
+            e->gate_offset == gate_offset &&
+            e->up_offset == up_offset &&
+            e->down_offset == down_offset &&
+            e->gate_expert_bytes == gate_expert_bytes &&
+            e->down_expert_bytes == down_expert_bytes &&
+            e->expert == expert) {
+            return e;
+        }
+    }
+    return NULL;
+}
+
+static ds4_ane_direct_weight_cache_entry *ds4_gpu_ane_direct_weight_cache_acquire(
+        const void *model_map,
+        uint64_t model_size,
+        uint64_t gate_offset,
+        uint64_t up_offset,
+        uint64_t down_offset,
+        uint64_t gate_expert_bytes,
+        uint64_t down_expert_bytes,
+        uint32_t expert,
+        NSUInteger gate_i8_bytes,
+        NSUInteger up_i8_bytes,
+        NSUInteger down_i8_bytes) {
+    ds4_ane_direct_weight_cache_entry *entry = NULL;
+    for (uint32_t i = 0; i < DS4_ANE_DIRECT_WEIGHT_CACHE_MAX; i++) {
+        if (!g_direct_weight_cache[i].valid) {
+            entry = &g_direct_weight_cache[i];
+            break;
+        }
+    }
+    if (!entry) {
+        entry = &g_direct_weight_cache[g_direct_weight_cache_evict++ % DS4_ANE_DIRECT_WEIGHT_CACHE_MAX];
+    }
+    entry->valid = 0;
+    if (!ds4_gpu_ensure_scratch_buffer(&entry->gate_i8,
+                                       &entry->gate_i8_bytes,
+                                       gate_i8_bytes,
+                                       "ds4_ane_direct_cache_gate_i8") ||
+        !ds4_gpu_ensure_scratch_buffer(&entry->up_i8,
+                                       &entry->up_i8_bytes,
+                                       up_i8_bytes,
+                                       "ds4_ane_direct_cache_up_i8") ||
+        !ds4_gpu_ensure_scratch_buffer(&entry->down_i8,
+                                       &entry->down_i8_bytes,
+                                       down_i8_bytes,
+                                       "ds4_ane_direct_cache_down_i8")) {
+        return NULL;
+    }
+    entry->model_map = model_map;
+    entry->model_size = model_size;
+    entry->gate_offset = gate_offset;
+    entry->up_offset = up_offset;
+    entry->down_offset = down_offset;
+    entry->gate_expert_bytes = gate_expert_bytes;
+    entry->down_expert_bytes = down_expert_bytes;
+    entry->expert = expert;
+    return entry;
+}
+
 static void *ds4_gpu_ane_direct_eval_thread(void *arg) {
     ds4_gpu_ane_direct_job *job = (ds4_gpu_ane_direct_job *)arg;
     if (!job) return NULL;
@@ -17975,53 +18084,102 @@ ds4_gpu_ane_direct_job *ds4_gpu_ane_direct_eval_one_expert_start(
         [blit fillBuffer:g_direct_eval_x_i8_buf range:NSMakeRange(0, needed_x) value:0];
         [blit endEncoding];
 
-        int ok = ds4_gpu_encode_mpp_dequant_gud_i8(cb,
-                                                   gate_src, (NSUInteger)gate_inner, g_direct_eval_gate_i8_buf,
-                                                   up_src,   (NSUInteger)up_inner,   g_direct_eval_up_i8_buf,
-                                                   down_src, (NSUInteger)down_inner, g_direct_eval_down_i8_buf,
-                                                   expert_mid_dim, expert_in_dim, out_dim, w_qscale);
-        if (!ok) {
-            ok = ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
-                                                       gate_src,
-                                                       (NSUInteger)gate_inner,
-                                                       g_direct_eval_gate_i8_buf,
-                                                       expert_mid_dim,
-                                                       expert_in_dim,
-                                                       w_qscale) &&
-                 ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
-                                                       up_src,
-                                                       (NSUInteger)up_inner,
-                                                       g_direct_eval_up_i8_buf,
-                                                       expert_mid_dim,
-                                                       expert_in_dim,
-                                                       w_qscale) &&
-                 ds4_gpu_encode_mpp_dequant_q2_k_i8(cb,
-                                                    down_src,
-                                                    (NSUInteger)down_inner,
-                                                    g_direct_eval_down_i8_buf,
-                                                    out_dim,
-                                                    expert_mid_dim,
-                                                    w_qscale);
+        id<MTLBuffer> gate_i8 = g_direct_eval_gate_i8_buf;
+        id<MTLBuffer> up_i8 = g_direct_eval_up_i8_buf;
+        id<MTLBuffer> down_i8 = g_direct_eval_down_i8_buf;
+        ds4_ane_direct_weight_cache_entry *cache_entry = NULL;
+        int weight_cache_hit = 0;
+        const int weight_cache_enabled =
+            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_DIRECT_WEIGHT_CACHE");
+        if (weight_cache_enabled) {
+            cache_entry = ds4_gpu_ane_direct_weight_cache_lookup(model_map,
+                                                                 model_size,
+                                                                 gate_offset,
+                                                                 up_offset,
+                                                                 down_offset,
+                                                                 gate_expert_bytes,
+                                                                 down_expert_bytes,
+                                                                 expert);
+            if (cache_entry) {
+                weight_cache_hit = 1;
+            } else {
+                cache_entry = ds4_gpu_ane_direct_weight_cache_acquire(model_map,
+                                                                      model_size,
+                                                                      gate_offset,
+                                                                      up_offset,
+                                                                      down_offset,
+                                                                      gate_expert_bytes,
+                                                                      down_expert_bytes,
+                                                                      expert,
+                                                                      needed_gate,
+                                                                      needed_up,
+                                                                      needed_down);
+                if (!cache_entry) return NULL;
+            }
+            gate_i8 = cache_entry->gate_i8;
+            up_i8 = cache_entry->up_i8;
+            down_i8 = cache_entry->down_i8;
         }
+        int ok = 1;
+        if (!weight_cache_hit) {
+            ok = ds4_gpu_encode_mpp_dequant_gud_i8(cb,
+                                                   gate_src, (NSUInteger)gate_inner, gate_i8,
+                                                   up_src,   (NSUInteger)up_inner,   up_i8,
+                                                   down_src, (NSUInteger)down_inner, down_i8,
+                                                   expert_mid_dim, expert_in_dim, out_dim, w_qscale);
+            if (!ok) {
+                ok = ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
+                                                           gate_src,
+                                                           (NSUInteger)gate_inner,
+                                                           gate_i8,
+                                                           expert_mid_dim,
+                                                           expert_in_dim,
+                                                           w_qscale) &&
+                     ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
+                                                           up_src,
+                                                           (NSUInteger)up_inner,
+                                                           up_i8,
+                                                           expert_mid_dim,
+                                                           expert_in_dim,
+                                                           w_qscale) &&
+                     ds4_gpu_encode_mpp_dequant_q2_k_i8(cb,
+                                                        down_src,
+                                                        (NSUInteger)down_inner,
+                                                        down_i8,
+                                                        out_dim,
+                                                        expert_mid_dim,
+                                                        w_qscale);
+            }
+        }
+        const int direct_contig_x =
+            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_DIRECT_CONTIG_X");
         ok = ok &&
-             ds4_gpu_encode_mpp_gather_token_f32_i8(cb,
-                                                    x_src,
-                                                    (NSUInteger)ds4_gpu_tensor_offset(x_f32),
-                                                    hids_buf,
-                                                    (NSUInteger)ds4_gpu_tensor_offset(hids),
-                                                    g_direct_eval_x_i8_buf,
-                                                    refs,
-                                                    expert_in_dim,
-                                                    selected_experts,
-                                                    x_qscale);
+             (direct_contig_x ?
+              ds4_gpu_encode_mpp_quant_f32_i8(cb,
+                                              x_src,
+                                              (NSUInteger)ds4_gpu_tensor_offset(x_f32),
+                                              g_direct_eval_x_i8_buf,
+                                              refs * expert_in_dim,
+                                              x_qscale) :
+              ds4_gpu_encode_mpp_gather_token_f32_i8(cb,
+                                                     x_src,
+                                                     (NSUInteger)ds4_gpu_tensor_offset(x_f32),
+                                                     hids_buf,
+                                                     (NSUInteger)ds4_gpu_tensor_offset(hids),
+                                                     g_direct_eval_x_i8_buf,
+                                                     refs,
+                                                     expert_in_dim,
+                                                     selected_experts,
+                                                     x_qscale));
         if (!ok) return NULL;
+        if (cache_entry && !weight_cache_hit) cache_entry->valid = 1;
 
         ds4_gpu_ane_direct_job *job = (ds4_gpu_ane_direct_job *)calloc(1, sizeof(*job));
         if (!job) return NULL;
         job->producer_cb = cb;
-        job->gate_i8 = g_direct_eval_gate_i8_buf;
-        job->up_i8 = g_direct_eval_up_i8_buf;
-        job->down_i8 = g_direct_eval_down_i8_buf;
+        job->gate_i8 = gate_i8;
+        job->up_i8 = up_i8;
+        job->down_i8 = down_i8;
         job->x_i8 = g_direct_eval_x_i8_buf;
         job->out_f16 = g_direct_eval_out_f16_buf;
         job->ctx = ctx;
@@ -20687,6 +20845,10 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_mul_rows_weight_f32");
     g_mpp_iq2_fused_gate_up_swiglu_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_fused_gate_up_swiglu_counted");
+    g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_fused_gate_up_swiglu_contig");
+    g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_fused_gate_up_swiglu_contig_m32");
     g_mpp_iq2_i8_i32_multi_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_multi");
     g_mpp_q2k_i8_i32_multi_pipeline =
@@ -21522,6 +21684,25 @@ static int ds4_gpu_resident_mpp_full_fused_gate_up_swiglu_enabled(void) {
     return 0; /* default off */
 }
 
+static int ds4_gpu_flash_mpp_full_fused_gate_up_swiglu_enabled(void) {
+    if (!g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline &&
+        !g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline) return 0;
+    const char *env = getenv("DS4_FLASH_MOE_MPP_I8I8_FULL_FUSED_PREFILL");
+    if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_ANE_I8I8_FULL_FUSED_PREFILL");
+    if (!env || !env[0]) env = getenv("DS4_RESIDENT_MOE_NAX_FULL_FUSED");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static uint32_t ds4_gpu_flash_mpp_full_fused_min_refs(void) {
+    uint32_t v = ds4_gpu_env_u32_default("DS4_FLASH_MOE_MPP_I8I8_FULL_FUSED_MIN_REFS", 128u);
+    return ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_FULL_FUSED_MIN_REFS", v);
+}
+
+static uint32_t ds4_gpu_flash_mpp_full_fused_m_tile(void) {
+    uint32_t v = ds4_gpu_env_u32_default("DS4_FLASH_MOE_MPP_I8I8_FULL_FUSED_M_TILE", 64u);
+    return v <= 32u ? 32u : 64u;
+}
+
 /* Encode one fused per-expert matmul (kernel reads counts[expert] for M, indirect
  * dispatch grid = (N/32, tile_groups)).  w is the quantized weight buffer bound at
  * w_off (the expert's weight slice). */
@@ -21617,6 +21798,59 @@ static int ds4_gpu_encode_mpp_iq2_fused_gate_up_swiglu_counted_indirect(
     [enc dispatchThreadgroupsWithIndirectBuffer:indirect
                            indirectBufferOffset:indirect_off
                           threadsPerThreadgroup:tg];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+// Slot-bank Path C: contiguous per-expert rows, no hids indirection.
+static int ds4_gpu_encode_mpp_iq2_fused_gate_up_swiglu_contig(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        a,
+        NSUInteger           a_off,
+        id<MTLBuffer>        wq_gate,
+        NSUInteger           wq_gate_off,
+        id<MTLBuffer>        wq_up,
+        NSUInteger           wq_up_off,
+        id<MTLBuffer>        mid_i8,
+        NSUInteger           mid_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        uint32_t             m,
+        uint32_t             n,
+        uint32_t             k,
+        float                qscale,
+        float                input_scale,
+        float                clamp_value,
+        float                mid_qscale) {
+    if (!cb || !a || !wq_gate || !wq_up || !mid_i8 || !weights ||
+        m == 0 || n == 0 || k == 0 || (k % 256u) != 0) {
+        return 0;
+    }
+    const uint32_t m_tile = ds4_gpu_flash_mpp_full_fused_m_tile();
+    id<MTLComputePipelineState> p =
+        (m_tile == 32u && g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline) ?
+        g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline :
+        g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline;
+    if (!p) return 0;
+    MTLSize tg = MTLSizeMake((NSUInteger)p.threadExecutionWidth * 4u, 1, 1);
+    MTLSize grid = MTLSizeMake(((NSUInteger)n + 31u) / 32u,
+                               ((NSUInteger)m + (NSUInteger)m_tile - 1u) / (NSUInteger)m_tile,
+                               1);
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:p];
+    [enc setBuffer:a       offset:a_off       atIndex:0];
+    [enc setBuffer:wq_gate offset:wq_gate_off atIndex:1];
+    [enc setBuffer:wq_up   offset:wq_up_off   atIndex:2];
+    [enc setBuffer:mid_i8  offset:mid_off     atIndex:3];
+    [enc setBuffer:weights offset:weights_off atIndex:4];
+    [enc setBytes:&m           length:sizeof(m)           atIndex:5];
+    [enc setBytes:&n           length:sizeof(n)           atIndex:6];
+    [enc setBytes:&k           length:sizeof(k)           atIndex:7];
+    [enc setBytes:&qscale      length:sizeof(qscale)      atIndex:8];
+    [enc setBytes:&input_scale length:sizeof(input_scale) atIndex:9];
+    [enc setBytes:&clamp_value length:sizeof(clamp_value) atIndex:10];
+    [enc setBytes:&mid_qscale  length:sizeof(mid_qscale)  atIndex:11];
+    [enc dispatchThreadgroups:grid threadsPerThreadgroup:tg];
     ds4_gpu_end_compute_encoder(cb, enc);
     return 1;
 }
@@ -22689,85 +22923,121 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
                                                 outbuf, ds4_gpu_tensor_offset(out),
                                                 n_tokens, out_dim, expert_mid_dim);
         } else if (use_i8_i8) {
+            const uint32_t full_fused_min_refs =
+                ds4_gpu_flash_mpp_full_fused_min_refs();
+            const bool use_i8_i8_full_fused =
+                ds4_gpu_flash_mpp_full_fused_gate_up_swiglu_enabled() &&
+                n_tokens >= full_fused_min_refs;
             ok = ds4_gpu_encode_mpp_quant_f32_i8(cb,
                                                  xbuf,
                                                  ds4_gpu_tensor_offset(x),
                                                  g_mpp_prefill_x_i8_buffer,
                                                  x_elems,
                                                  mpp_x_qscale) &&
-                 ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
-                                                        gate_bankbuf,
-                                                        ds4_gpu_tensor_offset(gate_bank),
-                                                        g_mpp_prefill_gate_i8_buffer,
-                                                        expert_mid_dim,
-                                                        expert_in_dim,
-                                                        mpp_i8_qscale) &&
-                 ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
-                                                        up_bankbuf,
-                                                        ds4_gpu_tensor_offset(up_bank),
-                                                        g_mpp_prefill_up_i8_buffer,
-                                                        expert_mid_dim,
-                                                        expert_in_dim,
-                                                        mpp_i8_qscale) &&
                  ds4_gpu_encode_mpp_dequant_q2_k_i8(cb,
                                                      down_bankbuf,
                                                      ds4_gpu_tensor_offset(down_bank),
                                                      g_mpp_prefill_down_i8_buffer,
                                                      out_dim,
                                                      expert_mid_dim,
-                                                     mpp_i8_qscale) &&
-                 ds4_gpu_encode_mpp_matmul(cb,
-                                           g_mpp_i8_i8_i32_pipeline,
-                                           g_mpp_prefill_x_i8_buffer,
-                                           0,
-                                           g_mpp_prefill_gate_i8_buffer,
-                                           g_mpp_prefill_gate_i32_buffer,
-                                           0,
-                                           n_tokens,
-                                           expert_mid_dim,
-                                           expert_in_dim) &&
-                 ds4_gpu_encode_mpp_matmul(cb,
-                                           g_mpp_i8_i8_i32_pipeline,
-                                           g_mpp_prefill_x_i8_buffer,
-                                           0,
-                                           g_mpp_prefill_up_i8_buffer,
-                                           g_mpp_prefill_up_i32_buffer,
-                                           0,
-                                           n_tokens,
-                                           expert_mid_dim,
-                                           expert_in_dim);
-            if (ok) {
-                if (use_i8_i8_fused) {
-                    ok = ds4_gpu_encode_mpp_swiglu_i32_weight_i8(cb,
-                                                                 g_mpp_prefill_gate_i32_buffer,
-                                                                 g_mpp_prefill_up_i32_buffer,
+                                                     mpp_i8_qscale);
+            if (ok && use_i8_i8_full_fused) {
+                if (getenv("DS4_FLASH_MOE_NAX_FUSED_DIAG")) {
+                    static int s_path_c_diag_once = 0;
+                    if (!s_path_c_diag_once) {
+                        s_path_c_diag_once = 1;
+                        fprintf(stderr,
+                                "ds4: [slot-bank path-c] fused iq2 gate+up+swiglu engaged "
+                                "(n_tokens=%u >= min_refs=%u)\n",
+                                n_tokens, full_fused_min_refs);
+                    }
+                }
+                ok = ds4_gpu_encode_mpp_iq2_fused_gate_up_swiglu_contig(cb,
+                                                                        g_mpp_prefill_x_i8_buffer,
+                                                                        0,
+                                                                        gate_bankbuf,
+                                                                        ds4_gpu_tensor_offset(gate_bank),
+                                                                        up_bankbuf,
+                                                                        ds4_gpu_tensor_offset(up_bank),
+                                                                        g_mpp_prefill_mid_i8_buffer,
+                                                                        0,
+                                                                        weightsbuf,
+                                                                        ds4_gpu_tensor_offset(weights),
+                                                                        n_tokens,
+                                                                        expert_mid_dim,
+                                                                        expert_in_dim,
+                                                                        mpp_i8_qscale,
+                                                                        mpp_gate_scale,
+                                                                        clamp,
+                                                                        mpp_mid_qscale);
+            } else if (ok) {
+                ok = ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
+                                                           gate_bankbuf,
+                                                           ds4_gpu_tensor_offset(gate_bank),
+                                                           g_mpp_prefill_gate_i8_buffer,
+                                                           expert_mid_dim,
+                                                           expert_in_dim,
+                                                           mpp_i8_qscale) &&
+                     ds4_gpu_encode_mpp_dequant_iq2_xxs_i8(cb,
+                                                           up_bankbuf,
+                                                           ds4_gpu_tensor_offset(up_bank),
+                                                           g_mpp_prefill_up_i8_buffer,
+                                                           expert_mid_dim,
+                                                           expert_in_dim,
+                                                           mpp_i8_qscale) &&
+                     ds4_gpu_encode_mpp_matmul(cb,
+                                               g_mpp_i8_i8_i32_pipeline,
+                                               g_mpp_prefill_x_i8_buffer,
+                                               0,
+                                               g_mpp_prefill_gate_i8_buffer,
+                                               g_mpp_prefill_gate_i32_buffer,
+                                               0,
+                                               n_tokens,
+                                               expert_mid_dim,
+                                               expert_in_dim) &&
+                     ds4_gpu_encode_mpp_matmul(cb,
+                                               g_mpp_i8_i8_i32_pipeline,
+                                               g_mpp_prefill_x_i8_buffer,
+                                               0,
+                                               g_mpp_prefill_up_i8_buffer,
+                                               g_mpp_prefill_up_i32_buffer,
+                                               0,
+                                               n_tokens,
+                                               expert_mid_dim,
+                                               expert_in_dim);
+                if (ok) {
+                    if (use_i8_i8_fused) {
+                        ok = ds4_gpu_encode_mpp_swiglu_i32_weight_i8(cb,
+                                                                     g_mpp_prefill_gate_i32_buffer,
+                                                                     g_mpp_prefill_up_i32_buffer,
+                                                                     g_mpp_prefill_mid_i8_buffer,
+                                                                     weightsbuf,
+                                                                     ds4_gpu_tensor_offset(weights),
+                                                                     expert_mid_dim,
+                                                                     n_tokens,
+                                                                     clamp,
+                                                                     mpp_gate_scale,
+                                                                     mpp_mid_qscale);
+                    } else {
+                        ok = ds4_gpu_encode_mpp_swiglu_i32_weight(cb,
+                                                                  g_mpp_prefill_gate_i32_buffer,
+                                                                  g_mpp_prefill_up_i32_buffer,
+                                                                  midbuf,
+                                                                  ds4_gpu_tensor_offset(mid),
+                                                                  weightsbuf,
+                                                                  ds4_gpu_tensor_offset(weights),
+                                                                  expert_mid_dim,
+                                                                  n_tokens,
+                                                                  clamp,
+                                                                  mpp_gate_scale) &&
+                             ds4_gpu_encode_mpp_quant_mid_f32_i8(cb,
+                                                                 midbuf,
+                                                                 ds4_gpu_tensor_offset(mid),
                                                                  g_mpp_prefill_mid_i8_buffer,
-                                                                 weightsbuf,
-                                                                 ds4_gpu_tensor_offset(weights),
                                                                  expert_mid_dim,
                                                                  n_tokens,
-                                                                 clamp,
-                                                                 mpp_gate_scale,
                                                                  mpp_mid_qscale);
-                } else {
-                    ok = ds4_gpu_encode_mpp_swiglu_i32_weight(cb,
-                                                              g_mpp_prefill_gate_i32_buffer,
-                                                              g_mpp_prefill_up_i32_buffer,
-                                                              midbuf,
-                                                              ds4_gpu_tensor_offset(mid),
-                                                              weightsbuf,
-                                                              ds4_gpu_tensor_offset(weights),
-                                                              expert_mid_dim,
-                                                              n_tokens,
-                                                              clamp,
-                                                              mpp_gate_scale) &&
-                         ds4_gpu_encode_mpp_quant_mid_f32_i8(cb,
-                                                             midbuf,
-                                                             ds4_gpu_tensor_offset(mid),
-                                                             g_mpp_prefill_mid_i8_buffer,
-                                                             expert_mid_dim,
-                                                             n_tokens,
-                                                             mpp_mid_qscale);
+                    }
                 }
             }
             ok = ok &&
@@ -23285,7 +23555,29 @@ int ds4_gpu_routed_moe_batch_tensor(
                         pairrow_bridge_env && pairrow_bridge_env[0] ?
                             atoi(pairrow_bridge_env) != 0 :
                             !use_compact_bridge && !auto_compact_bridge;
-                    if (use_compact_bridge || auto_compact_bridge) {
+                    bool compact_active = use_compact_bridge || auto_compact_bridge;
+                    /* The compact bridge runs ONLY the int8 fused-dequant kernels —
+                     * it has no half path. With NAX-half requested it would silently
+                     * run int8 (and any "half" label would be a lie). Yield to the
+                     * half-capable pairrow bridge so NAX-half actually runs half. */
+                    const char *nax_half_bridge_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
+                    const bool want_nax_half =
+                        nax_half_bridge_env && nax_half_bridge_env[0] &&
+                        atoi(nax_half_bridge_env) != 0;
+                    if (want_nax_half && compact_active) {
+                        static int warned_half_vs_compact = 0;
+                        if (!warned_half_vs_compact) {
+                            warned_half_vs_compact = 1;
+                            fprintf(stderr,
+                                "ds4: NAX-half requested -> using pairrow bridge "
+                                "(compact bridge is int8-only; it would silently run "
+                                "int8). Unset DS4_RESIDENT_MOE_NAX_HALF to use the "
+                                "compact int8 bridge.\n");
+                        }
+                        compact_active = false;
+                        use_pairrow_bridge = true;
+                    }
+                    if (compact_active) {
                         use_pairrow_bridge = false;
                     }
                     if (!use_pairrow_bridge) {
