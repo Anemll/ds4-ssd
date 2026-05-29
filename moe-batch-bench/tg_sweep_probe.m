@@ -40,7 +40,7 @@ static const char *kSrc =
 "    auto mX = tX.slice(0, tgid.y*NR0);\n"
 "    auto mW = tW.slice(tgid.x*NR1, 0);\n"
 "    auto mO = tO.slice(tgid.x*NR1, tgid.y*NR0);\n"
-"    auto cO = mm.get_destination_cooperative_tensor<decltype(mW), decltype(mX), float>();\n"
+"    auto cO = mm.template get_destination_cooperative_tensor<decltype(mW), decltype(mX), float>();\n"
 "    for (uint16_t i=0;i<cO.get_capacity();++i) if (cO.is_valid_element(i)) cO[i]=0.f;\n"
 "    mm.run(mW, mX, cO);\n"
 "    cO.store(mO);\n"
@@ -52,7 +52,7 @@ static const char *kSrc =
 "\n"
 "// ---- i8 x i8 -> i32 ----\n"
 "template <int NR0,int NR1,int NK,int SG>\n"
-"void mm_i8_body(device char *X, device char *W, device int *O,\n"
+"void mm_i8_body(device int8_t *X, device int8_t *W, device int *O,\n"
 "                uint M, uint N, uint K, uint2 tgid) {\n"
 "    constexpr auto desc = matmul2d_descriptor(NR1, NR0, NK, false, true, true,\n"
 "                                              matmul2d_descriptor::mode::multiply_accumulate);\n"
@@ -63,12 +63,12 @@ static const char *kSrc =
 "    auto mX = tX.slice(0, tgid.y*NR0);\n"
 "    auto mW = tW.slice(tgid.x*NR1, 0);\n"
 "    auto mO = tO.slice(tgid.x*NR1, tgid.y*NR0);\n"
-"    auto cO = mm.get_destination_cooperative_tensor<decltype(mW), decltype(mX), int>();\n"
+"    auto cO = mm.template get_destination_cooperative_tensor<decltype(mW), decltype(mX), int>();\n"
 "    for (uint16_t i=0;i<cO.get_capacity();++i) if (cO.is_valid_element(i)) cO[i]=0;\n"
 "    mm.run(mW, mX, cO);\n"
 "    cO.store(mO);\n"
 "}\n"
-"#define IV(sg) kernel void i8_64_32_##sg(device char *X [[buffer(0)]], device char *W [[buffer(1)]], device int *O [[buffer(2)]], constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]], uint2 t [[threadgroup_position_in_grid]]) { mm_i8_body<64,32,256,sg>(X,W,O,M,N,K,t); }\n"
+"#define IV(sg) kernel void i8_64_32_##sg(device int8_t *X [[buffer(0)]], device int8_t *W [[buffer(1)]], device int *O [[buffer(2)]], constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]], uint2 t [[threadgroup_position_in_grid]]) { mm_i8_body<64,32,256,sg>(X,W,O,M,N,K,t); }\n"
 "IV(1) IV(2) IV(4) IV(8)\n";
 
 static double now_ms(void){ static mach_timebase_info_data_t tb; if(tb.denom==0) mach_timebase_info(&tb);
@@ -103,29 +103,33 @@ int main(int argc, char **argv){
     { uint32_t s=3; char *p=(char*)Xi.contents; for(size_t i=0;i<(size_t)M*K;i++){s=s*1664525u+1013904223u; p[i]=(char)((int)((s>>8)&0x1f)-16);} }
     { uint32_t s=4; char *p=(char*)Wi.contents; for(size_t i=0;i<(size_t)N*K;i++){s=s*1664525u+1013904223u; p[i]=(char)((int)((s>>8)&0x1f)-16);} }
 
+    // SG=4 (production) runs FIRST in each nr1/type group so it seeds the baseline.
     variant vs[] = {
-        {"h_64_32_1",32,1,false},{"h_64_32_2",32,2,false},{"h_64_32_4",32,4,false},{"h_64_32_8",32,8,false},
-        {"h_64_64_1",64,1,false},{"h_64_64_2",64,2,false},{"h_64_64_4",64,4,false},{"h_64_64_8",64,8,false},
-        {"h_64_128_1",128,1,false},{"h_64_128_2",128,2,false},{"h_64_128_4",128,4,false},{"h_64_128_8",128,8,false},
-        {"i8_64_32_1",32,1,true},{"i8_64_32_2",32,2,true},{"i8_64_32_4",32,4,true},{"i8_64_32_8",32,8,true},
+        {"h_64_32_4",32,4,false},{"h_64_32_1",32,1,false},{"h_64_32_2",32,2,false},{"h_64_32_8",32,8,false},
+        {"h_64_64_4",64,4,false},{"h_64_64_1",64,1,false},{"h_64_64_2",64,2,false},{"h_64_64_8",64,8,false},
+        {"h_64_128_4",128,4,false},{"h_64_128_1",128,1,false},{"h_64_128_2",128,2,false},{"h_64_128_8",128,8,false},
+        {"i8_64_32_4",32,4,true},{"i8_64_32_1",32,1,true},{"i8_64_32_2",32,2,true},{"i8_64_32_8",32,8,true},
     };
     int nv = sizeof(vs)/sizeof(vs[0]);
 
-    // run a variant -> fill O, return ms (best of iters); writes nothing if pipeline invalid
-    double base_h_ms=0, base_i8_ms=0; double *base_h=NULL,*base_i8=NULL;
-    float  *refH=NULL; int *refI=NULL;
-
+    // Ground truth = the shipped SG=4 config (the matmul2d transpose semantics make
+    // a hand-rolled CPU ref error-prone; the production SG=4 kernel is correct by
+    // definition). For each nr1 group SG=4 runs first and seeds a baseline snapshot.
+    // Validity: int8 must match its SG=4 baseline EXACTLY (int arithmetic); half
+    // within f16-accumulation order tolerance (matmul2d uses f16 tensor accum, so
+    // SG/tile reorderings differ a few %; a broken tiling differs ~100%).
+    float *bH[3]={NULL,NULL,NULL}; int *bI=NULL;      // baselines by nr1 idx (32/64/128)
+    double bHscale[3]={0,0,0};
+    bool groupOK[3]={false,false,false};              // nr1 group's SG=4 matches production tile
     const char *fastest_h=NULL, *fastest_i8=NULL; double best_h=1e9, best_i8=1e9;
-
-    printf("\nvariant       tg   ms       GF/s      max_abs_vs_SG4\n");
+    printf("\nvariant       tg   ms       GF/s      rel_vs_SG4    valid\n");
     for (int vi=0; vi<nv; vi++){
         variant v = vs[vi];
         id<MTLFunction> fn = [lib newFunctionWithName:[NSString stringWithUTF8String:v.name]];
         if(!fn){ printf("%-12s  --   (no function)\n", v.name); continue; }
         id<MTLComputePipelineState> p = [dev newComputePipelineStateWithFunction:fn error:&err];
-        if(!p){ printf("%-12s  --   (invalid SG/tile: %s)\n", v.name, err?[[err localizedDescription] UTF8String]:"?"); err=nil; continue; }
-        NSUInteger tg = (NSUInteger)v.sg*32u;
-        MTLSize tgs = MTLSizeMake(tg,1,1);
+        if(!p){ printf("%-12s  --   (pipeline invalid: %s)\n", v.name, err?[[err localizedDescription] UTF8String]:"?"); err=nil; continue; }
+        MTLSize tgs = MTLSizeMake((NSUInteger)v.sg*32u,1,1);
         MTLSize grid = MTLSizeMake((N+v.nr1-1)/v.nr1, (M+63)/64, 1);
         memset(O.contents, 0, (size_t)M*N*4);
         double best=1e9;
@@ -144,27 +148,34 @@ int main(int argc, char **argv){
             double t0=now_ms(); [cb commit]; [cb waitUntilCompleted]; double dt=now_ms()-t0;
             if(it>=2 && dt<best) best=dt;   // drop 2 warmups
         }
-        // GFLOPs: 2*M*N*K
         double gfs = (2.0*M*N*K)/(best/1e3)/1e9;
-        // correctness vs SG4 baseline of same type
-        double maxabs=-1;
-        if (v.sg==4){
-            if(v.i8){ base_i8=NULL; refI=malloc((size_t)M*N*4); memcpy(refI,O.contents,(size_t)M*N*4); }
-            else if(v.nr1==32){ refH=malloc((size_t)M*N*4); memcpy(refH,O.contents,(size_t)M*N*4); }
-            maxabs=0;
+        double rel=0; bool valid=false; int idx=(v.nr1==32?0:v.nr1==64?1:2);
+        if(v.i8){
+            int *o=(int*)O.contents;
+            if(v.sg==4){ bI=malloc((size_t)M*N*4); memcpy(bI,o,(size_t)M*N*4); valid=true; rel=0; }
+            else if(bI){ long md=0; for(size_t i=0;i<(size_t)M*N;i++){long d=labs((long)o[i]-(long)bI[i]); if(d>md)md=d;} rel=(double)md; valid=(md==0); }
         } else {
-            if(v.i8 && refI){ int *o=(int*)O.contents; long md=0; for(size_t i=0;i<(size_t)M*N;i++){long d=labs((long)o[i]-(long)refI[i]); if(d>md)md=d;} maxabs=(double)md; }
-            else if(!v.i8 && refH){ float *o=(float*)O.contents; float md=0; for(size_t i=0;i<(size_t)M*N;i++){float d=fabsf(o[i]-refH[i]); if(d>md)md=d;} maxabs=md; }
+            float *o=(float*)O.contents;
+            if(v.sg==4){
+                bH[idx]=malloc((size_t)M*N*4); memcpy(bH[idx],o,(size_t)M*N*4);
+                double sc=0; for(size_t i=0;i<(size_t)M*N;i++){double a=fabs((double)o[i]); if(a>sc)sc=a;} bHscale[idx]=sc>1e-6?sc:1.0;
+                // cross-tile sanity: each nr1's SG=4 vs nr1=32 SG=4 (same matmul)
+                if(bH[0] && idx!=0){ double md=0; for(size_t i=0;i<(size_t)M*N;i++){double d=fabs((double)o[i]-(double)bH[0][i]); if(d>md)md=d;} rel=md/bHscale[0]; valid=(rel<0.15);} else { valid=true; rel=0; }
+                groupOK[idx]=valid;   // a variant is only rankable if its group's SG=4 matches the production tile
+            } else if(bH[idx]){
+                double md=0; for(size_t i=0;i<(size_t)M*N;i++){double d=fabs((double)o[i]-(double)bH[idx][i]); if(d>md)md=d;} rel=md/bHscale[idx]; valid=(rel<0.15 && groupOK[idx]);
+            }
         }
-        printf("%-12s  %-3lu  %-8.3f %-9.1f %s%.4g\n", v.name, (unsigned long)tg, best, gfs,
-               (v.sg==4?"(baseline) ":""), maxabs<0?0:maxabs);
-        if(!v.i8 && best<best_h){ best_h=best; fastest_h=v.name; }
-        if(v.i8 && best<best_i8){ best_i8=best; fastest_i8=v.name; }
+        printf("%-12s  %-3lu  %-8.3f %-9.1f %-13.4g %s\n", v.name,(unsigned long)v.sg*32u,best,gfs,rel, valid?"ok":"BAD");
+        if(valid){
+            if(!v.i8 && best<best_h){ best_h=best; fastest_h=v.name; }
+            if(v.i8 && best<best_i8){ best_i8=best; fastest_i8=v.name; }
+        }
     }
-    printf("\n--- fastest NAX-half: %s (%.3f ms) ---\n", fastest_h?fastest_h:"?", best_h);
-    printf("--- fastest NAX-int8: %s (%.3f ms) ---\n", fastest_i8?fastest_i8:"?", best_i8);
-    printf("(name = kernel_NR0_NR1_SG; tg=SG*32; compare vs the *_*_4 = production tg=128)\n");
-    free(refH); free(refI);
+    printf("\n--- fastest VALID NAX-half: %s (%.3f ms) ---\n", fastest_h?fastest_h:"(none)", best_h);
+    printf("--- fastest VALID NAX-int8: %s (%.3f ms) ---\n", fastest_i8?fastest_i8:"(none)", best_i8);
+    printf("(name=kernel_NR0_NR1_SG; tg=SG*32; *_*_4=production tg=128. int8 gate=exact, half gate=rel<15%% vs SG4 f16-accum. BAD excluded.)\n");
+    free(bH[0]);free(bH[1]);free(bH[2]);free(bI);
 }
 return 0;
 }
