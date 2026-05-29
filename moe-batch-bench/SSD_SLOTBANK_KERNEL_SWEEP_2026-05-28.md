@@ -1,5 +1,9 @@
 # SSD slot-bank forced-kernel PREFILL sweep — 32 GB M5 (2026-05-28)
 
+**Hardware:** Apple M5, 32 GB unified memory (single-cluster). Model:
+`dsv4-iq2xxs-expert-major` dense (8.2 GB) + expert sidecar, SSD-streamed.
+**Raw data:** [`SSD_SLOTBANK_KERNEL_SWEEP_2026-05-28.csv`](SSD_SLOTBANK_KERNEL_SWEEP_2026-05-28.csv)
+
 Forced-backend prefill comparison of the GPU routed-MoE kernels in **SSD streaming
 mode** (`--moe-mode slot-bank`, slot-bank=8) on the 32 GB M5. This is the regime
 that matters for the 32 GB box: the resident kernels (ALU Path-C / NAX-half /
