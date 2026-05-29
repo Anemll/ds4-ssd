@@ -1,23 +1,19 @@
-# SSD slot-bank forced-kernel PREFILL sweep — 32 GB M5 (2026-05-28)
+# SSD slot-bank forced-kernel PREFILL sweep — 32 GB M5
 
 **Hardware:** Apple M5, 32 GB unified memory (single-cluster). Model:
 `dsv4-iq2xxs-expert-major` dense (8.2 GB) + expert sidecar, SSD-streamed.
 **Raw data:** [`SSD_SLOTBANK_KERNEL_SWEEP_2026-05-28.csv`](SSD_SLOTBANK_KERNEL_SWEEP_2026-05-28.csv)
 
+> **Rerun 2026-05-29 (corrected):** the original run (2026-05-28) requested
+> `DS4_METAL_PREFILL_CHUNK=16000` but the auto raw-KV cap was hard-capped at 8192,
+> so the *effective* chunk was silently ~8K (the chunk/raw-cap mismatch trap, since
+> fixed). These numbers use a **real 16K chunk** (raw_kv_rows=16128) and a **45s
+> thermal cooldown** between runs. The 16K/32K numbers changed materially — see
+> findings. Sub-16K contexts are unaffected (prompt < one chunk).
+
 Forced-backend prefill comparison of the GPU routed-MoE kernels in **SSD streaming
-mode** (`--moe-mode slot-bank`, slot-bank=8) on the 32 GB M5. This is the regime
-that matters for the 32 GB box: the resident kernels (ALU Path-C / NAX-half /
-NAX-int8) need the 81 GB model and are M5-Max-only; here everything streams expert
-records from SSD.
-
-## What this validates
-
-The Plan A **NAX+ALU fused gate+up+swiglu** kernel was previously resident-only.
-This sweep is the first run after wiring it into the slot-bank prefill path
-(`ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor`, `use_h_h` branch) behind
-`DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP=1` + `DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS`, with
-a new `ds4_mpp_mul_rows_weight_f32` kernel reapplying the per-token routing weight
-(the fused kernel omits it).
+mode** (`--moe-mode slot-bank`, slot-bank=8) on the 32 GB M5. (Resident kernels need
+the 81 GB model and are M5-Max-only; here everything streams expert records from SSD.)
 
 ## Backends (all share `DS4_FLASH_MOE_MPP_INT8_PREFILL=1`)
 
@@ -30,58 +26,69 @@ a new `ds4_mpp_mul_rows_weight_f32` kernel reapplying the per-token routing weig
 
 ## Methodology
 
-- Cache-isolated cold prefill: runs under a throwaway `$HOME`, KV cache wiped before
-  every run, so all backends prefill the **identical** token count (system 1274 +
-  user prompt). Without this, the first backend per ctx cold-prefills while the rest
-  reuse the cached system KV → biased, non-comparable t/s.
-- `total_tps` = full cold prefill (system+prompt); `resume_tps` = the user-prompt
-  phase (larger batches, the more kernel-discriminating signal).
-- io-split=4 (default), xlayer prefetch topk=4 (auto), async-pread on, ANE off.
-- 1K ctx omitted: the agent's system prompt alone is 1274 tokens (> 1024).
+- Cache-isolated cold prefill (throwaway `$HOME`, KV cache wiped per run) so all
+  backends prefill the identical token count (system 1274 + user prompt).
+- `total_tps` = full cold prefill; `resume_tps` = user-prompt phase.
+- `DS4_METAL_PREFILL_CHUNK=16000` (now honored: raw_cap auto-sizes to 16128),
+  io-split=4, xlayer prefetch topk=4 (auto), async-pread on, ANE off, 45s cooldown.
+- 1K ctx omitted (system prompt = 1274 tok > 1024).
 
-## Results (total_tps / resume_tps, t/s)
+## Results — `total_tps / resume_tps` (t/s), real 16K chunk
 
-| ctx | gpu_int8 | nax_int8 | nax_half | **nax_alu (Plan A)** |
+| ctx | gpu_int8 | nax_int8 | nax_half | nax_alu (Plan A) |
 |---|---|---|---|---|
-| 2K  | 62.7 / 53.7 | **65.3 / 55.0** | 60.8 / 51.3 | 63.2 / 53.5 |
-| 4K  | 75.9 / 80.2 | **82.0 / 88.0** | 71.8 / 75.1 | 77.5 / 82.3 |
-| 6K  | 83.9 / 89.7 | **92.3 / 101.1** | 80.6 / 85.7 | 88.0 / 95.6 |
-| 8K  | 89.0 / 94.8 | **99.0 / 107.9** | 85.4 / 90.9 | 93.8 / 101.7 |
-| 16K | 83.6 / 85.7 | **98.1 / 101.9** | 83.2 / 85.4 | 93.8 / 97.2 |
-| 32K | 82.7 / 83.5 | **95.4 / 97.0** | 81.2 / 82.2 | 90.9 / 92.4 |
+| 2K  | 61.3 / 52.4 | 63.5 / 53.4 | 59.4 / 51.5 | **64.8 / 54.8** |
+| 4K  | 78.0 / 82.8 | **85.0 / 91.7** | 75.6 / 79.3 | 81.1 / 86.7 |
+| 6K  | 85.6 / 92.2 | **91.5 / 100.8** | 78.4 / 83.8 | 84.3 / 91.2 |
+| 8K  | 85.3 / 90.8 | **95.3 / 104.0** | 82.1 / 86.9 | 91.1 / 98.6 |
+| 16K | 67.0 / 67.3 | **97.1 / 101.6** | 72.0 / 72.7 | 91.9 / 95.4 |
+| 32K | 62.8 / 62.7 | **79.8 / 80.2** | 64.9 / 65.0 | 72.7 / 73.1 |
 
 ## Findings
 
-1. **`nax_int8` is the fastest SSD-streaming routed kernel at every context** (~95–99
-   t/s at large ctx), ~4–5% ahead of Plan A.
-2. **Plan A (NAX+ALU fused) is a solid 2nd and beats its own separate baseline
-   (`nax_half`) by a margin that grows with context** — the fusion is a real win in
-   SSD mode, confirming the synthetic-probe prediction:
+1. **`nax_int8` is fastest at every ctx ≥ 4K** (Plan A edges it only at 2K). It is
+   also the most robust to the larger chunk — held ~97 t/s at 16K while the
+   half-activation paths collapsed.
+
+2. **Plan A beats its separate baseline (`nax_half`) by a margin that grows with
+   ctx, peaking at 16K:**
 
    | ctx | Plan A vs nax_half (total) |
    |---|---|
-   | 2K | +3.9% |
-   | 4K | +7.9% |
-   | 6K | +9.2% |
-   | 8K | +9.8% |
-   | 16K | +12.7% |
-   | 32K | +11.9% |
+   | 2K | +9.1% |
+   | 4K | +7.3% |
+   | 6K | +7.5% |
+   | 8K | +11.0% |
+   | 16K | **+27.6%** |
+   | 32K | +12.0% |
 
-3. At large ctx the half-separate and base-int8 paths drop into an I/O-bound plateau
-   (~81–84 t/s) while `nax_int8` and Plan A hold up (~91–98) — the fused/int8 paths'
-   fewer device round-trips help under slot-bank memory pressure.
+   At a real 16K chunk the separate half path (`nax_half`) collapses to 72 while the
+   **fused** Plan A holds at 92 — fewer device round-trips (gate/up stay in
+   cooperative tiles) make it far more robust to the chunk's bandwidth pressure.
+   This is the fusion payoff, and it was hidden when the chunk was silently ~8K.
+
+3. **A real 16K chunk is SLOWER than ~8K at large ctx.** Comparing to the original
+   (accidentally-~8K) run, every backend is slower at 16K/32K with the honest 16K
+   chunk — gpu_int8 16K: 84→67, nax_half 16K: 83→72, all backends 32K: ~15-25%
+   lower. The bigger chunk forces a bigger SWA raw-KV window (16128 rows), so
+   attention costs more and outweighs MoE-batching gains. **For SSD prefill at large
+   ctx, a smaller chunk (~8K) is the better operating point** — the original numbers
+   only looked better because they used a smaller chunk by accident.
 
 ## Recommendation
 
-For SSD-streaming prefill on the 32 GB M5: **use `nax_int8`** (fastest). **Plan A is
-the best half-precision path** and the recommended NAX option; it now works in
-slot-bank mode. ALU / Path-C remains deferred (counted-indirect kernel, needs the
-id-map/counts machinery the per-expert banked path lacks).
+- **Fastest routed kernel: `nax_int8`** across all ctx; also the most chunk-robust.
+- **Plan A is the best half-precision path** and the recommended NAX option; its
+  fusion advantage is largest exactly where it matters (large chunks).
+- **Chunk size: prefer ~8K over 16K at large ctx** — the SWA-window cost of a 16K
+  chunk outweighs MoE batching here. Worth a dedicated chunk-size sweep
+  (4K/6K/8K/12K/16K) to pin the crossover.
+- ALU / Path-C remains deferred (counted-indirect; needs id-map/counts machinery the
+  per-expert banked path lacks).
 
 ## Correctness caveat
 
-This SSD prefill path is **non-deterministic run-to-run for every backend** (f16
-accumulation order under concurrent GPU work — verified on the untouched `nax_int8`
-too), so Plan A could not be bit-verified e2e. It is coherent, first-token-consistent
-with the other backends, and the kernel is probe-validated in isolation. A true
-numeric check would need a logit/intermediate-buffer comparison harness.
+This SSD prefill path is non-deterministic run-to-run for every backend (f16
+accumulation under concurrent GPU work — verified on the untouched `nax_int8`), so
+Plan A is coherent and probe-validated but not bit-verifiable e2e. A true numeric
+check needs a logit/intermediate-buffer harness.
