@@ -194,9 +194,9 @@ static inline int8_t ds4nf_f2i8(float x, float qscale) {
 }
 
 // Dequant one iq2_xxs segment (seg in 0..15 -> 16 values) of block (row n) at k-block
-// kb into the transposed threadgroup tile column nn.  Btile layout [localk*32 + nn].
-inline void ds4nf_iq2_seg(device const block_iq2_xxs *blk, uint seg, float qscale,
-                          threadgroup int8_t *Btile, uint nn) {
+// kb into the transposed threadgroup tile column nn.  Btile layout [localk*stride + nn].
+inline void ds4nf_iq2_seg_stride(device const block_iq2_xxs *blk, uint seg, float qscale,
+                                 threadgroup int8_t *Btile, uint nn, uint stride) {
     const uint ib32 = seg / 2u, lane = seg & 1u;
     device const ushort *q2 = blk->qs + 4u * ib32;
     const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
@@ -207,18 +207,23 @@ inline void ds4nf_iq2_seg(device const block_iq2_xxs *blk, uint seg, float qscal
     const uchar s0 = ds4nf_ksigns[(aux32_s >> (14u * lane)) & 127u];
     for (uint j = 0; j < 8u; j++) {
         float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((s0 & (1u << j)) ? -1.0f : 1.0f);
-        Btile[(col0 + j) * 32u + nn] = ds4nf_f2i8(v, qscale);
+        Btile[(col0 + j) * stride + nn] = ds4nf_f2i8(v, qscale);
     }
     const ulong gv1 = ds4nf_iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
     const uchar s1 = ds4nf_ksigns[(aux32_s >> (14u * lane + 7u)) & 127u];
     for (uint j = 0; j < 8u; j++) {
         float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((s1 & (1u << j)) ? -1.0f : 1.0f);
-        Btile[(col0 + 8u + j) * 32u + nn] = ds4nf_f2i8(v, qscale);
+        Btile[(col0 + 8u + j) * stride + nn] = ds4nf_f2i8(v, qscale);
     }
 }
 
-inline void ds4nf_q2k_seg(device const block_q2_K *blk, uint seg, float qscale,
+inline void ds4nf_iq2_seg(device const block_iq2_xxs *blk, uint seg, float qscale,
                           threadgroup int8_t *Btile, uint nn) {
+    ds4nf_iq2_seg_stride(blk, seg, qscale, Btile, nn, 32u);
+}
+
+inline void ds4nf_q2k_seg_stride(device const block_q2_K *blk, uint seg, float qscale,
+                                 threadgroup int8_t *Btile, uint nn, uint stride) {
     device const uchar *q = blk->qs + 32u * (seg / 8u) + 16u * (seg & 1u);
     const uchar sc = blk->scales[seg];
     const uint il = (seg / 2u) & 3u;
@@ -228,8 +233,13 @@ inline void ds4nf_q2k_seg(device const block_q2_K *blk, uint seg, float qscale,
     const float ml = float(blk->dmin) * float(sc >> 4);
     const uint col0 = seg * 16u;
     for (uint j = 0; j < 16u; j++) {
-        Btile[(col0 + j) * 32u + nn] = ds4nf_f2i8(dl * float(q[j] & mask) - ml, qscale);
+        Btile[(col0 + j) * stride + nn] = ds4nf_f2i8(dl * float(q[j] & mask) - ml, qscale);
     }
+}
+
+inline void ds4nf_q2k_seg(device const block_q2_K *blk, uint seg, float qscale,
+                          threadgroup int8_t *Btile, uint nn) {
+    ds4nf_q2k_seg_stride(blk, seg, qscale, Btile, nn, 32u);
 }
 
 // Grouped attention-output (O-proj low) NAX matmul, ported from antirez
@@ -456,47 +466,100 @@ kernel void ds4_indexer_scores_nax(
     }
 }
 
-// Fused gate/up (iq2_xxs).  Indirect-dispatched per expert: grid.x = N tiles (32),
+// Fused gate/up (iq2_xxs).  Indirect-dispatched per expert: grid.x = N tiles (NT),
 // grid.y = M tiles (64); M = counts[expert].  A = gathered int8 acts [M x K] row-major,
 // Wq = expert weight [N x K] iq2_xxs, C = int32 [M x N] row-major.
-kernel void ds4_mpp_iq2_i8_i32_counted(
-        device int8_t *A [[buffer(0)]],
-        device const block_iq2_xxs *Wq [[buffer(1)]],
-        device int32_t *C [[buffer(2)]],
-        device const uint *counts [[buffer(3)]],
-        constant uint &expert [[buffer(4)]],
-        constant uint &N [[buffer(5)]],
-        constant uint &K [[buffer(6)]],
-        constant float &qscale [[buffer(7)]],
-        uint2 tgid [[threadgroup_position_in_grid]],
-        uint tidx [[thread_index_in_threadgroup]]) {
-    const uint M = counts[expert];
-    const uint m0 = tgid.y * 64u, n0 = tgid.x * 32u;
-    if (M == 0u || m0 >= M || n0 >= N) return;
-    const uint rows = min(64u, M - m0), bpr = K / 256u;
-    threadgroup int8_t Btile[256 * 32];
-    threadgroup int8_t *bptr = Btile;
-    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
-                                              matmul2d_descriptor::mode::multiply_accumulate);
-    matmul2d<desc, execution_simdgroups<4>> op;
-    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
-    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
-    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
-    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
-    for (uint kb = 0; kb < bpr; ++kb) {
-        for (uint w = tidx; w < 512u; w += 128u) {
-            uint nn = w & 31u, seg = w >> 5;
-            ds4nf_iq2_seg(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
-        }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
-        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
-        op.run(mA, mBt, cT);
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
-    cT.store(mC);
+#define DS4_DEFINE_MPP_IQ2_COUNTED(NAME, NT) \
+kernel void NAME( \
+        device int8_t *A [[buffer(0)]], \
+        device const block_iq2_xxs *Wq [[buffer(1)]], \
+        device int32_t *C [[buffer(2)]], \
+        device const uint *counts [[buffer(3)]], \
+        constant uint &expert [[buffer(4)]], \
+        constant uint &N [[buffer(5)]], \
+        constant uint &K [[buffer(6)]], \
+        constant float &qscale [[buffer(7)]], \
+        uint2 tgid [[threadgroup_position_in_grid]], \
+        uint tidx [[thread_index_in_threadgroup]]) { \
+    const uint M = counts[expert]; \
+    const uint m0 = tgid.y * 64u, n0 = tgid.x * (uint)(NT); \
+    if (M == 0u || m0 >= M || n0 >= N) return; \
+    const uint rows = min(64u, M - m0), bpr = K / 256u; \
+    threadgroup int8_t Btile[256 * (NT)]; \
+    threadgroup int8_t *bptr = Btile; \
+    constexpr auto desc = matmul2d_descriptor(64, (NT), 256, false, false, false, \
+                                              matmul2d_descriptor::mode::multiply_accumulate); \
+    matmul2d<desc, execution_simdgroups<4>> op; \
+    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K}); \
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{(NT), 256}, array<int32_t, 2>{1, (NT)}); \
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>(); \
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; } \
+    for (uint kb = 0; kb < bpr; ++kb) { \
+        for (uint w = tidx; w < 16u * (uint)(NT); w += 128u) { \
+            uint nn = w % (uint)(NT), seg = w / (uint)(NT); \
+            ds4nf_iq2_seg_stride(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn, (uint)(NT)); \
+        } \
+        threadgroup_barrier(mem_flags::mem_threadgroup); \
+        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K}); \
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{(NT), 256}, array<int32_t, 2>{1, (NT)}); \
+        op.run(mA, mBt, cT); \
+        threadgroup_barrier(mem_flags::mem_threadgroup); \
+    } \
+    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{(NT), (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N}); \
+    cT.store(mC); \
 }
+
+DS4_DEFINE_MPP_IQ2_COUNTED(ds4_mpp_iq2_i8_i32_counted, 32)
+DS4_DEFINE_MPP_IQ2_COUNTED(ds4_mpp_iq2_i8_i32_counted_n64, 64)
+DS4_DEFINE_MPP_IQ2_COUNTED(ds4_mpp_iq2_i8_i32_counted_n128, 128)
+#undef DS4_DEFINE_MPP_IQ2_COUNTED
+
+#define DS4_DEFINE_MPP_IQ2_COUNTED_N256_SPLIT(NAME) \
+kernel void NAME( \
+        device int8_t *A [[buffer(0)]], \
+        device const block_iq2_xxs *Wq [[buffer(1)]], \
+        device int32_t *C [[buffer(2)]], \
+        device const uint *counts [[buffer(3)]], \
+        constant uint &expert [[buffer(4)]], \
+        constant uint &N [[buffer(5)]], \
+        constant uint &K [[buffer(6)]], \
+        constant float &qscale [[buffer(7)]], \
+        uint2 tgid [[threadgroup_position_in_grid]], \
+        uint tidx [[thread_index_in_threadgroup]]) { \
+    const uint M = counts[expert]; \
+    const uint m0 = tgid.y * 64u, nbase = tgid.x * 256u; \
+    if (M == 0u || m0 >= M || nbase >= N) return; \
+    const uint rows = min(64u, M - m0), bpr = K / 256u; \
+    threadgroup int8_t Btile[256 * 128]; \
+    threadgroup int8_t *bptr = Btile; \
+    constexpr auto desc = matmul2d_descriptor(64, 128, 256, false, false, false, \
+                                              matmul2d_descriptor::mode::multiply_accumulate); \
+    matmul2d<desc, execution_simdgroups<4>> op; \
+    for (uint part = 0; part < 2u; part++) { \
+        const uint n0 = nbase + part * 128u; \
+        if (n0 >= N) continue; \
+        auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K}); \
+        auto tBt0 = tensor(bptr, dextents<int32_t, 2>{128, 256}, array<int32_t, 2>{1, 128}); \
+        auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>(); \
+        for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; } \
+        for (uint kb = 0; kb < bpr; ++kb) { \
+            for (uint w = tidx; w < 2048u; w += 128u) { \
+                uint nn = w & 127u, seg = w >> 7; \
+                ds4nf_iq2_seg_stride(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn, 128u); \
+            } \
+            threadgroup_barrier(mem_flags::mem_threadgroup); \
+            auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K}); \
+            auto mBt = tensor(bptr, dextents<int32_t, 2>{128, 256}, array<int32_t, 2>{1, 128}); \
+            op.run(mA, mBt, cT); \
+            threadgroup_barrier(mem_flags::mem_threadgroup); \
+        } \
+        auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{128, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N}); \
+        cT.store(mC); \
+    } \
+}
+
+DS4_DEFINE_MPP_IQ2_COUNTED_N256_SPLIT(ds4_mpp_iq2_i8_i32_counted_n256)
+#undef DS4_DEFINE_MPP_IQ2_COUNTED_N256_SPLIT
 
 // =============================================================================
 // Multi-expert iq2 fused matmul — one dispatch covers G experts.
@@ -606,44 +669,97 @@ kernel void ds4_mpp_q2k_i8_i32_multi(
 }
 
 // Fused down (q2_K).  Same dispatch convention.
-kernel void ds4_mpp_q2k_i8_i32_counted(
-        device int8_t *A [[buffer(0)]],
-        device const block_q2_K *Wq [[buffer(1)]],
-        device int32_t *C [[buffer(2)]],
-        device const uint *counts [[buffer(3)]],
-        constant uint &expert [[buffer(4)]],
-        constant uint &N [[buffer(5)]],
-        constant uint &K [[buffer(6)]],
-        constant float &qscale [[buffer(7)]],
-        uint2 tgid [[threadgroup_position_in_grid]],
-        uint tidx [[thread_index_in_threadgroup]]) {
-    const uint M = counts[expert];
-    const uint m0 = tgid.y * 64u, n0 = tgid.x * 32u;
-    if (M == 0u || m0 >= M || n0 >= N) return;
-    const uint rows = min(64u, M - m0), bpr = K / 256u;
-    threadgroup int8_t Btile[256 * 32];
-    threadgroup int8_t *bptr = Btile;
-    constexpr auto desc = matmul2d_descriptor(64, 32, 256, false, false, false,
-                                              matmul2d_descriptor::mode::multiply_accumulate);
-    matmul2d<desc, execution_simdgroups<4>> op;
-    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K});
-    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
-    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>();
-    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; }
-    for (uint kb = 0; kb < bpr; ++kb) {
-        for (uint w = tidx; w < 512u; w += 128u) {
-            uint nn = w & 31u, seg = w >> 5;
-            ds4nf_q2k_seg(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn);
-        }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K});
-        auto mBt = tensor(bptr, dextents<int32_t, 2>{32, 256}, array<int32_t, 2>{1, 32});
-        op.run(mA, mBt, cT);
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{32, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N});
-    cT.store(mC);
+#define DS4_DEFINE_MPP_Q2K_COUNTED(NAME, NT) \
+kernel void NAME( \
+        device int8_t *A [[buffer(0)]], \
+        device const block_q2_K *Wq [[buffer(1)]], \
+        device int32_t *C [[buffer(2)]], \
+        device const uint *counts [[buffer(3)]], \
+        constant uint &expert [[buffer(4)]], \
+        constant uint &N [[buffer(5)]], \
+        constant uint &K [[buffer(6)]], \
+        constant float &qscale [[buffer(7)]], \
+        uint2 tgid [[threadgroup_position_in_grid]], \
+        uint tidx [[thread_index_in_threadgroup]]) { \
+    const uint M = counts[expert]; \
+    const uint m0 = tgid.y * 64u, n0 = tgid.x * (uint)(NT); \
+    if (M == 0u || m0 >= M || n0 >= N) return; \
+    const uint rows = min(64u, M - m0), bpr = K / 256u; \
+    threadgroup int8_t Btile[256 * (NT)]; \
+    threadgroup int8_t *bptr = Btile; \
+    constexpr auto desc = matmul2d_descriptor(64, (NT), 256, false, false, false, \
+                                              matmul2d_descriptor::mode::multiply_accumulate); \
+    matmul2d<desc, execution_simdgroups<4>> op; \
+    auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K}); \
+    auto tBt0 = tensor(bptr, dextents<int32_t, 2>{(NT), 256}, array<int32_t, 2>{1, (NT)}); \
+    auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>(); \
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; } \
+    for (uint kb = 0; kb < bpr; ++kb) { \
+        for (uint w = tidx; w < 16u * (uint)(NT); w += 128u) { \
+            uint nn = w % (uint)(NT), seg = w / (uint)(NT); \
+            ds4nf_q2k_seg_stride(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn, (uint)(NT)); \
+        } \
+        threadgroup_barrier(mem_flags::mem_threadgroup); \
+        auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K}); \
+        auto mBt = tensor(bptr, dextents<int32_t, 2>{(NT), 256}, array<int32_t, 2>{1, (NT)}); \
+        op.run(mA, mBt, cT); \
+        threadgroup_barrier(mem_flags::mem_threadgroup); \
+    } \
+    auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{(NT), (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N}); \
+    cT.store(mC); \
 }
+
+DS4_DEFINE_MPP_Q2K_COUNTED(ds4_mpp_q2k_i8_i32_counted, 32)
+DS4_DEFINE_MPP_Q2K_COUNTED(ds4_mpp_q2k_i8_i32_counted_n64, 64)
+DS4_DEFINE_MPP_Q2K_COUNTED(ds4_mpp_q2k_i8_i32_counted_n128, 128)
+#undef DS4_DEFINE_MPP_Q2K_COUNTED
+
+#define DS4_DEFINE_MPP_Q2K_COUNTED_N256_SPLIT(NAME) \
+kernel void NAME( \
+        device int8_t *A [[buffer(0)]], \
+        device const block_q2_K *Wq [[buffer(1)]], \
+        device int32_t *C [[buffer(2)]], \
+        device const uint *counts [[buffer(3)]], \
+        constant uint &expert [[buffer(4)]], \
+        constant uint &N [[buffer(5)]], \
+        constant uint &K [[buffer(6)]], \
+        constant float &qscale [[buffer(7)]], \
+        uint2 tgid [[threadgroup_position_in_grid]], \
+        uint tidx [[thread_index_in_threadgroup]]) { \
+    const uint M = counts[expert]; \
+    const uint m0 = tgid.y * 64u, nbase = tgid.x * 256u; \
+    if (M == 0u || m0 >= M || nbase >= N) return; \
+    const uint rows = min(64u, M - m0), bpr = K / 256u; \
+    threadgroup int8_t Btile[256 * 128]; \
+    threadgroup int8_t *bptr = Btile; \
+    constexpr auto desc = matmul2d_descriptor(64, 128, 256, false, false, false, \
+                                              matmul2d_descriptor::mode::multiply_accumulate); \
+    matmul2d<desc, execution_simdgroups<4>> op; \
+    for (uint part = 0; part < 2u; part++) { \
+        const uint n0 = nbase + part * 128u; \
+        if (n0 >= N) continue; \
+        auto mA0 = tensor(A, dextents<int32_t, 2>{256, 64}, array<int32_t, 2>{1, (int32_t)K}); \
+        auto tBt0 = tensor(bptr, dextents<int32_t, 2>{128, 256}, array<int32_t, 2>{1, 128}); \
+        auto cT = op.get_destination_cooperative_tensor<decltype(mA0), decltype(tBt0), int32_t>(); \
+        for (uint16_t i = 0; i < cT.get_capacity(); ++i) { if (cT.is_valid_element(i)) cT[i] = 0; } \
+        for (uint kb = 0; kb < bpr; ++kb) { \
+            for (uint w = tidx; w < 2048u; w += 128u) { \
+                uint nn = w & 127u, seg = w >> 7; \
+                ds4nf_q2k_seg_stride(Wq + (n0 + nn) * bpr + kb, seg, qscale, bptr, nn, 128u); \
+            } \
+            threadgroup_barrier(mem_flags::mem_threadgroup); \
+            auto mA = tensor(A + m0 * K + kb * 256u, dextents<int32_t, 2>{256, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)K}); \
+            auto mBt = tensor(bptr, dextents<int32_t, 2>{128, 256}, array<int32_t, 2>{1, 128}); \
+            op.run(mA, mBt, cT); \
+            threadgroup_barrier(mem_flags::mem_threadgroup); \
+        } \
+        auto mC = tensor(C + m0 * N + n0, dextents<int32_t, 2>{128, (int32_t)rows}, array<int32_t, 2>{1, (int32_t)N}); \
+        cT.store(mC); \
+    } \
+}
+
+DS4_DEFINE_MPP_Q2K_COUNTED_N256_SPLIT(ds4_mpp_q2k_i8_i32_counted_n256)
+#undef DS4_DEFINE_MPP_Q2K_COUNTED_N256_SPLIT
 
 // ============================================================================
 // int8 (W8A8) dense Q8_0 path. Validated +1.4-1.5x vs relaxed float x half at

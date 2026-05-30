@@ -19625,30 +19625,46 @@ static uint32_t metal_graph_raw_cap_for_context(int ctx_size, uint32_t prefill_c
      * so the physical row order and FlashAttention block grouping match the
      * model path we compare against.
      */
-    uint64_t wanted = (uint64_t)raw_window + prefill_cap;
+    const char *prefill_env = getenv("DS4_METAL_PREFILL_CHUNK");
+    const bool explicit_prefill_cap = prefill_env && prefill_env[0];
+
+    uint64_t wanted = align_up((uint64_t)raw_window + prefill_cap, 256u);
     if (wanted > (uint32_t)ctx_size) wanted = (uint32_t)ctx_size;
     if (wanted == 0) wanted = 1;
-    wanted = align_up(wanted, 256u);
-    /* No fixed 8192 ceiling here. `wanted` is already
-     * align256(min(raw_window + prefill_cap, ctx_size)), so it exactly covers
-     * the requested prefill chunk. A lower cap silently shrank explicitly-large
-     * DS4_METAL_PREFILL_CHUNK values, because metal_graph_effective_prefill_cap()
-     * limits the chunk to (raw_cap - raw_window) — the chunk/raw-cap mismatch
-     * trap. Default prompts use prefill_cap <= 4096 (-> wanted <= 4352 with
-     * DS4_N_SWA=128), so dropping the ceiling only changes behavior when a large
-     * chunk was explicitly requested, which is exactly when we want raw_cap to
-     * follow it. Still bounded by ctx_size above. */
+    if (!explicit_prefill_cap && wanted > 8192u) wanted = 8192u;
     uint32_t raw_cap = (uint32_t)wanted;
     if (raw_cap < raw_window) raw_cap = raw_window;
 
     const char *env = getenv("DS4_METAL_GRAPH_RAW_CAP");
+    bool explicit_raw_cap = false;
     if (env && env[0]) {
         char *endp = NULL;
         const long v = strtol(env, &endp, 10);
         if (endp != env && v > 0) {
+            explicit_raw_cap = true;
             raw_cap = (uint32_t)v;
             if (raw_cap > (uint32_t)ctx_size) raw_cap = (uint32_t)ctx_size;
             if (raw_cap < raw_window) raw_cap = raw_window;
+        }
+    }
+
+    const uint32_t effective_chunk =
+        raw_cap > raw_window ? raw_cap - raw_window : 1u;
+    if (effective_chunk < prefill_cap) {
+        static bool warned = false;
+        if (!warned && (explicit_prefill_cap || explicit_raw_cap)) {
+            const uint64_t need = align_up((uint64_t)raw_window + prefill_cap, 256u);
+            fprintf(stderr,
+                    "ds4: warning: raw KV cap limits Metal prefill chunk "
+                    "(prefill_chunk=%u, raw_kv_rows=%u, raw_window=%u, "
+                    "effective_chunk=%u; target raw cap for one chunk is %llu, "
+                    "also requires ctx >= that value)\n",
+                    prefill_cap,
+                    raw_cap,
+                    raw_window,
+                    effective_chunk,
+                    (unsigned long long)need);
+            warned = true;
         }
     }
 

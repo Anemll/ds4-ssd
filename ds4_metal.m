@@ -110,9 +110,11 @@ static id<MTLComputePipelineState> g_mpp_i8_i8_i32_dual_counted_pipeline;
 static id<MTLComputePipelineState> g_mpp_h_h_f_n32_pipeline;
 static id<MTLComputePipelineState> g_mpp_h_h_f_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_h_h_f_n128_pipeline;
+static id<MTLComputePipelineState> g_mpp_h_h_f_n256_pipeline;
 static id<MTLComputePipelineState> g_mpp_f_h_f_n32_pipeline;
 static id<MTLComputePipelineState> g_mpp_f_h_f_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_f_h_f_n128_pipeline;
+static id<MTLComputePipelineState> g_mpp_f_h_f_n256_pipeline;
 static id<MTLComputePipelineState> g_mpp_swiglu_weight_f32_pipeline;
 static id<MTLComputePipelineState> g_mpp_swiglu_i32_weight_f32_pipeline;
 static id<MTLComputePipelineState> g_mpp_swiglu_i32_weight_i8_pipeline;
@@ -142,6 +144,9 @@ static id<MTLComputePipelineState> g_mpp_dequant_gud_i8_pipeline;
  * no global int8 weight round-trip); see metal/nax_fused.metal. */
 static id<MTLLibrary>              g_nax_fused_library;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
+static id<MTLComputePipelineState> g_mpp_iq2_fused_n64_pipeline;
+static id<MTLComputePipelineState> g_mpp_iq2_fused_n128_pipeline;
+static id<MTLComputePipelineState> g_mpp_iq2_fused_n256_pipeline;
 static id<MTLComputePipelineState> g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline;
 static id<MTLComputePipelineState> g_mpp_mul_rows_weight_f32_pipeline;        // Plan A: reapply routing weight
 static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_pipeline;   // Path C non-dedup
@@ -150,6 +155,9 @@ static id<MTLComputePipelineState> g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pip
 static id<MTLComputePipelineState> g_mpp_iq2_i8_i32_multi_pipeline;            // multi-expert iq2
 static id<MTLComputePipelineState> g_mpp_q2k_i8_i32_multi_pipeline;            // multi-expert q2k
 static id<MTLComputePipelineState> g_mpp_q2k_fused_pipeline;
+static id<MTLComputePipelineState> g_mpp_q2k_fused_n64_pipeline;
+static id<MTLComputePipelineState> g_mpp_q2k_fused_n128_pipeline;
+static id<MTLComputePipelineState> g_mpp_q2k_fused_n256_pipeline;
 static id<MTLComputePipelineState> g_dense_q8_nax_pipeline;
 static id<MTLComputePipelineState> g_dense_i8_fused_pipeline;
 static id<MTLComputePipelineState> g_repack_q8_i8_pipeline;
@@ -4860,9 +4868,11 @@ void ds4_gpu_cleanup(void) {
         g_mpp_h_h_f_n32_pipeline = nil;
         g_mpp_h_h_f_n64_pipeline = nil;
         g_mpp_h_h_f_n128_pipeline = nil;
+        g_mpp_h_h_f_n256_pipeline = nil;
         g_mpp_f_h_f_n32_pipeline = nil;
         g_mpp_f_h_f_n64_pipeline = nil;
         g_mpp_f_h_f_n128_pipeline = nil;
+        g_mpp_f_h_f_n256_pipeline = nil;
         g_mpp_swiglu_weight_f32_pipeline = nil;
         g_mpp_swiglu_i32_weight_f32_pipeline = nil;
         g_mpp_swiglu_i32_weight_i8_pipeline = nil;
@@ -4887,8 +4897,22 @@ void ds4_gpu_cleanup(void) {
         g_mpp_dequant_iq2_xxs_i8_counted_pipeline = nil;
         g_mpp_dequant_q2_k_i8_counted_pipeline = nil;
         g_mpp_dequant_gud_i8_pipeline = nil;
+        g_nax_fused_library = nil;
+        g_mpp_iq2_fused_pipeline = nil;
+        g_mpp_iq2_fused_n64_pipeline = nil;
+        g_mpp_iq2_fused_n128_pipeline = nil;
+        g_mpp_iq2_fused_n256_pipeline = nil;
+        g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline = nil;
+        g_mpp_mul_rows_weight_f32_pipeline = nil;
+        g_mpp_iq2_fused_gate_up_swiglu_pipeline = nil;
         g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline = nil;
         g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline = nil;
+        g_mpp_iq2_i8_i32_multi_pipeline = nil;
+        g_mpp_q2k_i8_i32_multi_pipeline = nil;
+        g_mpp_q2k_fused_pipeline = nil;
+        g_mpp_q2k_fused_n64_pipeline = nil;
+        g_mpp_q2k_fused_n128_pipeline = nil;
+        g_mpp_q2k_fused_n256_pipeline = nil;
         g_ane_dequant_iq2_xxs_f16_pipeline = nil;
         g_ane_dequant_q2_k_f16_pipeline = nil;
         g_ane_output_pack_f16_f32_pipeline = nil;
@@ -14908,17 +14932,20 @@ static id<MTLComputePipelineState> ds4_gpu_routed_mm_f16_rhs_pipeline(uint32_t t
 }
 
 /* Wide-token MoE prefill tiles (ported from antirez/ds4 PR #264). NR1=32 is the
- * legacy/decode tile; 64/128 amortize per-threadgroup dequant+setup overhead on
+ * legacy/decode tile; 64/128/256 amortize per-threadgroup dequant+setup overhead on
  * aligned prefill batches. Only q2_K/q4_K/iq2_xxs have wide kernels. The encode
  * grid-X must match the selected kernel's NR1 exactly (see _mapped_tile). */
 static uint32_t ds4_gpu_moe_mm_tile_n(uint32_t gate_type, uint32_t n_tokens) {
-    const uint32_t tile_max = ds4_gpu_env_u32_default("DS4_METAL_MOE_TILE_MAX", 128u);
+    const uint32_t tile_max = ds4_gpu_env_u32_default("DS4_METAL_MOE_TILE_MAX", 32u);
     if (tile_max <= 32u) {
         return 32u;
     }
     if (gate_type == DS4_METAL_TENSOR_Q4_K ||
         gate_type == DS4_METAL_TENSOR_Q2_K ||
         gate_type == DS4_METAL_TENSOR_IQ2_XXS) {
+        if (tile_max >= 256u && n_tokens >= 256u && (n_tokens % 256u) == 0u) {
+            return 256u;
+        }
         if (tile_max >= 128u && n_tokens >= 128u && (n_tokens % 128u) == 0u) {
             return 128u;
         }
@@ -14929,6 +14956,66 @@ static uint32_t ds4_gpu_moe_mm_tile_n(uint32_t gate_type, uint32_t n_tokens) {
     return 32u;
 }
 
+static const char *ds4_gpu_metal_tensor_name(uint32_t type) {
+    switch (type) {
+    case DS4_METAL_TENSOR_IQ2_XXS: return "IQ2_XXS";
+    case DS4_METAL_TENSOR_Q2_K:    return "Q2_K";
+    case DS4_METAL_TENSOR_Q4_K:    return "Q4_K";
+    default:                       return "unknown";
+    }
+}
+
+static const char *ds4_gpu_routed_mm_kernel_name_for_tile(uint32_t type, uint32_t tile_n, bool f16_rhs) {
+    if (f16_rhs) {
+        switch (type) {
+        case DS4_METAL_TENSOR_IQ2_XXS:
+            return tile_n >= 256u ? "kernel_mul_mm_id_iq2_xxs_f16_n256" :
+                   tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f16_n128" :
+                   tile_n >= 64u  ? "kernel_mul_mm_id_iq2_xxs_f16_n64" :
+                                     "kernel_mul_mm_id_iq2_xxs_f16";
+        case DS4_METAL_TENSOR_Q2_K:
+            return tile_n >= 256u ? "kernel_mul_mm_id_q2_K_f16_n256" :
+                   tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f16_n128" :
+                   tile_n >= 64u  ? "kernel_mul_mm_id_q2_K_f16_n64" :
+                                     "kernel_mul_mm_id_q2_K_f16";
+        case DS4_METAL_TENSOR_Q4_K:
+            return tile_n >= 256u ? "kernel_mul_mm_id_q4_K_f16_n256" :
+                   tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f16_n128" :
+                   tile_n >= 64u  ? "kernel_mul_mm_id_q4_K_f16_n64" :
+                                     "kernel_mul_mm_id_q4_K_f16";
+        default:
+            return "unknown";
+        }
+    }
+    switch (type) {
+    case DS4_METAL_TENSOR_IQ2_XXS:
+        return tile_n >= 256u ? "kernel_mul_mm_id_iq2_xxs_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f32_n128" :
+               tile_n >= 64u  ? "kernel_mul_mm_id_iq2_xxs_f32_n64" :
+                                 "kernel_mul_mm_id_iq2_xxs_f32";
+    case DS4_METAL_TENSOR_Q2_K:
+        return tile_n >= 256u ? "kernel_mul_mm_id_q2_K_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f32_n128" :
+               tile_n >= 64u  ? "kernel_mul_mm_id_q2_K_f32_n64" :
+                                 "kernel_mul_mm_id_q2_K_f32";
+    case DS4_METAL_TENSOR_Q4_K:
+        return tile_n >= 256u ? "kernel_mul_mm_id_q4_K_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f32_n128" :
+               tile_n >= 64u  ? "kernel_mul_mm_id_q4_K_f32_n64" :
+                                 "kernel_mul_mm_id_q4_K_f32";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *ds4_gpu_dense_backend_name(void) {
+    switch (ds4_gpu_dense_backend_kind()) {
+    case 2:  return "W8A8-int8";
+    case 1:  return "fp16-NAX";
+    default: return "legacy-simd";
+    }
+}
+
 static id<MTLComputePipelineState> ds4_gpu_routed_mm_pipeline_for_tile(uint32_t type, uint32_t tile_n) {
     if (tile_n <= 32u) {
         return ds4_gpu_routed_mm_pipeline(type);
@@ -14936,11 +15023,17 @@ static id<MTLComputePipelineState> ds4_gpu_routed_mm_pipeline_for_tile(uint32_t 
     const char *name = NULL;
     switch (type) {
     case DS4_METAL_TENSOR_IQ2_XXS:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f32_n128" : "kernel_mul_mm_id_iq2_xxs_f32_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_iq2_xxs_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f32_n128" :
+                                 "kernel_mul_mm_id_iq2_xxs_f32_n64"; break;
     case DS4_METAL_TENSOR_Q2_K:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f32_n128" : "kernel_mul_mm_id_q2_K_f32_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_q2_K_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f32_n128" :
+                                 "kernel_mul_mm_id_q2_K_f32_n64"; break;
     case DS4_METAL_TENSOR_Q4_K:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f32_n128" : "kernel_mul_mm_id_q4_K_f32_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_q4_K_f32_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f32_n128" :
+                                 "kernel_mul_mm_id_q4_K_f32_n64"; break;
     default:
         return nil;
     }
@@ -14954,11 +15047,17 @@ static id<MTLComputePipelineState> ds4_gpu_routed_mm_f16_rhs_pipeline_for_tile(u
     const char *name = NULL;
     switch (type) {
     case DS4_METAL_TENSOR_IQ2_XXS:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f16_n128" : "kernel_mul_mm_id_iq2_xxs_f16_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_iq2_xxs_f16_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_iq2_xxs_f16_n128" :
+                                 "kernel_mul_mm_id_iq2_xxs_f16_n64"; break;
     case DS4_METAL_TENSOR_Q2_K:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f16_n128" : "kernel_mul_mm_id_q2_K_f16_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_q2_K_f16_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q2_K_f16_n128" :
+                                 "kernel_mul_mm_id_q2_K_f16_n64"; break;
     case DS4_METAL_TENSOR_Q4_K:
-        name = tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f16_n128" : "kernel_mul_mm_id_q4_K_f16_n64"; break;
+        name = tile_n >= 256u ? "kernel_mul_mm_id_q4_K_f16_n256" :
+               tile_n >= 128u ? "kernel_mul_mm_id_q4_K_f16_n128" :
+                                 "kernel_mul_mm_id_q4_K_f16_n64"; break;
     default:
         return nil;
     }
@@ -15277,7 +15376,7 @@ static int ds4_gpu_encode_mul_mm_id_mapped_tile(
     /*
      * token_tile_n is a contract with the selected kernel's NR1. Legacy callers
      * pass 0 and use the unsuffixed NR1=32 kernels, so default MUST be 32. Wide
-     * paths pass 64/128 only after selecting the matching _n64/_n128 pipeline,
+     * paths pass 64/128/256 only after selecting the matching suffixed pipeline,
      * or the dispatch grid-X mismatches the kernel and corrupts output
      * (antirez/ds4 "Harden wide MoE tile dispatch").
      */
@@ -20278,7 +20377,7 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "    op.run(mA, mB, mC);\n"
         "}\n"
         "\n"
-        "// Tile-parameterized variant (N-tile NT swept 32/64/128) for the half-x-half\n"
+        "// Tile-parameterized variant (N-tile NT swept 32/64/128/256) for the half-x-half\n"
         "// routed NAX path (non-int8). M-tile stays 64; grid-X must be (N+NT-1)/NT.\n"
         "template <typename AT, typename BT, typename CT, int NT>\n"
         "inline void ds4_mpp_run_tile_nt(device AT *A, device BT *B, device CT *C,\n"
@@ -20313,6 +20412,12 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "    ds4_mpp_run_tile_nt<half, half, float, 128>(A, B, C, M, N, K, tgid);\n"
         "}\n"
         "\n"
+        "kernel void ds4_mpp_h_h_f_n256(device half *A [[buffer(0)]], device half *B [[buffer(1)]], device float *C [[buffer(2)]],\n"
+        "                          constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]],\n"
+        "                          uint2 tgid [[threadgroup_position_in_grid]]) {\n"
+        "    ds4_mpp_run_tile_nt<half, half, float, 256>(A, B, C, M, N, K, tgid);\n"
+        "}\n"
+        "\n"
         "// float activation x half weight (for the down proj: mid is f32 from swiglu).\n"
         "kernel void ds4_mpp_f_h_f_n32(device float *A [[buffer(0)]], device half *B [[buffer(1)]], device float *C [[buffer(2)]],\n"
         "                          constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]],\n"
@@ -20332,6 +20437,12 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "    ds4_mpp_run_tile_nt<float, half, float, 128>(A, B, C, M, N, K, tgid);\n"
         "}\n"
         "\n"
+        "kernel void ds4_mpp_f_h_f_n256(device float *A [[buffer(0)]], device half *B [[buffer(1)]], device float *C [[buffer(2)]],\n"
+        "                          constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]],\n"
+        "                          uint2 tgid [[threadgroup_position_in_grid]]) {\n"
+        "    ds4_mpp_run_tile_nt<float, half, float, 256>(A, B, C, M, N, K, tgid);\n"
+        "}\n"
+        "\n"
         "struct ds4_mpp_dispatch_args { uint x; uint y; uint z; };\n"
         "\n"
         "kernel void ds4_mpp_make_routed_indirect(device const uint *counts [[buffer(0)]],\n"
@@ -20340,14 +20451,16 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "                                        device ds4_mpp_dispatch_args *down_args [[buffer(3)]],\n"
         "                                        constant uint &mid_dim [[buffer(4)]],\n"
         "                                        constant uint &out_dim [[buffer(5)]],\n"
+        "                                        constant uint &tile_n [[buffer(6)]],\n"
         "                                        uint expert [[thread_position_in_grid]]) {\n"
         "    if (expert >= 256u) return;\n"
+        "    const uint tn = tile_n == 0u ? 32u : tile_n;\n"
         "    const uint rows = counts[expert];\n"
         "    const uint row_groups = rows == 0u ? 1u : rows;\n"
         "    const uint tile_groups = rows == 0u ? 1u : ((rows + 63u) / 64u);\n"
         "    gather_args[expert] = ds4_mpp_dispatch_args{row_groups, 1u, 1u};\n"
-        "    gate_args[expert] = ds4_mpp_dispatch_args{(mid_dim + 31u) / 32u, tile_groups, 1u};\n"
-        "    down_args[expert] = ds4_mpp_dispatch_args{(out_dim + 31u) / 32u, tile_groups, 1u};\n"
+        "    gate_args[expert] = ds4_mpp_dispatch_args{(mid_dim + tn - 1u) / tn, tile_groups, 1u};\n"
+        "    down_args[expert] = ds4_mpp_dispatch_args{(out_dim + tn - 1u) / tn, tile_groups, 1u};\n"
         "}\n"
         "\n"
         "kernel void ds4_mpp_split_counts(device uint *counts [[buffer(0)]],\n"
@@ -20839,6 +20952,9 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
         return;
     }
     g_mpp_iq2_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted");
+    g_mpp_iq2_fused_n64_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted_n64");
+    g_mpp_iq2_fused_n128_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted_n128");
+    g_mpp_iq2_fused_n256_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_iq2_i8_i32_counted_n256");
     g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_fused_gate_up_swiglu_h_h_f_n32");
     g_mpp_mul_rows_weight_f32_pipeline =
@@ -20854,6 +20970,9 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_mpp_q2k_i8_i32_multi_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_multi");
     g_mpp_q2k_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_counted");
+    g_mpp_q2k_fused_n64_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_counted_n64");
+    g_mpp_q2k_fused_n128_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_counted_n128");
+    g_mpp_q2k_fused_n256_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_mpp_q2k_i8_i32_counted_n256");
     g_dense_q8_nax_pipeline  = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_dense_q8_nax");
     g_dense_i8_fused_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_dense_i8_fused");
     g_repack_q8_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_repack_q8_to_i8_rowscale");
@@ -20879,8 +20998,8 @@ static int ds4_gpu_indexer_nax_enabled(void) {
  * (4096 +20.9%, 8192 +20.6%, 16384 +21.1%), byte-identical greedy output, decode
  * unaffected (n_tok=1 GEMV never hits NAX). Matches antirez (his NAX is default-on).
  * Env override: DS4_GPU_DENSE_NAX=0 forces the old simdgroup path; =1 forces on
- * even without MPP detection. W8A8 (DS4_GPU_DENSE_I8) stays opt-in (+1-3% more,
- * but adds an int8 weight cache + quant). */
+ * even without MPP detection. W8A8 (DS4_GPU_DENSE_I8) stays opt-in while the
+ * controlled M5 Max crossover sweep is still in progress. */
 static int ds4_gpu_dense_q8_nax_enabled(void) {
     static int cached = -1;
     if (cached < 0) {
@@ -20900,11 +21019,9 @@ static int ds4_gpu_dense_q8_nax_enabled(void) {
 
 /* W8A8 dense fires only at n_tok >= this; below it fp16-NAX wins. The per-call
  * int8 activation-quant pass + extra encoders/barriers are a fixed cost the small
- * matmul can't amortize, so single-pass fp16-NAX is faster at small n_tok. Clean
- * M5 Max crossover (fans max, no power throttle): W8A8 loses to our own fp16-NAX
- * at n_tok 512-2048 (-5.8..-1.2%), ties ~4096, wins 8k+ (+2.8..+4.4%). Default
- * 4096; tunable via DS4_GPU_DENSE_I8_MIN_TOK. (The old 16/32 was from isolated
- * matmul GF/s microbench, which excluded per-call overhead.) */
+ * matmul can't amortize, so single-pass fp16-NAX is faster at small n_tok.
+ * Default 4096; tunable via DS4_GPU_DENSE_I8_MIN_TOK. The default is only used
+ * when DS4_GPU_DENSE_I8 is explicitly enabled. */
 static uint64_t ds4_gpu_dense_i8_min_tokens(void) {
     static long cached = -1;
     if (cached < 0) {
@@ -20915,9 +21032,9 @@ static uint64_t ds4_gpu_dense_i8_min_tokens(void) {
     return (uint64_t)cached;
 }
 
-/* int8 (W8A8) dense path opt-in (M5+; default off). Validated +1.4-1.5x vs relaxed
- * float x half (moe-batch-bench/nax_dense_i8_probe.m). Per-row weight scale (load-time
- * repack), per-token activation scale, fused int8xint8->int32 rescale. */
+/* int8 (W8A8) dense path opt-in (M5+; default off). Per-row weight scale
+ * (load-time repack), per-token activation scale, fused int8xint8->int32
+ * rescale. */
 static int ds4_gpu_dense_i8_enabled(void) {
     static int cached = -1;
     if (cached < 0) {
@@ -20977,9 +21094,11 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         g_mpp_h_h_f_n32_pipeline &&
         g_mpp_h_h_f_n64_pipeline &&
         g_mpp_h_h_f_n128_pipeline &&
+        g_mpp_h_h_f_n256_pipeline &&
         g_mpp_f_h_f_n32_pipeline &&
         g_mpp_f_h_f_n64_pipeline &&
         g_mpp_f_h_f_n128_pipeline &&
+        g_mpp_f_h_f_n256_pipeline &&
         g_mpp_swiglu_weight_f32_pipeline &&
         g_mpp_swiglu_i32_weight_f32_pipeline &&
         g_mpp_swiglu_i32_weight_i8_pipeline &&
@@ -21065,12 +21184,16 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_h_h_f_n64");
     g_mpp_h_h_f_n128_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_h_h_f_n128");
+    g_mpp_h_h_f_n256_pipeline =
+        ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_h_h_f_n256");
     g_mpp_f_h_f_n32_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_f_h_f_n32");
     g_mpp_f_h_f_n64_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_f_h_f_n64");
     g_mpp_f_h_f_n128_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_f_h_f_n128");
+    g_mpp_f_h_f_n256_pipeline =
+        ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_f_h_f_n256");
     g_mpp_swiglu_weight_f32_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_swiglu_weight_f32");
     g_mpp_swiglu_i32_weight_f32_pipeline =
@@ -21121,9 +21244,11 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
            g_mpp_h_h_f_n32_pipeline &&
            g_mpp_h_h_f_n64_pipeline &&
            g_mpp_h_h_f_n128_pipeline &&
+           g_mpp_h_h_f_n256_pipeline &&
            g_mpp_f_h_f_n32_pipeline &&
            g_mpp_f_h_f_n64_pipeline &&
            g_mpp_f_h_f_n128_pipeline &&
+           g_mpp_f_h_f_n256_pipeline &&
            g_mpp_swiglu_weight_f32_pipeline &&
            g_mpp_swiglu_i32_weight_f32_pipeline &&
            g_mpp_swiglu_i32_weight_i8_pipeline &&
@@ -21536,7 +21661,8 @@ static int ds4_gpu_encode_mpp_make_routed_indirect(
         NSUInteger           gate_off,
         NSUInteger           down_off,
         uint32_t             mid_dim,
-        uint32_t             out_dim) {
+        uint32_t             out_dim,
+        uint32_t             tile_n) {
     if (!cb || !counts || !indirect || mid_dim == 0 || out_dim == 0 ||
         !g_mpp_make_routed_indirect_pipeline) {
         return 0;
@@ -21552,6 +21678,7 @@ static int ds4_gpu_encode_mpp_make_routed_indirect(
     [enc setBuffer:indirect offset:down_off atIndex:3];
     [enc setBytes:&mid_dim length:sizeof(mid_dim) atIndex:4];
     [enc setBytes:&out_dim length:sizeof(out_dim) atIndex:5];
+    [enc setBytes:&tile_n length:sizeof(tile_n) atIndex:6];
     [enc dispatchThreadgroups:MTLSizeMake((256u + nth - 1u) / nth, 1, 1)
          threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);
@@ -21672,6 +21799,34 @@ static int ds4_gpu_resident_mpp_fused_dequant_enabled(void) {
     const char *env = getenv("DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT");
     if (env && env[0]) return atoi(env) != 0;
     return 1; /* default on when available */
+}
+
+static uint32_t ds4_gpu_resident_mpp_int8_tile_n(void) {
+    uint32_t tile_n =
+        ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_MPP_INT8_TILE", 32u);
+    tile_n =
+        ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_INT8_TILE", tile_n);
+    return (tile_n >= 256u) ? 256u :
+           (tile_n >= 128u) ? 128u :
+           (tile_n >= 64u)  ? 64u  : 32u;
+}
+
+static id<MTLComputePipelineState> ds4_gpu_iq2_fused_pipeline_for_tile(uint32_t tile_n) {
+    switch (tile_n) {
+    case 256u: return g_mpp_iq2_fused_n256_pipeline;
+    case 128u: return g_mpp_iq2_fused_n128_pipeline;
+    case 64u:  return g_mpp_iq2_fused_n64_pipeline;
+    default:   return g_mpp_iq2_fused_pipeline;
+    }
+}
+
+static id<MTLComputePipelineState> ds4_gpu_q2k_fused_pipeline_for_tile(uint32_t tile_n) {
+    switch (tile_n) {
+    case 256u: return g_mpp_q2k_fused_n256_pipeline;
+    case 128u: return g_mpp_q2k_fused_n128_pipeline;
+    case 64u:  return g_mpp_q2k_fused_n64_pipeline;
+    default:   return g_mpp_q2k_fused_pipeline;
+    }
 }
 
 /* Path C non-dedup: fused iq2-gate + iq2-up + swiglu + i8 quantize in one kernel.
@@ -22690,15 +22845,19 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
                                      atoi(i8_i8_fused_env) != 0;
         /* True half x half routed NAX path (non-int8): dequant experts -> f16
          * weight bank, half activations, matmul2d half x half. Tile (N) swept
-         * 32/64/128 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
+         * 32/64/128/256 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
         const char *nax_half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
         const bool use_h_h = nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
         uint32_t h_h_tile = ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
-        h_h_tile = (h_h_tile >= 128u) ? 128u : (h_h_tile >= 64u) ? 64u : 32u;
+        h_h_tile = (h_h_tile >= 256u) ? 256u :
+                   (h_h_tile >= 128u) ? 128u :
+                   (h_h_tile >= 64u)  ? 64u  : 32u;
         id<MTLComputePipelineState> h_h_gate_pipe =
+            (h_h_tile == 256u) ? g_mpp_h_h_f_n256_pipeline :
             (h_h_tile == 128u) ? g_mpp_h_h_f_n128_pipeline :
             (h_h_tile == 64u)  ? g_mpp_h_h_f_n64_pipeline  : g_mpp_h_h_f_n32_pipeline;
         id<MTLComputePipelineState> h_h_down_pipe =
+            (h_h_tile == 256u) ? g_mpp_f_h_f_n256_pipeline :
             (h_h_tile == 128u) ? g_mpp_f_h_f_n128_pipeline :
             (h_h_tile == 64u)  ? g_mpp_f_h_f_n64_pipeline  : g_mpp_f_h_f_n32_pipeline;
         /* Plan A (NAX+ALU): replace the separate gate/up matmul + weighted swiglu
@@ -23334,6 +23493,161 @@ int ds4_gpu_routed_moe_batch_tensor(
             }
         }
 
+        if (getenv("DS4_RESIDENT_MOE_KERNEL_LOG")) {
+            static bool logged_default_gpu = false;
+            static bool logged_mpp_int8 = false;
+            static bool logged_mpp_half = false;
+            static bool logged_mv = false;
+            const bool mpp_half_requested =
+                resident_mpp_requested &&
+                ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+            const uint32_t min_tokens = ds4_gpu_resident_mpp_int8_min_tokens();
+            const uint32_t sync_max_tokens = ds4_gpu_resident_mpp_sync_max_tokens();
+            const char *sync_bridge_env = getenv("DS4_RESIDENT_MOE_MPP_SYNC_BRIDGE");
+            const bool use_sync_bridge = sync_bridge_env && sync_bridge_env[0] ?
+                atoi(sync_bridge_env) != 0 :
+                (sync_max_tokens != 0u && n_tokens <= sync_max_tokens);
+            const char *compact_bridge_env = getenv("DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE");
+            const bool compact_bridge_set = compact_bridge_env && compact_bridge_env[0];
+            const bool use_compact_bridge =
+                compact_bridge_set ? atoi(compact_bridge_env) != 0 : false;
+            const char *pairrow_bridge_env = getenv("DS4_RESIDENT_MOE_MPP_PAIRROW_BRIDGE");
+            uint32_t compact_min_tokens =
+                ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_MPP_COMPACT_MIN_TOKENS", min_tokens);
+            compact_min_tokens =
+                ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_COMPACT_MIN_TOKENS",
+                                        compact_min_tokens);
+            const bool auto_compact_bridge =
+                !compact_bridge_set &&
+                (!pairrow_bridge_env || !pairrow_bridge_env[0]) &&
+                compact_min_tokens != 0u &&
+                n_tokens >= compact_min_tokens;
+            const bool use_pairrow_bridge =
+                pairrow_bridge_env && pairrow_bridge_env[0] ?
+                    atoi(pairrow_bridge_env) != 0 :
+                    !use_compact_bridge && !auto_compact_bridge;
+            const bool compact_bridge_active =
+                use_resident_mpp_standard && !use_sync_bridge &&
+                (use_compact_bridge || auto_compact_bridge);
+            const bool mpp_half =
+                mpp_half_requested && use_resident_mpp_standard &&
+                !use_sync_bridge && !compact_bridge_active;
+            bool *logged_ptr = use_resident_mpp_standard ?
+                (mpp_half ? &logged_mpp_half : &logged_mpp_int8) :
+                (use_mm_id ? &logged_default_gpu : &logged_mv);
+            if (!*logged_ptr) {
+                const char *mpp_bridge = "n/a";
+                if (use_resident_mpp_standard) {
+                    if (use_sync_bridge) {
+                        mpp_bridge = "sync";
+                    } else if (use_compact_bridge) {
+                        mpp_bridge = "compact-forced";
+                    } else if (auto_compact_bridge) {
+                        mpp_bridge = "compact-auto";
+                    } else if (use_pairrow_bridge) {
+                        mpp_bridge = "pairrow";
+                    } else {
+                        mpp_bridge = "counted-indirect";
+                    }
+                }
+                const bool mpp_fused_dequant =
+                    use_resident_mpp_standard &&
+                    ds4_gpu_resident_mpp_fused_dequant_enabled();
+                const bool mpp_full_fused =
+                    use_resident_mpp_standard &&
+                    ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_FULL_FUSED");
+                const bool mpp_fused_gate_up =
+                    use_resident_mpp_standard &&
+                    ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP");
+                const char *route = use_resident_mpp_standard ?
+                    (mpp_half ? "forced/resident-MPP-NAX-half" : "forced/resident-MPP-NAX-int8") :
+                    (use_mm_id ? "default-GPU-mul_mm_id" :
+                     (use_tiny_pair_mv ? "default-GPU-tiny-pair-mv" : "default-GPU-mul_mv_id"));
+                const char *mpp_kernels = "n/a";
+                uint32_t mpp_tile_m = 0;
+                uint32_t mpp_tile_n = 0;
+                uint32_t mpp_tile_k = 0;
+                uint32_t mpp_threads = 0;
+                if (use_resident_mpp_standard) {
+                    mpp_tile_m = 64u;
+                    mpp_tile_n = 32u;
+                    mpp_tile_k = 256u;
+                    mpp_threads = 128u;
+                    if (mpp_half && mpp_fused_gate_up) {
+                        mpp_tile_m = 32u;
+                        mpp_tile_n = 32u;
+                        mpp_tile_k = 32u;
+                        mpp_threads = 32u;
+                        mpp_kernels =
+                            "half: dequant_iq2/q2k_f16 + ds4_mpp_fused_gate_up_swiglu_h_h_f_n32 + h_h_f down";
+                    } else if (mpp_half) {
+                        uint32_t half_tile =
+                            ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
+                        half_tile = (half_tile >= 256u) ? 256u :
+                                    (half_tile >= 128u) ? 128u :
+                                    (half_tile >= 64u)  ? 64u  : 32u;
+                        mpp_tile_n = half_tile;
+                        mpp_tile_k = 0u; /* dynamic K tile in the half helper. */
+                        mpp_kernels =
+                            "half: dequant_iq2/q2k_f16 + h_h_f gate/up/down + GPU swiglu";
+                    } else if (mpp_fused_dequant && mpp_full_fused) {
+                        mpp_kernels =
+                            "int8: gather_i8 + ds4_mpp_iq2_fused_gate_up_swiglu_counted + ds4_mpp_q2k_i8_i32_counted";
+                    } else if (mpp_fused_dequant) {
+                        mpp_tile_n = ds4_gpu_resident_mpp_int8_tile_n();
+                        mpp_kernels =
+                            "int8: gather_i8 + ds4_mpp_iq2_i8_i32_counted gate/up + swiglu_i32 + ds4_mpp_q2k_i8_i32_counted";
+                    } else {
+                        mpp_kernels =
+                            "int8: dequant_i8 + i8_i8_i32 gate/up/down + GPU swiglu";
+                    }
+                }
+                fprintf(stderr,
+                        "ds4: resident MoE kernel log: tokens=%u route=%s "
+                        "use_mm_id=%d mpp_shape=%d mpp_requested=%d mpp_forced=%d "
+                        "mpp_should_run=%d mpp_min_tokens=%u mpp_bridge=%s "
+                        "mpp_mode=%s mpp_half_requested=%d mpp_fused_dequant=%d mpp_full_fused=%d "
+                        "mpp_fused_gate_up=%d gate_type=%s down_type=%s experts=%u "
+                        "map_kernel=%s gate_kernel=%s up_kernel=%s down_kernel=%s "
+                        "mpp_tile_m=%u mpp_tile_n=%u mpp_tile_k=%u mpp_threads=%u "
+                        "gate_tile=%u down_tile=%u mid=%s activation=GPU_swiglu_weight "
+                        "sum=GPU_sum_experts dense_proj=%s dense_i8_min=%llu "
+                        "mpp_kernels=\"%s\"\n",
+                        n_tokens,
+                        route,
+                        use_mm_id ? 1 : 0,
+                        resident_mpp_shape_supported ? 1 : 0,
+                        resident_mpp_requested ? 1 : 0,
+                        ds4_gpu_resident_mpp_int8_prefill_forced() ? 1 : 0,
+                        use_resident_mpp_standard ? 1 : 0,
+                        min_tokens,
+                        mpp_bridge,
+                        mpp_half ? "half" : "int8",
+                        mpp_half_requested ? 1 : 0,
+                        mpp_fused_dequant ? 1 : 0,
+                        mpp_full_fused ? 1 : 0,
+                        mpp_fused_gate_up ? 1 : 0,
+                        ds4_gpu_metal_tensor_name(gate_type),
+                        ds4_gpu_metal_tensor_name(down_type),
+                        n_expert,
+                        use_mm_id ? ds4_gpu_mul_mm_id_map0_name(n_expert) : "n/a",
+                        use_mm_id ? ds4_gpu_routed_mm_kernel_name_for_tile(gate_type, gate_mm_tile_n, false) : "n/a",
+                        use_mm_id ? ds4_gpu_routed_mm_kernel_name_for_tile(gate_type, gate_mm_tile_n, false) : "n/a",
+                        use_mm_id ? ds4_gpu_routed_mm_kernel_name_for_tile(down_type, down_mm_tile_n, request_mid_f16) : "n/a",
+                        mpp_tile_m,
+                        mpp_tile_n,
+                        mpp_tile_k,
+                        mpp_threads,
+                        gate_mm_tile_n,
+                        down_mm_tile_n,
+                        request_mid_f16 ? "f16" : "f32",
+                        ds4_gpu_dense_backend_name(),
+                        (unsigned long long)ds4_gpu_dense_i8_min_tokens(),
+                        mpp_kernels);
+                *logged_ptr = true;
+            }
+        }
+
         int owned = 0;
         id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
         if (!cb) return 0;
@@ -23582,6 +23896,19 @@ int ds4_gpu_routed_moe_batch_tensor(
                     }
                     if (!use_pairrow_bridge) {
                         const double mpp_encode_t0 = ds4_gpu_now_ms();
+                        const bool use_fused = ds4_gpu_resident_mpp_fused_dequant_enabled();
+                        const bool use_full_fused =
+                            use_fused && ds4_gpu_resident_mpp_full_fused_gate_up_swiglu_enabled();
+                        const uint32_t mpp_int8_tile =
+                            (use_fused && !use_full_fused) ? ds4_gpu_resident_mpp_int8_tile_n() : 32u;
+                        id<MTLComputePipelineState> iq2_fused_tile_pipe =
+                            ds4_gpu_iq2_fused_pipeline_for_tile(mpp_int8_tile);
+                        id<MTLComputePipelineState> q2k_fused_tile_pipe =
+                            ds4_gpu_q2k_fused_pipeline_for_tile(mpp_int8_tile);
+                        if (use_fused && !use_full_fused &&
+                            (!iq2_fused_tile_pipe || !q2k_fused_tile_pipe)) {
+                            ok = 0;
+                        }
                         if (ok) {
                             ok = ds4_gpu_encode_mpp_make_routed_indirect(cb,
                                                                          g_moe_id_map_buffer,
@@ -23590,7 +23917,8 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                                          gate_indirect_off,
                                                                          down_indirect_off,
                                                                          expert_mid_dim,
-                                                                         out_dim) &&
+                                                                         out_dim,
+                                                                         mpp_int8_tile) &&
                                  ds4_gpu_encode_fill_f32_rows(cb,
                                                               outbuf,
                                                               ds4_gpu_tensor_offset(out),
@@ -23598,7 +23926,6 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                               n_tokens,
                                                               0.0f);
                         }
-                        const bool use_fused = ds4_gpu_resident_mpp_fused_dequant_enabled();
                         for (uint32_t expert = 0; ok && expert < total_model_experts; expert++) {
                             const NSUInteger hids_off =
                                 tpe_bytes + (NSUInteger)expert * hids_stride;
@@ -23622,8 +23949,6 @@ int ds4_gpu_routed_moe_batch_tensor(
                                  * args (N=mid_dim); down uses out_dim args.
                                  * Path C (DS4_RESIDENT_MOE_NAX_FULL_FUSED=1): collapse
                                  * gate matmul + up matmul + swiglu into one dispatch. */
-                                const bool use_full_fused =
-                                    ds4_gpu_resident_mpp_full_fused_gate_up_swiglu_enabled();
                                 ok = ds4_gpu_encode_mpp_gather_token_f32_i8_counted_indirect(cb,
                                                                                        xbuf,
                                                                                        ds4_gpu_tensor_offset(x),
@@ -23655,7 +23980,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                                                               g_mpp_prefill_indirect_buffer,
                                                                                               gate_arg_off)
                                       : (ds4_gpu_encode_mpp_fused_matmul_counted_indirect(cb,
-                                                                                      g_mpp_iq2_fused_pipeline,
+                                                                                      iq2_fused_tile_pipe,
                                                                                       g_mpp_prefill_x_i8_buffer, 0,
                                                                                       gate_buf, gate_expert_off,
                                                                                       g_mpp_prefill_gate_i32_buffer, 0,
@@ -23665,7 +23990,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                                                       g_mpp_prefill_indirect_buffer,
                                                                                       gate_arg_off) &&
                                          ds4_gpu_encode_mpp_fused_matmul_counted_indirect(cb,
-                                                                                      g_mpp_iq2_fused_pipeline,
+                                                                                      iq2_fused_tile_pipe,
                                                                                       g_mpp_prefill_x_i8_buffer, 0,
                                                                                       up_buf, up_expert_off,
                                                                                       g_mpp_prefill_up_i32_buffer, 0,
@@ -23691,7 +24016,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                                                               g_mpp_prefill_indirect_buffer,
                                                                                               gather_arg_off))) &&
                                      ds4_gpu_encode_mpp_fused_matmul_counted_indirect(cb,
-                                                                                      g_mpp_q2k_fused_pipeline,
+                                                                                      q2k_fused_tile_pipe,
                                                                                       g_mpp_prefill_mid_i8_buffer, 0,
                                                                                       down_buf, down_expert_off,
                                                                                       g_mpp_prefill_out_i32_buffer, 0,
@@ -23839,10 +24164,11 @@ int ds4_gpu_routed_moe_batch_tensor(
 	                                                                     g_mpp_prefill_indirect_buffer,
 	                                                                     gather_indirect_off,
 	                                                                     gate_indirect_off,
-                                                                     down_indirect_off,
-                                                                     expert_mid_dim,
-                                                                     out_dim);
-                    }
+	                                                                     down_indirect_off,
+	                                                                     expert_mid_dim,
+	                                                                     out_dim,
+                                                                         32u);
+	                    }
                     for (uint32_t expert = 0; ok && expert < total_model_experts; expert++) {
                         const NSUInteger hids_off =
                             tpe_bytes + (NSUInteger)expert * hids_stride;
@@ -24203,7 +24529,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                  * compact bridge -- gather acts to half, dequant experts to f16,
                  * h_h_f matmul into the i32 scratch reused as f32, scatter f32
                  * (scale 1.0, f16 dequant bakes the real scale). DS4_RESIDENT_MOE_NAX_HALF=1;
-                 * tile 32/64/128 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
+                 * tile 32/64/128/256 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
                 /* iter-4: ANE+GPU concurrent (resident). Per expert with refs >=
                  * threshold, async-submit ANE via _ane_start_tensor with model
                  * tensor views; GPU runs the other experts in parallel. Wait+
@@ -24234,8 +24560,11 @@ int ds4_gpu_routed_moe_batch_tensor(
                     nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
                 uint32_t h_h_tile =
                     ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
-                h_h_tile = (h_h_tile >= 128u) ? 128u : (h_h_tile >= 64u) ? 64u : 32u;
+                h_h_tile = (h_h_tile >= 256u) ? 256u :
+                           (h_h_tile >= 128u) ? 128u :
+                           (h_h_tile >= 64u)  ? 64u  : 32u;
                 id<MTLComputePipelineState> h_h_pipe =
+                    (h_h_tile == 256u) ? g_mpp_h_h_f_n256_pipeline :
                     (h_h_tile == 128u) ? g_mpp_h_h_f_n128_pipeline :
                     (h_h_tile == 64u)  ? g_mpp_h_h_f_n64_pipeline  :
                                          g_mpp_h_h_f_n32_pipeline;
@@ -24279,6 +24608,8 @@ int ds4_gpu_routed_moe_batch_tensor(
 
                 uint32_t mpp_experts = 0;
                 uint64_t mpp_refs = 0;
+                uint32_t fused_experts = 0;
+                uint64_t fused_refs = 0;
                 uint64_t total_refs = 0;
                 uint32_t max_refs = 0;
                 uint32_t original_counts[256];
@@ -24468,6 +24799,9 @@ int ds4_gpu_routed_moe_batch_tensor(
                      * gate+up+swiglu) and scatter-overwrites pair-indexed midbuf. */
                     if (use_fused_gate_up && refs >= fused_min_refs) {
                         fused_mask[expert] = 1;
+                        fused_experts++;
+                        fused_refs += refs;
+                        if (refs > max_refs) max_refs = refs;
                         continue;
                     }
                     mpp_experts++;
@@ -24755,19 +25089,23 @@ int ds4_gpu_routed_moe_batch_tensor(
                     }
                     if (ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
                         ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_PROFILE")) {
+                        const uint64_t handled_refs = mpp_refs + fused_refs;
                         fprintf(stderr,
                                 "ds4: resident MPP/NAX standard MoE mode=%s tokens=%u "
-                                "experts=%u refs=%llu total_refs=%llu max_refs=%u "
-                                "hybrid_min_refs=%u gpu_tail_refs=%llu map_wait=%.3f ms "
+                                "experts=%u refs=%llu fused_experts=%u fused_refs=%llu "
+                                "total_refs=%llu max_refs=%u hybrid_min_refs=%u "
+                                "gpu_tail_refs=%llu map_wait=%.3f ms "
                                 "encode_wall=%.3f ms w_qscale=%.6g x_qscale=%.6g mid_qscale=%.6g\n",
                                 use_h_h ? "half" : "int8",
                                 n_tokens,
                                 mpp_experts,
                                 (unsigned long long)mpp_refs,
+                                fused_experts,
+                                (unsigned long long)fused_refs,
                                 (unsigned long long)total_refs,
                                 max_refs,
                                 hybrid_min_refs,
-                                (unsigned long long)(total_refs - mpp_refs),
+                                (unsigned long long)(total_refs > handled_refs ? total_refs - handled_refs : 0),
                                 map_wait_ms,
                                 ds4_gpu_now_ms() - mpp_encode_t0,
                                 mpp_i8_qscale,
