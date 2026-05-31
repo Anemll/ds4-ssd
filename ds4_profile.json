@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "_comment": "DS4 machine tuning profiles. The first entry whose match{chip substring, min_ram_gib} fits this machine is applied: each env var is set as a DEFAULT (setenv overwrite=0), so anything you export yourself still wins. Generate/refresh an entry for your machine with ./tune_profile.sh. Order entries most-specific first.",
+  "profiles": [
+    {
+      "match": { "chip": "Apple M3 Ultra", "min_ram_gib": 64 },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048",
+        "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
+        "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
+        "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
+      }
+    },
+    {
+      "match": { "chip": "Apple M5 Max", "min_ram_gib": 96 },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "16384",
+        "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
+        "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
+        "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
+      }
+    },
+    {
+      "match": { "chip": "Apple M1 Max" },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048"
+      }
+    },
+    {
+      "match": {},
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048"
+      }
+    }
+  ]
+}

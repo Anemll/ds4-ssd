@@ -15,6 +15,8 @@
  */
 typedef struct ds4_gpu_tensor ds4_gpu_tensor;
 
+#define DS4_GPU_TENSOR_I8_BANK 1000u
+
 int ds4_gpu_init(void);
 void ds4_gpu_cleanup(void);
 
@@ -35,6 +37,10 @@ int ds4_gpu_tensor_copy(ds4_gpu_tensor *dst, uint64_t dst_offset,
 
 int ds4_gpu_begin_commands(void);
 int ds4_gpu_flush_commands(void);
+/* Like ds4_gpu_flush_commands, but waits for the committed batch to finish
+ * before opening the next one. Caps in-flight depth to one command buffer so
+ * the driver only keeps a single split's resources wired at a time. */
+int ds4_gpu_flush_commands_blocking(void);
 int ds4_gpu_end_commands(void);
 int ds4_gpu_synchronize(void);
 
@@ -44,10 +50,47 @@ int ds4_gpu_synchronize(void);
  * outer caller after. NULL or all-zeros mask = no ANE handling. */
 void ds4_gpu_set_ane_skip_mask(const uint8_t *mask, uint32_t n_experts);
 void ds4_gpu_clear_ane_skip_mask(void);
+int ds4_gpu_moe_predequant_i8_banks(ds4_gpu_tensor **gate_i8_out,
+                                    ds4_gpu_tensor **up_i8_out,
+                                    ds4_gpu_tensor **down_i8_out,
+                                    const void *model_map,
+                                    uint64_t model_size,
+                                    uint64_t gate_offset,
+                                    uint64_t up_offset,
+                                    uint64_t down_offset,
+                                    uint32_t gate_type,
+                                    uint32_t down_type,
+                                    uint64_t gate_tensor_bytes,
+                                    uint64_t down_tensor_bytes,
+                                    uint32_t n_expert,
+                                    uint32_t expert_in_dim,
+                                    uint32_t expert_mid_dim,
+                                    uint32_t out_dim);
+int ds4_gpu_moe_predequant_i8_experts(ds4_gpu_tensor **gate_i8_out,
+                                      ds4_gpu_tensor **up_i8_out,
+                                      ds4_gpu_tensor **down_i8_out,
+                                      const int32_t *experts,
+                                      uint32_t n_active,
+                                      const void *model_map,
+                                      uint64_t model_size,
+                                      uint64_t gate_offset,
+                                      uint64_t up_offset,
+                                      uint64_t down_offset,
+                                      uint32_t gate_type,
+                                      uint32_t down_type,
+                                      uint64_t gate_expert_bytes,
+                                      uint64_t gate_row_bytes,
+                                      uint64_t down_expert_bytes,
+                                      uint64_t down_row_bytes,
+                                      uint32_t expert_in_dim,
+                                      uint32_t expert_mid_dim,
+                                      uint32_t out_dim);
 
 int ds4_gpu_set_model_map(const void *model_map, uint64_t model_size);
 int ds4_gpu_set_model_fd(int fd);
 int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size);
+void ds4_gpu_prepare_model_views_for_prefill(void);
+int ds4_gpu_prepare_model_views_for_decode(const void *model_map, uint64_t model_size, uint64_t map_offset, uint64_t map_size);
 ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
                                           uint64_t    model_size,
                                           uint64_t    offset,
@@ -63,6 +106,10 @@ int ds4_gpu_mpp_int8_prefill_prewarm(void);
  * decode). Called automatically at the first n_tok==1 matmul after prefill;
  * also safe to call explicitly at a prefill->decode boundary. Idempotent. */
 void ds4_gpu_release_i8_prefill_cache(void);
+/* Free Metal/ANE scratch buffers that are only useful during resident prefill.
+ * Safe at a prefill->decode boundary after command buffers and ANE jobs have
+ * drained. Idempotent; decode will lazily reallocate any small scratch it needs. */
+void ds4_gpu_release_prefill_transients(void);
 
 /* =========================================================================
  * Embeddings and Indexer Helpers.
@@ -239,6 +286,10 @@ int ds4_gpu_shared_expert_ane_prewarm(
         uint64_t                down_offset,
         uint64_t                in_dim,
         uint64_t                mid_dim);
+
+/* Optional ANE shared-expert cache window. Zero means unlimited/current
+ * behavior. Nonzero bounds resident per-layer converted ANE weights. */
+uint32_t ds4_gpu_shared_expert_ane_cache_window(void);
 
 /* Synchronous wrapper around start+finish — same observable behaviour. */
 int ds4_gpu_shared_expert_ane_sync_tensor(
