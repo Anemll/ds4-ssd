@@ -25261,8 +25261,7 @@ int ds4_gpu_routed_moe_batch_tensor(
          * (the selection is untouched) — the ANE share was already scatter-added. */
         const bool ane_nax_under_skip =
             skip_mask_active &&
-            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
-            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID");
         const bool resident_mpp_requested =
             resident_mpp_shape_supported &&
             (!skip_mask_active || ane_nax_under_skip) &&

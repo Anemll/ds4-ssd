@@ -12349,9 +12349,13 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
      * NAX kernel) and the ANE hybrid itself. NAX runs on the GPU, so ANE-engine and
      * NAX overlap is the throughput goal; this first cut keeps them sequential
      * (ANE drains, then NAX) for correctness — see resident_moe_nax_tail_one_expert. */
+    /* ANE+NAX: ANE hot experts + resident-NAX cold tail. The cold backend (NAX-half vs
+     * NAX-int8) is chosen by DS4_RESIDENT_MOE_NAX_HALF inside the grouped path — NOT gated
+     * here. (Half + the compact bridge is forced onto the slow pairrow/count-readback path
+     * — ds4_metal.m's want_nax_half&&compact_active trap — so NAX_HALF=0 / int8 cold uses
+     * the faster route; both are valid ANE+NAX.) */
     const bool use_ane_nax = use_ane_hybrid &&
-        env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
-        env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID");
     /* ANE+ALU hybrid: same family as ANE+NAX but the cold experts run classic int8
      * (no NAX-half). All three ANE variants now share ONE correct cold-tail mechanism:
      * the grouped skip-mask path (see the cold tail below). ane_nax additionally lifts
