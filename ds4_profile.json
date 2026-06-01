@@ -6,7 +6,7 @@
     "mulmm":        { "desc": "Upstream mul_mm_id grouped GPU matmul (pure ALU, no NAX). The 'ALU only' baseline. Works on all chips.", "env": "(no resident MPP/NAX envs)", "chips": "all", "measured_m5max": "1024:103 4096:269 8192:429 16384:517 t/s" },
     "nax_int8":     { "desc": "NAX int8 matmul2d, compact-bridge fused-dequant. M5 LARGE-chunk winner.", "env": "DS4_RESIDENT_MOE_MPP_INT8_PREFILL=1 DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE=1 DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT=1 (+MPP_FORCE=1 to ignore the auto min-tokens gate)", "chips": "M5+ (else mul_mm_id)", "measured_m5max": "4096:269 8192:497 16384:531 t/s" },
     "nax_half":     { "desc": "NAX half x half matmul2d (no fused gate+up).", "env": "DS4_RESIDENT_MOE_NAX_HALF=1", "chips": "M5+ (else mul_mm_id)", "note": "requires n_tokens % 64 == 0 (else engine uses int8)" },
-    "nax_half_alu": { "desc": "NAX-half + ALU, Plan A fused gate+up+swiglu. M5 SMALL-chunk winner BUT BROKEN 2026-06-01: the fused gate+up+swiglu kernel (ds4_mpp_fused_gate_up_swiglu_h_h_f_n32) DIVERGES on multiple-of-64 chunks (incoherent output vs nax_half/nax_int8/mulmm). DO NOT USE until fixed; use plain nax_half instead.", "env": "DS4_RESIDENT_MOE_NAX_HALF=1 DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP=1 DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0", "chips": "M5+ (else mul_mm_id)", "measured_m5max": "1024:129 4096:316 6144:395 7168:423 (8192:378 loses to int8) t/s", "note": "requires n_tokens % 64 == 0 (else engine uses int8)" },
+    "nax_half_alu": { "desc": "NAX-half + ALU, Plan A fused gate+up+swiglu. M5 SMALL-chunk winner. (FIXED 2026-06-01, commit aeea2b7: the fused kernel was reducing only 32 of K + dropping the routing weight -> divergent; now matches mulmm/nax_half exactly and is ~6% faster than plain nax_half at 4096. NOTE at HOT thermal nax_int8 can edge it out at small chunks; the <7680 vs int8 crossover is cool-tuned — re-bake if needed.)", "env": "DS4_RESIDENT_MOE_NAX_HALF=1 DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP=1 DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0", "chips": "M5+ (else mul_mm_id)", "measured_m5max": "1024:129 4096:316 6144:395 7168:423 (8192:378 loses to int8) t/s", "note": "requires n_tokens % 64 == 0 (else engine uses int8)" },
     "pathc":        { "desc": "Path C: i8 in-kernel NAX-parallel-ALU full-fused.", "env": "DS4_RESIDENT_MOE_NAX_FULL_FUSED=1", "chips": "M5+", "note": "~tie with nax_int8 on M5 (no cross-kernel NAX/ALU overlap)" },
     "ane_gpu":      { "desc": "ANE hot experts + grouped GPU(ALU) cold. Correct. The dual-cluster ANE win is M3 Ultra; on M5 Max (single cluster) ANE is ~+6 t/s (GPU-encode-bound).", "env": "DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL=1 DS4_RESIDENT_MOE_ANE_HYBRID=1 DS4_FLASH_MOE_ANE_I8I8_PREFILL=1 DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL=1 DS4_RESIDENT_MOE_ANE_MIN_REFS=64", "chips": "M3U best; M5 marginal", "note": "dedup engagement is config-finicky (ctx-sensitive)" },
     "ane_alu":      { "desc": "ANE hot + grouped classic-int8 (mul_mm_id) cold. Correct — identical to ane_gpu's cold tail (the per-expert dedup compute it once used is broken and is no longer on this path).", "env": "...ANE_HYBRID + DS4_RESIDENT_MOE_ANE_ALU_HYBRID=1", "chips": "M3U best; M5 marginal" },
@@ -14,7 +14,7 @@
   },
   "profiles": [
     {
-      "_comment": "M5 Max 128G, MEASURED (81G IQ2XXS, 45s cooldown, alone on box). CORRECTED 2026-06-01: (a) added DS4_METAL_PREFILL_CHUNK=16384 — without it a bare ./ds4 auto-caps the chunk to 4096 (<sync_max_tokens 7168) and the resident-NAX path takes the slow CPU<->GPU count-readback (map_wait) sync bridge; CTX_GROW_BLOCK is the KV-growth block, NOT the prefill chunk. (b) reverted the >1000->ane_gpu routing back to the NAX crossover: ane_gpu (ANE+GPU dedup) MEASURED 30-41% SLOWER on M5 single-cluster (ctx16384: ane_gpu 310 vs nax_half_alu 445 vs nax_int8 526 t/s) because ANE_HYBRID forces the 2048-token scratch tile -> sync bridge ON. prefill_by_tokens picks per prefill chunk: nax_half_alu below 7680 tok, nax_int8 at/above (crossover from 4096:316/269 .. 7168:423/366 half-wins .. 8192:378/500 int8-wins; loader maps to NAX_HALF_MAX_TOKENS=7680). With chunk 16384 production prefill resolves to nax_int8 (~526 hot). Verify with the 'resident-NAX tile n_tokens=.. sync-bridge=off' startup line. CORRECTED 2026-06-01 (2): <7680 was nax_half_alu, but the FUSED gate+up+swiglu kernel (Plan A, the 'alu' part) DIVERGES — produces wrong/incoherent output on multiple-of-64 chunks (reproduced: nax_half_alu garbles while plain nax_half / nax_int8 / mulmm agree). Switched <7680 to plain nax_half (correct, ignores fused by name) and removed DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP / NAX_FUSED_MIN_REFS from env so the buggy fused kernel is OFF everywhere. ds4_mpp_fused_gate_up_swiglu_h_h_f_n32 needs a correctness fix (likely n32-tile tail/mask) before nax_half_alu can be used.",
+      "_comment": "M5 Max 128G, MEASURED (81G IQ2XXS, 45s cooldown, alone on box). CORRECTED 2026-06-01: (a) added DS4_METAL_PREFILL_CHUNK=16384 — without it a bare ./ds4 auto-caps the chunk to 4096 (<sync_max_tokens 7168) and the resident-NAX path takes the slow CPU<->GPU count-readback (map_wait) sync bridge; CTX_GROW_BLOCK is the KV-growth block, NOT the prefill chunk. (b) reverted the >1000->ane_gpu routing back to the NAX crossover: ane_gpu (ANE+GPU dedup) MEASURED 30-41% SLOWER on M5 single-cluster (ctx16384: ane_gpu 310 vs nax_half_alu 445 vs nax_int8 526 t/s) because ANE_HYBRID forces the 2048-token scratch tile -> sync bridge ON. prefill_by_tokens picks per prefill chunk: nax_half_alu below 7680 tok, nax_int8 at/above (crossover from 4096:316/269 .. 7168:423/366 half-wins .. 8192:378/500 int8-wins; loader maps to NAX_HALF_MAX_TOKENS=7680). With chunk 16384 production prefill resolves to nax_int8 (~526 hot). Verify with the 'resident-NAX tile n_tokens=.. sync-bridge=off' startup line. 2026-06-01 (2): <7680 was briefly switched to plain nax_half because the FUSED gate+up+swiglu kernel diverged. That kernel is now FIXED (commit aeea2b7 — it was reducing only 32 of K via a fixed K-tile + dropping the routing weight; rewritten to mirror the validated h_h_f matmul with dynamic_extent K + a weighted scatter). <7680 restored to nax_half_alu (matches mulmm exactly, ~6% faster than nax_half at 4096). HOT-thermal caveat: nax_int8 can beat nax_half_alu at small chunks when the box is hot; the cool-tuned crossover favors half_alu <7680 — re-bake with tune_profile.sh on a cool box to confirm.",
       "match": {
         "chip": "Apple M5 Max",
         "min_ram_gib": 128
@@ -29,11 +29,13 @@
         "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
         "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
         "DS4_RESIDENT_MOE_NAX_HALF": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0",
         "DS4_METAL_PREFILL_CHUNK": "16384",
         "DS4_GPU_DENSE_NAX": "1"
       },
       "prefill_by_tokens": [
-        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half" },
+        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half_alu" },
         { "min_tokens": 7680, "max_tokens": 99999, "backend": "nax_int8" }
       ]
     },
@@ -72,11 +74,13 @@
         "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
         "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
         "DS4_RESIDENT_MOE_NAX_HALF": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0",
         "DS4_METAL_PREFILL_CHUNK": "16384",
         "DS4_GPU_DENSE_NAX": "1"
       },
       "prefill_by_tokens": [
-        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half" },
+        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half_alu" },
         { "min_tokens": 7680, "max_tokens": 99999, "backend": "nax_int8" }
       ]
     },
