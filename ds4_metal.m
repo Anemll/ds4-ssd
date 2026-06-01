@@ -26310,8 +26310,32 @@ int ds4_gpu_routed_moe_batch_tensor(
                 memset(ane_mask, 0, sizeof(ane_mask));
 
                 const char *nax_half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
-                const bool use_h_h =
+                bool use_h_h =
                     nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
+                /* Per-prefill-chunk backend selection. NAX-half is the small-chunk
+                 * winner; at/above DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS the standard
+                 * path drops to int8 (the large-chunk winner). 0 = no gate (always
+                 * NAX-half when enabled). This is what makes ds4_profile.json's
+                 * prefill_by_tokens ranges auto-switch nax_half_alu (below) vs nax_int8
+                 * (>=) by token count, with both backends enabled + MPP_FORCE=1. */
+                const uint32_t nax_half_max_tokens =
+                    ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", 0u);
+                if (use_h_h && nax_half_max_tokens != 0u && n_tokens >= nax_half_max_tokens) {
+                    use_h_h = false;
+                }
+                /* CORRECTNESS FLOOR: the NAX-half matmul2d tiles M (tokens) in units of
+                 * 64 (matmul2d_descriptor(64,NT); tA.slice(0, tgid.y*64)). It is only
+                 * correct when n_tokens is a full multiple of 64 — a partial M-tile
+                 * over-reads and corrupts output. Round benchmark chunks (4096/8192/...)
+                 * masked this; real prefill (a short/odd prompt, the partial last chunk)
+                 * and decode (n_tokens=1) are NOT multiples of 64 and must use int8
+                 * instead. Mirrors the same guard on the mul_mm_id n64 kernel (n_tokens
+                 * >= 64 && n_tokens % 64 == 0). Override with
+                 * DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL=1 only for isolated A/B. */
+                if (use_h_h && (n_tokens < 64u || (n_tokens % 64u) != 0u) &&
+                    !ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL")) {
+                    use_h_h = false;
+                }
                 uint32_t h_h_tile =
                     ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
                 h_h_tile = (h_h_tile >= 256u) ? 256u :
@@ -26329,6 +26353,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                  * tensor-wide swiglu's garbage) into pair-indexed midbuf before down. */
                 const char *fused_gu_env = getenv("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP");
                 const bool use_fused_gate_up =
+                    use_h_h &&
                     fused_gu_env && fused_gu_env[0] && atoi(fused_gu_env) != 0 &&
                     g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline != nil;
                 /* Default 128: sweep shows the fused kernel barely helps at M=64

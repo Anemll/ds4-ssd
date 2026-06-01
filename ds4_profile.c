@@ -374,6 +374,40 @@ void ds4_profile_load_and_apply(void) {
                 if (setenv(env->keys[k], sval, 0) == 0) applied++;
             }
         }
+
+        /* Per-token backend ranges. "prefill_by_tokens" is a list of
+         * { "max_tokens": N, "backend": "name" } ordered by max_tokens. The engine
+         * does the actual per-prefill-chunk selection; here we translate the ranges
+         * into its token-gate knob DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS = (highest
+         * max_tokens of a NAX-half/"*half*" range) + 1, so NAX-half runs below that
+         * boundary and int8 at/above it. The "env" block above must enable BOTH
+         * backends (NAX_HALF + MPP_INT8_PREFILL) and MPP_FORCE for the gate to apply. */
+        const jval *pbt = jobj_get(prof, "prefill_by_tokens");
+        if (pbt && pbt->t == JARR) {
+            long half_boundary = -1;
+            for (int r = 0; r < pbt->nitems; r++) {
+                const jval *rng = pbt->items[r];
+                if (!rng || rng->t != JOBJ) continue;
+                const jval *bk = jobj_get(rng, "backend");
+                const jval *mx = jobj_get(rng, "max_tokens");
+                if (bk && bk->t == JSTR && strstr(bk->str, "half") &&
+                    mx && mx->t == JNUM && mx->num >= 0) {
+                    long b = (long)mx->num + 1;
+                    if (b > half_boundary) half_boundary = b;
+                }
+            }
+            if (half_boundary > 0 &&
+                getenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS") == NULL) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "%ld", half_boundary);
+                if (setenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", buf, 0) == 0) {
+                    fprintf(stderr,
+                            "ds4: profile prefill_by_tokens: NAX-half below %ld tokens/chunk, int8 at/above\n",
+                            half_boundary);
+                }
+            }
+        }
+
         fprintf(stderr,
                 "ds4: applied tuning profile [%s] from %s (%d env defaults set, %d kept from environment)\n",
                 chip[0] ? chip : "unknown-device", path, applied, skipped);

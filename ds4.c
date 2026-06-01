@@ -11916,6 +11916,151 @@ static int flash_moe_run_mpp_int8_safe_tensor(
     return tail_ok;
 }
 
+/* Run ONE routed expert's FFN through the per-expert MPP/NAX GPU path and
+ * scatter-add the result into g->batch_routed_out. This is the GPU "cold expert"
+ * half of the ANE+NAX hybrid (DS4_RESIDENT_MOE_ANE_NAX_HYBRID): the experts ANE
+ * did not take run here on NAX (matmul2d half x half when DS4_RESIDENT_MOE_NAX_HALF
+ * is set) instead of being recomputed by the grouped mul_mm_id tail. It mirrors the
+ * GPU body of the non-hybrid dedup loop but contains NO ANE path.
+ *
+ * Scratch is the same as the non-hybrid loop (routed_*_base = g->batch_routed_*,
+ * reused per expert) so it must be called only after the ANE jobs that shared
+ * g->batch_routed_down have been drained. Manages *commands_open exactly like the
+ * non-hybrid loop (ends the previous expert's buffer, begins a fresh one, leaves it
+ * open); the caller ends the final buffer. Requires the [prefill_cap..] region of
+ * batch_router_selected to hold a zero "selected" view of length >= refs (the
+ * partial-tile classic tail reads it). Returns true on success; ORs mid_is_f16 into
+ * *mid_is_f16_any and sets *used_nax = whether the MPP/NAX kernel (not the classic
+ * fallback) ran. */
+static bool resident_moe_nax_tail_one_expert(
+        ds4_gpu_graph           *g,
+        const ds4_model         *model,
+        const ds4_layer_weights *layer,
+        int32_t                  expert,
+        uint32_t                 begin,
+        uint32_t                 refs,
+        const int32_t           *ref_tokens,
+        const float             *ref_weights,
+        uint32_t                 prefill_cap,
+        uint32_t                 routed_tmp_rows,
+        ds4_gpu_tensor          *routed_gate_base,
+        ds4_gpu_tensor          *routed_up_base,
+        ds4_gpu_tensor          *routed_mid_base,
+        ds4_gpu_tensor          *routed_xout_base,
+        uint64_t                 gate_expert_bytes,
+        uint64_t                 gate_row_bytes,
+        uint64_t                 down_expert_bytes,
+        uint64_t                 down_row_bytes,
+        uint32_t                 expert_in_dim,
+        uint32_t                 expert_mid_dim,
+        uint32_t                 out_dim,
+        bool                    *commands_open,
+        bool                    *mid_is_f16_any,
+        bool                    *used_nax) {
+    if (used_nax) *used_nax = false;
+    bool ok =
+        ds4_gpu_tensor_write(g->batch_router_selected, 0,
+                             ref_tokens + begin,
+                             (uint64_t)refs * sizeof(ref_tokens[0])) != 0 &&
+        ds4_gpu_tensor_write(g->batch_router_weights, 0,
+                             ref_weights + begin,
+                             (uint64_t)refs * sizeof(ref_weights[0])) != 0;
+    if (!ok) return false;
+
+    if (*commands_open) {
+        ok = ds4_gpu_end_commands() != 0;
+        *commands_open = false;
+        if (!ok) return false;
+    }
+    ok = ds4_gpu_begin_commands() != 0;
+    *commands_open = ok;
+    if (!ok) return false;
+
+    ds4_gpu_tensor *tokens_view = ds4_gpu_tensor_view(
+        g->batch_router_selected, 0, (uint64_t)refs * sizeof(int32_t));
+    ds4_gpu_tensor *selected_zero_view = ds4_gpu_tensor_view(
+        g->batch_router_selected,
+        (uint64_t)prefill_cap * sizeof(int32_t),
+        (uint64_t)refs * sizeof(int32_t));
+    ds4_gpu_tensor *weights_view = ds4_gpu_tensor_view(
+        g->batch_router_weights, 0, (uint64_t)refs * sizeof(float));
+    ds4_gpu_tensor *gate_tmp = ds4_gpu_tensor_view(
+        routed_gate_base, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+    ds4_gpu_tensor *up_tmp = ds4_gpu_tensor_view(
+        routed_up_base, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+    ds4_gpu_tensor *mid_tmp = ds4_gpu_tensor_view(
+        routed_mid_base, 0, (uint64_t)refs * expert_mid_dim * sizeof(float));
+    ds4_gpu_tensor *x_tmp = ds4_gpu_tensor_view(
+        routed_xout_base, 0, (uint64_t)refs * expert_in_dim * sizeof(float));
+    ds4_gpu_tensor *out_tmp = ds4_gpu_tensor_view(
+        routed_xout_base,
+        (uint64_t)routed_tmp_rows * out_dim * sizeof(float),
+        (uint64_t)refs * out_dim * sizeof(float));
+    ds4_gpu_tensor *gate_model = ds4_gpu_model_tensor_view(
+        model->map, model->size,
+        layer->ffn_gate_exps->abs_offset + (uint64_t)expert * gate_expert_bytes,
+        gate_expert_bytes);
+    ds4_gpu_tensor *up_model = ds4_gpu_model_tensor_view(
+        model->map, model->size,
+        layer->ffn_up_exps->abs_offset + (uint64_t)expert * gate_expert_bytes,
+        gate_expert_bytes);
+    ds4_gpu_tensor *down_model = ds4_gpu_model_tensor_view(
+        model->map, model->size,
+        layer->ffn_down_exps->abs_offset + (uint64_t)expert * down_expert_bytes,
+        down_expert_bytes);
+
+    bool mid_is_f16 = false;
+    int used_mpp = 0;
+    ok = tokens_view && selected_zero_view && weights_view &&
+         gate_tmp && up_tmp && mid_tmp && x_tmp && out_tmp &&
+         gate_model && up_model && down_model &&
+         ds4_gpu_gather_rows_f32_tensor(x_tmp, g->batch_ffn_norm,
+                                        tokens_view, refs, DS4_N_EMBD) != 0;
+    if (ok) {
+        used_mpp = flash_moe_run_mpp_int8_safe_tensor(out_tmp, gate_tmp, up_tmp, mid_tmp,
+                                                      gate_model, up_model, down_model,
+                                                      layer->ffn_gate_exps->type,
+                                                      layer->ffn_down_exps->type,
+                                                      gate_expert_bytes, gate_row_bytes,
+                                                      down_expert_bytes, down_row_bytes,
+                                                      expert_in_dim, expert_mid_dim, out_dim,
+                                                      selected_zero_view, weights_view,
+                                                      DS4_SWIGLU_CLAMP_EXP, x_tmp, refs,
+                                                      &mid_is_f16);
+        if (!used_mpp) {
+            ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(out_tmp, gate_tmp, up_tmp, mid_tmp,
+                                                               gate_model, up_model, down_model,
+                                                               layer->ffn_gate_exps->type,
+                                                               layer->ffn_down_exps->type,
+                                                               gate_expert_bytes, gate_row_bytes,
+                                                               down_expert_bytes, down_row_bytes,
+                                                               expert_in_dim, expert_mid_dim, out_dim,
+                                                               selected_zero_view, weights_view,
+                                                               DS4_SWIGLU_CLAMP_EXP, x_tmp, refs,
+                                                               &mid_is_f16) != 0;
+        }
+    }
+    if (ok) {
+        ok = ds4_gpu_scatter_add_rows_f32_tensor(g->batch_routed_out, out_tmp,
+                                                 tokens_view, refs, out_dim) != 0;
+    }
+    if (ok && used_nax) *used_nax = used_mpp != 0;
+    if (mid_is_f16 && mid_is_f16_any) *mid_is_f16_any = true;
+
+    ds4_gpu_tensor_free(down_model);
+    ds4_gpu_tensor_free(up_model);
+    ds4_gpu_tensor_free(gate_model);
+    ds4_gpu_tensor_free(out_tmp);
+    ds4_gpu_tensor_free(x_tmp);
+    ds4_gpu_tensor_free(mid_tmp);
+    ds4_gpu_tensor_free(up_tmp);
+    ds4_gpu_tensor_free(gate_tmp);
+    ds4_gpu_tensor_free(weights_view);
+    ds4_gpu_tensor_free(selected_zero_view);
+    ds4_gpu_tensor_free(tokens_view);
+    return ok;
+}
+
 static bool metal_graph_routed_moe_batch_tiled(
         ds4_gpu_graph       *g,
         ds4_gpu_tensor      *out,
@@ -12146,10 +12291,18 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             if (env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID")) {
                 const uint32_t min_refs =
                     (uint32_t)atoi(getenv("DS4_RESIDENT_MOE_ANE_MIN_REFS") ?: "128");
+                const bool ane_nax =
+                    env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
+                    env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+                const bool ane_alu =
+                    !ane_nax && env_flag_enabled("DS4_RESIDENT_MOE_ANE_ALU_HYBRID");
+                const char *cold = ane_nax ? "NAX-half" : ane_alu ? "int8/ALU (per-expert)" : "classic GPU (grouped)";
                 fprintf(stderr,
-                        "ds4: resident routed MoE using ANE/GPU DeDup prefill "
-                        "(ANE refs >= %u, classic GPU scatter/gather below threshold)\n",
-                        min_refs);
+                        "ds4: resident routed MoE using ANE/%s DeDup prefill "
+                        "(ANE refs >= %u, %s scatter/gather below threshold)\n",
+                        ane_nax ? "NAX" : ane_alu ? "ALU" : "GPU",
+                        min_refs,
+                        cold);
             } else {
                 fprintf(stderr,
                         "ds4: resident routed MoE using MPP/NAX int8 DeDup prefill "
@@ -12187,6 +12340,27 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
     }
 
     const bool use_ane_hybrid = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
+    /* ANE+NAX hybrid: ANE takes the hot experts (as in the ANE+GPU hybrid), but the
+     * remaining "cold" experts run on NAX (matmul2d half x half) instead of the
+     * grouped mul_mm_id GPU tail. Requires NAX-half (the GPU half is the per-expert
+     * NAX kernel) and the ANE hybrid itself. NAX runs on the GPU, so ANE-engine and
+     * NAX overlap is the throughput goal; this first cut keeps them sequential
+     * (ANE drains, then NAX) for correctness — see resident_moe_nax_tail_one_expert. */
+    const bool use_ane_nax = use_ane_hybrid &&
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
+        env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+    /* ANE+ALU hybrid: same as ANE+NAX but the cold experts run on the per-expert
+     * int8/ALU kernel (flash_moe_run_mpp_int8 with NAX-half OFF) instead of NAX.
+     * This is the correctness-complete resident ANE hybrid: ANE hot experts scatter
+     * into batch_routed_out (the existing dedup ANE path), cold experts run per-expert
+     * int8 — avoiding both the grouped-tail-returns-false path used by the plain
+     * ANE+GPU hybrid and the corrupt per-expert NAX-half kernel. On M5 Max (single ANE
+     * cluster) ANE is GPU-encode-bound so the win is small; the real benefit is M3 Ultra
+     * (dual-cluster). use_ane_pertail gates the shared per-expert cold tail. */
+    const bool use_ane_alu = use_ane_hybrid &&
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_ALU_HYBRID") &&
+        !use_ane_nax;
+    const bool use_ane_pertail = use_ane_nax || use_ane_alu;
     const uint64_t router_scratch_rows = (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
     if (ok &&
         (router_scratch_rows < (uint64_t)g->prefill_cap + n_tokens ||
@@ -12197,7 +12371,11 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
         ok = ds4_gpu_tensor_fill_f32(g->batch_routed_out,
                                      0.0f,
                                      (uint64_t)n_tokens * out_dim) != 0;
-        if (ok && !use_ane_hybrid) {
+        /* The per-expert GPU/NAX path needs a zeroed "selected" view at
+         * [prefill_cap..] (the partial-tile classic tail reads it). The non-hybrid
+         * loop and the ANE+NAX cold-expert tail both use it; the plain ANE+GPU
+         * hybrid (grouped tail) does not. */
+        if (ok && (!use_ane_hybrid || use_ane_pertail)) {
             ok = ds4_gpu_tensor_write(g->batch_router_selected,
                                       (uint64_t)g->prefill_cap * sizeof(int32_t),
                                       zero_selected,
@@ -12597,6 +12775,8 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             }
         }
 
+        uint32_t cold_groups = 0;
+        uint64_t cold_refs = 0;
         for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
             const int32_t expert = unique[ui];
             if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) {
@@ -12606,11 +12786,54 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             if (ane_mask[(uint32_t)expert]) continue;
             const uint32_t refs = (uint32_t)(offsets[ui + 1] - offsets[ui]);
             if (refs == 0) continue;
-            fallback_groups++;
-            fallback_refs += refs;
+            cold_groups++;
+            cold_refs += refs;
+        }
+        /* The grouped mul_mm_id tail recomputes every cold expert at once; the
+         * per-expert tail (NAX or int8/ALU) runs them one expert at a time (and
+         * self-classifies mpp vs classic). Only the grouped tail pre-accounts cold
+         * experts as "fallback". */
+        if (!use_ane_pertail) {
+            fallback_groups += cold_groups;
+            fallback_refs += cold_refs;
         }
 
-        if (ok && fallback_refs != 0) {
+        if (ok && cold_refs != 0 && use_ane_pertail) {
+            /* ANE+NAX / ANE+ALU cold-expert tail: the experts ANE did not take run on
+             * the per-expert path (NAX matmul2d if DS4_RESIDENT_MOE_NAX_HALF, else
+             * int8/ALU) and scatter-add into batch_routed_out, disjoint from the
+             * ANE-scattered rows by ane_mask. ANE is fully drained above, so the
+             * batch_routed_* scratch is free to reuse. NOTE (perf): this is sequential
+             * after ANE; the concurrency win (dispatch NAX while ANE is in flight) is
+             * a follow-up that needs a dedicated ANE output buffer. */
+            bool nax_tail_mid_is_f16 = false;
+            for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
+                const int32_t expert = unique[ui];
+                if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) { ok = false; break; }
+                if (ane_mask[(uint32_t)expert]) continue;
+                const uint32_t begin = (uint32_t)offsets[ui];
+                const uint32_t refs = (uint32_t)(offsets[ui + 1] - offsets[ui]);
+                if (refs == 0) continue;
+                if (refs > n_tokens) { ok = false; break; }
+                bool used_nax = false;
+                ok = resident_moe_nax_tail_one_expert(
+                        g, model, layer, expert, begin, refs, ref_tokens, ref_weights,
+                        g->prefill_cap, routed_tmp_rows,
+                        routed_gate_base, routed_up_base, routed_mid_base, routed_xout_base,
+                        gate_expert_bytes, gate_row_bytes, down_expert_bytes, down_row_bytes,
+                        expert_in_dim, expert_mid_dim, out_dim,
+                        &commands_open, &nax_tail_mid_is_f16, &used_nax);
+                if (ok) {
+                    if (used_nax) { mpp_groups++; mpp_refs += refs; }
+                    else { fallback_groups++; fallback_refs += refs; }
+                }
+            }
+            if (commands_open) {
+                ok = ds4_gpu_end_commands() != 0 && ok;
+                commands_open = false;
+            }
+            if (nax_tail_mid_is_f16) g->batch_routed_mid_is_f16 = true;
+        } else if (ok && cold_refs != 0) {
             bool gpu_tail_mid_is_f16 = false;
             ds4_gpu_tensor *gpu_tail_out = g->batch_routed_out;
             if (ane_refs != 0) {
@@ -24489,6 +24712,59 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 	                fprintf(stderr,
 	                        "ds4: resident MPP/NAX prewarm failed; MPP prefill will fall back if needed\n");
 	            }
+	        }
+	        /* Startup summary of the REQUESTED resident-prefill config: which routed-MoE
+	         * functions, the CTX_GROW state, and the prefill chunk cap. The actual path is
+	         * re-confirmed per layer by the "resident routed MoE using ..." runtime banner
+	         * (which also reports any dedup->grouped fallback). */
+	        {
+	            const bool _pf_dedup = env_flag_enabled("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL") ||
+	                                   env_flag_enabled("DS4_RESIDENT_MOE_NAX_DEDUP_PREFILL");
+	            const bool _pf_ane   = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
+	            const bool _pf_naxh  = env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+	            const bool _pf_fused = env_flag_enabled("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP");
+	            const bool _pf_i8    = env_flag_enabled("DS4_RESIDENT_MOE_MPP_INT8_PREFILL") ||
+	                                   env_flag_enabled("DS4_RESIDENT_MOE_NAX_INT8_PREFILL");
+	            const char *_pf_routed;
+	            if (_pf_ane) {
+	                if (_pf_naxh && env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID"))
+	                    _pf_routed = "ANE hot + per-expert NAX-half cold";
+	                else if (env_flag_enabled("DS4_RESIDENT_MOE_ANE_ALU_HYBRID"))
+	                    _pf_routed = "ANE hot + per-expert int8/ALU cold";
+	                else
+	                    _pf_routed = "ANE hot + grouped GPU/ALU cold";
+	            } else if (_pf_naxh) {
+	                /* When the per-token gate is set (and int8 is also enabled), the
+	                 * routed backend is a PROFILE, not one static kernel: NAX-half below
+	                 * the boundary, int8 at/above — show that. */
+	                const uint32_t _pf_half_max =
+	                    (uint32_t)atoi(getenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS") ?: "0");
+	                if (_pf_half_max != 0u && _pf_i8) {
+	                    static char _pf_buf[160];
+	                    snprintf(_pf_buf, sizeof(_pf_buf),
+	                             "per-token: %s <%u tok/chunk, int8 (matmul2d) >=%u",
+	                             _pf_fused ? "NAX-half+ALU (Plan A)" : "NAX-half",
+	                             _pf_half_max, _pf_half_max);
+	                    _pf_routed = _pf_buf;
+	                } else {
+	                    _pf_routed = _pf_fused ? "NAX-half + ALU (Plan A fused gate+up+swiglu)"
+	                                           : "NAX-half (matmul2d)";
+	                }
+	            } else if (_pf_i8) {
+	                _pf_routed = "int8 matmul2d (compact-bridge fused-dequant)";
+	            } else {
+	                _pf_routed = "mul_mm_id (grouped GPU / ALU)";
+	            }
+	            const char *_pf_chunk  = getenv("DS4_METAL_PREFILL_CHUNK");
+	            const char *_pf_rawcap = getenv("DS4_METAL_GRAPH_RAW_CAP");
+	            fprintf(stderr, "ds4: prefill routed-MoE (requested): %s  [%s path]\n",
+	                    _pf_routed, _pf_dedup ? "dedup/per-expert" : "grouped");
+	            fprintf(stderr, "ds4: prefill ctx-grow: %s, block=%u tokens\n",
+	                    ds4_ctx_grow_enabled() ? "on" : "off", ds4_ctx_grow_block());
+	            fprintf(stderr, "ds4: prefill chunk cap: %s%s, graph_raw_cap=%s\n",
+	                    (_pf_chunk && _pf_chunk[0]) ? _pf_chunk : "auto",
+	                    (_pf_chunk && _pf_chunk[0]) ? "" : " (<=4096 when prompt>4096)",
+	                    (_pf_rawcap && _pf_rawcap[0]) ? _pf_rawcap : "auto");
 	        }
 	        const char *env = getenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT");
 	        if (env && env[0] && atoi(env) != 0) {

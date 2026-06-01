@@ -21,6 +21,8 @@
 #   - run it ALONE; close other GPU apps.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; cd "$ROOT"
+# shellcheck source=ds4_backend_env.sh
+. "$ROOT/ds4_backend_env.sh"   # ds4_backend_common_env / ds4_backend_variant_env
 
 DS4_BENCH="${DS4_BENCH:-./ds4-bench}"
 DS4_MODEL="${DS4_MODEL:-/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf}"
@@ -39,26 +41,11 @@ if ps -A -o command | grep -iE "ds4-(bench|agent|server)|moe-batch|ane_ds4" | gr
 fi
 [ -f "$DS4_PROMPT" ] || { echo "ABORT: prompt file $DS4_PROMPT missing (need >= 32K tokens). Set DS4_PROMPT=." >&2; exit 1; }
 
-# Common resident MPP/NAX enablement (everything except the per-variant toggles).
-COMMON=(
-  DS4_LOCK_FILE="$LOCK"
-  DS4_RESIDENT_MOE_MPP_INT8_PREFILL=1
-  DS4_RESIDENT_MOE_MPP_FORCE=1
-  DS4_RESIDENT_MOE_MPP_MIN_TOKENS=64
-  DS4_RESIDENT_MOE_MPP_COMPACT_MIN_TOKENS=64
-  DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE=1
-  DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT=1
-)
+# Common resident MPP/NAX enablement (from the shared snippet; DS4_LOCK_FILE added).
+COMMON=( DS4_LOCK_FILE="$LOCK" )
+while IFS= read -r kv; do [ -n "$kv" ] && COMMON+=( "$kv" ); done < <(ds4_backend_common_env)
 
-variant_env() {  # echoes the extra env for a variant
-  case "$1" in
-    mulmm) echo "MULMM" ;;  # sentinel: NO resident envs at all
-    int8)  echo "" ;;
-    nax)   echo "DS4_RESIDENT_MOE_NAX_HALF=1 DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP=1 DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0" ;;
-    alu)   echo "DS4_RESIDENT_MOE_NAX_FULL_FUSED=1" ;;
-    *) echo "" ;;
-  esac
-}
+variant_env() { ds4_backend_variant_env "$1"; }  # mulmm/int8/nax/alu aliases handled in snippet
 
 echo "ctx,variant,prefill_tps" | tee "$OUT"
 for ctx in $CTXS; do

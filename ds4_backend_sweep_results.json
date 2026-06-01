@@ -1,0 +1,109 @@
+{
+  "chip": "Apple M5 Max",
+  "ram_gib": 128,
+  "model": "DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf",
+  "metric": "prefill_tps (resident --moe-mode off, single gen token, 45s cooldown)",
+  "baked_winner": {
+    "backend": "nax_int8",
+    "note": "large-ctx winner (8192/16384); baked into ds4_profile.json"
+  },
+  "notes": [
+    "Winner is context-dependent: nax_half_alu at ctx<=4096, nax_int8 at ctx>=8192.",
+    "ANE backends not in this table: on M5 Max (single ANE cluster) ANE is GPU-encode-bound (~+6 t/s); the ANE win is an M3 Ultra (dual-cluster) feature. ds4-bench also can't engage the resident ANE dedup path; ds4 CLI can.",
+    "ane_alu (correctness-complete resident ANE+ALU) added this session; ane_nax blocked by per-expert NAX-half kernel bug."
+  ],
+  "by_context": {
+    "1024": {
+      "winner": "nax_half_alu",
+      "winner_tps": 129.2,
+      "results": {
+        "mulmm": 102.7,
+        "nax_int8": 102.5,
+        "nax_half": 77.7,
+        "nax_half_alu": 129.2
+      }
+    },
+    "2048": {
+      "winner": "nax_half_alu",
+      "winner_tps": 220.3,
+      "results": {
+        "mulmm": 178.6,
+        "nax_int8": 178.7,
+        "nax_half": 139.8,
+        "nax_half_alu": 220.3
+      }
+    },
+    "3072": {
+      "winner": "nax_half_alu",
+      "winner_tps": 279.1,
+      "results": {
+        "mulmm": 230.6,
+        "nax_int8": 230.6,
+        "nax_half": 185.5,
+        "nax_half_alu": 279.1
+      }
+    },
+    "4096": {
+      "winner": "nax_half_alu",
+      "winner_tps": 317.9,
+      "results": {
+        "mulmm": 268.6,
+        "nax_int8": 268.2,
+        "nax_half": 220.2,
+        "nax_half_alu": 317.9
+      }
+    },
+    "8192": {
+      "winner": "nax_int8",
+      "winner_tps": 496.8,
+      "results": {
+        "mulmm": 428.6,
+        "nax_int8": 496.8,
+        "nax_half": 349.0,
+        "nax_half_alu": 374.5
+      }
+    },
+    "16384": {
+      "winner": "nax_int8",
+      "winner_tps": 531.4,
+      "results": {
+        "mulmm": 517.0,
+        "nax_int8": 531.4,
+        "nax_half": 429.9,
+        "nax_half_alu": 444.6
+      }
+    }
+  },
+  "crossover": {
+    "backends": [
+      "nax_half_alu",
+      "nax_int8"
+    ],
+    "measured_t_s": {
+      "4096": {
+        "nax_half_alu": 316.4,
+        "nax_int8": 269.0
+      },
+      "5120": {
+        "nax_half_alu": 364.2,
+        "nax_int8": 308.6
+      },
+      "6144": {
+        "nax_half_alu": 394.9,
+        "nax_int8": 336.8
+      },
+      "7168": {
+        "nax_half_alu": 422.9,
+        "nax_int8": 366.2
+      },
+      "8192": {
+        "nax_half_alu": 377.6,
+        "nax_int8": 500.4
+      }
+    },
+    "winner_le_7168": "nax_half_alu",
+    "winner_ge_8192": "nax_int8",
+    "boundary_tokens": 7680,
+    "note": "clean sweep, alone on box, 45s cooldown; boundary = midpoint of (7168,8192]; baked into ds4_profile.json prefill_by_tokens + DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS=7680"
+  }
+}
