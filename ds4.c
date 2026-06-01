@@ -12362,6 +12362,24 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
         env_flag_enabled("DS4_RESIDENT_MOE_ANE_ALU_HYBRID") &&
         !use_ane_nax;
     (void)use_ane_alu;
+    /* ANE-parallel-NAX overlap (default off): dispatch the NAX cold tail concurrently
+     * with the in-flight ANE jobs (encode + flush before draining ANE) instead of after
+     * ANE drains. Wall -> max(T_ANE, T_NAX) instead of T_ANE + T_NAX. The ANE-finish
+     * output lives in the disjoint [scratch_cap..] half of batch_routed_down, so the
+     * grouped cold tail (which uses [0..scratch_cap)) can run at the same time. */
+    const bool use_ane_nax_overlap = use_ane_nax &&
+        env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_OVERLAP");
+    /* Throughput-balanced ANE/NAX split (default off): DS4_RESIDENT_MOE_ANE_NAX_FRAC =
+     * the fraction of routed TOKENS (refs) to put on ANE, the rest on NAX. Tuning this is
+     * how you hit max parallelism: the split where T_ANE == T_NAX (equal finish time) is the
+     * one that minimizes the wall max(T_ANE, T_NAX). >0 replaces the refs-band ANE gate with
+     * a largest-expert-first assignment that fills ANE up to frac*total_refs. */
+    double ane_nax_frac = 0.0;
+    if (use_ane_nax) {
+        const char *r = getenv("DS4_RESIDENT_MOE_ANE_NAX_FRAC");
+        if (r && r[0]) { double v = atof(r); if (v > 0.0 && isfinite(v)) ane_nax_frac = v > 1.0 ? 1.0 : v; }
+    }
+    const bool use_ane_nax_balance = ane_nax_frac > 0.0;
     const uint64_t router_scratch_rows = (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
     if (ok &&
         (router_scratch_rows < (uint64_t)g->prefill_cap + n_tokens ||
@@ -12533,8 +12551,23 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                                   ref_weights,
                                   n_pairs * sizeof(ref_weights[0])) != 0;
 
-        const bool ane_predequant_requested =
+        /* PREDEQUANT + the ANE‖NAX overlap reorder deadlock (the batched int8-bank
+         * dequant leaves the command stream in a state the deferred-drain overlap can't
+         * safely flush). Until that interaction is fixed, predequant is disabled whenever
+         * overlap is on — overlap is the shipped path; predequant is an orthogonal opt. */
+        bool ane_predequant_requested =
             env_flag_enabled("DS4_RESIDENT_MOE_ANE_PREDEQUANT");
+        if (ane_predequant_requested && use_ane_nax_overlap) {
+            static bool warned_predequant_overlap = false;
+            if (!warned_predequant_overlap) {
+                warned_predequant_overlap = true;
+                fprintf(stderr,
+                        "ds4: DS4_RESIDENT_MOE_ANE_PREDEQUANT is ignored while "
+                        "DS4_RESIDENT_MOE_ANE_NAX_OVERLAP=1 (known deadlock); "
+                        "running per-expert dequant instead\n");
+            }
+            ane_predequant_requested = false;
+        }
         ds4_gpu_tensor *ane_gate_i8_bank = NULL;
         ds4_gpu_tensor *ane_up_i8_bank = NULL;
         ds4_gpu_tensor *ane_down_i8_bank = NULL;
@@ -12648,6 +12681,56 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             } \
         } while (0)
 
+        /* Throughput-balanced ANE/NAX assignment by TOKEN count. When
+         * DS4_RESIDENT_MOE_ANE_NAX_FRAC>0, decide ANE vs NAX per expert here (before the
+         * submit loop) instead of by the refs band: count the total ANE-eligible tokens,
+         * then assign experts largest-first to ANE until ANE's token total reaches
+         * frac*total — so ~frac of the routed tokens run on ANE and (1-frac) on NAX.
+         * Sweeping frac finds the split where the two engines finish together (max overlap).
+         * Eligibility still honors the ANE batch cap [min,max]; the rest go to the NAX tail. */
+        uint8_t ane_assign[DS4_N_EXPERT];
+        if (use_ane_nax_balance) {
+            memset(ane_assign, 0, sizeof(ane_assign));
+            uint32_t ord[DS4_N_EXPERT];
+            uint32_t nord = 0;
+            uint64_t total_eligible_refs = 0;
+            for (uint32_t ui = 0; ui < n_unique; ui++) {
+                const int32_t e = unique[ui];
+                const uint32_t refs = (uint32_t)(offsets[ui + 1] - offsets[ui]);
+                if (e < 0 || e >= (int32_t)DS4_N_EXPERT) continue;
+                if (refs == 0 || refs > scratch_cap) continue;
+                if (refs < ane_min_refs_local) continue;
+                if (ane_max_refs_local != 0u && refs > ane_max_refs_local) continue;
+                ord[nord++] = ui;
+                total_eligible_refs += refs;
+            }
+            for (uint32_t i = 1; i < nord; i++) {
+                const uint32_t k = ord[i];
+                const uint32_t kr = (uint32_t)(offsets[k + 1] - offsets[k]);
+                int j = (int)i - 1;
+                while (j >= 0 &&
+                       (uint32_t)(offsets[ord[j] + 1] - offsets[ord[j]]) < kr) {
+                    ord[j + 1] = ord[j];
+                    j--;
+                }
+                ord[j + 1] = k;
+            }
+            const double target_ane_refs = ane_nax_frac * (double)total_eligible_refs;
+            double load_ane = 0.0;
+            uint32_t ane_cnt = 0;
+            for (uint32_t i = 0; i < nord; i++) {
+                const uint32_t ui = ord[i];
+                const int32_t e = unique[ui];
+                const double refs = (double)(offsets[ui + 1] - offsets[ui]);
+                /* stop adding to ANE once we've reached the token target; cap on group count */
+                if (load_ane >= target_ane_refs) break;
+                if (ane_max_groups_local != 0u && ane_cnt >= ane_max_groups_local) break;
+                ane_assign[(uint32_t)e] = 1u;
+                load_ane += refs;
+                ane_cnt++;
+            }
+        }
+
         for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
             const int32_t expert = unique[ui];
             const uint32_t begin = (uint32_t)offsets[ui];
@@ -12657,7 +12740,10 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                 ok = false;
                 break;
             }
-            if (refs > scratch_cap ||
+            if (use_ane_nax_balance) {
+                /* balancer decided the split up front; NAX cold tail takes the rest */
+                if (!ane_assign[(uint32_t)expert]) continue;
+            } else if (refs > scratch_cap ||
                 refs < ane_min_refs_local ||
                 (ane_max_refs_local != 0u && refs > ane_max_refs_local) ||
                 (ane_max_groups_local != 0 && ane_groups + ane_queue_n >= ane_max_groups_local)) {
@@ -12749,6 +12835,12 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                         .refs = refs,
                         .expert = expert,
                     };
+                    /* Overlap needs the ANE partition known BEFORE draining so the NAX cold
+                     * tail can be dispatched concurrently. Mark the expert ANE-handled at
+                     * queue time; FINISH_ONE re-marks it (idempotent) and does the stats. A
+                     * job that later fails to finish forces ok=false (layer aborts), so a
+                     * pre-marked-but-uncomputed expert never yields silently-wrong output. */
+                    if (use_ane_nax_overlap) ane_mask[(uint32_t)expert] = 1u;
                 } else {
                     ane_start_failures++;
                 }
@@ -12761,19 +12853,24 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             ds4_gpu_tensor_free(weights_view);
             ds4_gpu_tensor_free(tokens_view);
         }
-        while (ok && ane_queue_n != 0) {
-            DS4_RESIDENT_ANE_FINISH_ONE();
-        }
-        if (commands_open) {
-            ok = ds4_gpu_end_commands() != 0 && ok;
-            commands_open = false;
-        }
-        #undef DS4_RESIDENT_ANE_FINISH_ONE
-        if (!ok) {
-            while (ane_queue_n != 0) {
-                resident_ane_pending_job p = ane_queue[--ane_queue_n];
-                (void)ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
-                    p.job, NULL, NULL);
+        /* Non-overlap (sequential): drain ANE fully here, then run the cold tail after.
+         * Overlap (use_ane_nax_overlap): DEFER the drain to after the NAX cold tail is
+         * committed (below) so GPU(NAX) and the ANE engine run concurrently. ane_mask was
+         * set at QUEUE time in overlap mode, so the cold partition is already known. */
+        if (!use_ane_nax_overlap) {
+            while (ok && ane_queue_n != 0) {
+                DS4_RESIDENT_ANE_FINISH_ONE();
+            }
+            if (commands_open) {
+                ok = ds4_gpu_end_commands() != 0 && ok;
+                commands_open = false;
+            }
+            if (!ok) {
+                while (ane_queue_n != 0) {
+                    resident_ane_pending_job p = ane_queue[--ane_queue_n];
+                    (void)ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+                        p.job, NULL, NULL);
+                }
             }
         }
 
@@ -12814,18 +12911,29 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
 
         if (ok && cold_refs != 0) {
             bool gpu_tail_mid_is_f16 = false;
+            /* In overlap mode ANE has not been drained yet, so ane_refs is still 0; the
+             * pending-queue count tells us ANE will contribute. Stage the NAX cold output
+             * into batch_ffn_out whenever ANE contributes (ANE scatters into batch_routed_out
+             * concurrently; the two disjoint results are summed after both finish). */
+            const bool ane_contributes =
+                use_ane_nax_overlap ? (ane_queue_n != 0) : (ane_refs != 0);
             ds4_gpu_tensor *gpu_tail_out = g->batch_routed_out;
-            if (ane_refs != 0) {
+            if (ane_contributes) {
                 ok = metal_graph_ensure_batch_ffn_out(g);
                 gpu_tail_out = g->batch_ffn_out;
             }
-            if (ane_refs != 0) {
+            if (ane_contributes) {
                 ds4_gpu_set_ane_skip_mask(ane_mask, DS4_N_EXPERT);
             } else {
                 ds4_gpu_clear_ane_skip_mask();
             }
-            if (ok) ok = ds4_gpu_begin_commands() != 0;
-            commands_open = ok;
+            /* Sequential: ANE was drained + commands ended, so open a fresh buffer.
+             * Overlap: the submit loop left a command buffer OPEN (begin_commands would
+             * fail), so encode the cold tail straight into it. */
+            if (ok && !commands_open) {
+                ok = ds4_gpu_begin_commands() != 0;
+                commands_open = ok;
+            }
             if (ok) {
                 ok = metal_graph_routed_moe_batch_tiled(g,
                                                         gpu_tail_out,
@@ -12844,7 +12952,36 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                                                         g->batch_ffn_norm,
                                                         &gpu_tail_mid_is_f16);
             }
-            if (ok && ane_refs != 0) {
+            if (use_ane_nax_overlap) {
+                /* Commit the NAX cold tail so the GPU starts executing it NOW, then drain
+                 * ANE. The ANE jobs have been running on the ANE engine since the submit
+                 * loop; flushing here makes GPU(NAX) and ANE(experts) overlap until we join.
+                 * ANE finishes scatter into batch_routed_out (disjoint from batch_ffn_out
+                 * and from the [scratch_cap..] half of batch_routed_down NAX leaves alone). */
+                const bool _ovl_dbg = getenv("DS4_OVL_DBG") != NULL;
+                if (_ovl_dbg) fprintf(stderr, "OVL[L%u]: pre-flush cold tail, ane_q=%u\n", il, ane_queue_n);
+                if (ok && commands_open) {
+                    ok = ds4_gpu_flush_commands() != 0 && ok;
+                }
+                if (_ovl_dbg) fprintf(stderr, "OVL[L%u]: flushed(ok=%d), draining ane_q=%u\n", il, ok, ane_queue_n);
+                while (ok && ane_queue_n != 0) {
+                    DS4_RESIDENT_ANE_FINISH_ONE();
+                }
+                if (_ovl_dbg) fprintf(stderr, "OVL[L%u]: drained(ok=%d), ending\n", il, ok);
+                if (commands_open) {
+                    ok = ds4_gpu_end_commands() != 0 && ok;
+                    commands_open = false;
+                }
+                if (_ovl_dbg) fprintf(stderr, "OVL[L%u]: ended(ok=%d)\n", il, ok);
+                if (!ok) {
+                    while (ane_queue_n != 0) {
+                        resident_ane_pending_job p = ane_queue[--ane_queue_n];
+                        (void)ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+                            p.job, NULL, NULL);
+                    }
+                }
+            }
+            if (ok && ane_contributes) {
                 ok = ds4_gpu_add_tensor(g->batch_routed_out,
                                         g->batch_routed_out,
                                         gpu_tail_out,
@@ -12852,7 +12989,25 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             }
             ds4_gpu_clear_ane_skip_mask();
             if (gpu_tail_mid_is_f16) g->batch_routed_mid_is_f16 = true;
+        } else if (use_ane_nax_overlap && ane_queue_n != 0) {
+            /* Overlap mode with no cold experts (everything routed to ANE): the deferred
+             * drain still has to run to finish the ANE jobs and scatter their output. */
+            while (ok && ane_queue_n != 0) {
+                DS4_RESIDENT_ANE_FINISH_ONE();
+            }
+            if (commands_open) {
+                ok = ds4_gpu_end_commands() != 0 && ok;
+                commands_open = false;
+            }
+            if (!ok) {
+                while (ane_queue_n != 0) {
+                    resident_ane_pending_job p = ane_queue[--ane_queue_n];
+                    (void)ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
+                        p.job, NULL, NULL);
+                }
+            }
         }
+        #undef DS4_RESIDENT_ANE_FINISH_ONE
 
         ds4_gpu_tensor_free(ane_down_i8_bank);
         ds4_gpu_tensor_free(ane_up_i8_bank);
