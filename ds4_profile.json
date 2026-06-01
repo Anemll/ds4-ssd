@@ -14,7 +14,7 @@
   },
   "profiles": [
     {
-      "_comment": "M5 Max, MEASURED (81G IQ2XXS, 45s cooldown, alone on box). prefill_by_tokens picks per prefill chunk: nax_half_alu below 7680 tok/chunk, nax_int8 at/above. Measured t/s half-vs-int8: 4096:316/269, 5120:364/309, 6144:395/337, 7168:423/366 (half wins), 8192:378/500 (int8 wins) -> crossover in (7168,8192], boundary=midpoint 7680. Both backends enabled + MPP_FORCE; loader maps ranges to DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS=7680.",
+      "_comment": "M5 Max 128G, MEASURED (81G IQ2XXS, 45s cooldown, alone on box). CORRECTED 2026-06-01: (a) added DS4_METAL_PREFILL_CHUNK=16384 — without it a bare ./ds4 auto-caps the chunk to 4096 (<sync_max_tokens 7168) and the resident-NAX path takes the slow CPU<->GPU count-readback (map_wait) sync bridge; CTX_GROW_BLOCK is the KV-growth block, NOT the prefill chunk. (b) reverted the >1000->ane_gpu routing back to the NAX crossover: ane_gpu (ANE+GPU dedup) MEASURED 30-41% SLOWER on M5 single-cluster (ctx16384: ane_gpu 310 vs nax_half_alu 445 vs nax_int8 526 t/s) because ANE_HYBRID forces the 2048-token scratch tile -> sync bridge ON. prefill_by_tokens picks per prefill chunk: nax_half_alu below 7680 tok, nax_int8 at/above (crossover from 4096:316/269 .. 7168:423/366 half-wins .. 8192:378/500 int8-wins; loader maps to NAX_HALF_MAX_TOKENS=7680). With chunk 16384 production prefill resolves to nax_int8 (~526 hot). Verify with the 'resident-NAX tile n_tokens=.. sync-bridge=off' startup line.",
       "match": {
         "chip": "Apple M5 Max",
         "min_ram_gib": 128
@@ -30,22 +30,25 @@
         "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
         "DS4_RESIDENT_MOE_NAX_HALF": "1",
         "DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP": "1",
-        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0"
+        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_GPU_DENSE_NAX": "1"
       },
       "prefill_by_tokens": [
-        { "min_tokens": 0,    "max_tokens": 999,  "backend": "nax_half_alu" },
-        { "min_tokens": 1000, "max_tokens": 99999, "backend": "ane_gpu" }
+        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half_alu" },
+        { "min_tokens": 7680, "max_tokens": 99999, "backend": "nax_int8" }
       ]
     },
     {
-      "_comment": "M3 Ultra: NO NAX (matmul2d is M5-only via ds4_gpu_is_m5_device; nax_half_alu/nax_int8 silently fall back to mul_mm_id), so there is NO per-token GPU-backend split like the M5 entry — the routed GPU path is mul_mm_id at every chunk size, and a nax-style prefill_by_tokens would no-op. M3U's win is DUAL-CLUSTER ANE, gated PER-EXPERT by refs (no per-chunk-token ANE gate exists). refs ~= chunk_tokens/32, so prefill_by_tokens here is informational: it documents the token->refs mapping that ANE_MIN_REFS=64 implies (ANE auto-engages on chunks >~2048 tokens and scales up). To get MEASURED M3U numbers, run tune_profile.sh ON the M3U (this box is M5 Max; M3U cannot be benchmarked here). DS4_FLASH_MOE_ANE_DUAL=1 lights both ANE clusters on the SSD/slot-bank path.",
+      "_comment": "M3 Ultra: NO NAX (matmul2d is M5-only via ds4_gpu_is_m5_device; nax_half_alu/nax_int8 silently fall back to mul_mm_id), so there is NO per-token GPU-backend split like the M5 entry — the routed GPU path is mul_mm_id at every chunk size, and a nax-style prefill_by_tokens would no-op. M3U's win is DUAL-CLUSTER ANE, gated PER-EXPERT by refs (no per-chunk-token ANE gate exists). refs ~= chunk_tokens/32, so prefill_by_tokens here is informational: it documents the token->refs mapping that ANE_MIN_REFS=64 implies (ANE auto-engages on chunks >~2048 tokens and scales up). To get MEASURED M3U numbers, run tune_profile.sh ON the M3U (this box is M5 Max; M3U cannot be benchmarked here). DS4_FLASH_MOE_ANE_DUAL=1 lights both ANE clusters on the SSD/slot-bank path. CORRECTED 2026-06-01: min_ram_gib 64->96 (M3 Ultra is 96G+; covers 128/256/512); added DS4_METAL_PREFILL_CHUNK=16384 + raised CTX_GROW_BLOCK to 16384 so the raw-KV window can hold a 16K chunk (else it clamps back to ~2048 — verify via the 'prefill chunk cap EFFECTIVE=' startup line). M3U does NOT use the resident-NAX sync bridge (mul_mm_id path), so 16K chunks help ANE engagement without the map_wait cost. UNVERIFIED on M3U hardware (this box is M5 Max) — RETEST on the M3 Ultra and re-bake with tune_profile.sh.",
       "match": {
         "chip": "Apple M3 Ultra",
-        "min_ram_gib": 64
+        "min_ram_gib": 96
       },
       "env": {
         "DS4_CTX_GROW": "1",
-        "DS4_CTX_GROW_BLOCK": "2048",
+        "DS4_CTX_GROW_BLOCK": "16384",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
         "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
         "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
         "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
@@ -56,6 +59,7 @@
       ]
     },
     {
+      "_comment": "M5 Max 96G — mirrors the 128G entry (same single-ANE-cluster silicon; the ANE-slow finding is RAM-independent). CORRECTED 2026-06-01: was an ANE-dedup config (ane_gpu-style), which is 30-41% slower on M5 single-cluster; switched to the NAX resident config with DS4_METAL_PREFILL_CHUNK=16384 + nax_int8 routing for large chunks. 81G model fits in 96G. Retest/re-bake with tune_profile.sh on a 96G M5 Max if available.",
       "match": {
         "chip": "Apple M5 Max",
         "min_ram_gib": 96
@@ -63,10 +67,22 @@
       "env": {
         "DS4_CTX_GROW": "1",
         "DS4_CTX_GROW_BLOCK": "16384",
-        "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
-        "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
-        "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
-      }
+        "DS4_RESIDENT_MOE_MPP_INT8_PREFILL": "1",
+        "DS4_RESIDENT_MOE_MPP_FORCE": "1",
+        "DS4_RESIDENT_MOE_MPP_MIN_TOKENS": "64",
+        "DS4_RESIDENT_MOE_MPP_COMPACT_MIN_TOKENS": "64",
+        "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
+        "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
+        "DS4_RESIDENT_MOE_NAX_HALF": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_GPU_DENSE_NAX": "1"
+      },
+      "prefill_by_tokens": [
+        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half_alu" },
+        { "min_tokens": 7680, "max_tokens": 99999, "backend": "nax_int8" }
+      ]
     },
     {
       "match": {
