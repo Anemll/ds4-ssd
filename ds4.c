@@ -11932,6 +11932,9 @@ static int flash_moe_run_mpp_int8_safe_tensor(
  * partial-tile classic tail reads it). Returns true on success; ORs mid_is_f16 into
  * *mid_is_f16_any and sets *used_nax = whether the MPP/NAX kernel (not the classic
  * fallback) ran. */
+/* Superseded by the grouped skip-mask cold tail — the per-expert NAX/int8 dedup kernel
+ * it drives corrupts. Kept (unused) as a reference if that kernel is ever fixed. */
+__attribute__((unused))
 static bool resident_moe_nax_tail_one_expert(
         ds4_gpu_graph           *g,
         const ds4_model         *model,
@@ -12349,18 +12352,16 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
     const bool use_ane_nax = use_ane_hybrid &&
         env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
         env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
-    /* ANE+ALU hybrid: same as ANE+NAX but the cold experts run on the per-expert
-     * int8/ALU kernel (flash_moe_run_mpp_int8 with NAX-half OFF) instead of NAX.
-     * This is the correctness-complete resident ANE hybrid: ANE hot experts scatter
-     * into batch_routed_out (the existing dedup ANE path), cold experts run per-expert
-     * int8 — avoiding both the grouped-tail-returns-false path used by the plain
-     * ANE+GPU hybrid and the corrupt per-expert NAX-half kernel. On M5 Max (single ANE
-     * cluster) ANE is GPU-encode-bound so the win is small; the real benefit is M3 Ultra
-     * (dual-cluster). use_ane_pertail gates the shared per-expert cold tail. */
+    /* ANE+ALU hybrid: same family as ANE+NAX but the cold experts run classic int8
+     * (no NAX-half). All three ANE variants now share ONE correct cold-tail mechanism:
+     * the grouped skip-mask path (see the cold tail below). ane_nax additionally lifts
+     * the skip-mask NAX block so its cold experts use resident NAX-half; ane_gpu/ane_alu
+     * run classic mul_mm_id. On M5 Max (single ANE cluster) ANE is GPU-encode-bound so
+     * the win is small; the real benefit is M3 Ultra (dual-cluster). */
     const bool use_ane_alu = use_ane_hybrid &&
         env_flag_enabled("DS4_RESIDENT_MOE_ANE_ALU_HYBRID") &&
         !use_ane_nax;
-    const bool use_ane_pertail = use_ane_nax || use_ane_alu;
+    (void)use_ane_alu;
     const uint64_t router_scratch_rows = (uint64_t)g->prefill_cap * DS4_N_EXPERT_USED;
     if (ok &&
         (router_scratch_rows < (uint64_t)g->prefill_cap + n_tokens ||
@@ -12371,11 +12372,12 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
         ok = ds4_gpu_tensor_fill_f32(g->batch_routed_out,
                                      0.0f,
                                      (uint64_t)n_tokens * out_dim) != 0;
-        /* The per-expert GPU/NAX path needs a zeroed "selected" view at
-         * [prefill_cap..] (the partial-tile classic tail reads it). The non-hybrid
-         * loop and the ANE+NAX cold-expert tail both use it; the plain ANE+GPU
-         * hybrid (grouped tail) does not. */
-        if (ok && (!use_ane_hybrid || use_ane_pertail)) {
+        /* Only the non-hybrid per-expert loop reads the zeroed "selected" view at
+         * [prefill_cap..] (its partial-tile classic tail). Every ANE hybrid uses the
+         * grouped skip-mask cold tail, which reads selected[0..n_tokens*USED) — a range
+         * that OVERLAPS [prefill_cap..] (USED=8), so writing the zero view there would
+         * corrupt the routed selection. Skip the write for all ANE hybrids. */
+        if (ok && !use_ane_hybrid) {
             ok = ds4_gpu_tensor_write(g->batch_router_selected,
                                       (uint64_t)g->prefill_cap * sizeof(int32_t),
                                       zero_selected,
@@ -12789,51 +12791,28 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
             cold_groups++;
             cold_refs += refs;
         }
-        /* The grouped mul_mm_id tail recomputes every cold expert at once; the
-         * per-expert tail (NAX or int8/ALU) runs them one expert at a time (and
-         * self-classifies mpp vs classic). Only the grouped tail pre-accounts cold
-         * experts as "fallback". */
-        if (!use_ane_pertail) {
+        /* ANE hybrid cold-expert tail. ALL ANE variants (ane_gpu, ane_nax, ane_alu)
+         * share the SAME mechanism: keep the full routed selection/weights, set the ANE
+         * skip mask, and run the cold experts through the grouped routed-MoE path
+         * (metal_graph_routed_moe_batch_tiled -> ds4_gpu_routed_moe_batch_tensor). The
+         * skip mask zeroes only the ANE experts' per-expert COUNTS (and the resident
+         * per-expert loop checks the mask directly), so the grouped kernel skips them
+         * while every token's weights stay correctly normalized — the ANE share was
+         * already scatter-added into batch_routed_out. The cold compute backend is
+         * chosen INSIDE the grouped path by env flags: ane_nax (ANE_NAX_HYBRID + NAX_HALF)
+         * lifts the skip-mask block so the cold tail runs resident NAX-half (odd/partial
+         * chunks fall to int8 via the %64 floor); ane_gpu/ane_alu run classic mul_mm_id.
+         * NOTE: the per-expert masked-selection tail (writing -1 into the selection) was
+         * removed — it broke weight renormalization and produced garbage on odd chunks. */
+        if (use_ane_nax) {
+            mpp_groups += cold_groups;
+            mpp_refs += cold_refs;
+        } else {
             fallback_groups += cold_groups;
             fallback_refs += cold_refs;
         }
 
-        if (ok && cold_refs != 0 && use_ane_pertail) {
-            /* ANE+NAX / ANE+ALU cold-expert tail: the experts ANE did not take run on
-             * the per-expert path (NAX matmul2d if DS4_RESIDENT_MOE_NAX_HALF, else
-             * int8/ALU) and scatter-add into batch_routed_out, disjoint from the
-             * ANE-scattered rows by ane_mask. ANE is fully drained above, so the
-             * batch_routed_* scratch is free to reuse. NOTE (perf): this is sequential
-             * after ANE; the concurrency win (dispatch NAX while ANE is in flight) is
-             * a follow-up that needs a dedicated ANE output buffer. */
-            bool nax_tail_mid_is_f16 = false;
-            for (uint32_t ui = 0; ok && ui < n_unique; ui++) {
-                const int32_t expert = unique[ui];
-                if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) { ok = false; break; }
-                if (ane_mask[(uint32_t)expert]) continue;
-                const uint32_t begin = (uint32_t)offsets[ui];
-                const uint32_t refs = (uint32_t)(offsets[ui + 1] - offsets[ui]);
-                if (refs == 0) continue;
-                if (refs > n_tokens) { ok = false; break; }
-                bool used_nax = false;
-                ok = resident_moe_nax_tail_one_expert(
-                        g, model, layer, expert, begin, refs, ref_tokens, ref_weights,
-                        g->prefill_cap, routed_tmp_rows,
-                        routed_gate_base, routed_up_base, routed_mid_base, routed_xout_base,
-                        gate_expert_bytes, gate_row_bytes, down_expert_bytes, down_row_bytes,
-                        expert_in_dim, expert_mid_dim, out_dim,
-                        &commands_open, &nax_tail_mid_is_f16, &used_nax);
-                if (ok) {
-                    if (used_nax) { mpp_groups++; mpp_refs += refs; }
-                    else { fallback_groups++; fallback_refs += refs; }
-                }
-            }
-            if (commands_open) {
-                ok = ds4_gpu_end_commands() != 0 && ok;
-                commands_open = false;
-            }
-            if (nax_tail_mid_is_f16) g->batch_routed_mid_is_f16 = true;
-        } else if (ok && cold_refs != 0) {
+        if (ok && cold_refs != 0) {
             bool gpu_tail_mid_is_f16 = false;
             ds4_gpu_tensor *gpu_tail_out = g->batch_routed_out;
             if (ane_refs != 0) {
@@ -19253,6 +19232,21 @@ static bool metal_graph_encode_layer_ffn_batch(
     }
 
     bool resident_mpp_done = false;
+    /* Per-chunk backend routing (precedence: param > prefill_by_tokens table > gates).
+     * An "ane*" backend for this chunk's token count routes to the resident ANE dedup
+     * orchestrator (ANE hot experts + grouped cold tail) — this is the existing ANE+GPU
+     * hybrid that runs on M3 Ultra resident. Any other table backend stays on the
+     * grouped path (whose own per-chunk selector picks mulmm/nax_half/nax_half_alu/
+     * nax_int8). With no table, the legacy DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL flag
+     * decides as before. The ANE cold tail uses the skip-mask kernel
+     * kernel_dsv4_moe_zero_skipped_counts (defined in metal/moe.metal) to exclude the
+     * ANE-handled experts from the grouped cold compute. */
+    char _rb_tok[24];
+    ds4_gpu_resident_backend_for_tokens(n_tokens, _rb_tok, sizeof(_rb_tok));
+    const bool _rb_set = _rb_tok[0] != '\0';
+    const bool _rb_ane = strncmp(_rb_tok, "ane", 3) == 0;
+    const bool _take_dedup =
+        _rb_ane || (!_rb_set && resident_moe_mpp_dedup_prefill_enabled());
     if (ok && g->flash_moe) {
         g->batch_routed_mid_is_f16 = false;
         ok = metal_graph_flash_moe_run_prefill_dedup(g,
@@ -19266,7 +19260,7 @@ static bool metal_graph_encode_layer_ffn_batch(
                                                       (uint32_t)expert_in_dim,
                                                       (uint32_t)down_in_dim,
                                                       (uint32_t)routed_out_dim);
-    } else if (ok && resident_moe_mpp_dedup_prefill_enabled()) {
+    } else if (ok && _take_dedup) {
         g->batch_routed_mid_is_f16 = false;
         resident_mpp_done = metal_graph_resident_moe_run_mpp_prefill_dedup(g,
                                                                            model,

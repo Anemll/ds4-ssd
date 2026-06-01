@@ -385,26 +385,48 @@ void ds4_profile_load_and_apply(void) {
         const jval *pbt = jobj_get(prof, "prefill_by_tokens");
         if (pbt && pbt->t == JARR) {
             long half_boundary = -1;
+            bool has_ane = false;
+            char tbl[512];
+            size_t tl = 0;
+            tbl[0] = '\0';
             for (int r = 0; r < pbt->nitems; r++) {
                 const jval *rng = pbt->items[r];
                 if (!rng || rng->t != JOBJ) continue;
                 const jval *bk = jobj_get(rng, "backend");
                 const jval *mx = jobj_get(rng, "max_tokens");
-                if (bk && bk->t == JSTR && strstr(bk->str, "half") &&
-                    mx && mx->t == JNUM && mx->num >= 0) {
+                if (!(bk && bk->t == JSTR && mx && mx->t == JNUM && mx->num >= 0)) continue;
+                /* (1) general selector table: "max:backend,..." in file order. */
+                int w = snprintf(tbl + tl, sizeof(tbl) - tl, "%s%lld:%s",
+                                 tl ? "," : "", (long long)mx->num, bk->str);
+                if (w > 0 && (size_t)w < sizeof(tbl) - tl) tl += (size_t)w;
+                /* (2) legacy fallback: highest NAX-half range -> NAX_HALF_MAX_TOKENS. */
+                if (strstr(bk->str, "half")) {
                     long b = (long)mx->num + 1;
                     if (b > half_boundary) half_boundary = b;
                 }
+                if (strncmp(bk->str, "ane", 3) == 0) has_ane = true;
+            }
+            /* The engine's per-chunk resolver (precedence: param > this table > gates). */
+            if (tl > 0 && getenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS") == NULL) {
+                (void)setenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS", tbl, 0);
+                fprintf(stderr, "ds4: profile prefill_by_tokens: %s\n", tbl);
+            }
+            /* If any range selects an ANE backend, auto-enable the resident ANE dedup
+             * orchestrator it routes to (the ANE+GPU hybrid). The per-chunk router in
+             * ds4.c sends only ane* chunks there; other chunks stay on the grouped path.
+             * Defaults; user env still wins (overwrite=0). */
+            if (has_ane) {
+                (void)setenv("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1", 0);
+                (void)setenv("DS4_RESIDENT_MOE_ANE_HYBRID", "1", 0);
+                (void)setenv("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1", 0);
+                (void)setenv("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1", 0);
+                fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present -> resident ANE dedup enabled for ane* chunks\n");
             }
             if (half_boundary > 0 &&
                 getenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS") == NULL) {
                 char buf[32];
                 snprintf(buf, sizeof(buf), "%ld", half_boundary);
-                if (setenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", buf, 0) == 0) {
-                    fprintf(stderr,
-                            "ds4: profile prefill_by_tokens: NAX-half below %ld tokens/chunk, int8 at/above\n",
-                            half_boundary);
-                }
+                (void)setenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", buf, 0);
             }
         }
 

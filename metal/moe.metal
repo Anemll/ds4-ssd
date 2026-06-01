@@ -1814,6 +1814,21 @@ kernel void kernel_mul_mm_id_map0(
 
 typedef decltype(kernel_mul_mm_id_map0<1>) kernel_mul_mm_id_map0_t;
 
+// Zero the per-expert token counts (the id-map "tokens-per-expert" / htpe array at
+// buffer offset 0) for experts the ANE handled in the ANE+GPU hybrid, so the GPU
+// mul_mm_id path skips them (it returns early when counts[expert]==0) instead of
+// double-computing what the ANE already scattered. One thread per expert.
+// buffer(0) = int32 tokens-per-expert (ne02 entries); buffer(1) = 256-byte skip mask.
+// (Completes the host call ds4_gpu_encode_zero_skipped_moe_counts added in 1becf06.)
+kernel void kernel_dsv4_moe_zero_skipped_counts(
+        device       int32_t * counts [[buffer(0)]],
+        device const uchar   * skip   [[buffer(1)]],
+        uint e [[thread_position_in_grid]]) {
+    if (skip[e] != 0) {
+        counts[e] = 0;
+    }
+}
+
 // Host-visible map builders for the routed-expert counts used by DS4 graph
 // shapes. Some arities are generic leftovers retained for nearby batch sizes.
 template [[host_name("kernel_mul_mm_id_map0_ne20_1" )]] kernel kernel_mul_mm_id_map0_t kernel_mul_mm_id_map0<1>;

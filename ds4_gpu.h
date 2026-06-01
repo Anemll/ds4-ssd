@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 /* =========================================================================
  * GPU Tensor and Command Lifetime.
@@ -1034,6 +1035,11 @@ int ds4_gpu_copy_i32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
                            ds4_gpu_tensor *dst, uint32_t count);
 int ds4_gpu_copy_f32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
                            ds4_gpu_tensor *dst, uint32_t count);
+
+/* Resolve the routed-MoE prefill backend for a given prefill-chunk token count.
+ * Precedence: DS4_RESIDENT_MOE_BACKEND param > DS4_RESIDENT_MOE_PREFILL_BY_TOKENS
+ * table > "" (caller uses its own fallback). See ds4_metal.m for details. */
+void ds4_gpu_resident_backend_for_tokens(uint32_t n_tokens, char *out, size_t outsz);
 
 int ds4_gpu_routed_moe_batch_tensor(
         ds4_gpu_tensor       *out,

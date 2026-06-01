@@ -769,6 +769,47 @@ static uint32_t ds4_gpu_resident_mpp_sync_max_tokens(void) {
     return ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_MPP_SYNC_MAX_TOKENS", 7168u);
 }
 
+/* Per-chunk routed-MoE backend resolution for the grouped path. PRECEDENCE:
+ *   1. DS4_RESIDENT_MOE_BACKEND            explicit param: force one backend, all chunks
+ *   2. DS4_RESIDENT_MOE_PREFILL_BY_TOKENS  the JSON prefill_by_tokens table (the profile
+ *      loader encodes it as "max:backend,max:backend,..." ascending by max); pick the
+ *      first range whose max >= n_tokens
+ *   3. "" -> caller falls back to the predefined env gates (NAX_HALF + MIN_TOKENS).
+ * Writes the selected backend name to out (e.g. "nax_half_alu","nax_int8","mulmm"), or
+ * "" if neither a param nor a matching range applies. Only grouped-path backends
+ * (mulmm / nax_half / nax_half_alu / nax_int8) are honored by the caller. */
+void ds4_gpu_resident_backend_for_tokens(uint32_t n_tokens, char *out, size_t outsz) {
+    if (!out || outsz == 0) return;
+    out[0] = '\0';
+    const char *forced = getenv("DS4_RESIDENT_MOE_BACKEND");
+    if (forced && forced[0]) {
+        size_t n = strlen(forced);
+        if (n >= outsz) n = outsz - 1;
+        memcpy(out, forced, n);
+        out[n] = '\0';
+        return;
+    }
+    const char *tbl = getenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS");
+    if (!tbl || !tbl[0]) return;
+    const char *p = tbl;
+    while (*p) {
+        char *end = NULL;
+        long mx = strtol(p, &end, 10);
+        if (end == p || *end != ':') break;
+        const char *name = end + 1;
+        const char *comma = strchr(name, ',');
+        size_t nlen = comma ? (size_t)(comma - name) : strlen(name);
+        if ((long)n_tokens <= mx) {
+            if (nlen >= outsz) nlen = outsz - 1;
+            memcpy(out, name, nlen);
+            out[nlen] = '\0';
+            return;
+        }
+        if (!comma) break;
+        p = comma + 1;
+    }
+}
+
 static int ds4_gpu_resident_mpp_int8_prefill_should_run(uint32_t n_tokens) {
     if (!ds4_gpu_resident_mpp_int8_prefill_requested()) return 0;
     if (ds4_gpu_resident_mpp_int8_prefill_forced()) return 1;
@@ -25160,6 +25201,25 @@ int ds4_gpu_routed_moe_batch_tensor(
                                           down_row_bytes, down_expert_bytes,
                                           n_expert, n_expert, n_tokens, down_nr0);
         const bool use_mm_id = n_tokens >= 32u && ds4_gpu_mul_mm_id_map0_name(n_expert) != NULL;
+        /* Per-chunk backend selection (precedence: explicit param > JSON prefill_by_tokens
+         * table > the predefined env gates below). Only grouped-path backends are honored
+         * here; an unsupported name (ane-* or pathc) warns once and falls to the gates. */
+        char tok_backend[24];
+        ds4_gpu_resident_backend_for_tokens(n_tokens, tok_backend, sizeof(tok_backend));
+        const bool tb_set     = tok_backend[0] != '\0';
+        const bool tb_mulmm   = tb_set && strcmp(tok_backend, "mulmm") == 0;
+        const bool tb_half    = tb_set && strstr(tok_backend, "half") != NULL;
+        const bool tb_int8    = tb_set && strstr(tok_backend, "int8") != NULL;
+        const bool tb_use     = tb_mulmm || tb_half || tb_int8;   /* table drives this chunk */
+        if (tb_set && !tb_use && !ds4_gpu_backend_logs_suppressed()) {
+            static bool warned_tb_unsup = false;
+            if (!warned_tb_unsup) {
+                warned_tb_unsup = true;
+                fprintf(stderr, "ds4: prefill_by_tokens backend '%s' is not switchable per-chunk in the "
+                        "grouped path (use mulmm/nax_half/nax_half_alu/nax_int8); falling back to env gates\n",
+                        tok_backend);
+            }
+        }
         /*
          * MTP verification is neither normal decode nor large prefill: the
          * target model must verify a tiny suffix (usually 2 tokens) in one
@@ -25190,13 +25250,36 @@ int ds4_gpu_routed_moe_batch_tensor(
             expert_in_dim == 4096u &&
             expert_mid_dim == 2048u &&
             out_dim == 4096u;
+        /* ANE+NAX hybrid: the resident grouped path runs the COLD experts on NAX-half
+         * while the ANE skip mask (set by the dedup orchestrator) excludes the ANE
+         * experts. Normally skip_mask_active forces classic mul_mm_id (that path is
+         * ane_gpu). ANE+NAX lifts exactly that one case so the cold tail uses resident
+         * NAX-half instead. Two mechanisms keep the ANE experts out of the NAX compute:
+         * encode_zero_skipped zeroes their counts (applied right after map0, before this
+         * path consumes them) AND the resident per-expert loop checks the skip mask
+         * directly (g_ane_skip_mask check, iter-12). Token weights stay fully normalized
+         * (the selection is untouched) — the ANE share was already scatter-added. */
+        const bool ane_nax_under_skip =
+            skip_mask_active &&
+            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID") &&
+            ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
         const bool resident_mpp_requested =
             resident_mpp_shape_supported &&
-            !skip_mask_active &&
-            ds4_gpu_resident_mpp_int8_prefill_requested();
+            (!skip_mask_active || ane_nax_under_skip) &&
+            /* the table can also turn the resident path ON for a NAX/int8 chunk even
+             * if the legacy MPP_INT8 request flag is unset */
+            (ds4_gpu_resident_mpp_int8_prefill_requested() || (tb_use && !tb_mulmm) ||
+             ane_nax_under_skip);
         const bool use_resident_mpp_standard =
             resident_mpp_requested &&
-            ds4_gpu_resident_mpp_int8_prefill_should_run(n_tokens);
+            (ane_nax_under_skip
+                /* ANE+NAX: always take the resident NAX path for the cold tail */
+                ? true
+                : (tb_use
+                    /* table: a NAX/int8 backend -> resident standard; mulmm -> mul_mm_id */
+                    ? !tb_mulmm
+                    /* fallback gate (to be phased out): the MIN_TOKENS auto-threshold */
+                    : ds4_gpu_resident_mpp_int8_prefill_should_run(n_tokens)));
         if (resident_mpp_requested && !use_resident_mpp_standard) {
             static bool warned_resident_mpp_auto_gpu = false;
             if (!warned_resident_mpp_auto_gpu) {
@@ -26310,18 +26393,21 @@ int ds4_gpu_routed_moe_batch_tensor(
                 memset(ane_mask, 0, sizeof(ane_mask));
 
                 const char *nax_half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
-                bool use_h_h =
-                    nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
-                /* Per-prefill-chunk backend selection. NAX-half is the small-chunk
-                 * winner; at/above DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS the standard
-                 * path drops to int8 (the large-chunk winner). 0 = no gate (always
-                 * NAX-half when enabled). This is what makes ds4_profile.json's
-                 * prefill_by_tokens ranges auto-switch nax_half_alu (below) vs nax_int8
-                 * (>=) by token count, with both backends enabled + MPP_FORCE=1. */
-                const uint32_t nax_half_max_tokens =
-                    ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", 0u);
-                if (use_h_h && nax_half_max_tokens != 0u && n_tokens >= nax_half_max_tokens) {
-                    use_h_h = false;
+                bool use_h_h;
+                if (tb_use) {
+                    /* JSON prefill_by_tokens (or DS4_RESIDENT_MOE_BACKEND param) drives
+                     * this chunk: a *half* backend -> NAX-half, else int8. mulmm never
+                     * reaches this resident-standard branch. */
+                    use_h_h = tb_half;
+                } else {
+                    /* fallback gate (to be phased out): static NAX_HALF env clamped by
+                     * the NAX_HALF_MAX_TOKENS auto-threshold. */
+                    use_h_h = nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
+                    const uint32_t nax_half_max_tokens =
+                        ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", 0u);
+                    if (use_h_h && nax_half_max_tokens != 0u && n_tokens >= nax_half_max_tokens) {
+                        use_h_h = false;
+                    }
                 }
                 /* CORRECTNESS FLOOR: the NAX-half matmul2d tiles M (tokens) in units of
                  * 64 (matmul2d_descriptor(64,NT); tA.slice(0, tgid.y*64)). It is only
@@ -26352,9 +26438,13 @@ int ds4_gpu_routed_moe_batch_tensor(
                  * per-expert `mid`; that `mid` is then scattered (overwriting the
                  * tensor-wide swiglu's garbage) into pair-indexed midbuf before down. */
                 const char *fused_gu_env = getenv("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP");
+                /* fused (Plan A) follows the selected backend: the table picks it by name
+                 * (nax_half_alu -> fused, plain nax_half -> not); otherwise the env flag. */
+                const bool fused_requested = tb_use
+                    ? (strstr(tok_backend, "alu") != NULL || strstr(tok_backend, "fused") != NULL)
+                    : (fused_gu_env && fused_gu_env[0] && atoi(fused_gu_env) != 0);
                 const bool use_fused_gate_up =
-                    use_h_h &&
-                    fused_gu_env && fused_gu_env[0] && atoi(fused_gu_env) != 0 &&
+                    use_h_h && fused_requested &&
                     g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline != nil;
                 /* Default 128: sweep shows the fused kernel barely helps at M=64
                  * (~1.08x, can hurt with wrong tile) but gives 1.4–1.7x at M>=128
