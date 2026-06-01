@@ -955,10 +955,18 @@ kernel void ds4_mpp_fused_gate_up_swiglu_h_h_f_n32(
         constant float &clamp_v [[buffer(7)]],
         uint2 tgid [[threadgroup_position_in_grid]])
 {
-    constexpr int NR0 = 32, NR1 = 32, NK = 32;
-    constexpr auto desc = matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+    // Match the validated non-fused h_h_f matmul (ds4_mpp_run_tile_nt / ds4_mpp_h_h_f_n32):
+    // M-tile 64, N-tile 32, K = dynamic_extent (full-K reduction in one run), transpose
+    // all-false, 4 simdgroups, arg order run(X, W, C). The previous version used a FIXED
+    // K-tile (NK=32) — reducing only 32 of K — plus swapped (W,X) args and (false,true,true)
+    // transpose, which diverged. Dispatch updated to grid.y=ceil(M/64), tg=4 simdgroups.
+    // Requires M % 64 == 0 (h_h_f tiles M by 64 with no partial clamp; the resident path's
+    // %64 floor guarantees it).
+    constexpr int NR0 = 64, NR1 = 32;
+    constexpr auto desc = matmul2d_descriptor(NR0, NR1, static_cast<int>(dynamic_extent),
+                                              false, false, false,
                                               matmul2d_descriptor::mode::multiply_accumulate);
-    matmul2d<desc, execution_simdgroups<1>> mm;
+    matmul2d<desc, execution_simdgroups<4>> mm;
 
     auto tX  = tensor(X,     dextents<int32_t, 2>{(int32_t)K, (int32_t)M}, array<int32_t, 2>{1, (int32_t)K});
     auto tG  = tensor(gateW, dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});
@@ -970,15 +978,15 @@ kernel void ds4_mpp_fused_gate_up_swiglu_h_h_f_n32(
     auto mUw = tU.slice(tgid.x * NR1, 0);
     auto mMo = tM.slice(tgid.x * NR1, tgid.y * NR0);
 
-    auto cG = mm.get_destination_cooperative_tensor<decltype(mGw), decltype(mX), float>();
-    auto cU = mm.get_destination_cooperative_tensor<decltype(mUw), decltype(mX), float>();
+    auto cG = mm.get_destination_cooperative_tensor<decltype(mX), decltype(mGw), float>();
+    auto cU = mm.get_destination_cooperative_tensor<decltype(mX), decltype(mUw), float>();
     for (uint16_t i = 0; i < cG.get_capacity(); ++i) if (cG.is_valid_element(i)) cG[i] = 0.0f;
     for (uint16_t i = 0; i < cU.get_capacity(); ++i) if (cU.is_valid_element(i)) cU[i] = 0.0f;
 
     // Two matmuls — the runtime can overlap NAX (tensor) and ALU dispatch within
     // this single kernel; the goal of the fusion is in-kernel NAX∥ALU pipelining.
-    mm.run(mGw, mX, cG);
-    mm.run(mUw, mX, cU);
+    mm.run(mX, mGw, cG);
+    mm.run(mX, mUw, cU);
 
     // Per-element swiglu on cooperative tile: mid = SiLU(gate) * up
     // SiLU(x) = x / (1 + exp(-x)). Clamp gate to avoid exp overflow if clamp_v>0.

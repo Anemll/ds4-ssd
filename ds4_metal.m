@@ -127,6 +127,7 @@ static id<MTLComputePipelineState> g_mpp_scatter_ids_i32_f32_pipeline;
 static id<MTLComputePipelineState> g_mpp_gather_token_f32_half_pipeline;
 static id<MTLComputePipelineState> g_mpp_gather_pair_f32_half_pipeline;
 static id<MTLComputePipelineState> g_mpp_scatter_ids_f32_f32_pipeline;
+static id<MTLComputePipelineState> g_mpp_scatter_ids_f32_f32_weighted_pipeline;
 static id<MTLComputePipelineState> g_mpp_make_routed_indirect_pipeline;
 static id<MTLComputePipelineState> g_mpp_split_counts_pipeline;
 static id<MTLComputePipelineState> g_mpp_gather_token_f32_i8_counted_pipeline;
@@ -5441,6 +5442,7 @@ void ds4_gpu_cleanup(void) {
         g_mpp_gather_token_f32_half_pipeline = nil;
         g_mpp_gather_pair_f32_half_pipeline = nil;
         g_mpp_scatter_ids_f32_f32_pipeline = nil;
+        g_mpp_scatter_ids_f32_f32_weighted_pipeline = nil;
         g_mpp_make_routed_indirect_pipeline = nil;
         g_mpp_split_counts_pipeline = nil;
         g_mpp_gather_token_f32_i8_counted_pipeline = nil;
@@ -22119,6 +22121,32 @@ static const char *ds4_gpu_mpp_int8_source(void) {
         "    }\n"
         "}\n"
         "\n"
+        /* Weighted scatter: dst[hids[row]] = src[row] * scale * weights[hids[row]].\n"
+         * Used by the Plan A fused gate+up+swiglu path (the fused kernel writes\n"
+         * mid=SiLU(gate)*up WITHOUT the per-token routing weight); this folds the\n"
+         * per-pair routing weight in during the scatter, matching the non-fused\n"
+         * ds4_gpu_encode_moe_swiglu_weight. weights is indexed by the dst (pair) id,\n"
+         * same layout as the midbuf this scatters into. */
+        "kernel void ds4_mpp_scatter_ids_f32_f32_weighted(device const float *src [[buffer(0)]],\n"
+        "                                      device const int32_t *hids [[buffer(1)]],\n"
+        "                                      device float *dst [[buffer(2)]],\n"
+        "                                      device const float *weights [[buffer(3)]],\n"
+        "                                      constant uint &rows [[buffer(4)]],\n"
+        "                                      constant uint &width [[buffer(5)]],\n"
+        "                                      constant float &scale [[buffer(6)]],\n"
+        "                                      uint row [[threadgroup_position_in_grid]],\n"
+        "                                      uint tid [[thread_position_in_threadgroup]],\n"
+        "                                      uint ntg [[threads_per_threadgroup]]) {\n"
+        "    if (row >= rows) return;\n"
+        "    const int32_t id = hids[row];\n"
+        "    const float w = weights[id] * scale;\n"
+        "    device const float *src_row = src + (ulong)row * width;\n"
+        "    device float *dst_row = dst + (ulong)id * width;\n"
+        "    for (uint i = tid; i < width; i += ntg) {\n"
+        "        dst_row[i] = src_row[i] * w;\n"
+        "    }\n"
+        "}\n"
+        "\n"
         "kernel void ds4_mpp_gather_token_f32_i8_counted(device const float *src [[buffer(0)]],\n"
         "                                              device const int32_t *hids [[buffer(1)]],\n"
         "                                              device int8_t *dst [[buffer(2)]],\n"
@@ -22684,6 +22712,8 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_gather_pair_f32_half");
     g_mpp_scatter_ids_f32_f32_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_scatter_ids_f32_f32");
+    g_mpp_scatter_ids_f32_f32_weighted_pipeline =
+        ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_scatter_ids_f32_f32_weighted");
     g_mpp_make_routed_indirect_pipeline =
         ds4_gpu_make_mpp_pipeline(library, @"ds4_mpp_make_routed_indirect");
     g_mpp_split_counts_pipeline =
@@ -23359,15 +23389,13 @@ static int ds4_gpu_encode_mpp_fused_gate_up_swiglu(
         return 0;
     }
     id<MTLComputePipelineState> p = g_mpp_fused_gate_up_swiglu_h_h_f_n32_pipeline;
-    /* Kernel: NR0=32 NR1=32 SG=1 (1 simdgroup per threadgroup → tg=32 threads).
-     * Grid: ((N+31)/32, (M+31)/32). Tuned via synthetic sweep, see
-     * moe-batch-bench/fused_kernel_probe.m (1.69x @M=512 vs separate).
-     * Production verdict (2026-05-27): with DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS=0
-     * (engage on ALL experts, override default 128) + cooldown-separated benching,
-     * Plan A reaches 544.7 t/s @ resident 16K — clears the 532 ceiling by +2.4%. */
-    MTLSize tg = MTLSizeMake((NSUInteger)p.threadExecutionWidth * 1u, 1, 1);
+    /* Kernel (FIXED 2026-06-01): NR0=64 (M-tile) NR1=32 (N-tile) SG=4 — mirrors the
+     * validated h_h_f matmul (dynamic_extent K). Grid: ((N+31)/32, (M+63)/64), tg = 4
+     * simdgroups. Requires M % 64 == 0 (guaranteed by the resident-path %64 floor). The
+     * previous NR0=32/SG=1/NK=32 version reduced only 32 of K and diverged. */
+    MTLSize tg = MTLSizeMake((NSUInteger)p.threadExecutionWidth * 4u, 1, 1);
     MTLSize grid = MTLSizeMake(((NSUInteger)N + 31u) / 32u,
-                               ((NSUInteger)M + 31u) / 32u,
+                               ((NSUInteger)M + 63u) / 64u,
                                1);
     id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
     [enc setComputePipelineState:p];
@@ -24230,6 +24258,44 @@ static int ds4_gpu_encode_mpp_scatter_ids_f32_f32(
     [enc setBytes:&rows length:sizeof(rows) atIndex:3];
     [enc setBytes:&width length:sizeof(width) atIndex:4];
     [enc setBytes:&scale length:sizeof(scale) atIndex:5];
+    [enc dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
+         threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+/* Weighted variant: dst[hids[row]] = src[row] * scale * weights[hids[row]]. Folds the
+ * per-pair routing weight into the Plan A fused gate+up+swiglu scatter (the fused kernel
+ * omits it). weights is indexed by the dst id (same layout as dst). */
+static int ds4_gpu_encode_mpp_scatter_ids_f32_f32_weighted(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        id<MTLBuffer>        hids,
+        NSUInteger           hids_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           dst_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        uint32_t             rows,
+        uint32_t             width,
+        float                scale) {
+    if (!cb || !src || !hids || !dst || !weights || rows == 0 || width == 0 ||
+        !g_mpp_scatter_ids_f32_f32_weighted_pipeline) {
+        return 0;
+    }
+    NSUInteger nth = g_mpp_scatter_ids_f32_f32_weighted_pipeline.maxTotalThreadsPerThreadgroup;
+    if (nth > 256u) nth = 256u;
+    if (nth > width) nth = width;
+    if (nth == 0) nth = 1u;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mpp_scatter_ids_f32_f32_weighted_pipeline];
+    [enc setBuffer:src offset:0 atIndex:0];
+    [enc setBuffer:hids offset:hids_off atIndex:1];
+    [enc setBuffer:dst offset:dst_off atIndex:2];
+    [enc setBuffer:weights offset:weights_off atIndex:3];
+    [enc setBytes:&rows length:sizeof(rows) atIndex:4];
+    [enc setBytes:&width length:sizeof(width) atIndex:5];
+    [enc setBytes:&scale length:sizeof(scale) atIndex:6];
     [enc dispatchThreadgroups:MTLSizeMake(rows, 1, 1)
          threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);
@@ -26442,6 +26508,24 @@ int ds4_gpu_routed_moe_batch_tensor(
                 if (use_h_h && (n_tokens < 64u || (n_tokens % 64u) != 0u) &&
                     !ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL")) {
                     use_h_h = false;
+                    /* NEVER demote silently: NAX-half was requested but the matmul2d M-tile
+                     * is a fixed 64 and the h_h_f kernel over-reads a partial tile, so a
+                     * non-multiple-of-64 chunk is demoted to int8 (whose counted-indirect
+                     * kernels clamp the partial tile and stay correct). Log it once so a
+                     * "requested half, ran int8" surprise is visible, not hidden. */
+                    if (!ds4_gpu_backend_logs_suppressed()) {
+                        static bool warned_half_floor = false;
+                        if (!warned_half_floor) {
+                            warned_half_floor = true;
+                            fprintf(stderr,
+                                "ds4: NAX-half requested but chunk n_tokens=%u is not a "
+                                "multiple of 64 -> DEMOTED to int8 (h_h_f matmul2d M-tile=64 "
+                                "over-reads partial tiles; int8 counted kernels clamp). "
+                                "Set DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL=1 to force half "
+                                "(UNSAFE / corrupts).\n",
+                                n_tokens);
+                        }
+                    }
                 }
                 uint32_t h_h_tile =
                     ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
@@ -26859,10 +26943,15 @@ int ds4_gpu_routed_moe_batch_tensor(
                                                                      g_mpp_prefill_gate_i32_buffer, 0,
                                                                      refs, expert_mid_dim, expert_in_dim,
                                                                      (float)clamp) &&
-                             ds4_gpu_encode_mpp_scatter_ids_f32_f32(cb,
+                             /* WEIGHTED scatter: the fused kernel wrote mid=SiLU(gate)*up
+                              * WITHOUT the per-token routing weight, so fold weights[pair]
+                              * in here (matches the non-fused ds4_gpu_encode_moe_swiglu_weight).
+                              * Without this the routing weight is dropped -> divergent output. */
+                             ds4_gpu_encode_mpp_scatter_ids_f32_f32_weighted(cb,
                                                                     g_mpp_prefill_gate_i32_buffer,
                                                                     g_moe_id_map_buffer, hids_off,
                                                                     midbuf, ds4_gpu_tensor_offset(mid),
+                                                                    weightsbuf, ds4_gpu_tensor_offset(weights),
                                                                     refs, expert_mid_dim, 1.0f);
                     }
                 }
