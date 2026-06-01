@@ -25567,6 +25567,28 @@ int ds4_gpu_routed_moe_batch_tensor(
                     sync_bridge_env && sync_bridge_env[0] ?
                         atoi(sync_bridge_env) != 0 :
                         (sync_max_tokens != 0u && n_tokens <= sync_max_tokens);
+                /* AUTHORITATIVE one-time print of the param that actually gates the
+                 * sync bridge: the resident-MoE TILE n_tokens (NOT the prefill chunk —
+                 * the resident path tiles by batch_routed_scratch_cap, hard-capped to
+                 * 2048 whenever DS4_RESIDENT_MOE_ANE_HYBRID / COMPACT_SCRATCH is set,
+                 * ds4.c:9895). tile <= sync_max_tokens -> slow CPU<->GPU count-readback
+                 * (map_wait); tile > it -> fast fully-indirect. Surfaced so a hidden
+                 * tiling override can't silently force the slow path. */
+                if (!ds4_gpu_backend_logs_suppressed()) {
+                    static bool synced_logged = false;
+                    if (!synced_logged) {
+                        synced_logged = true;
+                        fprintf(stderr,
+                            "ds4: resident-NAX tile n_tokens=%u -> sync-bridge=%s "
+                            "(sync_max_tokens=%u, src=%s) -> %s\n",
+                            n_tokens,
+                            use_sync_bridge ? "ON" : "off",
+                            sync_max_tokens,
+                            (sync_bridge_env && sync_bridge_env[0]) ? "env" : "auto(tile<=max)",
+                            use_sync_bridge ? "slow count-readback (map_wait)"
+                                            : "fast fully-indirect (no readback)");
+                    }
+                }
                 if (!use_sync_bridge) {
                     const uint32_t total_model_experts = 256u;
                     const NSUInteger tpe_bytes =

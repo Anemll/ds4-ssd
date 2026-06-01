@@ -14304,8 +14304,10 @@ static uint32_t metal_graph_flash_moe_prefill_chunk_cap(const ds4_gpu_graph *g) 
 static uint32_t metal_graph_effective_prefill_cap(const ds4_gpu_graph *g) {
     if (!g || g->prefill_cap == 0) return 0;
     uint32_t cap = g->prefill_cap;
+    const uint32_t requested = cap;        /* post-auto-cap value baked into the graph */
+    const char *clamp_src = NULL;
     const uint32_t flash_cap = metal_graph_flash_moe_prefill_chunk_cap(g);
-    if (flash_cap < cap) cap = flash_cap;
+    if (flash_cap < cap) { cap = flash_cap; clamp_src = "flash-slot-bank"; }
     const uint32_t raw_window = g->raw_window ? g->raw_window : DS4_N_SWA;
     const uint32_t raw_chunk_cap = g->raw_cap > raw_window ? g->raw_cap - raw_window : 1u;
     if (raw_chunk_cap < cap) {
@@ -14323,6 +14325,29 @@ static uint32_t metal_graph_effective_prefill_cap(const ds4_gpu_graph *g) {
                 cap, raw_chunk_cap, g->raw_cap, raw_window, raw_window + cap);
         }
         cap = raw_chunk_cap;
+        clamp_src = "raw-KV-cap (ctx-grow)";
+    }
+    if (cap == 0) cap = 1u;
+    /* One-time EFFECTIVE prefill-chunk diagnostic. This is the prompt-chunk cap; note it
+     * can differ from what the env/run-script requested (auto-cap to 4096 for prompt>4096,
+     * or a raw-KV/ctx-grow clamp). NOTE: the resident-NAX path tiles this further by
+     * batch_routed_scratch_cap (2048 under ANE_HYBRID/COMPACT_SCRATCH), and it is that TILE
+     * — not this cap — that gates the sync bridge; see the authoritative "resident-NAX tile
+     * n_tokens=... sync-bridge=..." line (ds4_metal.m). Surface both so a silent override
+     * (a ~40% prefill cost via the sync bridge) is never hidden. */
+    {
+        static int diag_done = 0;
+        if (!diag_done) {
+            diag_done = 1;
+            const char *cenv = getenv("DS4_METAL_PREFILL_CHUNK");
+            fprintf(stderr,
+                "ds4: prefill chunk cap EFFECTIVE=%u tokens (DS4_METAL_PREFILL_CHUNK=%s)%s%s "
+                "(resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)\n",
+                cap,
+                (cenv && cenv[0]) ? cenv : "unset(auto<=4096)",
+                clamp_src ? ", CLAMPED by " : "",
+                clamp_src ? clamp_src : "");
+        }
     }
     return cap ? cap : 1u;
 }
