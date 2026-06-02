@@ -1,4 +1,5 @@
 #include "ds4.h"
+#include "ds4_profile.h"
 #include "linenoise.h"
 
 /* ds4 CLI.
@@ -590,6 +591,7 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
 
     const double prefill_s = t_prefill1 - t_prefill0;
     const double decode_s = t_decode1 - t_decode0;
+    ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
     ds4_log(stderr,
             DS4_LOG_TIMING,
             "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
@@ -1072,6 +1074,7 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
     const double prefill_s = t_prefill1 - t_prefill0;
     const double decode_s = t_decode1 - t_decode0;
     if (interrupted) cli_interrupt_clear();
+    ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
     ds4_log(stderr,
             DS4_LOG_TIMING,
             "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
@@ -1396,6 +1399,8 @@ static cli_config parse_options(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     cli_config cfg = parse_options(argc, argv);
+    ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
+    ds4_profile_load_and_apply();
     if (cfg.gen.dump_tokens) {
         if (cfg.gen.prompt == NULL) {
             fprintf(stderr, "ds4: --dump-tokens requires -p or --prompt-file\n");

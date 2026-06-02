@@ -531,7 +531,7 @@ static NSString *gen_mil_i8w_i8x_fused(int H, int I, int B, float w_scale, float
     return m;
 }
 
-static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
+static NSString *gen_mil_i8w_i8x_tiled_fused_common(int H, int I, int B, float w_scale, float x_scale, float mid_scale, bool routed) {
     const int tile_i = 256;
     NSMutableString *m = [NSMutableString string];
     [m appendString:
@@ -541,9 +541,15 @@ static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale,
         @"{\"coremlc-version\", \"3520.5.1\"}, "
         @"{\"coremltools-component-milinternal\", \"\"}, "
         @"{\"coremltools-version\", \"9.0\"}})]\n{\n"];
-    [m appendFormat:
-        @"    func main<ios18>(tensor<int8, [%d, %d]> Wgq, tensor<int8, [%d, %d]> Wuq, tensor<int8, [%d, %d]> Wdq, tensor<int8, [%d, %d]> Xq) {\n",
-        H, I, H, I, I, H, B, H];
+    if (routed) {
+        [m appendFormat:
+            @"    func main<ios18>(tensor<int8, [%d, %d]> Wgq, tensor<int8, [%d, %d]> Wuq, tensor<int8, [%d, %d]> Wdq, tensor<int8, [%d, %d]> Xq, tensor<fp16, [1, %d, %d]> R) {\n",
+            H, I, H, I, I, H, B, H, B, I];
+    } else {
+        [m appendFormat:
+            @"    func main<ios18>(tensor<int8, [%d, %d]> Wgq, tensor<int8, [%d, %d]> Wuq, tensor<int8, [%d, %d]> Wdq, tensor<int8, [%d, %d]> Xq) {\n",
+            H, I, H, I, I, H, B, H];
+    }
     [m appendFormat:@"            fp16 wscale = const()[name = string(\"wscale\"), val = fp16(%a)];\n",
                     (double)w_scale];
     [m appendFormat:@"            fp16 xscale = const()[name = string(\"xscale\"), val = fp16(%a)];\n",
@@ -556,6 +562,7 @@ static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale,
         @"            fp16 clamp_hi = const()[name = string(\"clamp_hi\"), val = fp16(0x1.4p+3)];\n"
         @"            fp16 clamp_lo = const()[name = string(\"clamp_lo\"), val = fp16(-0x1.4p+3)];\n"
         @"            tensor<int32, [1]> ax0 = const()[name = string(\"ax0\"), val = tensor<int32, [1]>([0])];\n"
+        @"            tensor<int32, [1]> ax1 = const()[name = string(\"ax1\"), val = tensor<int32, [1]>([1])];\n"
         @"            bool tx_f = const()[name = string(\"tx_f\"), val = bool(false)];\n"];
     [m appendFormat:@"            tensor<fp16, [%d, %d]> X = dequantize(input = Xq, scale = xscale, zero_point = zp)[name = string(\"X\")];\n", B, H];
     [m appendFormat:@"            tensor<fp16, [1, %d, %d]> X3 = expand_dims(axes = ax0, x = X)[name = string(\"X3\")];\n", B, H];
@@ -589,8 +596,18 @@ static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale,
                         B, T, tag, tag, tag];
         [m appendFormat:@"            tensor<fp16, [1, %d, %d]> hidden_fp_%@ = mul(x = act_%@, y = up_c_%@)[name = string(\"hidden_fp_%@\")];\n",
                         B, T, tag, tag, tag, tag];
-        [m appendFormat:@"            tensor<int8, [1, %d, %d]> hidden_q_%@ = quantize(input = hidden_fp_%@, output_dtype = q_dtype, scale = midscale, zero_point = zp)[name = string(\"hidden_q_%@\")];\n",
-                        B, T, tag, tag, tag];
+        NSString *hidden_src = [NSString stringWithFormat:@"hidden_fp_%@", tag];
+        if (routed) {
+            NSString *route_tile = [NSString stringWithFormat:@"R_%@", tag];
+            [m appendFormat:@"            tensor<fp16, [1, %d, %d]> %@ = slice_by_index(begin = tensor<int32, [3]>([0, 0, %d]), end = tensor<int32, [3]>([1, %d, %d]), x = R)[name = string(\"%@\")];\n",
+                            B, T, route_tile, start, B, end, route_tile];
+            NSString *hidden_wr = [NSString stringWithFormat:@"hidden_wr_%@", tag];
+            [m appendFormat:@"            tensor<fp16, [1, %d, %d]> %@ = mul(x = hidden_fp_%@, y = %@)[name = string(\"%@\")];\n",
+                            B, T, hidden_wr, tag, route_tile, hidden_wr];
+            hidden_src = hidden_wr;
+        }
+        [m appendFormat:@"            tensor<int8, [1, %d, %d]> hidden_q_%@ = quantize(input = %@, output_dtype = q_dtype, scale = midscale, zero_point = zp)[name = string(\"hidden_q_%@\")];\n",
+                        B, T, tag, hidden_src, tag];
         [m appendFormat:@"            tensor<fp16, [1, %d, %d]> hidden_%@ = dequantize(input = hidden_q_%@, scale = midscale, zero_point = zp)[name = string(\"hidden_%@\")];\n",
                         B, T, tag, tag, tag];
         NSString *y_name = [NSString stringWithFormat:@"Y_%@", tag];
@@ -607,6 +624,14 @@ static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale,
     }
     [m appendFormat:@"        } -> (%@);\n}\n", prev_y ?: @"X3"];
     return m;
+}
+
+static NSString *gen_mil_i8w_i8x_tiled_fused(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
+    return gen_mil_i8w_i8x_tiled_fused_common(H, I, B, w_scale, x_scale, mid_scale, false);
+}
+
+static NSString *gen_mil_i8w_i8x_tiled_fused_routed(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
+    return gen_mil_i8w_i8x_tiled_fused_common(H, I, B, w_scale, x_scale, mid_scale, true);
 }
 
 /* Variant of gen_mil_i8w_i8x_tiled_fused that ends with a `quantize` so the
@@ -1157,6 +1182,7 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
     if (mode == 4 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 5 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 6 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
+    if (mode == 13 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     ane_cleanup_stale_tmp_dirs_once();
     resolve_classes();
     const bool dbg = ane_int8w_debug_enabled();
@@ -1260,14 +1286,16 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
              (mode == 6 ? gen_mil_i8w_i8x_tiled_fused(H, I, B, w_scale, x_scale, mid_scale) :
               (mode == 7 ? gen_mil_i8w_i8x_tiled_fused_i8out(H, I, B, w_scale, x_scale, mid_scale) :
                (mode == 8 ? gen_mil_fp16w_fused_conv(H, I, B) :
-                          gen_mil_int8w(H, I, B, w_scale, x_scale)))));
+                (mode == 13 ? gen_mil_i8w_i8x_tiled_fused_routed(H, I, B, w_scale, x_scale, mid_scale) :
+                          gen_mil_int8w(H, I, B, w_scale, x_scale))))));
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         if (dbg) fprintf(stderr, "ds4: ANE %s create H=%d I=%d B=%d w_scale=%g x_scale=%g mid_scale=%g\n",
                          mode == 1 ? "fp16w" :
                             (mode == 4 ? "i8w-i8x-fused" :
                              (mode == 6 ? "i8w-i8x-tiled-fused" :
                               (mode == 7 ? "i8w-i8x-tiled-fused-i8out" :
-                               (mode == 8 ? "fp16w-fused-conv" : "int8w")))),
+                               (mode == 8 ? "fp16w-fused-conv" :
+                                (mode == 13 ? "i8w-i8x-tiled-fused-routed" : "int8w"))))),
                          H, I, B, w_scale, x_scale, mid_scale);
         id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
             g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
@@ -1314,14 +1342,16 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         ctx->gate_bytes = (NSUInteger)H * (NSUInteger)I * elem;
         ctx->down_bytes = (NSUInteger)I * (NSUInteger)H * elem;
         ctx->x_bytes = (NSUInteger)B * (NSUInteger)H * elem;
-        ctx->route_bytes = (NSUInteger)B * 2u;
+        ctx->route_bytes = (mode == 13) ? (NSUInteger)B * (NSUInteger)I * 2u : (NSUInteger)B * 2u;
         ctx->out_bytes = (NSUInteger)B * (NSUInteger)H * out_elem;
         ctx->io_gate = make_surface_typed(ctx->gate_bytes, elem);
         ctx->io_up = make_surface_typed(ctx->gate_bytes, elem);
         ctx->io_down = make_surface_typed(ctx->down_bytes, elem);
         ctx->io_x = make_surface_typed(ctx->x_bytes, elem);
+        ctx->io_route = (mode == 13) ? make_surface_typed(ctx->route_bytes, 2u) : NULL;
         ctx->io_out = make_surface_typed(ctx->out_bytes, out_elem);
-        if (!ctx->io_gate || !ctx->io_up || !ctx->io_down || !ctx->io_x || !ctx->io_out) {
+        if (!ctx->io_gate || !ctx->io_up || !ctx->io_down || !ctx->io_x ||
+            (mode == 13 && !ctx->io_route) || !ctx->io_out) {
             if (dbg) fprintf(stderr, "ds4: ANE IOSurface allocation failed\n");
             ds4_ane_mlp_int8w_destroy(ctx);
             ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
@@ -1332,11 +1362,27 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         id w_u = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_up);
         id w_d = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_down);
         id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
+        id w_r = ctx->io_route ? ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_route) : nil;
         id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
-        NSArray *req_inputs = (mode == 4 || mode == 6 || mode == 7) ? @[w_d, w_g, w_u, w_x] : @[w_g, w_u, w_d, w_x];
+        NSArray *req_inputs = nil;
+        if (mode == 13) {
+            const char *order_env = getenv("DS4_ANE_ROUTED_ORDER");
+            const int order = (order_env && order_env[0]) ? atoi(order_env) : 0;
+            switch (order) {
+                case 1: req_inputs = @[w_d, w_g, w_u, w_x, w_r]; break;
+                case 2: req_inputs = @[w_g, w_u, w_d, w_x, w_r]; break;
+                case 3: req_inputs = @[w_g, w_u, w_d, w_r, w_x]; break;
+                case 4: req_inputs = @[w_d, w_g, w_u, w_r, w_x]; break;
+                case 5: req_inputs = @[w_r, w_g, w_u, w_d, w_x]; break;
+                default: req_inputs = @[w_r, w_d, w_g, w_u, w_x]; break;
+            }
+        } else {
+            req_inputs = (mode == 4 || mode == 6 || mode == 7) ? @[w_d, w_g, w_u, w_x] : @[w_g, w_u, w_d, w_x];
+        }
+        NSArray *req_indices = mode == 13 ? @[@0, @1, @2, @3, @4] : @[@0, @1, @2, @3];
         id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
             g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
-            req_inputs, @[@0, @1, @2, @3], @[w_o], @[@0], nil, nil, @0);
+            req_inputs, req_indices, @[w_o], @[@0], nil, nil, @0);
         if (!req) {
             if (dbg) fprintf(stderr, "ds4: ANE request create failed\n");
             ds4_ane_mlp_int8w_destroy(ctx);
@@ -1377,6 +1423,10 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_gateup_fused_create(int H, int I, int
 
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
     return ds4_ane_mlp_create_common(H, I, B, w_scale, x_scale, mid_scale, 6);
+}
+
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_routed_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
+    return ds4_ane_mlp_create_common(H, I, B, w_scale, x_scale, mid_scale, 13);
 }
 
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale) {
@@ -2281,6 +2331,45 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval(
         }
         if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
             if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused IOSurface read failed\n");
+            return false;
+        }
+        return true;
+    }
+}
+
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_routed_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    const uint16_t *route_f16,
+    uint16_t *output_f16)
+{
+    if (!ctx || !Wgate_i8 || !Wup_i8 || !Wdown_i8 || !input_i8 || !route_f16 || !output_f16) return false;
+    if (ctx->mode != 13) return false;
+    const bool dbg = ane_int8w_debug_enabled();
+    @autoreleasepool {
+        if (!write_surface(ctx->io_gate, Wgate_i8, ctx->gate_bytes) ||
+            !write_surface(ctx->io_up, Wup_i8, ctx->gate_bytes) ||
+            !write_surface(ctx->io_down, Wdown_i8, ctx->down_bytes) ||
+            !write_surface(ctx->io_x, input_i8, ctx->x_bytes) ||
+            !write_surface(ctx->io_route, route_f16, ctx->route_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused routed IOSurface write failed\n");
+            return false;
+        }
+        NSError *e = nil;
+        BOOL ok = ((BOOL(*)(id,SEL,unsigned int,id,id,NSError**))objc_msgSend)(
+            (__bridge id)ctx->model_r,
+            @selector(evaluateWithQoS:options:request:error:),
+            21, @{}, (__bridge id)ctx->request_r, &e);
+        if (!ok) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused routed evaluate failed: %s\n",
+                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+            return false;
+        }
+        if (!read_surface(ctx->io_out, output_f16, ctx->out_bytes)) {
+            if (dbg) fprintf(stderr, "ds4: ANE i8w-i8x tiled fused routed IOSurface read failed\n");
             return false;
         }
         return true;

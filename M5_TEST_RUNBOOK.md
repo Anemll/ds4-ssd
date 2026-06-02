@@ -57,7 +57,7 @@ Read the `prefill ... avg=NNN t/s` line. ANE win = `ane avg` > `nax avg`.
 ### Force MORE experts onto ANE (try on slow GPU — the M5-Max 384 floor is too high there)
 ```bash
 DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS=0 \   # main gate: refs floor for ANE eligibility (default 384 in launcher)
-DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL=0 \    # batch-utilization floor (default 0.75)
+DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL=0 \    # batch-utilization floor (default 0)
   ./run_ane_ssd_agent_m5.sh --ctx 16384 --non-interactive -n 8 < "$PROMPT"
 ```
 Sweep `HYBRID_ANE_MIN_REFS` ∈ {0, 32, 64, 128, 256, 384} on the slow GPU to find

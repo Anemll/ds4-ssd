@@ -1,4 +1,5 @@
 #include "ds4.h"
+#include "ds4_profile.h"
 #include "rax.h"
 
 /* OpenAI/Anthropic compatible local server.
@@ -12027,10 +12028,12 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
+    ds4_profile_load_and_apply();
+    log_context_memory(cfg.engine.backend, cfg.ctx_size);
+
     ds4_engine *engine = NULL;
     if (ds4_engine_open(&engine, &cfg.engine) != 0) return 1;
-
-    log_context_memory(cfg.engine.backend, cfg.ctx_size);
 
     ds4_session *session = NULL;
     if (ds4_session_create(&session, engine, cfg.ctx_size) != 0) {

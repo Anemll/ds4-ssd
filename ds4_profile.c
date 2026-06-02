@@ -17,6 +17,8 @@
 #include <mach-o/dyld.h>
 #endif
 
+static bool g_profile_sidecar_mode = false;
+
 /* ------------------------------------------------------------------ */
 /* Minimal JSON parser (objects, arrays, strings, numbers, bool, null) */
 /* ------------------------------------------------------------------ */
@@ -299,6 +301,17 @@ static char *resolve_profile_path(void) {
     return NULL;
 }
 
+void ds4_profile_disable_auto_default(void) {
+    const char *env = getenv("DS4_PROFILE");
+    if (!env || !env[0]) {
+        (void)setenv("DS4_PROFILE", "none", 0);
+    }
+}
+
+void ds4_profile_set_sidecar_mode(bool enabled) {
+    g_profile_sidecar_mode = enabled;
+}
+
 /* ------------------------------------------------------------------ */
 /* Match + apply                                                      */
 /* ------------------------------------------------------------------ */
@@ -315,6 +328,53 @@ static bool profile_matches(const jval *match, const char *chip, uint64_t ram_by
         if (have_gib + 0.5 < jram->num) return false; /* small slack */
     }
     return true;
+}
+
+static void apply_resident_ane_prefill_defaults(void) {
+    /* Profile-level equivalent of the safe parts of --resident-ane-prefill.
+     * Do not set DS4_RESIDENT_MOE_BACKEND here: the prefill_by_tokens table must
+     * keep control so small chunks can stay on mulmm while large chunks use ane*. */
+    (void)setenv("DS4_FLASH_MOE_ANE_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_OVERLAP_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_OVERLAP_SCHEDULER", "0", 0);
+
+    (void)setenv("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_HYBRID", "1", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_HYBRID_OUTER", "0", 0);
+    (void)setenv("DS4_RESIDENT_MOE_COMPACT_SCRATCH", "1", 0);
+    (void)setenv("DS4_METAL_LAZY_MODEL_VIEWS", "1", 0);
+    (void)setenv("DS4_METAL_DECODE_RESIDENCY", "1", 0);
+    (void)setenv("DS4_METAL_RELEASE_PREFILL_SCRATCH_ON_DECODE", "1", 0);
+    (void)setenv("DS4_METAL_NO_PREFILL_KERNEL_WARMUP", "1", 0);
+    (void)setenv("DS4_METAL_GPU_BATCH_EMBED_MIN", "1048576", 0);
+    (void)setenv("DS4_RESIDENT_MOE_MPP_MIN_TILE_UTIL", "0.0", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_MIN_REFS", "64", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_MAX_REFS", "1024", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_QUEUE", "8", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_GPU_TAIL_GATHER_SCATTER", "1", 0);
+    (void)setenv("DS4_RESIDENT_MOE_ANE_GPU_TAIL_OVERLAP", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_INT8_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_INT8_QSCALE", "512", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE", "32", 0);
+    (void)setenv("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE", "32", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_DUAL", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_THREADS", "2", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_MULTI_ACTIVE", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_BATCHES", "256", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_MAX_REFS", "256", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_OUTPUT_QUEUE", "4", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK", "1", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_PREFLUSH_EVERY", "4", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "0", 0);
+    (void)setenv("DS4_SHARED_EXPERT_ANE_I8I8", "0", 0);
+    (void)setenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ", "0", 0);
 }
 
 void ds4_profile_load_and_apply(void) {
@@ -352,7 +412,7 @@ void ds4_profile_load_and_apply(void) {
         if (!prof || prof->t != JOBJ) continue;
         if (!profile_matches(jobj_get(prof, "match"), chip, ram)) continue;
 
-        const jval *env = jobj_get(prof, "env");
+        const jval *env = jobj_get(prof, g_profile_sidecar_mode ? "sidecar_env" : "env");
         int applied = 0, skipped = 0;
         if (env && env->t == JOBJ) {
             for (int k = 0; k < env->nkeys; k++) {
@@ -382,7 +442,7 @@ void ds4_profile_load_and_apply(void) {
          * max_tokens of a NAX-half/"*half*" range) + 1, so NAX-half runs below that
          * boundary and int8 at/above it. The "env" block above must enable BOTH
          * backends (NAX_HALF + MPP_INT8_PREFILL) and MPP_FORCE for the gate to apply. */
-        const jval *pbt = jobj_get(prof, "prefill_by_tokens");
+        const jval *pbt = g_profile_sidecar_mode ? NULL : jobj_get(prof, "prefill_by_tokens");
         if (pbt && pbt->t == JARR) {
             long half_boundary = -1;
             bool has_ane = false;
@@ -411,16 +471,12 @@ void ds4_profile_load_and_apply(void) {
                 (void)setenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS", tbl, 0);
                 fprintf(stderr, "ds4: profile prefill_by_tokens: %s\n", tbl);
             }
-            /* If any range selects an ANE backend, auto-enable the resident ANE dedup
-             * orchestrator it routes to (the ANE+GPU hybrid). The per-chunk router in
-             * ds4.c sends only ane* chunks there; other chunks stay on the grouped path.
-             * Defaults; user env still wins (overwrite=0). */
+            /* If any range selects an ANE backend, ingest the resident ANE prefill
+             * defaults. The per-chunk router still sends only ane* chunks there; other
+             * chunks stay on the grouped path. Defaults; user env still wins. */
             if (has_ane) {
-                (void)setenv("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1", 0);
-                (void)setenv("DS4_RESIDENT_MOE_ANE_HYBRID", "1", 0);
-                (void)setenv("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1", 0);
-                (void)setenv("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1", 0);
-                fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present -> resident ANE dedup enabled for ane* chunks\n");
+                apply_resident_ane_prefill_defaults();
+                fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present -> resident ANE prefill defaults enabled for ane* chunks\n");
             }
             if (half_boundary > 0 &&
                 getenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS") == NULL) {
@@ -431,7 +487,8 @@ void ds4_profile_load_and_apply(void) {
         }
 
         fprintf(stderr,
-                "ds4: applied tuning profile [%s] from %s (%d env defaults set, %d kept from environment)\n",
+                "ds4: applied %stuning profile [%s] from %s (%d env defaults set, %d kept from environment)\n",
+                g_profile_sidecar_mode ? "sidecar " : "",
                 chip[0] ? chip : "unknown-device", path, applied, skipped);
         break; /* first matching profile wins */
     }

@@ -1,5 +1,6 @@
 #include "ds4.h"
 #include "ds4_kvstore.h"
+#include "ds4_profile.h"
 #include "linenoise.h"
 
 #include <errno.h>
@@ -64,6 +65,11 @@ typedef struct {
     const char *resume_sha;
     int moe_prefetch_temporal;
     int moe_prefetch_topk;
+    bool resident_ane_prefill;
+    bool resident_ane_shared_expert;
+    bool resident_ane_oproj;
+    int resident_ane_cache_layers;
+    bool no_decode_split;
     bool non_interactive;
 } agent_config;
 
@@ -484,6 +490,14 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where available.\n"
         "  --warm-weights         Touch mapped tensor pages before generation.\n"
+        "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
+        "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
+        "  --resident-ane-shared-expert\n"
+        "                         Also route the shared expert to ANE during prefill.\n"
+        "  --resident-ane-oproj   Also route attention O-proj to ANE during prefill.\n"
+        "  --resident-ane-cache-layers N\n"
+        "                         Bound ANE shared-expert layer cache; 0=default.\n"
+        "  --no-decode-split      Disable the mid-token Metal decode command-buffer split.\n"
         "  --dir-steering-file FILE\n"
         "  --dir-steering-ffn F\n"
         "  --dir-steering-attn F\n"
@@ -505,6 +519,83 @@ static const char *need_arg(int *i, int argc, char **argv, const char *opt) {
         exit(2);
     }
     return argv[++(*i)];
+}
+
+static void agent_setenv_or_die(const char *name, const char *value) {
+    if (setenv(name, value, 1) != 0) {
+        fprintf(stderr, "ds4-agent: setenv %s: %s\n", name, strerror(errno));
+        exit(2);
+    }
+}
+
+static void agent_setenv_default_or_die(const char *name, const char *value) {
+    if (setenv(name, value, 0) != 0) {
+        fprintf(stderr, "ds4-agent: setenv %s: %s\n", name, strerror(errno));
+        exit(2);
+    }
+}
+
+static void agent_setenv_int_or_die(const char *name, int value) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", value);
+    agent_setenv_or_die(name, buf);
+}
+
+static void agent_enable_resident_ane_prefill(agent_config *c) {
+    c->resident_ane_prefill = true;
+
+    /* This is the resident/full-model path, not the Flash-MoE sidecar path.
+     * Clear sidecar knobs so stale launcher env does not schedule nonexistent
+     * sidecar work. Shared-expert ANE is controlled separately. */
+    agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", "0");
+    agent_setenv_or_die("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "0");
+    agent_setenv_or_die("DS4_FLASH_MOE_OVERLAP_PREFILL", "0");
+    agent_setenv_or_die("DS4_FLASH_MOE_OVERLAP_SCHEDULER", "0");
+
+    agent_setenv_or_die("DS4_RESIDENT_MOE_ANE_HYBRID", "1");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_BACKEND", "ane_gpu");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_HYBRID_OUTER", "0");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_COMPACT_SCRATCH", "1");
+    agent_setenv_default_or_die("DS4_METAL_LAZY_MODEL_VIEWS", "1");
+    agent_setenv_default_or_die("DS4_METAL_DECODE_RESIDENCY", "1");
+    agent_setenv_default_or_die("DS4_METAL_RELEASE_PREFILL_SCRATCH_ON_DECODE", "1");
+    agent_setenv_default_or_die("DS4_METAL_NO_PREFILL_KERNEL_WARMUP", "1");
+    agent_setenv_default_or_die("DS4_METAL_GPU_BATCH_EMBED_MIN", "1048576");
+    agent_setenv_or_die("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1");
+    agent_setenv_or_die("DS4_RESIDENT_MOE_MPP_MIN_TILE_UTIL", "0.0");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_MIN_REFS", "64");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_MAX_REFS", "1024");
+    agent_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_QUEUE", "8");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_PREFILL", "0");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_I8I8_PREFILL", "0");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL", "0");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_QSCALE", "512");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_X_QSCALE", "32");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE", "32");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_DUAL", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_THREADS", "2");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_MULTI_ACTIVE", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_BATCHES", "256");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_MAX_REFS", "256");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_OUTPUT_QUEUE", "4");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK", "1");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK", "0");
+    agent_setenv_default_or_die("DS4_FLASH_MOE_ANE_PREFLUSH_EVERY", "4");
+    if (!c->resident_ane_shared_expert) {
+        agent_setenv_or_die("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "0");
+        agent_setenv_or_die("DS4_SHARED_EXPERT_ANE_I8I8", "0");
+    }
+    agent_setenv_or_die("DS4_FLASH_MOE_ANE_OUTPUT_PROJ",
+                        c->resident_ane_oproj ? "1" : "0");
+}
+
+static void agent_enable_resident_ane_shared_expert(agent_config *c) {
+    c->resident_ane_shared_expert = true;
+    agent_setenv_or_die("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "1");
+    agent_setenv_or_die("DS4_SHARED_EXPERT_ANE_I8I8", "1");
 }
 
 static agent_config parse_options(int argc, char **argv) {
@@ -641,6 +732,29 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.quality = true;
         } else if (!strcmp(arg, "--warm-weights")) {
             c.engine.warm_weights = true;
+        } else if (!strcmp(arg, "--resident-ane-prefill") ||
+                   !strcmp(arg, "--ane-prefill")) {
+            agent_enable_resident_ane_prefill(&c);
+        } else if (!strcmp(arg, "--resident-ane-shared-expert") ||
+                   !strcmp(arg, "--ane-shared-expert")) {
+            agent_enable_resident_ane_shared_expert(&c);
+        } else if (!strcmp(arg, "--resident-ane-oproj")) {
+            c.resident_ane_oproj = true;
+            agent_enable_resident_ane_prefill(&c);
+        } else if (!strcmp(arg, "--resident-ane-cache-layers")) {
+            int n = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (n < 0 || n > 64) {
+                fprintf(stderr, "ds4-agent: %s must be between 0 and 64\n", arg);
+                exit(2);
+            }
+            c.resident_ane_cache_layers = n;
+            agent_setenv_int_or_die("DS4_SHARED_EXPERT_ANE_CACHE_LAYERS", n);
+        } else if (!strcmp(arg, "--no-decode-split")) {
+            if (setenv("DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS", "0", 1) != 0) {
+                perror("ds4-agent: setenv DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS");
+                exit(2);
+            }
+            c.no_decode_split = true;
         } else if (!strcmp(arg, "--dir-steering-file")) {
             c.engine.directional_steering_file = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--dir-steering-ffn")) {
@@ -658,6 +772,13 @@ static agent_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !steering_scale_set)
         c.engine.directional_steering_ffn = 1.0f;
+    if (c.resident_ane_prefill &&
+        (c.engine.moe_mode != DS4_MOE_MODE_OFF || c.engine.moe_sidecar_path)) {
+        fprintf(stderr,
+                "ds4-agent: --resident-ane-prefill is for resident/full-model "
+                "runs only; use --moe-mode off and omit --moe-sidecar\n");
+        exit(2);
+    }
     if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
         fprintf(stderr, "ds4-agent: --moe-sidecar requires --moe-mode slot-bank\n");
         exit(2);
@@ -8239,6 +8360,13 @@ static void agent_print_resume_hint(agent_worker *w) {
     }
     if (cfg->engine.quality) printf(" --quality");
     if (cfg->engine.warm_weights) printf(" --warm-weights");
+    if (cfg->resident_ane_prefill) printf(" --resident-ane-prefill");
+    if (cfg->resident_ane_shared_expert) printf(" --resident-ane-shared-expert");
+    if (cfg->resident_ane_oproj) printf(" --resident-ane-oproj");
+    if (cfg->resident_ane_cache_layers > 0) {
+        printf(" --resident-ane-cache-layers %d", cfg->resident_ane_cache_layers);
+    }
+    if (cfg->no_decode_split) printf(" --no-decode-split");
     if (cfg->gen.think_mode == DS4_THINK_NONE) printf(" --nothink");
     else if (cfg->gen.think_mode == DS4_THINK_MAX) printf(" --think-max");
     printf(" --resume %s\n", sha);
@@ -8737,6 +8865,8 @@ static int run_agent(ds4_engine *engine, agent_config *cfg) {
 
 int main(int argc, char **argv) {
     agent_config cfg = parse_options(argc, argv);
+    ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
+    ds4_profile_load_and_apply();
     log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
 
     ds4_engine *engine = NULL;

@@ -19,6 +19,7 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_create(int H, int I, int B, float w_s
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_gateup_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_routed_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 /* Tiled-fused with int8 output (B*H bytes instead of B*H*2). */
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 /* Single-call fused fp16-weight MLP lowered as conv2d-1x1 (ANE-native pattern). */
@@ -201,6 +202,15 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_eval(
     const int8_t *Wup_i8,
     const int8_t *Wdown_i8,
     const int8_t *input_i8,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_routed_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    const uint16_t *route_f16,
     uint16_t *output_f16);
 
 /* Mode 7: int8 output. Same i/o as tiled_fused_eval except output is int8. */

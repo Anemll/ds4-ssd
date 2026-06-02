@@ -486,6 +486,7 @@ static int g_model_warm_views = 1;
 
 static void ds4_gpu_ane_ctx_cache_clear(void);
 static int ds4_gpu_backend_logs_suppressed(void);
+static int ds4_gpu_backend_stats_logs_enabled(void);
 
 static int ds4_gpu_ane_debug_enabled(void) {
     const char *env = getenv("DS4_FLASH_MOE_ANE_DEBUG");
@@ -730,6 +731,10 @@ static int ds4_gpu_is_m5_device(void) {
     return is_m5;
 }
 
+int ds4_gpu_mpp_nax_supported(void) {
+    return ds4_gpu_is_m5_device();
+}
+
 static int ds4_gpu_resident_mpp_int8_prefill_requested(void) {
     const char *env = getenv("DS4_RESIDENT_MOE_MPP_INT8_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_RESIDENT_MOE_NAX_INT8_PREFILL");
@@ -911,6 +916,21 @@ static int ds4_gpu_backend_logs_suppressed(void) {
         return 0;
     }
     return ds4_gpu_env_flag_enabled("DS4_AGENT_SUPPRESS_BACKEND_LOGS");
+}
+
+static int ds4_gpu_backend_stats_logs_enabled(void) {
+    if (ds4_gpu_backend_logs_suppressed()) return 0;
+    return ds4_gpu_env_flag_enabled("DS4_AGENT_ALLOW_BACKEND_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_PROFILE") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_STAGE_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_HYBRID_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_ANE_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+           ds4_gpu_env_flag_enabled("DS4_METAL_GRAPH_PREFILL_PROFILE") ||
+           ds4_gpu_env_flag_enabled("DS4_METAL_GRAPH_PREFILL_SPLIT_PROFILE");
 }
 
 static int ds4_gpu_model_residency_disabled_now(void) {
@@ -7475,9 +7495,11 @@ static int ds4_shared_expert_batch_env(void) {
 
 static float ds4_shared_expert_qscale_env(const char *name,
                                            const char *fallback_name,
+                                           const char *fallback2_name,
                                            float def) {
     const char *e = getenv(name);
     if (!e || !e[0]) e = getenv(fallback_name);
+    if (!e || !e[0]) e = getenv(fallback2_name);
     float v = (e && e[0]) ? strtof(e, NULL) : def;
     if (!(v > 0.0f) || !isfinite(v)) v = def;
     if (v < 1.0f) v = 1.0f;
@@ -7606,14 +7628,17 @@ static ds4_shared_expert_layer_cache *ds4_shared_expert_ensure(
     } else if (want_mode == 6) {
         const float w_qscale = ds4_shared_expert_qscale_env(
             "DS4_SHARED_EXPERT_ANE_W_QSCALE",
+            "DS4_FLASH_MOE_ANE_INT8_QSCALE",
             "DS4_FLASH_MOE_MPP_INT8_QSCALE",
             512.0f);
         const float x_qscale = ds4_shared_expert_qscale_env(
             "DS4_SHARED_EXPERT_ANE_X_QSCALE",
+            "DS4_FLASH_MOE_ANE_X_QSCALE",
             "DS4_FLASH_MOE_MPP_INT8_X_QSCALE",
             32.0f);
         const float mid_qscale = ds4_shared_expert_qscale_env(
             "DS4_SHARED_EXPERT_ANE_MID_QSCALE",
+            "DS4_FLASH_MOE_ANE_MID_QSCALE",
             "DS4_FLASH_MOE_MPP_INT8_MID_QSCALE",
             32.0f);
         c->w_scale = 1.0f / w_qscale;
@@ -8154,6 +8179,7 @@ static int ds4_oproj_use_i8x(void) {
 
 static float ds4_oproj_x_qscale(void) {
     const char *e = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_X_QSCALE");
+    if (!e || !e[0]) e = getenv("DS4_FLASH_MOE_ANE_X_QSCALE");
     if (!e || !e[0]) e = getenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE");
     float v = (e && e[0]) ? strtof(e, NULL) : 32.0f;
     if (!(v > 0.0f) || !isfinite(v)) v = 32.0f;
@@ -18411,6 +18437,51 @@ static int ds4_gpu_encode_ane_output_pack_f16_f32(
         uint32_t             width,
         uint32_t             rows);
 
+static float ds4_gpu_prefill_int8_qscale_from_env(const char *primary,
+                                                  const char *fallback,
+                                                  float       default_value) {
+    const char *env = getenv(primary);
+    if (!env || !env[0]) env = getenv(fallback);
+    if (env && env[0]) {
+        char *end = NULL;
+        float parsed = strtof(env, &end);
+        if (end != env && parsed > 0.0f && isfinite(parsed)) return parsed;
+    }
+    return default_value;
+}
+
+void ds4_gpu_prefill_int8_scales(int prefer_ane_env,
+                                 float *w_qscale,
+                                 float *w_scale,
+                                 float *x_qscale,
+                                 float *x_scale,
+                                 float *mid_qscale,
+                                 float *mid_scale) {
+    const char *w_primary =
+        prefer_ane_env ? "DS4_FLASH_MOE_ANE_INT8_QSCALE" : "DS4_FLASH_MOE_MPP_INT8_QSCALE";
+    const char *w_fallback =
+        prefer_ane_env ? "DS4_FLASH_MOE_MPP_INT8_QSCALE" : "DS4_FLASH_MOE_ANE_INT8_QSCALE";
+    const char *x_primary =
+        prefer_ane_env ? "DS4_FLASH_MOE_ANE_X_QSCALE" : "DS4_FLASH_MOE_MPP_INT8_X_QSCALE";
+    const char *x_fallback =
+        prefer_ane_env ? "DS4_FLASH_MOE_MPP_INT8_X_QSCALE" : "DS4_FLASH_MOE_ANE_X_QSCALE";
+    const char *mid_primary =
+        prefer_ane_env ? "DS4_FLASH_MOE_ANE_MID_QSCALE" : "DS4_FLASH_MOE_MPP_INT8_MID_QSCALE";
+    const char *mid_fallback =
+        prefer_ane_env ? "DS4_FLASH_MOE_MPP_INT8_MID_QSCALE" : "DS4_FLASH_MOE_ANE_MID_QSCALE";
+
+    float wq = ds4_gpu_prefill_int8_qscale_from_env(w_primary, w_fallback, 512.0f);
+    float xq = ds4_gpu_prefill_int8_qscale_from_env(x_primary, x_fallback, 32.0f);
+    float midq = ds4_gpu_prefill_int8_qscale_from_env(mid_primary, mid_fallback, 32.0f);
+
+    if (w_qscale) *w_qscale = wq;
+    if (w_scale) *w_scale = 1.0f / wq;
+    if (x_qscale) *x_qscale = xq;
+    if (x_scale) *x_scale = 1.0f / xq;
+    if (mid_qscale) *mid_qscale = midq;
+    if (mid_scale) *mid_scale = 1.0f / midq;
+}
+
 static void ds4_gpu_ane_prefill_env(float *w_qscale,
                                     float *w_scale,
                                     float *x_qscale,
@@ -18419,32 +18490,13 @@ static void ds4_gpu_ane_prefill_env(float *w_qscale,
                                     float *mid_scale,
                                     uint32_t *batch,
                                     uint32_t *compile_limit) {
-    float aq = 64.0f;
-    const char *qscale_env = getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE");
-    if (!qscale_env || !qscale_env[0]) qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_QSCALE");
-    if (qscale_env && qscale_env[0]) {
-        char *end = NULL;
-        float parsed = strtof(qscale_env, &end);
-        if (end != qscale_env && parsed > 0.0f && isfinite(parsed)) aq = parsed;
-    }
-
-    float xq = 16.0f;
-    const char *x_qscale_env = getenv("DS4_FLASH_MOE_ANE_X_QSCALE");
-    if (!x_qscale_env || !x_qscale_env[0]) x_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE");
-    if (x_qscale_env && x_qscale_env[0]) {
-        char *end = NULL;
-        float parsed = strtof(x_qscale_env, &end);
-        if (end != x_qscale_env && parsed > 0.0f && isfinite(parsed)) xq = parsed;
-    }
-
-    float midq = 16.0f;
-    const char *mid_qscale_env = getenv("DS4_FLASH_MOE_ANE_MID_QSCALE");
-    if (!mid_qscale_env || !mid_qscale_env[0]) mid_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE");
-    if (mid_qscale_env && mid_qscale_env[0]) {
-        char *end = NULL;
-        float parsed = strtof(mid_qscale_env, &end);
-        if (end != mid_qscale_env && parsed > 0.0f && isfinite(parsed)) midq = parsed;
-    }
+    float aq = 512.0f;
+    float wscale = 1.0f / 512.0f;
+    float xq = 32.0f;
+    float xscale = 1.0f / 32.0f;
+    float midq = 32.0f;
+    float midscale = 1.0f / 32.0f;
+    ds4_gpu_prefill_int8_scales(1, &aq, &wscale, &xq, &xscale, &midq, &midscale);
 
     uint32_t b = 256u;
     const char *batch_env = getenv("DS4_FLASH_MOE_ANE_BATCH");
@@ -18463,11 +18515,11 @@ static void ds4_gpu_ane_prefill_env(float *w_qscale,
     }
 
     if (w_qscale) *w_qscale = aq;
-    if (w_scale) *w_scale = 1.0f / aq;
+    if (w_scale) *w_scale = wscale;
     if (x_qscale) *x_qscale = xq;
-    if (x_scale) *x_scale = 1.0f / xq;
+    if (x_scale) *x_scale = xscale;
     if (mid_qscale) *mid_qscale = midq;
-    if (mid_scale) *mid_scale = 1.0f / midq;
+    if (mid_scale) *mid_scale = midscale;
     if (batch) *batch = b;
     if (compile_limit) *compile_limit = limit;
 }
@@ -18588,14 +18640,15 @@ static uint32_t ds4_gpu_ane_select_batch(uint32_t refs, uint32_t fallback) {
     return batches[count - 1];
 }
 
-static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx(uint32_t H,
-                                                             uint32_t I,
-                                                             uint32_t B,
-                                                             float w_scale,
-                                                             float x_scale,
-                                                             float mid_scale,
-                                                             uint32_t compile_limit) {
-    const int mode = 6;
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_mode(uint32_t H,
+                                                                  uint32_t I,
+                                                                  uint32_t B,
+                                                                  float w_scale,
+                                                                  float x_scale,
+                                                                  float mid_scale,
+                                                                  uint32_t compile_limit,
+                                                                  int mode) {
+    if (mode != 13) mode = 6;
     for (uint32_t i = 0; i < DS4_ANE_CTX_CACHE_MAX; i++) {
         ds4_ane_ctx_cache_entry *entry = &g_ane_ctx_cache[i];
         if (entry->ctx &&
@@ -18625,7 +18678,13 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx(uint32_t H,
         return NULL;
     }
     g_ane_prefill_compile_attempts++;
-    ds4_ane_mlp_int8w_ctx *ctx =
+    ds4_ane_mlp_int8w_ctx *ctx = mode == 13 ?
+        ds4_ane_mlp_i8w_i8x_tiled_fused_routed_create((int)H,
+                                                       (int)I,
+                                                       (int)B,
+                                                       w_scale,
+                                                       x_scale,
+                                                       mid_scale) :
         ds4_ane_mlp_i8w_i8x_tiled_fused_create((int)H,
                                                 (int)I,
                                                 (int)B,
@@ -18644,12 +18703,23 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx(uint32_t H,
     g_ane_ctx_cache[slot].w_scale = w_scale;
     g_ane_ctx_cache[slot].x_scale = x_scale;
     g_ane_ctx_cache[slot].mid_scale = mid_scale;
-    if (!ds4_gpu_backend_logs_suppressed()) {
+    if (ds4_gpu_backend_stats_logs_enabled()) {
         fprintf(stderr,
                 "ds4: ANE %s cached async prefill B=%u H=%u I=%u w_scale=%.6g x_scale=%.6g mid_scale=%.6g\n",
                 ds4_gpu_ane_mode_name(mode), B, H, I, w_scale, x_scale, mid_scale);
     }
     return ctx;
+}
+
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx(uint32_t H,
+                                                             uint32_t I,
+                                                             uint32_t B,
+                                                             float w_scale,
+                                                             float x_scale,
+                                                             float mid_scale,
+                                                             uint32_t compile_limit) {
+    return ds4_gpu_ane_get_i8i8_tiled_ctx_mode(H, I, B, w_scale, x_scale,
+                                               mid_scale, compile_limit, 6);
 }
 
 /* Shared implementation for the secondary-cluster context getters.  The cache
@@ -18665,8 +18735,9 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_from(
         float w_scale,
         float x_scale,
         float mid_scale,
-        uint32_t compile_limit) {
-    const int mode = 6;
+        uint32_t compile_limit,
+        int mode) {
+    if (mode != 13) mode = 6;
     for (uint32_t i = 0; i < DS4_ANE_CTX_CACHE_MAX; i++) {
         ds4_ane_ctx_cache_entry *entry = &cache[i];
         if (entry->ctx &&
@@ -18696,7 +18767,9 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_from(
         return NULL;
     }
     g_ane_prefill_compile_attempts++;
-    ds4_ane_mlp_int8w_ctx *ctx_new =
+    ds4_ane_mlp_int8w_ctx *ctx_new = mode == 13 ?
+        ds4_ane_mlp_i8w_i8x_tiled_fused_routed_create((int)H, (int)I, (int)B,
+                                                       w_scale, x_scale, mid_scale) :
         ds4_ane_mlp_i8w_i8x_tiled_fused_create((int)H, (int)I, (int)B,
                                                 w_scale, x_scale, mid_scale);
     if (!ctx_new) {
@@ -18714,40 +18787,43 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_from(
     return ctx_new;
 }
 
-static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b(uint32_t H,
-                                                                uint32_t I,
-                                                                uint32_t B,
-                                                                float w_scale,
-                                                                float x_scale,
-                                                                float mid_scale,
-                                                                uint32_t compile_limit) {
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_b_mode(uint32_t H,
+                                                                     uint32_t I,
+                                                                     uint32_t B,
+                                                                     float w_scale,
+                                                                     float x_scale,
+                                                                     float mid_scale,
+                                                                     uint32_t compile_limit,
+                                                                     int mode) {
     return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_b, H, I, B,
                                                 w_scale, x_scale, mid_scale,
-                                                compile_limit);
+                                                compile_limit, mode);
 }
 
-static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_c(uint32_t H,
-                                                                uint32_t I,
-                                                                uint32_t B,
-                                                                float w_scale,
-                                                                float x_scale,
-                                                                float mid_scale,
-                                                                uint32_t compile_limit) {
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_c_mode(uint32_t H,
+                                                                     uint32_t I,
+                                                                     uint32_t B,
+                                                                     float w_scale,
+                                                                     float x_scale,
+                                                                     float mid_scale,
+                                                                     uint32_t compile_limit,
+                                                                     int mode) {
     return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_c, H, I, B,
                                                 w_scale, x_scale, mid_scale,
-                                                compile_limit);
+                                                compile_limit, mode);
 }
 
-static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_d(uint32_t H,
-                                                                uint32_t I,
-                                                                uint32_t B,
-                                                                float w_scale,
-                                                                float x_scale,
-                                                                float mid_scale,
-                                                                uint32_t compile_limit) {
+static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_d_mode(uint32_t H,
+                                                                     uint32_t I,
+                                                                     uint32_t B,
+                                                                     float w_scale,
+                                                                     float x_scale,
+                                                                     float mid_scale,
+                                                                     uint32_t compile_limit,
+                                                                     int mode) {
     return ds4_gpu_ane_get_i8i8_tiled_ctx_from(g_ane_ctx_cache_d, H, I, B,
                                                 w_scale, x_scale, mid_scale,
-                                                compile_limit);
+                                                compile_limit, mode);
 }
 
 
@@ -18782,6 +18858,27 @@ static int ds4_gpu_ane_prefill_i8i8_tiled_fused_enabled(void) {
     const char *env = getenv("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_MPP_I8I8_TILED_FUSED_PREFILL");
     return env && env[0] && atoi(env) != 0;
+}
+
+static int ds4_gpu_ane_prefill_route_before_quant_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_ANE_ROUTE_BEFORE_QUANT");
+    return env && env[0] && atoi(env) != 0;
+}
+
+static void ds4_gpu_ane_apply_route_before_mid_scale(float *mid_qscale,
+                                                     float *mid_scale) {
+    const char *env = getenv("DS4_FLASH_MOE_ANE_ROUTE_MID_QSCALE");
+    if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_ANE_ROUTE_BEFORE_MID_QSCALE");
+    if (!env || !env[0]) return;
+    float q = 0.0f;
+    if (env && env[0]) {
+        char *end = NULL;
+        float parsed = strtof(env, &end);
+        if (end != env && parsed > 0.0f && isfinite(parsed)) q = parsed;
+    }
+    if (!(q > 0.0f)) return;
+    if (mid_qscale) *mid_qscale = q;
+    if (mid_scale) *mid_scale = 1.0f / q;
 }
 
 /* Dual-cluster ANE prefill: when 1, spawn a second ANE worker against a
@@ -18838,6 +18935,7 @@ static const char *ds4_gpu_ane_mode_name(int mode) {
         case 4: return "i8w-i8x-full-fused";
         case 5: return "i8w-i8x-gateup-fused";
         case 6: return "i8w-i8x-tiled-fused";
+        case 13: return "i8w-i8x-tiled-fused-routed";
         default: return "int8w";
     }
 }
@@ -18864,6 +18962,10 @@ static uint32_t ds4_gpu_ane_compare_limit(void) {
     return 1;
 }
 
+static int ds4_gpu_ane_compare_keeps_dequant_slot(void) {
+    return ds4_gpu_ane_compare_limit() > 0;
+}
+
 static uint32_t g_ane_prefill_compare_count = 0;
 
 static inline float ds4_gpu_round_f32_to_f16(float v) {
@@ -18886,26 +18988,54 @@ static void ds4_gpu_ane_compare_one_row(const char *mode,
                                         uint32_t refs,
                                         uint32_t chunk_begin,
                                         uint32_t chunk,
+                                        float route_weight,
                                         float w_scale,
                                         float x_scale,
                                         float mid_scale,
-                                        int quant_hidden) {
+                                        int quant_hidden,
+                                        int ane_out_is_routed) {
     if (!ane_out_f16 || H == 0 || I == 0) return;
     float *gate = (float *)malloc((size_t)I * sizeof(float));
     float *up = (float *)malloc((size_t)I * sizeof(float));
     float *hidden = (float *)malloc((size_t)I * sizeof(float));
+    float *hidden_route_before_f32 = (float *)malloc((size_t)I * sizeof(float));
+    float *hidden_route_before = (float *)malloc((size_t)I * sizeof(float));
+    float *hidden_mpp_route_before = (float *)malloc((size_t)I * sizeof(float));
     float *hidden_f16acc = (float *)malloc((size_t)I * sizeof(float));
-    if (!gate || !up || !hidden || !hidden_f16acc) {
+    if (!gate || !up || !hidden || !hidden_route_before_f32 ||
+        !hidden_route_before || !hidden_mpp_route_before || !hidden_f16acc) {
         free(gate);
         free(up);
         free(hidden);
+        free(hidden_route_before_f32);
+        free(hidden_route_before);
+        free(hidden_mpp_route_before);
         free(hidden_f16acc);
         return;
     }
+    if (!isfinite(route_weight)) route_weight = 1.0f;
+    float ref_w_qscale = 0.0f, ref_w_scale = 0.0f;
+    float ref_x_qscale = 0.0f, ref_x_scale = 0.0f;
+    float ref_mid_qscale = 0.0f, ref_mid_scale = 0.0f;
+    ds4_gpu_prefill_int8_scales(0,
+                                &ref_w_qscale,
+                                &ref_w_scale,
+                                &ref_x_qscale,
+                                &ref_x_scale,
+                                &ref_mid_qscale,
+                                &ref_mid_scale);
+    const int mpp_ref_same_io =
+        !wg_f16 && !wu_f16 && !wd_f16 && !x_f16 &&
+        fabsf(ref_w_scale - w_scale) <= fmaxf(fabsf(w_scale), 1.0f) * 1.0e-6f &&
+        fabsf(ref_x_scale - x_scale) <= fmaxf(fabsf(x_scale), 1.0f) * 1.0e-6f &&
+        ref_mid_scale > 0.0f;
     double gate_sum = 0.0;
     double up_sum = 0.0;
     float gate_abs_max = 0.0f;
     float up_abs_max = 0.0f;
+    uint32_t hidden_sat_unweighted = 0;
+    uint32_t hidden_sat_route_before = 0;
+    uint32_t hidden_sat_mpp_route_before = 0;
     for (uint32_t j = 0; j < I; j++) {
         double gs = 0.0;
         double us = 0.0;
@@ -18944,13 +19074,26 @@ static void ds4_gpu_ane_compare_one_row(const char *mode,
         gate[j] = g;
         up[j] = u;
         hidden[j] = act * u;
+        hidden_route_before_f32[j] = hidden[j] * route_weight;
+        hidden_route_before[j] = hidden[j] * route_weight;
+        hidden_mpp_route_before[j] = hidden_route_before[j];
         hidden_f16acc[j] = ds4_gpu_round_f32_to_f16(act_h * uh);
         if (quant_hidden && mid_scale > 0.0f) {
             const float mid_qscale = 1.0f / mid_scale;
             float q = nearbyintf(hidden[j] * mid_qscale);
-            if (q < -128.0f) q = -128.0f;
-            if (q > 127.0f) q = 127.0f;
+            if (q < -128.0f) { q = -128.0f; hidden_sat_unweighted++; }
+            if (q > 127.0f) { q = 127.0f; hidden_sat_unweighted++; }
             hidden[j] = q * mid_scale;
+            float qr = nearbyintf(hidden_route_before[j] * mid_qscale);
+            if (qr < -128.0f) { qr = -128.0f; hidden_sat_route_before++; }
+            if (qr > 127.0f) { qr = 127.0f; hidden_sat_route_before++; }
+            hidden_route_before[j] = qr * mid_scale;
+            if (mpp_ref_same_io) {
+                float qmr = nearbyintf(hidden_mpp_route_before[j] * ref_mid_qscale);
+                if (qmr < -128.0f) { qmr = -128.0f; hidden_sat_mpp_route_before++; }
+                if (qmr > 127.0f) { qmr = 127.0f; hidden_sat_mpp_route_before++; }
+                hidden_mpp_route_before[j] = qmr * ref_mid_scale;
+            }
             float qh = nearbyintf(hidden_f16acc[j] * mid_qscale);
             if (qh < -128.0f) qh = -128.0f;
             if (qh > 127.0f) qh = 127.0f;
@@ -19015,6 +19158,100 @@ static void ds4_gpu_ane_compare_one_row(const char *mode,
             worst_ane_h = ane;
         }
     }
+    double routed_sq = 0.0;
+    double routed_ref_sq = 0.0;
+    double routed_f32_sq = 0.0;
+    double routed_f32_ref_sq = 0.0;
+    double routed_mpp_sq = 0.0;
+    double routed_mpp_ref_sq = 0.0;
+    double expr_sq = 0.0;
+    float routed_max_abs = 0.0f;
+    float routed_max_rel = 0.0f;
+    float routed_f32_max_abs = 0.0f;
+    float routed_f32_max_rel = 0.0f;
+    float routed_mpp_max_abs = 0.0f;
+    float routed_mpp_max_rel = 0.0f;
+    float expr_max_abs = 0.0f;
+    float expr_max_rel = 0.0f;
+    uint32_t routed_worst = 0;
+    uint32_t routed_f32_worst = 0;
+    uint32_t routed_mpp_worst = 0;
+    uint32_t expr_worst = 0;
+    float routed_worst_ref = 0.0f;
+    float routed_worst_ane = 0.0f;
+    float routed_f32_worst_ref = 0.0f;
+    float routed_f32_worst_ane = 0.0f;
+    float routed_mpp_worst_ref = 0.0f;
+    float routed_mpp_worst_ane = 0.0f;
+    float expr_worst_before = 0.0f;
+    float expr_worst_after = 0.0f;
+    for (uint32_t c = 0; c < H; c++) {
+        double route_f32_before = 0.0;
+        double route_before = 0.0;
+        double route_mpp_before = 0.0;
+        double route_after_unweighted_ref = 0.0;
+        for (uint32_t j = 0; j < I; j++) {
+            const uint64_t wi = (uint64_t)j * H + c;
+            const float dw = wd_f16 ?
+                ds4_gpu_f16_bits_to_f32(wd_f16[wi]) :
+                ((float)wd_i8[wi] * w_scale);
+            route_f32_before += (double)hidden_route_before_f32[j] * (double)dw;
+            route_before += (double)hidden_route_before[j] * (double)dw;
+            if (mpp_ref_same_io) {
+                route_mpp_before += (double)hidden_mpp_route_before[j] * (double)dw;
+            }
+            route_after_unweighted_ref += (double)hidden[j] * (double)dw;
+        }
+        const float f32_ref = (float)route_f32_before;
+        const float gpu_ref = (float)route_before;
+        const float mpp_ref = mpp_ref_same_io ? (float)route_mpp_before : gpu_ref;
+        const float ane_prod = ds4_gpu_f16_bits_to_f32(ane_out_f16[c]) *
+            (ane_out_is_routed ? 1.0f : route_weight);
+        const float routed_f32_err = fabsf(ane_prod - f32_ref);
+        const float routed_f32_rel = routed_f32_err / fmaxf(fabsf(f32_ref), 1.0e-6f);
+        const float cpu_route_after = (float)route_after_unweighted_ref * route_weight;
+        const float routed_err = fabsf(ane_prod - gpu_ref);
+        const float routed_rel = routed_err / fmaxf(fabsf(gpu_ref), 1.0e-6f);
+        const float routed_mpp_err = fabsf(ane_prod - mpp_ref);
+        const float routed_mpp_rel = routed_mpp_err / fmaxf(fabsf(mpp_ref), 1.0e-6f);
+        const float expr_err = fabsf(cpu_route_after - gpu_ref);
+        const float expr_rel = expr_err / fmaxf(fabsf(gpu_ref), 1.0e-6f);
+        routed_f32_sq += (double)routed_f32_err * (double)routed_f32_err;
+        routed_f32_ref_sq += (double)f32_ref * (double)f32_ref;
+        routed_sq += (double)routed_err * (double)routed_err;
+        routed_ref_sq += (double)gpu_ref * (double)gpu_ref;
+        routed_mpp_sq += (double)routed_mpp_err * (double)routed_mpp_err;
+        routed_mpp_ref_sq += (double)mpp_ref * (double)mpp_ref;
+        expr_sq += (double)expr_err * (double)expr_err;
+        if (routed_f32_err > routed_f32_max_abs) {
+            routed_f32_max_abs = routed_f32_err;
+            routed_f32_max_rel = routed_f32_rel;
+            routed_f32_worst = c;
+            routed_f32_worst_ref = f32_ref;
+            routed_f32_worst_ane = ane_prod;
+        }
+        if (routed_err > routed_max_abs) {
+            routed_max_abs = routed_err;
+            routed_max_rel = routed_rel;
+            routed_worst = c;
+            routed_worst_ref = gpu_ref;
+            routed_worst_ane = ane_prod;
+        }
+        if (routed_mpp_err > routed_mpp_max_abs) {
+            routed_mpp_max_abs = routed_mpp_err;
+            routed_mpp_max_rel = routed_mpp_rel;
+            routed_mpp_worst = c;
+            routed_mpp_worst_ref = mpp_ref;
+            routed_mpp_worst_ane = ane_prod;
+        }
+        if (expr_err > expr_max_abs) {
+            expr_max_abs = expr_err;
+            expr_max_rel = expr_rel;
+            expr_worst = c;
+            expr_worst_before = gpu_ref;
+            expr_worst_after = cpu_route_after;
+        }
+    }
     fprintf(stderr,
             "ds4: ANE compare %s call=%llu refs=%u chunk_begin=%u chunk=%u row0 H=%u I=%u max_abs=%.8g max_rel=%.8g rms=%.8g rel_rms=%.8g worst_c=%u ref=%.8g ane=%.8g gate_mean=%.8g up_mean=%.8g gate_abs_max=%.8g up_abs_max=%.8g\n",
             mode ? mode : "unknown",
@@ -19045,6 +19282,56 @@ static void ds4_gpu_ane_compare_one_row(const char *mode,
             worst_h,
             worst_ref_h,
             worst_ane_h);
+    fprintf(stderr,
+            "ds4: ANE routed no-midq compare %s route_weight=%.8g prod_after_vs_no_midq_ref max_abs=%.8g max_rel=%.8g rms=%.8g rel_rms=%.8g worst_c=%u no_midq_ref=%.8g ane_prod=%.8g note=staged_i8_wx_not_exact_mulmm\n",
+            mode ? mode : "unknown",
+            route_weight,
+            routed_f32_max_abs,
+            routed_f32_max_rel,
+            sqrt(routed_f32_sq / (double)H),
+            sqrt(routed_f32_sq / fmax(routed_f32_ref_sq, 1.0e-30)),
+            routed_f32_worst,
+            routed_f32_worst_ref,
+            routed_f32_worst_ane);
+    fprintf(stderr,
+            "ds4: ANE routed ANE-midq compare %s route_weight=%.8g mid_qscale=%.8g hidden_sat_unweighted=%u/%u hidden_sat_route_before=%u/%u prod_after_vs_ane_midq_before max_abs=%.8g max_rel=%.8g rms=%.8g rel_rms=%.8g worst_c=%u ane_midq_ref=%.8g ane_prod=%.8g expr_after_vs_before max_abs=%.8g max_rel=%.8g rms=%.8g worst_c=%u before=%.8g after=%.8g\n",
+            mode ? mode : "unknown",
+            route_weight,
+            mid_scale > 0.0f ? 1.0f / mid_scale : 0.0f,
+            hidden_sat_unweighted,
+            I,
+            hidden_sat_route_before,
+            I,
+            routed_max_abs,
+            routed_max_rel,
+            sqrt(routed_sq / (double)H),
+            sqrt(routed_sq / fmax(routed_ref_sq, 1.0e-30)),
+            routed_worst,
+            routed_worst_ref,
+            routed_worst_ane,
+            expr_max_abs,
+            expr_max_rel,
+            sqrt(expr_sq / (double)H),
+            expr_worst,
+            expr_worst_before,
+            expr_worst_after);
+    if (mpp_ref_same_io) {
+        fprintf(stderr,
+                "ds4: ANE routed MPP-ref compare %s route_weight=%.8g ane_mid_qscale=%.8g mpp_mid_qscale=%.8g hidden_sat_mpp_route_before=%u/%u prod_after_vs_mpp_before max_abs=%.8g max_rel=%.8g rms=%.8g rel_rms=%.8g worst_c=%u mpp_ref=%.8g ane_prod=%.8g\n",
+                mode ? mode : "unknown",
+                route_weight,
+                mid_scale > 0.0f ? 1.0f / mid_scale : 0.0f,
+                ref_mid_qscale,
+                hidden_sat_mpp_route_before,
+                I,
+                routed_mpp_max_abs,
+                routed_mpp_max_rel,
+                sqrt(routed_mpp_sq / (double)H),
+                sqrt(routed_mpp_sq / fmax(routed_mpp_ref_sq, 1.0e-30)),
+                routed_mpp_worst,
+                routed_mpp_worst_ref,
+                routed_mpp_worst_ane);
+    }
     fprintf(stderr, "ds4: ANE compare samples");
     for (uint32_t c = 0; c < 8 && c < H; c++) {
         double ys = 0.0;
@@ -19062,6 +19349,9 @@ static void ds4_gpu_ane_compare_one_row(const char *mode,
     free(gate);
     free(up);
     free(hidden);
+    free(hidden_route_before_f32);
+    free(hidden_route_before);
+    free(hidden_mpp_route_before);
     free(hidden_f16acc);
 }
 
@@ -19381,9 +19671,9 @@ ds4_gpu_ane_direct_job *ds4_gpu_ane_direct_eval_one_expert_start(
         return NULL;
     }
 
-    float w_qscale = 64.0f, w_scale = 1.0f / 64.0f;
-    float x_qscale = 16.0f, x_scale = 1.0f / 16.0f;
-    float mid_qscale = 16.0f, mid_scale = 1.0f / 16.0f;
+    float w_qscale = 512.0f, w_scale = 1.0f / 512.0f;
+    float x_qscale = 32.0f, x_scale = 1.0f / 32.0f;
+    float mid_qscale = 32.0f, mid_scale = 1.0f / 32.0f;
     uint32_t ane_batch = 256u, compile_limit = 8u;
     ds4_gpu_ane_prefill_env(&w_qscale, &w_scale,
                             &x_qscale, &x_scale,
@@ -19607,9 +19897,9 @@ int ds4_gpu_ane_direct_eval_one_expert_finish(ds4_gpu_ane_direct_job *job) {
 
 int ds4_gpu_ane_prefill_precompile_from_env(void) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    float w_qscale = 64.0f, w_scale = 1.0f / 64.0f;
-    float x_qscale = 16.0f, x_scale = 1.0f / 16.0f;
-    float mid_qscale = 16.0f, mid_scale = 1.0f / 16.0f;
+    float w_qscale = 512.0f, w_scale = 1.0f / 512.0f;
+    float x_qscale = 32.0f, x_scale = 1.0f / 32.0f;
+    float mid_qscale = 32.0f, mid_scale = 1.0f / 32.0f;
     uint32_t batch = 256u, compile_limit = 8u;
     ds4_gpu_ane_prefill_env(&w_qscale, &w_scale, &x_qscale, &x_scale, &mid_qscale, &mid_scale, &batch, &compile_limit);
 
@@ -19619,19 +19909,24 @@ int ds4_gpu_ane_prefill_precompile_from_env(void) {
     const int i8i8_fused = i8i8 && ds4_gpu_ane_prefill_i8i8_fused_enabled();
     const int i8i8_full_fused = i8i8 && ds4_gpu_ane_prefill_i8i8_full_fused_enabled();
     const int i8i8_tiled_fused = i8i8 && ds4_gpu_ane_prefill_i8i8_tiled_fused_enabled();
-    const int target_mode = fp16w ? 1 : (fp16x_i8w ? 2 : (i8i8 ? (i8i8_tiled_fused ? 6 : (i8i8_full_fused ? 4 : (i8i8_fused ? 5 : 3))) : 0));
+    const int route_before = i8i8_tiled_fused && ds4_gpu_ane_prefill_route_before_quant_enabled();
+    if (route_before) {
+        ds4_gpu_ane_apply_route_before_mid_scale(&mid_qscale, &mid_scale);
+    }
+    const int target_mode = fp16w ? 1 : (fp16x_i8w ? 2 : (i8i8 ? (i8i8_tiled_fused ? (route_before ? 13 : 6) : (i8i8_full_fused ? 4 : (i8i8_fused ? 5 : 3))) : 0));
     if (i8i8_tiled_fused) {
         uint32_t batches[DS4_ANE_CTX_CACHE_MAX];
         uint32_t count = ds4_gpu_ane_parse_batch_list(batch, batches, DS4_ANE_CTX_CACHE_MAX);
         int ok = count > 0;
         for (uint32_t i = 0; ok && i < count; i++) {
-            ok = ds4_gpu_ane_get_i8i8_tiled_ctx(4096,
-                                                2048,
-                                                batches[i],
-                                                w_scale,
-                                                x_scale,
-                                                mid_scale,
-                                                compile_limit) != NULL;
+            ok = ds4_gpu_ane_get_i8i8_tiled_ctx_mode(4096,
+                                                     2048,
+                                                     batches[i],
+                                                     w_scale,
+                                                     x_scale,
+                                                     mid_scale,
+                                                     compile_limit,
+                                                     target_mode) != NULL;
         }
         return ok;
     }
@@ -19716,6 +20011,7 @@ struct ds4_gpu_ane_prefill_job {
     uint32_t chunk_count;
     uint32_t chunks_ready;
     uint32_t chunks_posted;
+    int route_before_quant;
     int scalar_output_pack;
     int gpu_output_pack;
     float ane_w_scale;
@@ -19727,6 +20023,7 @@ struct ds4_gpu_ane_prefill_job {
     const int8_t *down_i8;
     const int8_t *x_i8_all;
     int8_t *x_i8_batch;
+    uint16_t *route_f16_batch;
     uint16_t *out_f16_batch;
     uint16_t *out_f16_all;
     float *out_f32;
@@ -19785,6 +20082,7 @@ struct ds4_gpu_ane_prefill_job {
     int ane_threads_remaining;
     ds4_ane_mlp_int8w_ctx *ane_ctx_b;
     int8_t *x_i8_batch_b;
+    uint16_t *route_f16_batch_b;
     uint16_t *out_f16_batch_b;
     uint8_t *chunks_done_bitmap;
     double eval_ms_b;
@@ -19796,6 +20094,7 @@ struct ds4_gpu_ane_prefill_job {
     int ane_thread_c_started;
     ds4_ane_mlp_int8w_ctx *ane_ctx_c;
     int8_t *x_i8_batch_c;
+    uint16_t *route_f16_batch_c;
     uint16_t *out_f16_batch_c;
     double eval_ms_c;
     uint64_t eval_calls_c;
@@ -19805,6 +20104,7 @@ struct ds4_gpu_ane_prefill_job {
     int ane_thread_d_started;
     ds4_ane_mlp_int8w_ctx *ane_ctx_d;
     int8_t *x_i8_batch_d;
+    uint16_t *route_f16_batch_d;
     uint16_t *out_f16_batch_d;
     double eval_ms_d;
     uint64_t eval_calls_d;
@@ -19826,19 +20126,26 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
         pthread_mutex_destroy(&job->mu);
     }
     free(job->x_i8_batch);
+    free(job->route_f16_batch);
     free(job->out_f16_batch);
     free(job->x_i8_batch_b);
+    free(job->route_f16_batch_b);
     free(job->out_f16_batch_b);
     free(job->x_i8_batch_c);
+    free(job->route_f16_batch_c);
     free(job->out_f16_batch_c);
     free(job->x_i8_batch_d);
+    free(job->route_f16_batch_d);
     free(job->out_f16_batch_d);
     free(job->chunks_done_bitmap);
     job->x_i8_batch_b = NULL;
+    job->route_f16_batch_b = NULL;
     job->out_f16_batch_b = NULL;
     job->x_i8_batch_c = NULL;
+    job->route_f16_batch_c = NULL;
     job->out_f16_batch_c = NULL;
     job->x_i8_batch_d = NULL;
+    job->route_f16_batch_d = NULL;
     job->out_f16_batch_d = NULL;
     job->chunks_done_bitmap = NULL;
     if (!job->out_f16_all_mtl) free(job->out_f16_all);
@@ -19852,6 +20159,21 @@ static void ds4_gpu_ane_prefill_job_free(ds4_gpu_ane_prefill_job *job) {
     job->route_weights = NULL;
     job->route_weights_mtl = nil;
     free(job);
+}
+
+static void ds4_gpu_ane_fill_route_tile(uint16_t *dst,
+                                        const float *route_weights,
+                                        uint32_t begin,
+                                        uint32_t chunk,
+                                        uint32_t batch,
+                                        uint32_t width) {
+    if (!dst || !route_weights || batch == 0 || width == 0) return;
+    memset(dst, 0, (size_t)batch * (size_t)width * sizeof(uint16_t));
+    for (uint32_t r = 0; r < chunk && r < batch; r++) {
+        const uint16_t rw = ds4_gpu_f32_to_f16_bits(route_weights[begin + r]);
+        uint16_t *row = dst + (uint64_t)r * width;
+        for (uint32_t j = 0; j < width; j++) row[j] = rw;
+    }
 }
 
 static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
@@ -19885,6 +20207,14 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
                job->x_i8_all + (uint64_t)begin * job->expert_in_dim,
                (size_t)((uint64_t)chunk * job->expert_in_dim));
         job->x_copy_ms += ds4_gpu_now_ms() - x_copy_t0;
+        if (job->route_before_quant) {
+            ds4_gpu_ane_fill_route_tile(job->route_f16_batch,
+                                        job->route_weights,
+                                        begin,
+                                        chunk,
+                                        job->ane_batch,
+                                        job->expert_mid_dim);
+        }
 
         job->eval_calls++;
         job->eval_refs += chunk;
@@ -19900,12 +20230,20 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
         }
 
         const double eval_t0 = ds4_gpu_now_ms();
-        const int ok = ds4_ane_mlp_i8w_i8x_tiled_fused_eval(job->ane_ctx,
-                                                             job->gate_i8,
-                                                             job->up_i8,
-                                                             job->down_i8,
-                                                             job->x_i8_batch,
-                                                             job->out_f16_batch) ? 1 : 0;
+        const int ok = job->route_before_quant ?
+            (ds4_ane_mlp_i8w_i8x_tiled_fused_routed_eval(job->ane_ctx,
+                                                          job->gate_i8,
+                                                          job->up_i8,
+                                                          job->down_i8,
+                                                          job->x_i8_batch,
+                                                          job->route_f16_batch,
+                                                          job->out_f16_batch) ? 1 : 0) :
+            (ds4_ane_mlp_i8w_i8x_tiled_fused_eval(job->ane_ctx,
+                                                   job->gate_i8,
+                                                   job->up_i8,
+                                                   job->down_i8,
+                                                   job->x_i8_batch,
+                                                   job->out_f16_batch) ? 1 : 0);
         const double eval_t1 = ds4_gpu_now_ms();
         job->eval_ms += eval_t1 - eval_t0;
         ds4_gpu_prefill_trace_interval("ane_eval", eval_t0, eval_t1);
@@ -19936,8 +20274,10 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
     int release_slot_idx = -1;
     pthread_mutex_lock(&job->mu);
     job->ane_done = 1;
-    release_slot_idx = job->dequant_slot;
-    job->dequant_slot = -1;
+    if (!ds4_gpu_ane_compare_keeps_dequant_slot()) {
+        release_slot_idx = job->dequant_slot;
+        job->dequant_slot = -1;
+    }
     pthread_cond_broadcast(&job->cv);
     pthread_mutex_unlock(&job->mu);
     if (release_slot_idx >= 0) {
@@ -19955,6 +20295,7 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread(void *arg) {
 static void ds4_gpu_ane_prefill_run_chunks_strided(ds4_gpu_ane_prefill_job *job,
                                                     ds4_ane_mlp_int8w_ctx *ane_ctx,
                                                     int8_t *x_i8_batch,
+                                                    uint16_t *route_f16_batch,
                                                     uint16_t *out_f16_batch,
                                                     uint32_t start_idx,
                                                     uint32_t stride,
@@ -19978,6 +20319,14 @@ static void ds4_gpu_ane_prefill_run_chunks_strided(ds4_gpu_ane_prefill_job *job,
                job->x_i8_all + (uint64_t)begin * job->expert_in_dim,
                (size_t)((uint64_t)chunk * job->expert_in_dim));
         job->x_copy_ms += ds4_gpu_now_ms() - x_copy_t0;
+        if (job->route_before_quant) {
+            ds4_gpu_ane_fill_route_tile(route_f16_batch,
+                                        job->route_weights,
+                                        begin,
+                                        chunk,
+                                        job->ane_batch,
+                                        job->expert_mid_dim);
+        }
 
         if (eval_calls_out) (*eval_calls_out)++;
         if (eval_refs_out)  (*eval_refs_out) += chunk;
@@ -19988,12 +20337,20 @@ static void ds4_gpu_ane_prefill_run_chunks_strided(ds4_gpu_ane_prefill_job *job,
         else if (chunk == job->ane_batch) { job->chunks_full++; }
 
         const double eval_t0 = ds4_gpu_now_ms();
-        const int ok = ds4_ane_mlp_i8w_i8x_tiled_fused_eval(ane_ctx,
-                                                             job->gate_i8,
-                                                             job->up_i8,
-                                                             job->down_i8,
-                                                             x_i8_batch,
-                                                             out_f16_batch) ? 1 : 0;
+        const int ok = job->route_before_quant ?
+            (ds4_ane_mlp_i8w_i8x_tiled_fused_routed_eval(ane_ctx,
+                                                          job->gate_i8,
+                                                          job->up_i8,
+                                                          job->down_i8,
+                                                          x_i8_batch,
+                                                          route_f16_batch,
+                                                          out_f16_batch) ? 1 : 0) :
+            (ds4_ane_mlp_i8w_i8x_tiled_fused_eval(ane_ctx,
+                                                   job->gate_i8,
+                                                   job->up_i8,
+                                                   job->down_i8,
+                                                   x_i8_batch,
+                                                   out_f16_batch) ? 1 : 0);
         const double eval_t1 = ds4_gpu_now_ms();
         if (eval_ms_out) *eval_ms_out += eval_t1 - eval_t0;
         ds4_gpu_prefill_trace_interval("ane_eval", eval_t0, eval_t1);
@@ -20049,7 +20406,8 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_a(void *arg) {
     {
         const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 2u;
         ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx,
-                                                job->x_i8_batch, job->out_f16_batch,
+                                                job->x_i8_batch, job->route_f16_batch,
+                                                job->out_f16_batch,
                                                 0, stride,
                                                 &job->eval_ms,
                                                 &job->eval_calls,
@@ -20061,8 +20419,10 @@ signal_done: {
     pthread_mutex_lock(&job->mu);
     if (--job->ane_threads_remaining <= 0) {
         job->ane_done = 1;
-        release_slot_idx = job->dequant_slot;
-        job->dequant_slot = -1;
+        if (!ds4_gpu_ane_compare_keeps_dequant_slot()) {
+            release_slot_idx = job->dequant_slot;
+            job->dequant_slot = -1;
+        }
     }
     pthread_cond_broadcast(&job->cv);
     pthread_mutex_unlock(&job->mu);
@@ -20093,7 +20453,8 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_b(void *arg) {
     {
         const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 2u;
         ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_b,
-                                                job->x_i8_batch_b, job->out_f16_batch_b,
+                                                job->x_i8_batch_b, job->route_f16_batch_b,
+                                                job->out_f16_batch_b,
                                                 1, stride,
                                                 &job->eval_ms_b,
                                                 &job->eval_calls_b,
@@ -20105,8 +20466,10 @@ signal_done: {
     pthread_mutex_lock(&job->mu);
     if (--job->ane_threads_remaining <= 0) {
         job->ane_done = 1;
-        release_slot_idx = job->dequant_slot;
-        job->dequant_slot = -1;
+        if (!ds4_gpu_ane_compare_keeps_dequant_slot()) {
+            release_slot_idx = job->dequant_slot;
+            job->dequant_slot = -1;
+        }
     }
     pthread_cond_broadcast(&job->cv);
     pthread_mutex_unlock(&job->mu);
@@ -20143,7 +20506,8 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_c(void *arg) {
     {
         const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 3u;
         ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_c,
-                                                job->x_i8_batch_c, job->out_f16_batch_c,
+                                                job->x_i8_batch_c, job->route_f16_batch_c,
+                                                job->out_f16_batch_c,
                                                 2, stride,
                                                 &job->eval_ms_c,
                                                 &job->eval_calls_c,
@@ -20155,8 +20519,10 @@ signal_done: {
     pthread_mutex_lock(&job->mu);
     if (--job->ane_threads_remaining <= 0) {
         job->ane_done = 1;
-        release_slot_idx = job->dequant_slot;
-        job->dequant_slot = -1;
+        if (!ds4_gpu_ane_compare_keeps_dequant_slot()) {
+            release_slot_idx = job->dequant_slot;
+            job->dequant_slot = -1;
+        }
     }
     pthread_cond_broadcast(&job->cv);
     pthread_mutex_unlock(&job->mu);
@@ -20187,7 +20553,8 @@ static void *ds4_gpu_ane_prefill_tiled_fused_thread_dual_d(void *arg) {
     {
         const uint32_t stride = job->n_workers >= 2 ? (uint32_t)job->n_workers : 4u;
         ds4_gpu_ane_prefill_run_chunks_strided(job, job->ane_ctx_d,
-                                                job->x_i8_batch_d, job->out_f16_batch_d,
+                                                job->x_i8_batch_d, job->route_f16_batch_d,
+                                                job->out_f16_batch_d,
                                                 3, stride,
                                                 &job->eval_ms_d,
                                                 &job->eval_calls_d,
@@ -20199,8 +20566,10 @@ signal_done: {
     pthread_mutex_lock(&job->mu);
     if (--job->ane_threads_remaining <= 0) {
         job->ane_done = 1;
-        release_slot_idx = job->dequant_slot;
-        job->dequant_slot = -1;
+        if (!ds4_gpu_ane_compare_keeps_dequant_slot()) {
+            release_slot_idx = job->dequant_slot;
+            job->dequant_slot = -1;
+        }
     }
     pthread_cond_broadcast(&job->cv);
     pthread_mutex_unlock(&job->mu);
@@ -20237,7 +20606,7 @@ static void *ds4_gpu_ane_prefill_post_thread(void *arg) {
             (job->n_tokens - begin) : job->ane_chunk_refs;
         const double output_t0 = ds4_gpu_now_ms();
         for (uint32_t r = 0; r < chunk; r++) {
-            const float rw = job->route_weights[begin + r];
+            const float rw = job->route_before_quant ? 1.0f : job->route_weights[begin + r];
             const uint64_t row = (uint64_t)(begin + r) * job->out_dim;
             ds4_gpu_f16_to_weighted_f32_row(job->out_f32 + row,
                                             job->out_f16_all + row,
@@ -20365,9 +20734,9 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
                                                 out_dim);
     }
 
-    float ane_qscale = 64.0f, ane_w_scale = 1.0f / 64.0f;
-    float ane_x_qscale = 16.0f, ane_x_scale = 1.0f / 16.0f;
-    float ane_mid_qscale = 16.0f, ane_mid_scale = 1.0f / 16.0f;
+    float ane_qscale = 512.0f, ane_w_scale = 1.0f / 512.0f;
+    float ane_x_qscale = 32.0f, ane_x_scale = 1.0f / 32.0f;
+    float ane_mid_qscale = 32.0f, ane_mid_scale = 1.0f / 32.0f;
     uint32_t ane_batch = 256u, ane_compile_limit = 8u;
     ds4_gpu_ane_prefill_env(&ane_qscale,
                             &ane_w_scale,
@@ -20390,6 +20759,11 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
                                                 expert_mid_dim,
                                                 out_dim);
     }
+    const int ane_route_before_quant = ds4_gpu_ane_prefill_route_before_quant_enabled();
+    if (ane_route_before_quant) {
+        ds4_gpu_ane_apply_route_before_mid_scale(&ane_mid_qscale, &ane_mid_scale);
+    }
+    const int ane_ctx_mode = ane_route_before_quant ? 13 : 6;
 
     /* Dual-cluster split: when DUAL is on and n_tokens is large enough that a
      * split into two chunks is meaningful (>= 64 each side), pick a batch sized
@@ -20471,6 +20845,7 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
 
     const uint64_t x_all_elems64 = (uint64_t)n_tokens * expert_in_dim;
     const uint64_t x_batch_elems64 = (uint64_t)ane_batch * expert_in_dim;
+    const uint64_t route_batch_elems64 = (uint64_t)ane_batch * expert_mid_dim;
     const uint64_t out_elems64 = (uint64_t)n_tokens * out_dim;
     const uint64_t out_bucket_elems64 = (uint64_t)ane_batch * out_dim;
     const uint64_t gate_i8_bytes = (uint64_t)expert_in_dim * expert_mid_dim;
@@ -20478,6 +20853,7 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     if (x_all_elems64 > UINT32_MAX ||
         x_all_elems64 > SIZE_MAX ||
         x_batch_elems64 > SIZE_MAX ||
+        route_batch_elems64 > SIZE_MAX / sizeof(uint16_t) ||
         out_elems64 > SIZE_MAX / sizeof(float) ||
         out_bucket_elems64 > SIZE_MAX / sizeof(uint16_t)) {
         return ds4_gpu_ane_prefill_start_reject("size_overflow",
@@ -20697,13 +21073,14 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     g_ane_prefill_dequant_ms += ds4_gpu_now_ms() - dequant_t0;
 
     ds4_ane_mlp_int8w_ctx *ane_ctx =
-        ds4_gpu_ane_get_i8i8_tiled_ctx(expert_in_dim,
-                                       expert_mid_dim,
-                                       ane_batch,
-                                       ane_w_scale,
-                                       ane_x_scale,
-                                       ane_mid_scale,
-                                       ane_compile_limit);
+        ds4_gpu_ane_get_i8i8_tiled_ctx_mode(expert_in_dim,
+                                            expert_mid_dim,
+                                            ane_batch,
+                                            ane_w_scale,
+                                            ane_x_scale,
+                                            ane_mid_scale,
+                                            ane_compile_limit,
+                                            ane_ctx_mode);
     if (!ane_ctx) {
         fail_reason = "ctx_a";
         goto done;
@@ -20715,8 +21092,9 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->out_dim = out_dim;
     job->ane_batch = ane_batch;
     job->ane_chunk_refs = ane_chunk_refs;
+    job->route_before_quant = ane_route_before_quant;
     job->scalar_output_pack = ds4_gpu_ane_scalar_output_pack_enabled();
-    job->gpu_output_pack = ds4_gpu_ane_gpu_output_pack_enabled();
+    job->gpu_output_pack = ane_route_before_quant ? 0 : ds4_gpu_ane_gpu_output_pack_enabled();
     job->ane_w_scale = ane_w_scale;
     job->ane_x_scale = ane_x_scale;
     job->ane_mid_scale = ane_mid_scale;
@@ -20738,6 +21116,8 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     job->out_bucket_elems64 = out_bucket_elems64;
     job->chunk_count = (n_tokens + ane_chunk_refs - 1u) / ane_chunk_refs;
     job->x_i8_batch = (int8_t *)malloc((size_t)x_batch_elems64);
+    job->route_f16_batch = ane_route_before_quant ?
+        (uint16_t *)malloc((size_t)route_batch_elems64 * sizeof(uint16_t)) : NULL;
     job->out_f16_batch = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
 
     /* Dual/multi-worker setup: allocate a 2nd/3rd/4th context + scratch +
@@ -20760,32 +21140,37 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
         const int use_b = (solo_balance_counter++ & 1) != 0;
         if (use_b) {
             ds4_ane_mlp_int8w_ctx *ctx_b =
-                ds4_gpu_ane_get_i8i8_tiled_ctx_b(expert_in_dim,
-                                                  expert_mid_dim,
-                                                  ane_batch,
-                                                  ane_w_scale,
-                                                  ane_x_scale,
-                                                  ane_mid_scale,
-                                                  ane_compile_limit);
+                ds4_gpu_ane_get_i8i8_tiled_ctx_b_mode(expert_in_dim,
+                                                       expert_mid_dim,
+                                                       ane_batch,
+                                                       ane_w_scale,
+                                                       ane_x_scale,
+                                                       ane_mid_scale,
+                                                       ane_compile_limit,
+                                                       ane_ctx_mode);
             if (ctx_b) job->ane_ctx = ctx_b;  /* land on cluster B */
         }
     }
     if (requested_workers >= 2 && job->chunk_count >= 2) {
         ds4_ane_mlp_int8w_ctx *ane_ctx_b =
-            ds4_gpu_ane_get_i8i8_tiled_ctx_b(expert_in_dim,
-                                              expert_mid_dim,
-                                              ane_batch,
-                                              ane_w_scale,
-                                              ane_x_scale,
-                                              ane_mid_scale,
-                                              ane_compile_limit);
+            ds4_gpu_ane_get_i8i8_tiled_ctx_b_mode(expert_in_dim,
+                                                   expert_mid_dim,
+                                                   ane_batch,
+                                                   ane_w_scale,
+                                                   ane_x_scale,
+                                                   ane_mid_scale,
+                                                   ane_compile_limit,
+                                                   ane_ctx_mode);
         if (ane_ctx_b) {
             job->ane_ctx_b = ane_ctx_b;
             job->x_i8_batch_b = (int8_t *)malloc((size_t)x_batch_elems64);
+            job->route_f16_batch_b = ane_route_before_quant ?
+                (uint16_t *)malloc((size_t)route_batch_elems64 * sizeof(uint16_t)) : NULL;
             job->out_f16_batch_b = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
             job->chunks_done_bitmap = (uint8_t *)calloc((size_t)job->chunk_count, 1);
             job->dual_stagger_us = ds4_gpu_ane_prefill_dual_stagger_us();
-            if (job->x_i8_batch_b && job->out_f16_batch_b && job->chunks_done_bitmap) {
+            if (job->x_i8_batch_b && (!ane_route_before_quant || job->route_f16_batch_b) &&
+                job->out_f16_batch_b && job->chunks_done_bitmap) {
                 job->dual = 1;
                 job->n_workers = 2;
                 job->ane_threads_remaining = 2;
@@ -20794,18 +21179,22 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     }
     if (job->n_workers == 2 && requested_workers >= 3 && job->chunk_count >= 3) {
         ds4_ane_mlp_int8w_ctx *ane_ctx_c =
-            ds4_gpu_ane_get_i8i8_tiled_ctx_c(expert_in_dim,
-                                              expert_mid_dim,
-                                              ane_batch,
-                                              ane_w_scale,
-                                              ane_x_scale,
-                                              ane_mid_scale,
-                                              ane_compile_limit);
+            ds4_gpu_ane_get_i8i8_tiled_ctx_c_mode(expert_in_dim,
+                                                   expert_mid_dim,
+                                                   ane_batch,
+                                                   ane_w_scale,
+                                                   ane_x_scale,
+                                                   ane_mid_scale,
+                                                   ane_compile_limit,
+                                                   ane_ctx_mode);
         if (ane_ctx_c) {
             job->ane_ctx_c = ane_ctx_c;
             job->x_i8_batch_c = (int8_t *)malloc((size_t)x_batch_elems64);
+            job->route_f16_batch_c = ane_route_before_quant ?
+                (uint16_t *)malloc((size_t)route_batch_elems64 * sizeof(uint16_t)) : NULL;
             job->out_f16_batch_c = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
-            if (job->x_i8_batch_c && job->out_f16_batch_c) {
+            if (job->x_i8_batch_c && (!ane_route_before_quant || job->route_f16_batch_c) &&
+                job->out_f16_batch_c) {
                 job->n_workers = 3;
                 job->ane_threads_remaining = 3;
             }
@@ -20813,18 +21202,22 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
     }
     if (job->n_workers == 3 && requested_workers >= 4 && job->chunk_count >= 4) {
         ds4_ane_mlp_int8w_ctx *ane_ctx_d =
-            ds4_gpu_ane_get_i8i8_tiled_ctx_d(expert_in_dim,
-                                              expert_mid_dim,
-                                              ane_batch,
-                                              ane_w_scale,
-                                              ane_x_scale,
-                                              ane_mid_scale,
-                                              ane_compile_limit);
+            ds4_gpu_ane_get_i8i8_tiled_ctx_d_mode(expert_in_dim,
+                                                   expert_mid_dim,
+                                                   ane_batch,
+                                                   ane_w_scale,
+                                                   ane_x_scale,
+                                                   ane_mid_scale,
+                                                   ane_compile_limit,
+                                                   ane_ctx_mode);
         if (ane_ctx_d) {
             job->ane_ctx_d = ane_ctx_d;
             job->x_i8_batch_d = (int8_t *)malloc((size_t)x_batch_elems64);
+            job->route_f16_batch_d = ane_route_before_quant ?
+                (uint16_t *)malloc((size_t)route_batch_elems64 * sizeof(uint16_t)) : NULL;
             job->out_f16_batch_d = (uint16_t *)malloc((size_t)out_bucket_elems64 * sizeof(uint16_t));
-            if (job->x_i8_batch_d && job->out_f16_batch_d) {
+            if (job->x_i8_batch_d && (!ane_route_before_quant || job->route_f16_batch_d) &&
+                job->out_f16_batch_d) {
                 job->n_workers = 4;
                 job->ane_threads_remaining = 4;
             }
@@ -20864,7 +21257,9 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
         job->out_f16_all = (uint16_t *)malloc((size_t)out_elems64 * sizeof(uint16_t));
         job->route_weights = (float *)malloc((size_t)n_tokens * sizeof(float));
     }
-    if (!job->x_i8_all || !job->x_i8_batch || !job->out_f16_batch ||
+    if (!job->x_i8_all || !job->x_i8_batch ||
+        (ane_route_before_quant && !job->route_f16_batch) ||
+        !job->out_f16_batch ||
         !job->out_f16_all || (!job->gpu_output_pack && (!job->out_f32 || !job->out_f32_mtl)) ||
         (job->gpu_output_pack && (!job->out_f16_all_mtl || !job->route_weights_mtl)) ||
         !job->route_weights ||
@@ -21171,7 +21566,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
                                        total_eval_refs,
                                        total_padded_refs);
         g_ane_prefill_ane_evaluate_calls +=
-            total_eval_calls * ds4_gpu_ane_mode_evaluate_calls(6);
+            total_eval_calls * ds4_gpu_ane_mode_evaluate_calls(job->route_before_quant ? 13 : 6);
     }
     int ok = !job->ane_failed && !job->post_failed && job->ane_done &&
         (job->gpu_output_pack || job->post_done);
@@ -21179,6 +21574,40 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         g_ane_prefill_eval_failures++;
         ds4_gpu_ane_prefill_job_free(job);
         return 0;
+    }
+    {
+        const uint32_t compare_limit = ds4_gpu_ane_compare_limit();
+        if (compare_limit > 0 &&
+            g_ane_prefill_compare_count < compare_limit &&
+            job->n_tokens > 0 &&
+            job->gate_i8 && job->up_i8 && job->down_i8 &&
+            job->x_i8_all && job->out_f16_all && job->route_weights) {
+            g_ane_prefill_compare_count++;
+            const uint32_t chunk = job->n_tokens < job->ane_chunk_refs ?
+                job->n_tokens : job->ane_chunk_refs;
+            ds4_gpu_ane_compare_one_row("i8w-i8x-tiled-fused-async",
+                                        NULL,
+                                        NULL,
+                                        NULL,
+                                        job->gate_i8,
+                                        job->up_i8,
+                                        job->down_i8,
+                                        NULL,
+                                        job->x_i8_all,
+                                        job->out_f16_all,
+                                        job->expert_in_dim,
+                                        job->expert_mid_dim,
+                                        (uint64_t)g_ane_prefill_finish_calls,
+                                        job->n_tokens,
+                                        0,
+                                        chunk,
+                                        job->route_weights[0],
+                                        job->ane_w_scale,
+                                        job->ane_x_scale,
+                                        job->ane_mid_scale,
+                                        1,
+                                        job->route_before_quant);
+        }
     }
 
     /* Writeback ANE output into the destination tensor as a GPU blit encoded
@@ -21314,9 +21743,9 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
         return 0;
     }
 
-    float ane_qscale = 64.0f, ane_w_scale = 1.0f / 64.0f;
-    float ane_x_qscale = 16.0f, ane_x_scale = 1.0f / 16.0f;
-    float ane_mid_qscale = 16.0f, ane_mid_scale = 1.0f / 16.0f;
+    float ane_qscale = 512.0f, ane_w_scale = 1.0f / 512.0f;
+    float ane_x_qscale = 32.0f, ane_x_scale = 1.0f / 32.0f;
+    float ane_mid_qscale = 32.0f, ane_mid_scale = 1.0f / 32.0f;
     uint32_t ane_batch = 256u, ane_compile_limit = 8u;
     ds4_gpu_ane_prefill_env(&ane_qscale,
                             &ane_w_scale,
@@ -21564,7 +21993,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                     ane_batch, expert_in_dim, expert_mid_dim, ane_qscale, ane_x_qscale);
             goto done;
         }
-        if (!ds4_gpu_backend_logs_suppressed()) {
+        if (ds4_gpu_backend_stats_logs_enabled()) {
             fprintf(stderr, "ds4: ANE %s prefill compiled B=%u H=%u I=%u w_qscale=%.6g x_qscale=%.6g mid_qscale=%.6g\n",
                     ds4_gpu_ane_mode_name(ane_mode),
                     ane_batch, expert_in_dim, expert_mid_dim, ane_qscale, ane_x_qscale, ane_mid_qscale);
@@ -21701,9 +22130,11 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                                             n_tokens,
                                             begin,
                                             chunk,
+                                            w_ptr[begin],
                                             1.0f,
                                             1.0f,
                                             1.0f,
+                                            0,
                                             0);
             } else if (ane_fp16x_i8w) {
                 ds4_gpu_ane_compare_one_row("i8w-fp16x",
@@ -21722,9 +22153,11 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                                             n_tokens,
                                             begin,
                                             chunk,
+                                            w_ptr[begin],
                                             ane_w_scale,
                                             1.0f,
                                             1.0f,
+                                            0,
                                             0);
             } else if (ane_i8i8) {
                 ds4_gpu_ane_compare_one_row(ds4_gpu_ane_mode_name(ane_mode),
@@ -21743,10 +22176,12 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                                             n_tokens,
                                             begin,
                                             chunk,
+                                            w_ptr[begin],
                                             ane_w_scale,
                                             ane_x_scale,
                                             ane_mid_scale,
-                                            1);
+                                            1,
+                                            0);
             } else {
                 ds4_gpu_ane_compare_one_row("int8w",
                                             NULL,
@@ -21764,9 +22199,11 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
                                             n_tokens,
                                             begin,
                                             chunk,
+                                            w_ptr[begin],
                                             ane_w_scale,
                                             ane_x_scale,
                                             ane_x_scale,
+                                            0,
                                             0);
             }
         }
@@ -23004,7 +23441,8 @@ int ds4_gpu_moe_predequant_i8_experts(ds4_gpu_tensor **gate_i8_out,
     const double t4 = ds4_gpu_now_ms();
 
     if (!ds4_gpu_backend_logs_suppressed() &&
-        (getenv("DS4_RESIDENT_MOE_MPP_STATS") || getenv("DS4_FLASH_MOE_ANE_STATS"))) {
+        (ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+         ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_ANE_STATS"))) {
         fprintf(stderr,
                 "ds4: resident ANE compact predequant i8 experts=%u encode=%.3f ms execute=%.3f ms bytes=%.2f GiB\n",
                 n_active,
@@ -23108,7 +23546,8 @@ int ds4_gpu_moe_predequant_i8_banks(ds4_gpu_tensor **gate_i8_out,
     const double t3 = ds4_gpu_now_ms();
 
     if (!ds4_gpu_backend_logs_suppressed() &&
-        (getenv("DS4_RESIDENT_MOE_MPP_STATS") || getenv("DS4_FLASH_MOE_ANE_STATS"))) {
+        (ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+         ds4_gpu_env_flag_enabled("DS4_FLASH_MOE_ANE_STATS"))) {
         fprintf(stderr,
                 "ds4: resident ANE predequant i8 banks experts=%u encode=%.3f ms execute=%.3f ms bytes=%.2f GiB\n",
                 n_expert,
@@ -24706,37 +25145,17 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
             g_mpp_mul_rows_weight_f32_pipeline != nil;
         const uint32_t fused_min_refs =
             ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS", 128u);
-        float mpp_i8_qscale = 8.0f;
-        const char *qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_QSCALE");
-        if (!qscale_env || !qscale_env[0]) qscale_env = getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE");
-        if (qscale_env && qscale_env[0]) {
-            char *end = NULL;
-            float parsed = strtof(qscale_env, &end);
-            if (end != qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                mpp_i8_qscale = parsed;
-            }
-        }
-        const float mpp_i8_scale = 1.0f / mpp_i8_qscale;
-        float mpp_x_qscale = 16.0f;
-        const char *x_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE");
-        if (!x_qscale_env || !x_qscale_env[0]) x_qscale_env = getenv("DS4_FLASH_MOE_ANE_X_QSCALE");
-        if (x_qscale_env && x_qscale_env[0]) {
-            char *end = NULL;
-            float parsed = strtof(x_qscale_env, &end);
-            if (end != x_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                mpp_x_qscale = parsed;
-            }
-        }
-        float mpp_mid_qscale = 16.0f;
-        const char *mid_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE");
-        if (!mid_qscale_env || !mid_qscale_env[0]) mid_qscale_env = getenv("DS4_FLASH_MOE_ANE_MID_QSCALE");
-        if (mid_qscale_env && mid_qscale_env[0]) {
-            char *end = NULL;
-            float parsed = strtof(mid_qscale_env, &end);
-            if (end != mid_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                mpp_mid_qscale = parsed;
-            }
-        }
+        float mpp_i8_qscale = 512.0f;
+        float mpp_i8_scale = 1.0f / 512.0f;
+        float mpp_x_qscale = 32.0f;
+        float mpp_mid_qscale = 32.0f;
+        ds4_gpu_prefill_int8_scales(0,
+                                    &mpp_i8_qscale,
+                                    &mpp_i8_scale,
+                                    &mpp_x_qscale,
+                                    NULL,
+                                    &mpp_mid_qscale,
+                                    NULL);
         const float mpp_gate_scale = 1.0f / (mpp_x_qscale * mpp_i8_qscale);
         const float mpp_down_scale = 1.0f / (mpp_mid_qscale * mpp_i8_qscale);
 
@@ -25269,15 +25688,17 @@ int ds4_gpu_routed_moe_batch_tensor(
         const bool use_mm_id = n_tokens >= 32u && ds4_gpu_mul_mm_id_map0_name(n_expert) != NULL;
         /* Per-chunk backend selection (precedence: explicit param > JSON prefill_by_tokens
          * table > the predefined env gates below). Only grouped-path backends are honored
-         * here; an unsupported name (ane-* or pathc) warns once and falls to the gates. */
+         * here. ane* chunks are handled by the outer resident ANE orchestrator; if this
+         * grouped helper sees one, it is the ANE cold tail and should not warn. */
         char tok_backend[24];
         ds4_gpu_resident_backend_for_tokens(n_tokens, tok_backend, sizeof(tok_backend));
         const bool tb_set     = tok_backend[0] != '\0';
         const bool tb_mulmm   = tb_set && strcmp(tok_backend, "mulmm") == 0;
         const bool tb_half    = tb_set && strstr(tok_backend, "half") != NULL;
         const bool tb_int8    = tb_set && strstr(tok_backend, "int8") != NULL;
+        const bool tb_ane     = tb_set && strncmp(tok_backend, "ane", 3) == 0;
         const bool tb_use     = tb_mulmm || tb_half || tb_int8;   /* table drives this chunk */
-        if (tb_set && !tb_use && !ds4_gpu_backend_logs_suppressed()) {
+        if (tb_set && !tb_use && !tb_ane && !ds4_gpu_backend_logs_suppressed()) {
             static bool warned_tb_unsup = false;
             if (!warned_tb_unsup) {
                 warned_tb_unsup = true;
@@ -25617,7 +26038,7 @@ int ds4_gpu_routed_moe_batch_tensor(
             if (ok && use_resident_mpp_standard) {
                 static bool announced = false;
                 if (!announced) {
-                    if (!ds4_gpu_backend_logs_suppressed()) {
+                    if (ds4_gpu_backend_stats_logs_enabled()) {
                         fprintf(stderr,
                                 "ds4: resident routed MoE using standard MPP/NAX "
                                 "grouped prefill\n");
@@ -25640,7 +26061,7 @@ int ds4_gpu_routed_moe_batch_tensor(
                  * ds4.c:9895). tile <= sync_max_tokens -> slow CPU<->GPU count-readback
                  * (map_wait); tile > it -> fast fully-indirect. Surfaced so a hidden
                  * tiling override can't silently force the slow path. */
-                if (!ds4_gpu_backend_logs_suppressed()) {
+                if (ds4_gpu_backend_stats_logs_enabled()) {
                     static bool synced_logged = false;
                     if (!synced_logged) {
                         synced_logged = true;
@@ -25677,35 +26098,15 @@ int ds4_gpu_routed_moe_batch_tensor(
                     }
 
                     float mpp_i8_qscale = 512.0f;
-                    const char *qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_QSCALE");
-                    if (!qscale_env || !qscale_env[0]) qscale_env = getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE");
-                    if (qscale_env && qscale_env[0]) {
-                        char *end = NULL;
-                        float parsed = strtof(qscale_env, &end);
-                        if (end != qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                            mpp_i8_qscale = parsed;
-                        }
-                    }
                     float mpp_x_qscale = 32.0f;
-                    const char *x_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE");
-                    if (!x_qscale_env || !x_qscale_env[0]) x_qscale_env = getenv("DS4_FLASH_MOE_ANE_X_QSCALE");
-                    if (x_qscale_env && x_qscale_env[0]) {
-                        char *end = NULL;
-                        float parsed = strtof(x_qscale_env, &end);
-                        if (end != x_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                            mpp_x_qscale = parsed;
-                        }
-                    }
                     float mpp_mid_qscale = 32.0f;
-                    const char *mid_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE");
-                    if (!mid_qscale_env || !mid_qscale_env[0]) mid_qscale_env = getenv("DS4_FLASH_MOE_ANE_MID_QSCALE");
-                    if (mid_qscale_env && mid_qscale_env[0]) {
-                        char *end = NULL;
-                        float parsed = strtof(mid_qscale_env, &end);
-                        if (end != mid_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                            mpp_mid_qscale = parsed;
-                        }
-                    }
+                    ds4_gpu_prefill_int8_scales(0,
+                                                &mpp_i8_qscale,
+                                                NULL,
+                                                &mpp_x_qscale,
+                                                NULL,
+                                                &mpp_mid_qscale,
+                                                NULL);
                     const float mpp_gate_scale = 1.0f / (mpp_x_qscale * mpp_i8_qscale);
                     const float mpp_down_scale = 1.0f / (mpp_mid_qscale * mpp_i8_qscale);
 
@@ -26367,35 +26768,15 @@ int ds4_gpu_routed_moe_batch_tensor(
                 }
 
                 float mpp_i8_qscale = 512.0f;
-                const char *qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_QSCALE");
-                if (!qscale_env || !qscale_env[0]) qscale_env = getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE");
-                if (qscale_env && qscale_env[0]) {
-                    char *end = NULL;
-                    float parsed = strtof(qscale_env, &end);
-                    if (end != qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                        mpp_i8_qscale = parsed;
-                    }
-                }
                 float mpp_x_qscale = 32.0f;
-                const char *x_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_X_QSCALE");
-                if (!x_qscale_env || !x_qscale_env[0]) x_qscale_env = getenv("DS4_FLASH_MOE_ANE_X_QSCALE");
-                if (x_qscale_env && x_qscale_env[0]) {
-                    char *end = NULL;
-                    float parsed = strtof(x_qscale_env, &end);
-                    if (end != x_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                        mpp_x_qscale = parsed;
-                    }
-                }
                 float mpp_mid_qscale = 32.0f;
-                const char *mid_qscale_env = getenv("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE");
-                if (!mid_qscale_env || !mid_qscale_env[0]) mid_qscale_env = getenv("DS4_FLASH_MOE_ANE_MID_QSCALE");
-                if (mid_qscale_env && mid_qscale_env[0]) {
-                    char *end = NULL;
-                    float parsed = strtof(mid_qscale_env, &end);
-                    if (end != mid_qscale_env && parsed > 0.0f && isfinite(parsed)) {
-                        mpp_mid_qscale = parsed;
-                    }
-                }
+                ds4_gpu_prefill_int8_scales(0,
+                                            &mpp_i8_qscale,
+                                            NULL,
+                                            &mpp_x_qscale,
+                                            NULL,
+                                            &mpp_mid_qscale,
+                                            NULL);
                 const float mpp_gate_scale = 1.0f / (mpp_x_qscale * mpp_i8_qscale);
                 const float mpp_down_scale = 1.0f / (mpp_mid_qscale * mpp_i8_qscale);
 
@@ -26734,9 +27115,9 @@ int ds4_gpu_routed_moe_batch_tensor(
                          * land in iter 8. */
                         ds4_ane_mlp_int8w_ctx *ane_ctx = NULL;
                         if (actually_submit_ane) {
-                            const float ane_w_scale  = 1.0f / 64.0f;   /* matches start_tensor defaults */
-                            const float ane_x_scale  = 1.0f / 16.0f;
-                            const float ane_mid_scale = 1.0f / 16.0f;
+                            const float ane_w_scale  = 1.0f / 512.0f;  /* matches start_tensor defaults */
+                            const float ane_x_scale  = 1.0f / 32.0f;
+                            const float ane_mid_scale = 1.0f / 32.0f;
                             ane_ctx = ds4_gpu_ane_get_i8i8_tiled_ctx(
                                 expert_in_dim, expert_mid_dim, 256,
                                 ane_w_scale, ane_x_scale, ane_mid_scale,

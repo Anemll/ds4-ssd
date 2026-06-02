@@ -20,6 +20,7 @@ typedef struct ds4_gpu_tensor ds4_gpu_tensor;
 
 int ds4_gpu_init(void);
 void ds4_gpu_cleanup(void);
+int ds4_gpu_mpp_nax_supported(void);
 
 ds4_gpu_tensor *ds4_gpu_tensor_alloc(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc_managed(uint64_t bytes);
@@ -1040,6 +1041,13 @@ int ds4_gpu_copy_f32_slice(const ds4_gpu_tensor *src, uint32_t src_offset,
  * Precedence: DS4_RESIDENT_MOE_BACKEND param > DS4_RESIDENT_MOE_PREFILL_BY_TOKENS
  * table > "" (caller uses its own fallback). See ds4_metal.m for details. */
 void ds4_gpu_resident_backend_for_tokens(uint32_t n_tokens, char *out, size_t outsz);
+void ds4_gpu_prefill_int8_scales(int prefer_ane_env,
+                                 float *w_qscale,
+                                 float *w_scale,
+                                 float *x_qscale,
+                                 float *x_scale,
+                                 float *mid_qscale,
+                                 float *mid_scale);
 
 int ds4_gpu_routed_moe_batch_tensor(
         ds4_gpu_tensor       *out,
