@@ -20,6 +20,14 @@ SIDECAR_DIR/
 Use `SIDECAR_DIR/dense/model-dense.gguf` as the model path and `SIDECAR_DIR` as
 the sidecar path.
 
+Do not point `-m` at a full resident GGUF and expect SSD streaming. A command
+with only `-m /path/to/full-model.gguf` runs resident/full-GGUF mode. SSD
+streaming requires:
+
+- `-m "$SIDECAR_DIR/dense/model-dense.gguf"`
+- `--moe-sidecar "$SIDECAR_DIR"`
+- `--moe-mode slot-bank` or the `ds4-bench` sidecar default
+
 ## Command
 
 ```sh
@@ -69,9 +77,40 @@ DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
 Expected startup logs include:
 
 ```text
+applied sidecar tuning profile
 Flash-MoE sidecar loaded
 prefill chunk cap: 16384
 Flash-MoE slot banks allocated
+```
+
+Resident/full-GGUF mode instead prints `applied tuning profile` and does not
+print `Flash-MoE sidecar loaded`.
+
+## Benchmark Sidecar Mode
+
+`ds4-bench` supports the same sidecar arguments. This benchmarks SSD streaming:
+
+```sh
+export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
+
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4-bench \
+  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
+  --moe-sidecar "$DS4_SIDECAR_DIR" \
+  --moe-slot-bank 64 \
+  --prompt-file speed-bench/promessi_sposi.txt \
+  --ctx-start 2048 \
+  --ctx-max 32768 \
+  --step-incr 2048 \
+  --gen-tokens 128 \
+  --csv /tmp/ds4-sidecar-speed.csv
+```
+
+This is a resident benchmark, not SSD streaming:
+
+```sh
+./ds4-bench \
+  -m /path/to/full-resident-model.gguf \
+  --prompt-file speed-bench/promessi_sposi.txt
 ```
 
 ## Conversion Status

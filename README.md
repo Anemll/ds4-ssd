@@ -85,6 +85,17 @@ Run the committed sidecar smoke:
 DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 ```
 
+To confirm SSD streaming is active, look for these startup lines:
+
+```text
+applied sidecar tuning profile
+Flash-MoE sidecar loaded
+Flash-MoE slot banks allocated
+```
+
+If you pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF
+mode. SSD streaming requires both the dense sidecar GGUF and `--moe-sidecar`.
+
 See [docs/SIDECAR.md](docs/SIDECAR.md).
 
 ## Run Resident GGUF Mode
