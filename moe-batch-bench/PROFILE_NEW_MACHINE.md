@@ -5,6 +5,7 @@ writing the winning config into `ds4_profile.json`, for **both** deployment
 regimes. Worked examples already in-tree:
 
 - `moe-batch-bench/PREFILL_PROFILE_M5MAX.md` — M5 Max (single ANE cluster)
+- `moe-batch-bench/PREFILL_PROFILE_M1MAX.md` — M1 Max (single ANE cluster, no NAX; ANE loses to GPU/ALU → streaming stays GPU)
 - `moe-batch-bench/SHORT_PREFILL_OPTIMIZATION.md` — M3 Ultra (dual ANE cluster)
 
 ## 0. The two regimes (this is the whole point)

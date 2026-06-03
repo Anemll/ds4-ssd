@@ -57,6 +57,27 @@ in the mid-range (4K prompt +14.8%, 2K chunk +18.7%) and shrinks as chunk grows
 (16K chunk only +3% — the SSD I/O bubble ANE hides behind closes up). Best
 `min_refs` is firmly **32–64**.
 
+**Mid-band fill (10K/12K/14K prompt, chunk 16K)** — confirms the 8K→16K curve:
+
+| prompt | GPU NAX-int8 | best ANE | min_refs | ANE delta |
+|-------:|----:|---------:|---------:|----------:|
+| 10K | 317.33 | 341.37 | 64 | +7.6% |
+| 12K | 323.11 | 349.94 | 64 | +8.3% |
+| 14K | 330.05 | 348.74 | 64 | +5.7% |
+
+ANE wins the whole 8K–16K band (+6–8%); `min_refs=64` throughout — no backend or
+threshold change. (32K intentionally not measured — slow, and the ≥8K trend is
+settled.)
+
+**Resident 10K/12K/14K not directly captured** — a resident-prefill instability
+at ctx 12000/14336/17000 + chunk 16384 blocks it (profile-script runs complete
+prefill then crash in the post-prefill gen step; bare runs crash early at layer
+2; chunks <16384 also flip to a different "fused GPU path"). The resident verdict
+needs no new data: it's bounded by the measured 8K (GPU 633) and 16K (GPU 513)
+endpoints — both decisive NAX-int8 wins over ANE (~366–389) — so 10–14K is
+NAX-int8 too. **Follow-up:** investigate the resident-prefill instability in the
+12K–17K ctx band separately (not a profiling/profile-routing issue).
+
 ## Resident (full 81 G GGUF, `--moe-mode off`)
 
 **Segment A — fixed chunk 16K, prompt sweep:** GPU=NAX-int8.

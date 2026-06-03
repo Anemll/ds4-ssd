@@ -382,12 +382,28 @@
       }
     },
     {
+      "_comment": "M1 Max 64G — STREAMING (Flash-MoE SSD/slot-bank). GPU/ALU (mul_mm_id) routed-MoE prefill, ANE OFF. MEASURED 2026-06-02 (slots=96, coding_* prompts, single gen tok, cooldown'd): single-cluster ANE LOSES to GPU/ALU at every config tested. Cool 8K GPU=94.31 t/s vs best-tuned ANE (tiled-fused, max_refs=512, batches=256/512, min_refs=512)=90.63 (-3.9%); ANE never wins at any min_refs/max_refs/batch schedule. Findings: (a) routed-ANE only works on the tiled-fused kernel — fp16x/full-fused set I8I8_TILED_FUSED=0 which silently disables routing (ane_refs=0 = secret GPU, do NOT use). (b) throughput-bound, not padding-bound: bigger ANE batches (max_refs 512) beat smaller despite ~32% pad waste; multi-bucket batch schedules (128,256 / 64,128,256) cut padding but didn't raise t/s. (c) ANE/GPU overlap already near-perfect (overlap scheduler est_idle ~0.5%) so no overlap headroom. (d) the earlier '+8% ANE win' was a THERMAL artifact (measured vs a hot 83.91 GPU; real cool GPU is 94.31). M1 Max has no NAX (M5-only) so the GPU path is mul_mm_id ALU. To A/B ANE on, export DS4_FLASH_MOE_ANE_PREFILL=1 (+ tiled-fused, max_refs=512). KV growth block 2048 (conservative for 64 GiB single-die). MEMORY BUDGET (64 GiB): slots=64 default — slots=96 + large ctx (e.g. --ctx 100000) over-commits RAM and SWAPS (8.8G dense + ~28G 96-slot bank + KV > 64G; prefill collapses to ~2 t/s, MEASURED). 64 fits; raise slots only at small ctx. The recorded prefill benchmarks used slots=96 at small ctx (<=20K, no swap). See moe-batch-bench/run_*_M1MAX64.sh + sweep harness.",
       "match": {
         "chip": "Apple M1 Max"
       },
       "env": {
         "DS4_CTX_GROW": "1",
         "DS4_CTX_GROW_BLOCK": "2048"
+      },
+      "sidecar_env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_FLASH_MOE_SLOT_BANK_SLOTS": "64",
+        "DS4_FLASH_MOE_ANE_PREFILL": "0",
+        "DS4_FLASH_MOE_MPP_INT8_PREFILL": "0",
+        "DS4_FLASH_MOE_MPP_I8I8_PREFILL": "0",
+        "DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL": "0",
+        "DS4_FLASH_MOE_PREFETCH": "3",
+        "DS4_FLASH_MOE_ASYNC_PREAD": "1",
+        "DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE": "1",
+        "DS4_FLASH_MOE_PREAD_THREADS": "6",
+        "DS4_FLASH_MOE_ASYNC_READAHEAD": "12"
       }
     },
     {
