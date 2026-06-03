@@ -4,11 +4,13 @@ set -e
 REPO="antirez/deepseek-v4-gguf"
 SIDECAR_REPO="anemll/dsv4-iq2xxs-expert-major"
 SIDECAR_DIR_NAME="dsv4-iq2xxs-expert-major"
+HUIHUI_REPO="huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF"
 Q2_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf"
 Q2_IMATRIX_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf"
 Q4_FILE="DeepSeek-V4-Flash-Q4KExperts-F16HC-F16Compressor-F16Indexer-Q8Attn-Q8Shared-Q8Out-chat-v2.gguf"
 Q4_IMATRIX_FILE="DeepSeek-V4-Flash-Q4KExperts-F16HC-F16Compressor-F16Indexer-Q8Attn-Q8Shared-Q8Out-chat-v2-imatrix.gguf"
 MTP_FILE="DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf"
+HUIHUI_IQ2XXS_FILE="Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf"
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 OUT_DIR=${DS4_GGUF_DIR:-"$ROOT/gguf"}
@@ -22,6 +24,7 @@ case "$SIDECAR_OUT_DIR" in
     *) SIDECAR_OUT_DIR="$ROOT/$SIDECAR_OUT_DIR" ;;
 esac
 TOKEN=${HF_TOKEN:-}
+MODEL_REPO=$REPO
 
 usage() {
     cat <<EOF
@@ -33,6 +36,7 @@ Usage:
   ./download_model.sh q2 [--token TOKEN]
   ./download_model.sh q4 [--token TOKEN]
   ./download_model.sh mtp [--token TOKEN]
+  ./download_model.sh huihui-iq2xxs [--token TOKEN]
   ./download_model.sh sidecar [--token TOKEN]
 
 Targets:
@@ -60,6 +64,12 @@ Targets:
        It is useful with q2-imatrix, q4-imatrix, q2, and q4, but must be
        enabled explicitly with --mtp when running ds4 or ds4-server.
 
+  huihui-iq2xxs
+       Resident GGUF from $HUIHUI_REPO:
+       $HUIHUI_IQ2XXS_FILE
+       About 80 GB on disk. Can run resident on a 96 GB M3 Ultra if almost
+       nothing else is using memory; SSD sidecar remains the safer 96 GB path.
+
   sidecar
        SSD-streaming sidecar package from $SIDECAR_REPO.
        Downloads dense/model-dense.gguf plus routed-expert sidecar files.
@@ -76,7 +86,7 @@ Environment:
                  Directory used for the downloaded SSD sidecar package.
                  Default: ./models/$SIDECAR_DIR_NAME
 
-After q2-imatrix/q4-imatrix/q2/q4 downloads the script updates:
+After q2-imatrix/q4-imatrix/q2/q4/huihui-iq2xxs downloads the script updates:
   ./ds4flash.gguf -> <download directory>/<selected model>
 
 Then the default commands work:
@@ -105,6 +115,10 @@ case "$MODEL" in
     q2) MODEL_FILE=$Q2_FILE ;;
     q4) MODEL_FILE=$Q4_FILE ;;
     mtp) MODEL_FILE=$MTP_FILE ;;
+    huihui-iq2xxs)
+        MODEL_REPO=$HUIHUI_REPO
+        MODEL_FILE=$HUIHUI_IQ2XXS_FILE
+        ;;
     sidecar) MODEL_FILE= ;;
     -h|--help|help)
         usage
@@ -145,7 +159,7 @@ download_one() {
     out="$OUT_DIR/$file"
     part="$out.part"
     aria2_part="$out.aria2"
-    url="https://huggingface.co/$REPO/resolve/main/$file"
+    url="https://huggingface.co/$MODEL_REPO/resolve/main/$file"
 
     mkdir -p "$OUT_DIR"
 
@@ -161,7 +175,7 @@ download_one() {
     fi
 
     echo "Downloading $file"
-    echo "from https://huggingface.co/$REPO"
+    echo "from https://huggingface.co/$MODEL_REPO"
     echo "If the download stops, run the same command again to resume it."
 
     if [ -n "$TOKEN" ]; then

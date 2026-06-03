@@ -117,6 +117,15 @@ Download a resident GGUF:
 ./download_model.sh q2-imatrix
 ```
 
+An alternate resident GGUF,
+[Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF/resolve/main/Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf),
+is available from
+[huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF):
+
+```sh
+./download_model.sh huihui-iq2xxs
+```
+
 Then run:
 
 ```sh
@@ -125,7 +134,9 @@ Then run:
 
 Resident mode loads the full model file and is meant for high-memory machines.
 It is still useful for baseline comparison, server use, and systems with enough
-RAM to hold the selected quantization.
+RAM to hold the selected quantization. The Huihui IQ2_XXS resident GGUF can be
+used on a 96 GB M3 Ultra, but memory headroom is tight; run with little to
+nothing else active. Reaped/pruned resident models are still under investigation.
 
 See [docs/RESIDENT.md](docs/RESIDENT.md) and
 [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md).

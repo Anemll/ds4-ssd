@@ -17,6 +17,19 @@ Use resident mode when:
 ./download_model.sh q2-imatrix
 ```
 
+Alternate resident GGUF:
+
+```sh
+./download_model.sh huihui-iq2xxs
+```
+
+That target downloads
+[Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF/resolve/main/Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf)
+from
+[huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF).
+It can run resident on a 96 GB M3 Ultra, but memory headroom is tight; run with
+little to nothing else active.
+
 The script creates or updates:
 
 ```text
@@ -53,3 +66,6 @@ defaults, and override rules.
 Resident mode has the same basic memory constraint as upstream DS4: the full
 model file and runtime caches need to fit. For smaller-memory Apple Silicon
 systems, prefer SSD sidecar mode.
+
+Reaped/pruned resident models are still under investigation and are not yet a
+recommended alpha path.

@@ -8,15 +8,15 @@ DS4 has two model layouts in this alpha:
 
 ## Resident GGUF
 
-Use the downloader for the antirez resident GGUF files:
+Use the downloader for resident GGUF files:
 
 ```sh
 ./download_model.sh q2-imatrix
 ```
 
-The script downloads from `antirez/deepseek-v4-gguf`, places files under
-`./gguf` by default, and updates `./ds4flash.gguf` to the selected resident
-model. Override the output location with:
+The script downloads from the selected Hugging Face repo, places files under
+`./gguf` by default, and updates `./ds4flash.gguf` to the selected resident model.
+Override the output location with:
 
 ```sh
 DS4_GGUF_DIR=/path/to/gguf ./download_model.sh q2-imatrix
@@ -26,8 +26,18 @@ Common resident choices:
 
 - `q2-imatrix`: about 81 GB on disk, preferred resident baseline for 96/128 GB
   class machines.
+- `huihui-iq2xxs`: about 80 GB on disk, the
+  [Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF/resolve/main/Huihui-DeepSeek-V4-Flash-BF16-abliterated-ds4-IQ2_XXS.gguf)
+  resident GGUF
+  from
+  [huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF](https://huggingface.co/huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF).
+  It can run resident on a 96 GB M3 Ultra, but leave little to nothing else
+  active because memory headroom is tight.
 - `q4-imatrix`: about 153 GB on disk, intended for much larger RAM systems.
 - `mtp`: optional speculative decoding component.
+
+Reaped/pruned resident models are not yet a recommended alpha path. They are
+still under investigation.
 
 Run:
 
