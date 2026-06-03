@@ -156,10 +156,10 @@ GGUF, quantization, and kernel work pioneered by `llama.cpp` and GGML.
 
 The SSD-streaming direction is also indebted to Apple's
 [LLM in a flash: Efficient Large Language Model Inference with Limited Memory](https://machinelearning.apple.com/research/efficient-large-language)
-paper and to [Anemll/flash-moe](https://github.com/Anemll/flash-moe), forked
-from Dan / `danveloper`'s Flash-MoE work. Read the
+paper and to the original [danveloper/flash-moe](https://github.com/danveloper/flash-moe)
+work by Claude Opus 4.6 and Daniel Woods. Read the
 [original Flash-MoE paper](https://github.com/danveloper/flash-moe/blob/main/paper/flash_moe.pdf)
-for the full story of how an AI and a human built that engine in 24 hours.
+for the full story of how they built that engine in 24 hours.
 
 Keep the repository `LICENSE` with redistributions and preserve attribution to
 antirez, llama.cpp, GGML, and their contributors.
