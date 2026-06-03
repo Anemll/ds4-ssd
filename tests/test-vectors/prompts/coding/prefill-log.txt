@@ -1,0 +1,371 @@
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=19 tools=15 grammar_len=15676 generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai' normalized_generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai'
+srv  params_from_: Chat format: peg-native
+srv  handle_compl: Request prepared: kind = oai-chat, prompts = 1, tasks = 1, prompt_tokens = 126752, messages = 19, tools = 15, classify = likely-context-compaction, tokenize = 175.67 ms, params = 0.82 ms, total = 176.49 ms, queueing for slot scheduling
+srv  handle_compl: Request classified as likely context compaction / long-history recovery: large rendered chat history with agentic shape; prefill TPS here is not directly comparable to a normal user turn.
+slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 186204403117
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task 12 | processing task, is_child = 0
+slot update_slots: id  0 | task 12 | new prompt, n_ctx_slot = 96000, n_keep = 0, task.n_tokens = 126752
+srv    send_error: task id = 12, error: request (126752 tokens) exceeds the available context size (96000 tokens), try increasing it
+slot      release: id  0 | task 12 | stop processing: n_tokens = 0, truncated = 0
+srv          stop: cancel task, id_task = 12
+srv  update_slots: no tokens to decode
+srv  update_slots: all slots are idle
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 400
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=19 tools=15 grammar_len=15676 generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai' normalized_generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai'
+srv  params_from_: Chat format: peg-native
+srv  handle_compl: Request prepared: kind = oai-chat, prompts = 1, tasks = 1, prompt_tokens = 126752, messages = 19, tools = 15, classify = likely-context-compaction, tokenize = 171.14 ms, params = 0.82 ms, total = 171.96 ms, queueing for slot scheduling
+srv  handle_compl: Request classified as likely context compaction / long-history recovery: large rendered chat history with agentic shape; prefill TPS here is not directly comparable to a normal user turn.
+slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 186274580184
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task 15 | processing task, is_child = 0
+slot update_slots: id  0 | task 15 | new prompt, n_ctx_slot = 96000, n_keep = 0, task.n_tokens = 126752
+srv    send_error: task id = 15, error: request (126752 tokens) exceeds the available context size (96000 tokens), try increasing it
+slot      release: id  0 | task 15 | stop processing: n_tokens = 0, truncated = 0
+srv          stop: cancel task, id_task = 15
+srv  update_slots: no tokens to decode
+srv  update_slots: all slots are idle
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 400
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=19 tools=15 grammar_len=15676 generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai' normalized_generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai'
+srv  params_from_: Chat format: peg-native
+srv  handle_compl: Request prepared: kind = oai-chat, prompts = 1, tasks = 1, prompt_tokens = 126752, messages = 19, tools = 15, classify = likely-context-compaction, tokenize = 171.73 ms, params = 0.82 ms, total = 172.55 ms, queueing for slot scheduling
+srv  handle_compl: Request classified as likely context compaction / long-history recovery: large rendered chat history with agentic shape; prefill TPS here is not directly comparable to a normal user turn.
+slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 186276349572
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task 18 | processing task, is_child = 0
+slot update_slots: id  0 | task 18 | new prompt, n_ctx_slot = 96000, n_keep = 0, task.n_tokens = 126752
+srv    send_error: task id = 18, error: request (126752 tokens) exceeds the available context size (96000 tokens), try increasing it
+slot      release: id  0 | task 18 | stop processing: n_tokens = 0, truncated = 0
+srv          stop: cancel task, id_task = 18
+srv  update_slots: no tokens to decode
+srv  update_slots: all slots are idle
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 400
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=19 tools=15 grammar_len=15676 generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai' normalized_generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log[e~[
+]~b]ai'
+srv  params_from_: Chat format: peg-native
+srv  handle_compl: Request prepared: kind = oai-chat, prompts = 1, tasks = 1, prompt_tokens = 126752, messages = 19, tools = 15, classify = likely-context-compaction, tokenize = 171.05 ms, params = 0.86 ms, total = 171.91 ms, queueing for slot scheduling
+srv  handle_compl: Request classified as likely context compaction / long-history recovery: large rendered chat history with agentic shape; prefill TPS here is not directly comparable to a normal user turn.
+slot get_availabl: id  0 | task -1 | selected slot by LRU, t_last = 186279224970
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task 21 | processing task, is_child = 0
+slot update_slots: id  0 | task 21 | new prompt, n_ctx_slot = 96000, n_keep = 0, task.n_tokens = 126752
+srv    send_error: task id = 21, error: request (126752 tokens) exceeds the available context size (96000 tokens), try increasing it
+slot      release: id  0 | task 21 | stop processing: n_tokens = 0, truncated = 0
+srv          stop: cancel task, id_task = 21
+srv  update_slots: no tokens to decode
+srv  update_slots: all slots are idle
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 400
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=2 tools=15 grammar_len=15676 generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text = 14878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log, what is causing slowdown?
+
+---
+
+USER: Credit limit reached. Use /limits to manage your usage preferences or visit https://app.factory.ai/settings/usage
+```
+
+When making tool calls, always use your native tool calling schema — do not replicate the text format shown in the transcript above.[e~[
+]~b]ai' normalized_generation_prompt='[13983, end)
+slot update_slots: id  0 | task 440 | starting prompt prefill, total = 14878, cache = 13983, pending = 895, batch = 895, queued = 895 | moe prefill: dedup=97.6% reuse=42.33x replay=37.6% reload=9.43GB/s
+slot init_sampler: id  0 | task 440 | init sampler, took 1.14 ms, tokens: text =4878, total = 14878
+Flash-MoE prefill layer-major progress: 895 tok batch, micro=80(auto), 62/62 layers (100.0%, ~54 tps)
+slot update_slots: id  0 | task 440 | prompt processing done, total = 14878, cache = 13983, processed = 895, current = 14878, batch.n_tokens = 895, prep = 1.23 ms, eval = 16661.87 ms, total = 16663.10 ms | moe prefill: dedup=97.4% reuse=38.45x replay=37.6% reload=9.42GB/s tps=53.72
+slot maybe_log_ge: id  0 | task 440 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00 | moe decode: hit=87.0% replay=37.6% reload=1.09GB/s
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot print_timing: id  0 | task 440 | 
+prompt prep time =       1.75 ms
+prompt eval time =   16661.87 ms /   895 tokens (   18.62 ms per token, 53.72 tps)
+prompt total time =   16663.62 ms /   895 tokens (   18.62 ms per token, 53.71 tps)
+steady eval time =    5944.75 ms /    67 tokens (   88.73 ms per token, 11.27 tps)
+      total time =   22608.37 ms /   963 tokens
+slot      release: id  0 | task 440 | stop processing: n_tokens = 14945, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oai analyze log, what is causing slowdown?
+
+---
+
+USER: Credit limit reached. Use /limits to manage your usage preferences or visit https://app.factory.ai/settings/usage
+```
+
+When making tool calls, always use your native tool calling schema — do not replicate the text format shown in the transcript above.[e~[
+]~b]ai'
+srv  params_from_: Chat format: peg-native
+srv  handle_compl: Request prepared: kind = oai-chat, prompts = 1, tasks = 1, prompt_tokens = 26020, messages = 2, tools = 15, classify = normal, tokenize = 42.35 ms, params = 0.86 ms, total = 43.21 ms, queueing for slot scheduling
+slot get_availabl: id  0 | task -| selected slot by LRU, t_last = 186285844056
+slot launch_slot_: id  0 | task -1 | sampler chain: logits -> ?penalties -> ?dry -> ?top-n-sigma -> top-k -> ?typical -> top-p -> min-p -> ?xtc -> ?temp-ext -> dist 
+slot launch_slot_: id  0 | task 24 | processing task, is_child = 0
+slot update_slots: id  0 | task 24 | new prompt, n_ctx_slot = 96000, n_keep = 0, task.n_tokens = 26020
+slot update_slots: id  0 | task 24 | n_tokens = 0, memory_seq_rm [0, end)
+slot update_slots: id  0 | task 24 | starting prompt prefill, total = 26020, cache = 0, pending = 26020, batch = 8192, queued = 8192 | moe prefill: dedup=49.6% reuse=1.98x reload=11.39GB/s
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~341 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 8192, current = 8192, batch.n_tokens = 8192, progress = 0.314835, prep = 0.20 ms, eval = 24040.19 ms, total = 24040.38 ms | moe prefill: dedup=99.2% reuse=129.01x reload=11.04GB/s tps=340.76
+slot update_slots: id  0 | task 24 | n_tokens = 8192, memory_seq_rm [8192, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~209 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 16384, current = 16384, batch.n_tokens = 8192, progress = 0.629669, prep = 0.39 ms, eval = 63432.37 ms, total = 63432.76 ms | moe prefill: dedup=99.2% reuse=129.58x reload=11.00GB/s tps=258.29
+slot update_slots: id  0 | task 24 | n_tokens = 16384, memory_seq_rm [16384, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~93 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 24576, current = 24576, batch.n_tokens = 8192, progress = 0.944504, prep = 0.61 ms, eval = 151334.06 ms, total = 151334.67 ms | moe prefill: dedup=99.2% reuse=130.35x reload=10.08GB/s tps=162.40
+slot update_slots: id  0 | task 24 | n_tokens = 24576, memory_seq_rm [24576, end)
+slot init_sampler: id  0 | task 24 | init sampler, took 1.92 ms, tokens: text = 26020, total = 26020
+Flash-MoE prefill layer-major progress: 1444 tok batch, micro=80(auto), 62/62 layers (100.0%, ~69 tps)
+slot update_slots: id  0 | task 24 | prompt processing done, total = 26020, cache = 0, processed = 26020, current = 26020, batch.n_tokens = 1444, prep = 2.62 ms, eval = 172371.64 ms, total = 172374.26 ms | moe prefill: dedup=99.1% reuse=105.86x reload=10.22GB/s tps=150.95
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 97 / 32000, n_rem = 31903, prgs = 0.0030, tps: 6.38 | moe decode: hit=71.5% replay=36.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 256 / 32000, n_rem = 31744, prgs = 0.0080, tps: 9.13 | moe decode: hit=84.9% replay=37.3% reload=1.10GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 429 / 32000, n_rem = 31571, prgs = 0.0134, tps: 9.96 | moe decode: hit=87.4% replay=36.4% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 512 / 32000, n_rem = 31488, prgs = 0.0160, tps: 10.19 | moe decode: hit=88.0% replay=36.1% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 677 / 32000, n_rem = 31323, prgs = 0.0212, tps: 10.36 | moe decode: hit=88.4% replay=35.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 768 / 32000, n_rem = 31232, prgs = 0.0240, tps: 10.41 | moe decode: hit=88.5% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 933 / 32000, n_rem = 31067, prgs = 0.0292, tps: 10.50 | moe decode: hit=88.8% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1024 / 32000, n_rem = 30976, prgs = 0.0320, tps: 10.49 | moe decode: hit=88.8% replay=35.4% reload=1.12GB/s
+slot print_timing: id  0 | task 24 | 
+prompt prep time =       2.98 ms
+prompt eval time =  172371.64 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+prompt total time =  172374.61 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+steady eval time =   99335.63 ms /  1043 tokens (   95.24 ms per token, 10.50 tps)
+      total time =  271710.24 ms / 27064 tokens
+slot      release: id  0 | task 24 | stop processing: n_tokens = 27063, truncated = 0
+srv  update_slots: all slots are idle
+Disabling thinking for tool-call request to avoid chat-template grammar prefill conflicts.
+render_message_to_json: Neither string content nor typed content is supported by the template. This is unexpected and may lead to issues.
+srv  oaicompat_ch: Using manual MiniMax tool-call parsing path: sampler grammar disabled, chat parser kept enabled.
+srv  oaicompat_ch: Tool-call request: format=peg-native parse_tool_calls=1 thinking=0 messages=4 tools=15 grammar_len=15676 generation_prompt='[0, end)
+slot update_slots: id  0 | task 24 | starting prompt prefill, total = 26020, cache = 0, pending = 26020, batch = 8192, queued = 8192 | moe prefill: dedup=49.6% reuse=1.98x reload=11.39GB/s
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~341 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 8192, current = 8192, batch.n_tokens = 8192, progress = 0.314835, prep = 0.20 ms, eval = 24040.19 ms, total = 24040.38 ms | moe prefill: dedup=99.2% reuse=129.01x reload=11.04GB/s tps=340.76
+slot update_slots: id  0 | task 24 | n_tokens = 8192, memory_seq_rm [8192, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~209 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 16384, current = 16384, batch.n_tokens = 8192, progress = 0.629669, prep = 0.39 ms, eval = 63432.37 ms, total = 63432.76 ms | moe prefill: dedup=99.2% reuse=129.58x reload=11.00GB/s tps=258.29
+slot update_slots: id  0 | task 24 | n_tokens = 16384, memory_seq_rm [16384, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~93 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 24576, current = 24576, batch.n_tokens = 8192, progress = 0.944504, prep = 0.61 ms, eval = 151334.06 ms, total = 151334.67 ms | moe prefill: dedup=99.2% reuse=130.35x reload=10.08GB/s tps=162.40
+slot update_slots: id  0 | task 24 | n_tokens = 24576, memory_seq_rm [24576, end)
+slot init_sampler: id  0 | task 24 | init sampler, took 1.92 ms, tokens: text = 26020, total = 26020
+Flash-MoE prefill layer-major progress: 1444 tok batch, micro=80(auto), 62/62 layers (100.0%, ~69 tps)
+slot update_slots: id  0 | task 24 | prompt processing done, total = 26020, cache = 0, processed = 26020, current = 26020, batch.n_tokens = 1444, prep = 2.62 ms, eval = 172371.64 ms, total = 172374.26 ms | moe prefill: dedup=99.1% reuse=105.86x reload=10.22GB/s tps=150.95
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 97 / 32000, n_rem = 31903, prgs = 0.0030, tps: 6.38 | moe decode: hit=71.5% replay=36.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 256 / 32000, n_rem = 31744, prgs = 0.0080, tps: 9.13 | moe decode: hit=84.9% replay=37.3% reload=1.10GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 429 / 32000, n_rem = 31571, prgs = 0.0134, tps: 9.96 | moe decode: hit=87.4% replay=36.4% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 512 / 32000, n_rem = 31488, prgs = 0.0160, tps: 10.19 | moe decode: hit=88.0% replay=36.1% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 677 / 32000, n_rem = 31323, prgs = 0.0212, tps: 10.36 | moe decode: hit=88.4% replay=35.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 768 / 32000, n_rem = 31232, prgs = 0.0240, tps: 10.41 | moe decode: hit=88.5% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 933 / 32000, n_rem = 31067, prgs = 0.0292, tps: 10.50 | moe decode: hit=88.8% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1024 / 32000, n_rem = 30976, prgs = 0.0320, tps: 10.49 | moe decode: hit=88.8% replay=35.4% reload=1.12GB/s
+slot print_timing: id  0 | task 24 | 
+prompt prep time =       2.98 ms
+prompt eval time =  172371.64 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+prompt total time =  172374.61 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+steady eval time =   99335.63 ms /  1043 tokens (   95.24 ms per token, 10.50 tps)
+      total time =  271710.24 ms / 27064 tokens
+slot      release: id  0 | task 24 | stop processing: n_tokens = 27063, truncated = 0
+srv  update_slots: all slots are idle[e~[
+]~b]ai' normalized_generation_prompt='[0, end)
+slot update_slots: id  0 | task 24 | starting prompt prefill, total = 26020, cache = 0, pending = 26020, batch = 8192, queued = 8192 | moe prefill: dedup=49.6% reuse=1.98x reload=11.39GB/s
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~341 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 8192, current = 8192, batch.n_tokens = 8192, progress = 0.314835, prep = 0.20 ms, eval = 24040.19 ms, total = 24040.38 ms | moe prefill: dedup=99.2% reuse=129.01x reload=11.04GB/s tps=340.76
+slot update_slots: id  0 | task 24 | n_tokens = 8192, memory_seq_rm [8192, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~209 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 16384, current = 16384, batch.n_tokens = 8192, progress = 0.629669, prep = 0.39 ms, eval = 63432.37 ms, total = 63432.76 ms | moe prefill: dedup=99.2% reuse=129.58x reload=11.00GB/s tps=258.29
+slot update_slots: id  0 | task 24 | n_tokens = 16384, memory_seq_rm [16384, end)
+Flash-MoE prefill layer-major progress: 8192 tok batch, micro=128(auto), 61/62 layers (98.4%, ~93 tps)slot update_slots: id  0 | task 24 | prompt processing progress, total = 26020, cache = 0, processed = 24576, current = 24576, batch.n_tokens = 8192, progress = 0.944504, prep = 0.61 ms, eval = 151334.06 ms, total = 151334.67 ms | moe prefill: dedup=99.2% reuse=130.35x reload=10.08GB/s tps=162.40
+slot update_slots: id  0 | task 24 | n_tokens = 24576, memory_seq_rm [24576, end)
+slot init_sampler: id  0 | task 24 | init sampler, took 1.92 ms, tokens: text = 26020, total = 26020
+Flash-MoE prefill layer-major progress: 1444 tok batch, micro=80(auto), 62/62 layers (100.0%, ~69 tps)
+slot update_slots: id  0 | task 24 | prompt processing done, total = 26020, cache = 0, processed = 26020, current = 26020, batch.n_tokens = 1444, prep = 2.62 ms, eval = 172371.64 ms, total = 172374.26 ms | moe prefill: dedup=99.1% reuse=105.86x reload=10.22GB/s tps=150.95
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1 / 32000, n_rem = 31999, prgs = 0.0000, tps: 0.00
+srv  log_server_r: done request: POST /v1/chat/completions 127.0.0.1 200
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 97 / 32000, n_rem = 31903, prgs = 0.0030, tps: 6.38 | moe decode: hit=71.5% replay=36.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 256 / 32000, n_rem = 31744, prgs = 0.0080, tps: 9.13 | moe decode: hit=84.9% replay=37.3% reload=1.10GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 429 / 32000, n_rem = 31571, prgs = 0.0134, tps: 9.96 | moe decode: hit=87.4% replay=36.4% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 512 / 32000, n_rem = 31488, prgs = 0.0160, tps: 10.19 | moe decode: hit=88.0% replay=36.1% reload=1.11GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 677 / 32000, n_rem = 31323, prgs = 0.0212, tps: 10.36 | moe decode: hit=88.4% replay=35.6% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 768 / 32000, n_rem = 31232, prgs = 0.0240, tps: 10.41 | moe decode: hit=88.5% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 933 / 32000, n_rem = 31067, prgs = 0.0292, tps: 10.50 | moe decode: hit=88.8% replay=35.5% reload=1.12GB/s
+slot maybe_log_ge: id  0 | task 24 | generate: ndec = 1024 / 32000, n_rem = 30976, prgs = 0.0320, tps: 10.49 | moe decode: hit=88.8% replay=35.4% reload=1.12GB/s
+slot print_timing: id  0 | task 24 | 
+prompt prep time =       2.98 ms
+prompt eval time =  172371.64 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+prompt total time =  172374.61 ms / 26020 tokens (    6.62 ms per token, 150.95 tps)
+steady eval time =   99335.63 ms /  1043 tokens (   95.24 ms per token, 10.50 tps)
+
+analyze prefill log, what is causing slow down?
