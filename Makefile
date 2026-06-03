@@ -71,7 +71,7 @@ ane-smoke: tests/ane_ds4_mlp_i8i8_precision_smoke
 	./tests/ane_ds4_mlp_i8i8_precision_smoke
 
 sidecar-smoke: ds4
-	DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./tests/sidecar_smoke.sh
+	DS4_METAL_PREFILL_CHUNK=16384 ./tests/sidecar_smoke.sh
 
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)

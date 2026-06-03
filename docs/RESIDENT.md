@@ -32,7 +32,7 @@ Run:
 For a larger context:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./ds4 \
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
   -m ds4flash.gguf \
   --ctx 32768 \
   -p "Hello"

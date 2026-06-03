@@ -44,13 +44,12 @@ The alpha sidecar smoke uses:
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384
-DS4_METAL_GRAPH_RAW_CAP=16640
 ```
 
 That is the prefill chunk cap. It is different from `--ctx`, which controls the
-KV context window. The raw cap must be large enough for one prefill chunk plus
-the 128-token raw window; otherwise DS4 will warn that the effective chunk is
-smaller than 16K.
+KV context window. Leave `DS4_METAL_GRAPH_RAW_CAP` unset in normal sidecar runs;
+the runtime auto-selects a raw-KV cap that matches the prefill chunk and keeps
+server continued checkpoints aligned.
 
 ## Build Cannot Find Metal Shaders
 

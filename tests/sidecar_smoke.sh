@@ -25,7 +25,6 @@ if [ ! -f "$SIDECAR_DIR/manifest.json" ]; then
 fi
 
 export DS4_METAL_PREFILL_CHUNK=${DS4_METAL_PREFILL_CHUNK:-16384}
-export DS4_METAL_GRAPH_RAW_CAP=${DS4_METAL_GRAPH_RAW_CAP:-16640}
 
 "$ROOT/ds4" \
     -m "$DENSE_GGUF" \

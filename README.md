@@ -65,7 +65,7 @@ export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 Run:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./ds4 \
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
   -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
   --moe-sidecar "$DS4_SIDECAR_DIR" \
   --moe-mode slot-bank \
@@ -75,9 +75,9 @@ DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./ds4 \
 ```
 
 `--ctx 32768` is the KV window in this example. `DS4_METAL_PREFILL_CHUNK=16384`
-is the prefill chunk cap used by the alpha smoke path, and
-`DS4_METAL_GRAPH_RAW_CAP=16640` gives the raw sliding-window KV cache enough
-rows for one full 16K chunk plus the 128-token raw window.
+is the prefill chunk cap used by the alpha smoke path. Leave the Metal raw-KV
+cap automatic so it follows the chunk size and server checkpoint frontiers stay
+aligned.
 
 Run the committed sidecar smoke:
 

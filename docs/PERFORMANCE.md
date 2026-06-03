@@ -20,8 +20,9 @@ Use `ds4-bench` for local throughput sweeps:
 ```
 
 For sidecar runs, prefer comparing the same prompt, slot-bank count, context
-window, power state, `DS4_METAL_PREFILL_CHUNK=16384`, and
-`DS4_METAL_GRAPH_RAW_CAP=16640` settings.
+window, power state, and `DS4_METAL_PREFILL_CHUNK=16384` setting. Leave
+`DS4_METAL_GRAPH_RAW_CAP` unset unless you are explicitly debugging raw-KV
+allocation.
 
 `ds4_profile.json` contains measured Apple Silicon defaults and comments for
 M5, M5 Max, M3 Ultra, and M1 Max classes. Treat it as the current tuning source

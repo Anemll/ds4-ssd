@@ -25,7 +25,7 @@ the sidecar path.
 ```sh
 export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 
-DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./ds4 \
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
   -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
   --moe-sidecar "$DS4_SIDECAR_DIR" \
   --moe-mode slot-bank \
@@ -38,8 +38,8 @@ Important axes:
 
 - `--ctx` is the KV context window.
 - `DS4_METAL_PREFILL_CHUNK=16384` caps each prefill chunk at 16K tokens.
-- `DS4_METAL_GRAPH_RAW_CAP=16640` gives Metal raw KV enough rows for one 16K
-  chunk plus the 128-token raw window.
+- Leave `DS4_METAL_GRAPH_RAW_CAP` unset. The Metal raw-KV cap should auto-follow
+  the 16K chunk size so server continued checkpoints stay aligned.
 - `--moe-slot-bank` controls how many routed expert slots per layer are kept in
   memory. Increase it for more RAM and fewer SSD fetches; decrease it when RAM
   pressure is high.
@@ -55,7 +55,7 @@ DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 Equivalent direct command:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 DS4_METAL_GRAPH_RAW_CAP=16640 ./ds4 \
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
   -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
   --moe-sidecar "$DS4_SIDECAR_DIR" \
   --moe-mode slot-bank \
