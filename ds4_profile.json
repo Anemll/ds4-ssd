@@ -332,6 +332,56 @@
       }
     },
     {
+      "_comment": "Apple M5 (base, non-Max) — STREAMING ONLY. Single-ANE-cluster silicon like M5 Max, but the base part ships in 24/32G configs that cannot host the 81G IQ2_XXS model, so there is NO resident env/prefill_by_tokens; only sidecar_env (Flash-MoE slot-bank). MUST be ordered AFTER all 'Apple M5 Max' entries: 'Apple M5' is a substring of 'Apple M5 Max', so a Max box would match this entry first if it came earlier (the Max entries don't match a plain 'Apple M5' machine, so plain-M5 correctly falls through to here). MEASURED 2026-06-02 on Apple M5 / 32G (slots=48, ~14G RSS; prompts synthesized to size, single gen tok, DS4_PROFILE=none). GPU baseline is nax_int8 (W8A8 MPP int8 matmul2d) — the real M5 competitor, NOT plain ALU (PROFILE_NEW_MACHINE.md §1; ALU overstates ANE's win). Routed-on-ANE beats routed-on-nax_int8 across the whole production band ≥1K: prompt sweep @16K chunk (vs nax_int8) 1K +3%, 4K +18%, 8K +16%, 10K +17%, 12K +14%, 14K +26%, 16K +32%; only 256-tok loses (-6%). chunk sweep @8K prompt 1K +5% .. 4K +18% .. 16K +16%. No ANE->GPU crossover anywhere >=1K. Unlike M5 Max (ANE win SHRINKS as size grows because NAX-int8 scales with batch), base-M5 nax_int8 PEAKS ~122 t/s at 10-12K then DEGRADES (14K 106, 16K 99) while ANE stays flat 130-142, so the ANE advantage GROWS to +32% at 16K. min_refs 32-64 firmly best at every prompt+chunk (mr128+ loses); ANE_MIN_REFS=32 + HYBRID_ANE_MIN_REFS=64 (matches M5 Max). Single cluster: ANE_DUAL=0 THREADS=1, shared-expert+O-proj ANE off. slots=48 fits 32G; raise via --moe-slot-bank on larger base-M5 RAM. See moe-batch-bench/PREFILL_PROFILE_M5.md.",
+      "match": {
+        "chip": "Apple M5",
+        "min_ram_gib": 24
+      },
+      "sidecar_env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "16384",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_METAL_GRAPH_RAW_CAP": "8704",
+        "DS4_FLASH_MOE_SLOT_BANK_SLOTS": "48",
+        "DS4_GPU_DENSE_NAX": "1",
+        "DS4_GPU_DENSE_I8": "0",
+        "DS4_FLASH_MOE_ANE_PREFILL": "1",
+        "DS4_FLASH_MOE_ANE_PIPELINE_PREFILL": "1",
+        "DS4_FLASH_MOE_ANE_I8I8_PREFILL": "1",
+        "DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL": "1",
+        "DS4_FLASH_MOE_GPU_DEDUP": "1",
+        "DS4_FLASH_MOE_OVERLAP_PREFILL": "1",
+        "DS4_FLASH_MOE_OVERLAP_SCHEDULER": "1",
+        "DS4_FLASH_MOE_MPP_INT8_PREFILL": "0",
+        "DS4_FLASH_MOE_MPP_I8I8_PREFILL": "0",
+        "DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL": "0",
+        "DS4_FLASH_MOE_ANE_DUAL": "0",
+        "DS4_FLASH_MOE_ANE_THREADS": "1",
+        "DS4_FLASH_MOE_ANE_MULTI_ACTIVE": "1",
+        "DS4_FLASH_MOE_ANE_OUTPUT_QUEUE": "4",
+        "DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK": "1",
+        "DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK": "0",
+        "DS4_FLASH_MOE_ANE_PREFLUSH_EVERY": "4",
+        "DS4_FLASH_MOE_ANE_BATCHES": "256",
+        "DS4_FLASH_MOE_ANE_MAX_REFS": "256",
+        "DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS": "1",
+        "DS4_FLASH_MOE_ANE_MIN_REFS": "32",
+        "DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS": "64",
+        "DS4_FLASH_MOE_SCHED_ANE_REL_SPEED": "99",
+        "DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL": "0.0",
+        "DS4_FLASH_MOE_ANE_SHARED_EXPERT": "0",
+        "DS4_FLASH_MOE_ANE_OUTPUT_PROJ": "0",
+        "DS4_FLASH_MOE_PREFETCH": "3",
+        "DS4_FLASH_MOE_ASYNC_PREAD": "1",
+        "DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE": "1",
+        "DS4_FLASH_MOE_PREAD_THREADS": "6",
+        "DS4_FLASH_MOE_ASYNC_READAHEAD": "12",
+        "DS4_FLASH_MOE_MPP_INT8_QSCALE": "512",
+        "DS4_FLASH_MOE_MPP_INT8_X_QSCALE": "32",
+        "DS4_FLASH_MOE_MPP_INT8_MID_QSCALE": "32"
+      }
+    },
+    {
       "match": {
         "chip": "Apple M1 Max"
       },
