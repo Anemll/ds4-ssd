@@ -40,19 +40,13 @@ DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
 
 ## Tuning Profiles
 
-`ds4_profile.json` applies machine-specific defaults. It is loaded from:
-
-1. `DS4_PROFILE` if set;
-2. `./ds4_profile.json`;
-3. the executable directory;
-4. `~/.config/ds4/ds4_profile.json`.
-
-Set `DS4_PROFILE=none` to disable automatic profile defaults.
-
 Resident profiles can choose between classic Metal ALU, NAX-backed matmul2d, and
 ANE hybrid prefill paths depending on chip, RAM, and prompt size. The profile
 file is intentionally the public control surface for alpha. The many `DS4_*`
 environment knobs are implementation details unless a doc explicitly names one.
+
+See [PROFILES.md](PROFILES.md) for profile lookup order, sidecar-vs-resident
+defaults, and override rules.
 
 ## Memory
 

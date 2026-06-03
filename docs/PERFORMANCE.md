@@ -45,5 +45,5 @@ you are explicitly debugging raw-KV allocation.
 
 `ds4_profile.json` contains measured Apple Silicon defaults and comments for
 M5, M5 Max, M3 Ultra, and M1 Max classes. Treat it as the current tuning source
-of truth. Broader CI and performance regression automation are planned for a
-post-alpha stage.
+of truth; see [PROFILES.md](PROFILES.md). Broader CI and performance regression
+automation are planned for a post-alpha stage.

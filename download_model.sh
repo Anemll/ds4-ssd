@@ -2,6 +2,8 @@
 set -e
 
 REPO="antirez/deepseek-v4-gguf"
+SIDECAR_REPO="anemll/dsv4-iq2xxs-expert-major"
+SIDECAR_DIR_NAME="dsv4-iq2xxs-expert-major"
 Q2_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf"
 Q2_IMATRIX_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf"
 Q4_FILE="DeepSeek-V4-Flash-Q4KExperts-F16HC-F16Compressor-F16Indexer-Q8Attn-Q8Shared-Q8Out-chat-v2.gguf"
@@ -13,6 +15,11 @@ OUT_DIR=${DS4_GGUF_DIR:-"$ROOT/gguf"}
 case "$OUT_DIR" in
     /*) ;;
     *) OUT_DIR="$ROOT/$OUT_DIR" ;;
+esac
+SIDECAR_OUT_DIR=${DS4_SIDECAR_DIR:-"$ROOT/models/$SIDECAR_DIR_NAME"}
+case "$SIDECAR_OUT_DIR" in
+    /*) ;;
+    *) SIDECAR_OUT_DIR="$ROOT/$SIDECAR_OUT_DIR" ;;
 esac
 TOKEN=${HF_TOKEN:-}
 
@@ -26,6 +33,7 @@ Usage:
   ./download_model.sh q2 [--token TOKEN]
   ./download_model.sh q4 [--token TOKEN]
   ./download_model.sh mtp [--token TOKEN]
+  ./download_model.sh sidecar [--token TOKEN]
 
 Targets:
   *** PREFERRED GGUF FILES: USE THE IMATRIX VERSIONS BELOW ***
@@ -52,6 +60,10 @@ Targets:
        It is useful with q2-imatrix, q4-imatrix, q2, and q4, but must be
        enabled explicitly with --mtp when running ds4 or ds4-server.
 
+  sidecar
+       SSD-streaming sidecar package from $SIDECAR_REPO.
+       Downloads dense/model-dense.gguf plus routed-expert sidecar files.
+
 Options:
   --token TOKEN  Hugging Face token. Otherwise HF_TOKEN or the local HF token
                  cache is used if present.
@@ -59,6 +71,10 @@ Options:
 Environment:
   DS4_GGUF_DIR   Directory used for downloaded GGUF files.
                  Default: ./gguf
+
+  DS4_SIDECAR_DIR
+                 Directory used for the downloaded SSD sidecar package.
+                 Default: ./models/$SIDECAR_DIR_NAME
 
 After q2-imatrix/q4-imatrix/q2/q4 downloads the script updates:
   ./ds4flash.gguf -> <download directory>/<selected model>
@@ -69,6 +85,9 @@ Then the default commands work:
 
 After downloading mtp, enable it explicitly, for example:
   ./ds4 --mtp <download directory>/$MTP_FILE --mtp-draft 2
+
+After downloading sidecar, run:
+  DS4_SIDECAR_DIR=<sidecar directory> make sidecar-smoke
 EOF
 }
 
@@ -86,6 +105,7 @@ case "$MODEL" in
     q2) MODEL_FILE=$Q2_FILE ;;
     q4) MODEL_FILE=$Q4_FILE ;;
     mtp) MODEL_FILE=$MTP_FILE ;;
+    sidecar) MODEL_FILE= ;;
     -h|--help|help)
         usage
         exit 0
@@ -152,6 +172,40 @@ download_one() {
 
     mv "$part" "$out"
 }
+
+download_sidecar() {
+    if ! command -v hf >/dev/null 2>&1; then
+        echo "The sidecar package is a multi-file Hugging Face repo." >&2
+        echo "Install the Hugging Face CLI first: https://huggingface.co/docs/huggingface_hub/guides/cli" >&2
+        exit 1
+    fi
+
+    mkdir -p "$SIDECAR_OUT_DIR"
+
+    echo "Downloading SSD sidecar package"
+    echo "from https://huggingface.co/$SIDECAR_REPO"
+    echo "to $SIDECAR_OUT_DIR"
+
+    if [ -n "$TOKEN" ]; then
+        HF_TOKEN=$TOKEN hf download "$SIDECAR_REPO" --local-dir "$SIDECAR_OUT_DIR"
+    else
+        hf download "$SIDECAR_REPO" --local-dir "$SIDECAR_OUT_DIR"
+    fi
+
+    echo
+    echo "Set:"
+    echo "  export DS4_SIDECAR_DIR=$SIDECAR_OUT_DIR"
+    echo
+    echo "Then run:"
+    echo "  DS4_SIDECAR_DIR=$SIDECAR_OUT_DIR make sidecar-smoke"
+}
+
+if [ "$MODEL" = "sidecar" ]; then
+    download_sidecar
+    echo
+    echo "Done."
+    exit 0
+fi
 
 download_one "$MODEL_FILE"
 

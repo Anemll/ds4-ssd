@@ -29,8 +29,9 @@ Alpha means:
   for the next stage.
 
 The in-repo `gguf-tools/deepseek4-quantize` tool builds resident GGUFs. It does
-not yet emit the sidecar layout. For this alpha, use a prebuilt sidecar package
-from the release notes or Hugging Face model repo once published.
+not yet emit the sidecar layout. For this alpha, use the prebuilt sidecar
+package at
+[anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major).
 
 ## Build
 
@@ -55,11 +56,17 @@ validation focus is Apple Silicon SSD streaming.
 
 ## Run SSD Sidecar Mode
 
-Set `DS4_SIDECAR_DIR` to a sidecar directory containing `manifest.json` and a
-`dense/model-dense.gguf` file:
+Download the prebuilt sidecar package:
 
 ```sh
-export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
+./download_model.sh sidecar
+```
+
+Then set `DS4_SIDECAR_DIR` to the sidecar directory containing `manifest.json`
+and `dense/model-dense.gguf`:
+
+```sh
+export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 ```
 
 Run:
@@ -97,6 +104,10 @@ If you pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF
 mode. SSD streaming requires both the dense sidecar GGUF and `--moe-sidecar`.
 
 See [docs/SIDECAR.md](docs/SIDECAR.md).
+
+Machine-specific defaults for M5, M5 Max, M3 Ultra, and M1 Max are selected
+from `ds4_profile.json`. Profiles set defaults only; exported environment
+variables still win. See [docs/PROFILES.md](docs/PROFILES.md).
 
 ## Run Resident GGUF Mode
 
@@ -142,6 +153,8 @@ deterministic token with a 16K prefill chunk cap.
 - [docs/RESIDENT.md](docs/RESIDENT.md): full-GGUF resident mode.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): runtime layout and accelerator
   paths.
+- [docs/PROFILES.md](docs/PROFILES.md): machine-specific tuning defaults and
+  override rules.
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): current benchmark stance.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): common first-run failures.
 - [docs/DWARFSTAR4_REFERENCE.md](docs/DWARFSTAR4_REFERENCE.md): original DS4

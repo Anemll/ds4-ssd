@@ -53,13 +53,17 @@ is passed with `--moe-sidecar`.
 
 The current alpha does not ship a public self-conversion command. In particular,
 `gguf-tools/deepseek4-quantize` creates resident GGUF outputs and does not pack
-sidecar expert shards. Use the prebuilt sidecar package from the alpha release
-notes or published Hugging Face repo.
+sidecar expert shards. Use the prebuilt sidecar package from
+[anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major):
+
+```sh
+./download_model.sh sidecar
+```
 
 After extracting or mounting the sidecar:
 
 ```sh
-export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
+export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 DS4_SIDECAR_DIR="$DS4_SIDECAR_DIR" make sidecar-smoke
 ```
 

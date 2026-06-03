@@ -20,6 +20,14 @@ SIDECAR_DIR/
 Use `SIDECAR_DIR/dense/model-dense.gguf` as the model path and `SIDECAR_DIR` as
 the sidecar path.
 
+Download the prebuilt alpha package from
+[anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major):
+
+```sh
+./download_model.sh sidecar
+export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
+```
+
 Do not point `-m` at a full resident GGUF and expect SSD streaming. A command
 with only `-m /path/to/full-model.gguf` runs resident/full-GGUF mode. SSD
 streaming requires:
@@ -120,5 +128,5 @@ public alpha tree does not yet include a sidecar packer. Do not use
 `gguf-tools/deepseek4-quantize` expecting a sidecar output; it currently emits
 resident GGUFs only.
 
-For alpha, use a prebuilt sidecar distribution. A public converter/packer is a
+For alpha, use the prebuilt sidecar distribution. A public converter/packer is a
 go/no-go item for a later self-hosted release path.
