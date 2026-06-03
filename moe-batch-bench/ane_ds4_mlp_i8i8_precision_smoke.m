@@ -4,7 +4,7 @@
 //   2. Quantized CPU graph vs fp16 CPU graph (scale/precision check).
 
 #import <Foundation/Foundation.h>
-#include "ane_ds4_mlp_int8w.h"
+#include "../ds4_ane_mlp_int8w.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

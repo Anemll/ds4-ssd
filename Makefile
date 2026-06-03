@@ -15,7 +15,7 @@ METAL_SRCS := $(wildcard metal/*.metal)
 
 ifeq ($(UNAME_S),Darwin)
 METAL_LDLIBS := $(LDLIBS) -framework Foundation -framework Metal -framework IOSurface
-CORE_OBJS = ds4.o ds4_profile.o ds4_metal.o moe-batch-bench/ane_ds4_mlp_int8w.o
+CORE_OBJS = ds4.o ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
 CPU_CORE_OBJS = ds4_cpu.o ds4_profile.o
 else
 CFLAGS += -D_GNU_SOURCE -fno-finite-math-only
@@ -89,23 +89,23 @@ moe-batch-bench/ane_ds4_mlp_inmem_bench_packed: moe-batch-bench/ane_ds4_mlp_inme
 moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3: moe-batch-bench/ane_ds4_mlp_inmem_bench_packed_split3.m
 	$(CC) -fobjc-arc -O2 -o $@ $< -framework Foundation -framework IOSurface
 
-moe-batch-bench/ane_ds4_mlp_int8w.o: moe-batch-bench/ane_ds4_mlp_int8w.m moe-batch-bench/ane_ds4_mlp_int8w.h
-	$(CC) $(OBJCFLAGS) -c -o $@ moe-batch-bench/ane_ds4_mlp_int8w.m
+ds4_ane_mlp_int8w.o: ds4_ane_mlp_int8w.m ds4_ane_mlp_int8w.h
+	$(CC) $(OBJCFLAGS) -c -o $@ ds4_ane_mlp_int8w.m
 
-moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke: moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
-	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke: moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m ds4_ane_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_int8w_multi_smoke.m ds4_ane_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
-moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke: moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
-	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke: moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m ds4_ane_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_mlp_i8i8_precision_smoke.m ds4_ane_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
-moe-batch-bench/ane_ds4_oproj_constexpr_smoke: moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
-	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+moe-batch-bench/ane_ds4_oproj_constexpr_smoke: moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m ds4_ane_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_constexpr_smoke.m ds4_ane_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
-moe-batch-bench/ane_ds4_oproj_int8_smoke: moe-batch-bench/ane_ds4_oproj_int8_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o
-	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_int8_smoke.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
+moe-batch-bench/ane_ds4_oproj_int8_smoke: moe-batch-bench/ane_ds4_oproj_int8_smoke.m ds4_ane_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_ds4_oproj_int8_smoke.m ds4_ane_mlp_int8w.o -framework Foundation -framework IOSurface -lpthread
 
-moe-batch-bench/ane_per_chunk_iosurface_probe: moe-batch-bench/ane_per_chunk_iosurface_probe.m moe-batch-bench/ane_ds4_mlp_int8w.o
-	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_per_chunk_iosurface_probe.m moe-batch-bench/ane_ds4_mlp_int8w.o -framework Foundation -framework IOSurface -ldl
+moe-batch-bench/ane_per_chunk_iosurface_probe: moe-batch-bench/ane_per_chunk_iosurface_probe.m ds4_ane_mlp_int8w.o
+	$(CC) -fobjc-arc -O2 -o $@ moe-batch-bench/ane_per_chunk_iosurface_probe.m ds4_ane_mlp_int8w.o -framework Foundation -framework IOSurface -ldl
 
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)

@@ -4211,7 +4211,7 @@ static void matmul_q8_0_batch(
  * gate+up together for the prefill-batch shared-expert (layer_shared_ffn_batch:5727,
  * n_tok hidden states). Same ANE-offload rationale as matmul_q8_0_batch above; the
  * gate+up pair sharing one activation quant maps well to a single ANE MLP pass
- * (cf. moe-batch-bench/ane_ds4_mlp_int8w.m). M5 metal prefill uses the GPU NAX path
+ * (cf. ds4_ane_mlp_int8w.m). M5 metal prefill uses the GPU NAX path
  * (batch_shared_gate/up) instead; this is the --cpu backend/fallback. */
 static void matmul_q8_0_pair_batch(
         float           * out0,

@@ -18,7 +18,7 @@
 
 #include "ds4.h"
 #include "ds4_gpu.h"
-#include "moe-batch-bench/ane_ds4_mlp_int8w.h"
+#include "ds4_ane_mlp_int8w.h"
 
 /*
  * Objective-C Metal glue for the C engine.
@@ -287,7 +287,7 @@ static id<MTLBuffer> g_ane_prefill_down_f16_buffer;
  * calls without races on the global scratch.  Each ANE call acquires a free
  * slot, encodes its weight+x dequant into that slot's MTLBuffers, and
  * releases the slot once its ANE worker(s) have fully consumed it (i.e.
- * after the eval's write_surface memcpy in ane_ds4_mlp_int8w.m).  Sized to
+ * after the eval's write_surface memcpy in ds4_ane_mlp_int8w.m).  Sized to
  * cover OUTPUT_QUEUE depth + active job; defaults match max OUTPUT_QUEUE=8
  * plus a couple of headroom slots. */
 #define DS4_ANE_DEQUANT_SLOTS 12

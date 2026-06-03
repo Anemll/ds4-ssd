@@ -27,7 +27,7 @@
 #import <string.h>
 #import <mach/mach_time.h>
 
-#import "ane_ds4_mlp_int8w.h"
+#import "../ds4_ane_mlp_int8w.h"
 
 static mach_timebase_info_data_t g_tb;
 static double ticksToMs(uint64_t t) { return (double)t * g_tb.numer / g_tb.denom / 1e6; }

@@ -1,6 +1,6 @@
 // Experimental ANE DS4 MLP with fp16 activations and int8 dynamic weights.
 
-#import "ane_ds4_mlp_int8w.h"
+#import "ds4_ane_mlp_int8w.h"
 
 #import <Foundation/Foundation.h>
 #import <IOSurface/IOSurface.h>
