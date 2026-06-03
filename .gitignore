@@ -11,5 +11,14 @@
 *.o
 *.dSYM/
 /misc/
+/profile_runs/
 .*.swp
 .DS_Store
+fp4_samples/
+
+# Build artifacts / bench outputs
+/ds4-agent
+*.raw
+/resident_variant_sweep_*.csv
+/COMPARE_*.log
+tests/ane_ds4_mlp_i8i8_precision_smoke

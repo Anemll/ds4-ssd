@@ -120,11 +120,9 @@ fallback used for `IQ2_XXS` gate/up experts with real activation statistics.
 Useful local tools:
 
 ```text
-misc/quant_eval.c
 gguf-tools/quality-testing/
 ```
 
-`misc/quant_eval.c` compares local GGUF variants by greedy/top-logit behavior.
 `gguf-tools/quality-testing/` can score local GGUFs against official DeepSeek
 API continuations by target-token negative log likelihood.
 

@@ -1,12 +1,15 @@
 #include "ds4.h"
+#include "ds4_profile.h"
 
 /* Purpose-built throughput benchmark.
  *
  * The benchmark walks one fixed token sequence to configurable context
- * frontiers, measuring only the newest prefill interval at each frontier.  It
- * then snapshots the live session in memory, performs a fixed greedy decode
+ * frontiers. By default it measures only the newest prefill interval at each
+ * frontier. With --full-prefill-each-frontier it invalidates the live session
+ * before each row and measures a full zero-prefix prefill to that frontier.
+ * It then snapshots the live session in memory, performs a fixed greedy decode
  * run without allowing EOS, restores the snapshot, and continues to the next
- * frontier.  Snapshot save/restore time is intentionally outside both timing
+ * frontier. Snapshot save/restore time is intentionally outside both timing
  * windows.
  */
 
@@ -36,6 +39,14 @@ typedef struct {
     double step_mul;
     bool warm_weights;
     bool quality;
+    const char *moe_sidecar_path;
+    ds4_moe_mode moe_mode;
+    int moe_slot_bank;
+    bool resident_ane_prefill;
+    bool resident_ane_shared_expert;
+    bool resident_ane_oproj;
+    int resident_ane_cache_layers;
+    bool full_prefill_each_frontier;
 } bench_config;
 
 static double bench_now_sec(void) {
@@ -68,6 +79,17 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where applicable.\n"
         "  --warm-weights         Touch mapped tensor pages before benchmarking.\n"
+        "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
+        "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
+        "  --resident-ane-shared-expert\n"
+        "                         Also route the shared expert to ANE during prefill.\n"
+        "  --resident-ane-oproj   Also route attention O-proj to ANE during prefill.\n"
+        "  --resident-ane-cache-layers N\n"
+        "                         Bound ANE shared-expert layer cache; 0=default.\n"
+        "  --no-decode-split      Disable the mid-token Metal decode command-buffer split.\n"
+        "  --moe-sidecar DIR      Flash-MoE expert sidecar dir (enables dedup MoE).\n"
+        "  --moe-mode NAME        off | slot-bank. Default: off (slot-bank if sidecar set).\n"
+        "  --moe-slot-bank N      Routed expert slots/layer (6..256). Default: 8.\n"
         "\n"
         "Sweep:\n"
         "  --ctx-start N          First measured frontier. Default: 2048\n"
@@ -75,6 +97,9 @@ static void usage(FILE *fp) {
         "  --ctx-alloc N          Allocated context. Default: ctx-max + gen-tokens + 1\n"
         "  --step-mul F           Multiplicative step. Default: 1\n"
         "  --step-incr N          Linear step when --step-mul is 1. Default: 2048\n"
+        "  --full-prefill-each-frontier\n"
+        "                         Reset before each row; reports full frontier prefill,\n"
+        "                         not just the newest suffix interval.\n"
         "  --gen-tokens N         Greedy decode tokens per frontier. Default: 128\n"
         "\n"
         "Output:\n"
@@ -108,6 +133,80 @@ static const char *need_arg(int *i, int argc, char **argv, const char *opt) {
         exit(2);
     }
     return argv[++*i];
+}
+
+static void bench_setenv_or_die(const char *name, const char *value) {
+    if (setenv(name, value, 1) != 0) {
+        fprintf(stderr, "ds4-bench: setenv %s: %s\n", name, strerror(errno));
+        exit(2);
+    }
+}
+
+static void bench_setenv_default_or_die(const char *name, const char *value) {
+    if (setenv(name, value, 0) != 0) {
+        fprintf(stderr, "ds4-bench: setenv %s: %s\n", name, strerror(errno));
+        exit(2);
+    }
+}
+
+static void bench_setenv_int_or_die(const char *name, int value) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", value);
+    bench_setenv_or_die(name, buf);
+}
+
+static void bench_enable_resident_ane_prefill(bench_config *c) {
+    c->resident_ane_prefill = true;
+
+    bench_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", "0");
+    bench_setenv_or_die("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "0");
+    bench_setenv_or_die("DS4_FLASH_MOE_OVERLAP_PREFILL", "0");
+    bench_setenv_or_die("DS4_FLASH_MOE_OVERLAP_SCHEDULER", "0");
+
+    bench_setenv_or_die("DS4_RESIDENT_MOE_ANE_HYBRID", "1");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_BACKEND", "ane_gpu");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_HYBRID_OUTER", "0");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_COMPACT_SCRATCH", "1");
+    bench_setenv_default_or_die("DS4_METAL_LAZY_MODEL_VIEWS", "1");
+    bench_setenv_default_or_die("DS4_METAL_DECODE_RESIDENCY", "1");
+    bench_setenv_default_or_die("DS4_METAL_RELEASE_PREFILL_SCRATCH_ON_DECODE", "1");
+    bench_setenv_default_or_die("DS4_METAL_NO_PREFILL_KERNEL_WARMUP", "1");
+    bench_setenv_default_or_die("DS4_METAL_GPU_BATCH_EMBED_MIN", "1048576");
+    bench_setenv_or_die("DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1");
+    bench_setenv_or_die("DS4_RESIDENT_MOE_MPP_MIN_TILE_UTIL", "0.0");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_MIN_REFS", "64");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_MAX_REFS", "1024");
+    bench_setenv_default_or_die("DS4_RESIDENT_MOE_ANE_QUEUE", "8");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_PREFILL", "0");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_I8I8_PREFILL", "0");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL", "0");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_QSCALE", "512");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_X_QSCALE", "32");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_MPP_INT8_MID_QSCALE", "32");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_DUAL", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_THREADS", "2");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_MULTI_ACTIVE", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_BATCHES", "256");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_MAX_REFS", "256");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_OUTPUT_QUEUE", "4");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_GPU_OUTPUT_PACK", "1");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_SCALAR_OUTPUT_PACK", "0");
+    bench_setenv_default_or_die("DS4_FLASH_MOE_ANE_PREFLUSH_EVERY", "4");
+    if (!c->resident_ane_shared_expert) {
+        bench_setenv_or_die("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "0");
+        bench_setenv_or_die("DS4_SHARED_EXPERT_ANE_I8I8", "0");
+    }
+    bench_setenv_or_die("DS4_FLASH_MOE_ANE_OUTPUT_PROJ",
+                        c->resident_ane_oproj ? "1" : "0");
+}
+
+static void bench_enable_resident_ane_shared_expert(bench_config *c) {
+    c->resident_ane_shared_expert = true;
+    bench_setenv_or_die("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "1");
+    bench_setenv_or_die("DS4_SHARED_EXPERT_ANE_I8I8", "1");
 }
 
 static ds4_backend parse_backend(const char *s, const char *opt) {
@@ -178,6 +277,8 @@ static bench_config parse_options(int argc, char **argv) {
         .step_incr = 2048,
         .gen_tokens = 128,
         .step_mul = 1.0,
+        .moe_mode = DS4_MOE_MODE_OFF,
+        .moe_slot_bank = 8,
     };
 
     for (int i = 1; i < argc; i++) {
@@ -187,6 +288,17 @@ static bench_config parse_options(int argc, char **argv) {
             exit(0);
         } else if (!strcmp(arg, "-m") || !strcmp(arg, "--model")) {
             c.model_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-sidecar")) {
+            c.moe_sidecar_path = need_arg(&i, argc, argv, arg);
+            /* Convenience: a sidecar implies slot-bank mode unless overridden. */
+            if (c.moe_mode == DS4_MOE_MODE_OFF) c.moe_mode = DS4_MOE_MODE_SLOT_BANK;
+        } else if (!strcmp(arg, "--moe-mode")) {
+            const char *m = need_arg(&i, argc, argv, arg);
+            if (!strcmp(m, "off")) c.moe_mode = DS4_MOE_MODE_OFF;
+            else if (!strcmp(m, "slot-bank")) c.moe_mode = DS4_MOE_MODE_SLOT_BANK;
+            else { fprintf(stderr, "ds4-bench: valid MoE modes are: off, slot-bank\n"); exit(2); }
+        } else if (!strcmp(arg, "--moe-slot-bank")) {
+            c.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--prompt-file")) {
             c.prompt_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--chat-prompt-file")) {
@@ -203,6 +315,10 @@ static bench_config parse_options(int argc, char **argv) {
             c.step_incr = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--step-mul")) {
             c.step_mul = parse_double_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--full-prefill-each-frontier") ||
+                   !strcmp(arg, "--full-prefill") ||
+                   !strcmp(arg, "--reset-each-frontier")) {
+            c.full_prefill_each_frontier = true;
         } else if (!strcmp(arg, "--gen-tokens") || !strcmp(arg, "--tokens") || !strcmp(arg, "-n")) {
             c.gen_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--csv")) {
@@ -221,6 +337,28 @@ static bench_config parse_options(int argc, char **argv) {
             c.quality = true;
         } else if (!strcmp(arg, "--warm-weights")) {
             c.warm_weights = true;
+        } else if (!strcmp(arg, "--resident-ane-prefill") ||
+                   !strcmp(arg, "--ane-prefill")) {
+            bench_enable_resident_ane_prefill(&c);
+        } else if (!strcmp(arg, "--resident-ane-shared-expert") ||
+                   !strcmp(arg, "--ane-shared-expert")) {
+            bench_enable_resident_ane_shared_expert(&c);
+        } else if (!strcmp(arg, "--resident-ane-oproj")) {
+            c.resident_ane_oproj = true;
+            bench_enable_resident_ane_prefill(&c);
+        } else if (!strcmp(arg, "--resident-ane-cache-layers")) {
+            int n = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (n < 0 || n > 64) {
+                fprintf(stderr, "ds4-bench: %s must be between 0 and 64\n", arg);
+                exit(2);
+            }
+            c.resident_ane_cache_layers = n;
+            bench_setenv_int_or_die("DS4_SHARED_EXPERT_ANE_CACHE_LAYERS", n);
+        } else if (!strcmp(arg, "--no-decode-split")) {
+            if (setenv("DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS", "0", 1) != 0) {
+                perror("ds4-bench: setenv DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS");
+                exit(2);
+            }
         } else {
             fprintf(stderr, "ds4-bench: unknown option: %s\n", arg);
             usage(stderr);
@@ -230,6 +368,13 @@ static bench_config parse_options(int argc, char **argv) {
 
     if (!!c.prompt_path == !!c.chat_prompt_path) {
         fprintf(stderr, "ds4-bench: specify exactly one of --prompt-file or --chat-prompt-file\n");
+        exit(2);
+    }
+    if (c.resident_ane_prefill &&
+        (c.moe_mode != DS4_MOE_MODE_OFF || c.moe_sidecar_path)) {
+        fprintf(stderr,
+                "ds4-bench: --resident-ane-prefill is for resident/full-model "
+                "runs only; use --moe-mode off and omit --moe-sidecar\n");
         exit(2);
     }
     if (c.ctx_start > c.ctx_max) {
@@ -285,6 +430,8 @@ static void log_context_memory(ds4_backend backend, int ctx_size) {
 
 int main(int argc, char **argv) {
     bench_config cfg = parse_options(argc, argv);
+    ds4_profile_set_sidecar_mode(cfg.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.moe_sidecar_path);
+    ds4_profile_load_and_apply();
     log_context_memory(cfg.backend, cfg.ctx_alloc);
 
     ds4_engine_options opt = {
@@ -293,6 +440,9 @@ int main(int argc, char **argv) {
         .n_threads = cfg.threads,
         .warm_weights = cfg.warm_weights,
         .quality = cfg.quality,
+        .moe_sidecar_path = cfg.moe_sidecar_path,
+        .moe_mode = cfg.moe_mode,
+        .moe_slot_bank = cfg.moe_slot_bank,
     };
     ds4_engine *engine = NULL;
     if (ds4_engine_open(&engine, &opt) != 0) return 1;
@@ -351,6 +501,9 @@ int main(int argc, char **argv) {
             .cap = frontier,
         };
 
+        if (cfg.full_prefill_each_frontier) {
+            ds4_session_invalidate(session);
+        }
         const double prefill_t0 = bench_now_sec();
         if (ds4_session_sync(session, &prefix, err, sizeof(err)) != 0) {
             fprintf(stderr, "ds4-bench: prefill to %d failed: %s\n", frontier, err);
@@ -359,7 +512,8 @@ int main(int argc, char **argv) {
         }
         const double prefill_t1 = bench_now_sec();
         const double prefill_sec = prefill_t1 - prefill_t0;
-        const int prefill_tokens = frontier - previous;
+        const int prefill_tokens =
+            cfg.full_prefill_each_frontier ? frontier : frontier - previous;
 
         if (ds4_session_save_snapshot(session, &snap, err, sizeof(err)) != 0) {
             fprintf(stderr, "ds4-bench: snapshot at %d failed: %s\n", frontier, err);

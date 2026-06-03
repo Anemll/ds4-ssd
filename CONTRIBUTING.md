@@ -1,9 +1,9 @@
 # Contributing
 
-DwarfStar4 changes should be tested against the failure mode they can realistically
-affect. The project has two regression tracks: correctness and speed. Please
-include the commands you ran, the machine/backend, the model quant, and any
-notable failures in the PR or commit notes.
+DwarfStar4 / ds4-ssd changes should be tested against the failure mode they can
+realistically affect. The project has two regression tracks: correctness and
+speed. Please include the commands you ran, the machine/backend, the model
+quant, and any notable failures in the PR or commit notes.
 
 Do not send PRs affecting one or more inference backends without checking if the
 resulting code is still correct and fast. The only acceptable regression speed
@@ -64,6 +64,14 @@ For CUDA-specific changes, test on a CUDA machine:
 ```sh
 make
 make cuda-regression
+```
+
+For alpha SSD sidecar changes, also run the committed sidecar smoke against a
+real sidecar model:
+
+```sh
+make ane-smoke
+DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 ```
 
 For CPU portability, at least verify that the CPU target still builds:

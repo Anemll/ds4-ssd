@@ -110,6 +110,320 @@ struct block_iq2_xxs {
     ushort qs[QK_K/8];
 };
 
+static inline char ds4_mpp_float_to_i8_scaled(float x, float qscale) {
+    int v = int(rint(clamp(x * qscale, -128.0f, 127.0f)));
+    return char(v);
+}
+
+kernel void kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8(
+        device const block_iq2_xxs *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_iq2_xxs *blk = src + r * blocks_per_row + b;
+    const uint ib32 = il0 / 2u;
+    const uint lane = il0 & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = b * QK_K + il0 * 16u;
+    const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+    const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + 8u + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+}
+
+kernel void kernel_dsv4_mpp_dequant_q2_k_transpose_i8(
+        device const block_q2_K *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_q2_K *blk = src + r * blocks_per_row + b;
+    device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+    const uchar sc = blk->scales[il0];
+    const uint il = (il0 / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = b * QK_K + il0 * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(dl * float(q[j] & mask) - ml, qscale);
+    }
+}
+
+kernel void kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8_counted(
+        device const block_iq2_xxs *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        device const uint *counts [[buffer(6)]],
+        constant uint &expert [[buffer(7)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (counts[expert] == 0 || tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_iq2_xxs *blk = src + r * blocks_per_row + b;
+    const uint ib32 = il0 / 2u;
+    const uint lane = il0 & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = b * QK_K + il0 * 16u;
+    const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+    const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + 8u + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+}
+
+kernel void kernel_dsv4_mpp_dequant_q2_k_transpose_i8_counted(
+        device const block_q2_K *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        device const uint *counts [[buffer(6)]],
+        constant uint &expert [[buffer(7)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (counts[expert] == 0 || tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_q2_K *blk = src + r * blocks_per_row + b;
+    device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+    const uchar sc = blk->scales[il0];
+    const uint il = (il0 / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = b * QK_K + il0 * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(dl * float(q[j] & mask) - ml, qscale);
+    }
+}
+
+/* Fused gate+up+down dequant kernel.  Replaces three separate dispatches
+ * (gate iq2_xxs, up iq2_xxs, down q2_k) with one, saving Metal API overhead
+ * on the CPU side (setComputePipelineState + dispatchThreadgroups per call).
+ *
+ * For DSv4 dimensions (in_dim=4096, mid_dim=2048, out_dim=4096) all three
+ * dequants share total = 524288 work items (each row's 16 sub-blocks × the
+ * row count), so one launch covers all three weights in parallel.  The
+ * caller asserts total values match before dispatching the fused variant.
+ *
+ * Logic for each sub-op is copied verbatim from the standalone kernels
+ * above; keep them in sync if the standalone versions change. */
+kernel void kernel_dsv4_mpp_dequant_gate_up_down_i8(
+        device const block_iq2_xxs *gate_src [[buffer(0)]],
+        device const block_iq2_xxs *up_src   [[buffer(1)]],
+        device const block_q2_K    *down_src [[buffer(2)]],
+        device char *gate_dst [[buffer(3)]],
+        device char *up_dst   [[buffer(4)]],
+        device char *down_dst [[buffer(5)]],
+        constant uint &gu_q_rows [[buffer(6)]],   // mid_dim (gate/up rows)
+        constant uint &gu_q_cols [[buffer(7)]],   // in_dim  (gate/up cols)
+        constant uint &d_q_rows  [[buffer(8)]],   // out_dim (down rows)
+        constant uint &d_q_cols  [[buffer(9)]],   // mid_dim (down cols)
+        constant uint &total     [[buffer(10)]],
+        constant float &qscale   [[buffer(11)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+
+    // --- GATE + UP (iq2_xxs) ---
+    {
+        const uint blocks_per_row = gu_q_cols / QK_K;
+        const uint segs_per_row = blocks_per_row * 16u;
+        const uint r = tid / segs_per_row;
+        if (r < gu_q_rows) {
+            const uint seg = tid - r * segs_per_row;
+            const uint b = seg / 16u;
+            const uint il0 = seg - b * 16u;
+            const uint ib32 = il0 / 2u;
+            const uint lane = il0 & 1u;
+            const uint col0 = b * QK_K + il0 * 16u;
+
+            // GATE
+            {
+                device const block_iq2_xxs *blk = gate_src + r * blocks_per_row + b;
+                device const ushort *q2 = blk->qs + 4u * ib32;
+                const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+                const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+                const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+                const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+                const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+                for (uint j = 0; j < 8u; j++) {
+                    const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+                    gate_dst[(col0 + j) * gu_q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+                }
+                const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+                const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+                for (uint j = 0; j < 8u; j++) {
+                    const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+                    gate_dst[(col0 + 8u + j) * gu_q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+                }
+            }
+
+            // UP (same shape, same logic, different src/dst)
+            {
+                device const block_iq2_xxs *blk = up_src + r * blocks_per_row + b;
+                device const ushort *q2 = blk->qs + 4u * ib32;
+                const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+                const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+                const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+                const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+                const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+                for (uint j = 0; j < 8u; j++) {
+                    const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+                    up_dst[(col0 + j) * gu_q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+                }
+                const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+                const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+                for (uint j = 0; j < 8u; j++) {
+                    const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+                    up_dst[(col0 + 8u + j) * gu_q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+                }
+            }
+        }
+    }
+
+    // --- DOWN (q2_k, different shape but same tid range) ---
+    {
+        const uint blocks_per_row = d_q_cols / QK_K;
+        const uint segs_per_row = blocks_per_row * 16u;
+        const uint r = tid / segs_per_row;
+        if (r < d_q_rows) {
+            const uint seg = tid - r * segs_per_row;
+            const uint b = seg / 16u;
+            const uint il0 = seg - b * 16u;
+            device const block_q2_K *blk = down_src + r * blocks_per_row + b;
+            device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+            const uchar sc = blk->scales[il0];
+            const uint il = (il0 / 2u) & 3u;
+            const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+            const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+            const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+            const float ml = float(blk->dmin) * float(sc >> 4);
+            const uint col0 = b * QK_K + il0 * 16u;
+            for (uint j = 0; j < 16u; j++) {
+                down_dst[(col0 + j) * d_q_rows + r] = ds4_mpp_float_to_i8_scaled(dl * float(q[j] & mask) - ml, qscale);
+            }
+        }
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_iq2_xxs_transpose_f16(
+        device const block_iq2_xxs *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_iq2_xxs *blk = src + r * blocks_per_row + b;
+    const uint ib32 = il0 / 2u;
+    const uint lane = il0 & 1u;
+    device const ushort *q2 = blk->qs + 4u * ib32;
+    const uint aux32_g = uint(q2[0]) | (uint(q2[1]) << 16);
+    const uint aux32_s = uint(q2[2]) | (uint(q2[3]) << 16);
+    const float scale = float(blk->d) * (0.5f + float(aux32_s >> 28)) * 0.25f;
+    const uint col0 = b * QK_K + il0 * 16u;
+    const ulong gv0 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 0u))) & 255u];
+    const uchar sign0 = ksigns_iq2xs[(aux32_s >> (14u * lane)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv0 >> (8u * j)) & 255ul) * ((sign0 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + j) * q_rows + r] = half(v);
+    }
+    const ulong gv1 = iq2xxs_grid[(aux32_g >> (8u * (2u * lane + 1u))) & 255u];
+    const uchar sign1 = ksigns_iq2xs[(aux32_s >> (14u * lane + 7u)) & 127u];
+    for (uint j = 0; j < 8u; j++) {
+        const float v = scale * float((gv1 >> (8u * j)) & 255ul) * ((sign1 & (1u << j)) ? -1.0f : 1.0f);
+        dst[(col0 + 8u + j) * q_rows + r] = half(v);
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_q2_k_transpose_f16(
+        device const block_q2_K *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_K;
+    const uint segs_per_row = blocks_per_row * 16u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 16u;
+    const uint il0 = seg - b * 16u;
+    device const block_q2_K *blk = src + r * blocks_per_row + b;
+    device const uchar *q = blk->qs + 32u * (il0 / 8u) + 16u * (il0 & 1u);
+    const uchar sc = blk->scales[il0];
+    const uint il = (il0 / 2u) & 3u;
+    const float coef = il > 1u ? (il > 2u ? 1.0f / 64.0f : 1.0f / 16.0f) : (il > 0u ? 1.0f / 4.0f : 1.0f);
+    const uchar mask = il > 1u ? (il > 2u ? 192 : 48) : (il > 0u ? 12 : 3);
+    const float dl = float(blk->d) * float(sc & 0x0fu) * coef;
+    const float ml = float(blk->dmin) * float(sc >> 4);
+    const uint col0 = b * QK_K + il0 * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = half(dl * float(q[j] & mask) - ml);
+    }
+}
+
 struct ds4_metal_dsv4_moe_swiglu_weight_args {
     uint32_t width;
     uint32_t rows;
@@ -1500,6 +1814,21 @@ kernel void kernel_mul_mm_id_map0(
 
 typedef decltype(kernel_mul_mm_id_map0<1>) kernel_mul_mm_id_map0_t;
 
+// Zero the per-expert token counts (the id-map "tokens-per-expert" / htpe array at
+// buffer offset 0) for experts the ANE handled in the ANE+GPU hybrid, so the GPU
+// mul_mm_id path skips them (it returns early when counts[expert]==0) instead of
+// double-computing what the ANE already scattered. One thread per expert.
+// buffer(0) = int32 tokens-per-expert (ne02 entries); buffer(1) = 256-byte skip mask.
+// (Completes the host call ds4_gpu_encode_zero_skipped_moe_counts added in 1becf06.)
+kernel void kernel_dsv4_moe_zero_skipped_counts(
+        device       int32_t * counts [[buffer(0)]],
+        device const uchar   * skip   [[buffer(1)]],
+        uint e [[thread_position_in_grid]]) {
+    if (skip[e] != 0) {
+        counts[e] = 0;
+    }
+}
+
 // Host-visible map builders for the routed-expert counts used by DS4 graph
 // shapes. Some arities are generic leftovers retained for nearby batch sizes.
 template [[host_name("kernel_mul_mm_id_map0_ne20_1" )]] kernel kernel_mul_mm_id_map0_t kernel_mul_mm_id_map0<1>;
@@ -1515,7 +1844,7 @@ template [[host_name("kernel_mul_mm_id_map0_ne20_22")]] kernel kernel_mul_mm_id_
 // Batched routed-expert matmul. It reads the expert-major map produced above,
 // loads selected expert weights, and writes results back to token-major slots
 // so the DS4 FFN can apply SwiGLU, weighting, and the down projection.
-template<typename S0, typename S0_4x4, typename S0_8x8, typename S1, typename S1_2x4, typename S1_8x8, typename block_q, short nl, void (*dequantize_func)(device const block_q *, short, thread S0_4x4 &), typename T0, typename T0_4x4, typename T1, typename T1_2x4>
+template<short NR1, typename S0, typename S0_4x4, typename S0_8x8, typename S1, typename S1_2x4, typename S1_8x8, typename block_q, short nl, void (*dequantize_func)(device const block_q *, short, thread S0_4x4 &), typename T0, typename T0_4x4, typename T1, typename T1_2x4>
 kernel void kernel_mul_mm_id(
         constant ds4_metal_args_mul_mm_id & args,
         device const char * src0,
@@ -1532,7 +1861,10 @@ kernel void kernel_mul_mm_id(
     threadgroup S1 * sb = (threadgroup S1 *)(shmem + 4096);
 
     constexpr int NR0 = 64;
-    constexpr int NR1 = 32;
+    /* NR1 (tokens-per-threadgroup along the expert-batch axis) is a template
+     * parameter so the host can select wider 64/128 tiles for aligned prefill
+     * batches (ported from antirez/ds4 PR #264 + the "Harden wide MoE tile
+     * dispatch" fix). The dispatch grid-X must match this exactly. */
 
     constexpr int NK  = 32;
     constexpr int NL0 = NK/16;
@@ -1540,193 +1872,225 @@ kernel void kernel_mul_mm_id(
 
     const int im = tgpig.z;
     const int r0 = tgpig.y*NR0;
-    const int r1 = tgpig.x*NR1;
+    const int r1_base = tgpig.x*NR1;
 
     device const uint32_t * tpe_u32 = (device const uint32_t *) (htpe);
     device const int32_t  * ids_i32 = (device const int32_t  *) (hids);
 
     const int32_t neh1 = tpe_u32[im];
 
-    if (r1 >= neh1) {
+    if (r1_base >= neh1) {
         return;
     }
 
     const short nr0 = (args.ne0 - r0 < NR0) ? (args.ne0 - r0) : NR0;
-    const short nr1 = (    neh1 - r1 < NR1) ? (    neh1 - r1) : NR1;
 
     const short lr0 = ((short)tiitg/NL0) < nr0 ? ((short)tiitg/NL0) : nr0 - 1;
-    const short lr1 = ((short)tiitg/NL1) < nr1 ? ((short)tiitg/NL1) : nr1 - 1;
 
     const short il0 = (tiitg % NL0);
-
-    short il = il0;
-
-    const int id = ids_i32[im*args.ne21 + r1 + lr1];
-
-    const short i11 = (id % args.ne20) % args.ne11;
-    const short i12 = (id / args.ne20);
     const short i13 = 0;
 
     const uint64_t offset0 = im*args.nb02 + i13*args.nb03;
     const short    offset1 = il0/nl;
 
-    device const block_q * x = (device const block_q *)(src0 + args.nb01*(r0 + lr0) + offset0) + offset1;
-
     const short iy = 8*(tiitg % NL1);
-
-    device const T1 * y = (device const T1 *)(src1
-        + args.nb13*i13
-        + args.nb12*i12
-        + args.nb11*i11
-        + args.nb10*iy);
 
     S0_8x8 ma[4];
     S1_8x8 mb[2];
 
     simdgroup_float8x8 mc[8];
 
-    for (short i = 0; i < 8; i++){
-        mc[i] = make_filled_simdgroup_matrix<float, 8>(0.f);
-    }
+    /*
+     * The MMA body computes 64x32 output lanes per threadgroup. Wider NR1
+     * variants reduce host/kernel overhead by letting one threadgroup walk
+     * several adjacent 32-token expert-major slices serially. Each subtile is
+     * scattered before the next one reuses the same 8 KiB scratch.
+     */
+    for (short r1_off = 0; r1_off < NR1; r1_off += 32) {
+        const int r1 = r1_base + r1_off;
+        if (r1 >= neh1) {
+            break;
+        }
+        const short nr1 = (neh1 - r1 < 32) ? (neh1 - r1) : 32;
+        const short lr1 = ((short)tiitg/NL1) < nr1 ? ((short)tiitg/NL1) : nr1 - 1;
 
-    for (int loop_k = 0; loop_k < args.ne00; loop_k += NK) {
-        if (is_same<T0_4x4, block_q>::value && FC_mul_mm_bc_inp) {
-            threadgroup_barrier(mem_flags::mem_threadgroup);
+        short il = il0;
 
-            for (short i = 0; i < 16; i++) {
-                const short sx = 2*il0 + i/8;
-                const short sy = (tiitg/NL0)/8;
+        const int id = ids_i32[im*args.ne21 + r1 + lr1];
 
-                const short lx = (tiitg/NL0)%8;
-                const short ly = i%8;
+        const short i11 = (id % args.ne20) % args.ne11;
+        const short i12 = (id / args.ne20);
 
-                const short ib = 8*sx + sy;
+        device const block_q * x = (device const block_q *)(src0 + args.nb01*(r0 + lr0) + offset0) + offset1;
 
-                *(sa + 64*ib + 8*ly + lx) = loop_k + 16*il + i < args.ne00 ? *((device T0 *) x + i) : 0;
-            }
-        } else {
-            S0_4x4 temp_a;
-            dequantize_func(x, il, temp_a);
+        device const T1 * y = (device const T1 *)(src1
+            + args.nb13*i13
+            + args.nb12*i12
+            + args.nb11*i11
+            + args.nb10*iy);
 
-            threadgroup_barrier(mem_flags::mem_threadgroup);
-
-            FOR_UNROLL (short i = 0; i < 16; i++) {
-                const short sx = 2*il0 + i/8;
-                const short sy = (tiitg/NL0)/8;
-
-                const short lx = (tiitg/NL0)%8;
-                const short ly = i%8;
-
-                const short ib = 8*sx + sy;
-
-                *(sa + 64*ib + 8*ly + lx) = temp_a[i/4][i%4];
-            }
+        for (short i = 0; i < 8; i++){
+            mc[i] = make_filled_simdgroup_matrix<float, 8>(0.f);
         }
 
-        if (FC_mul_mm_bc_inp) {
-            for (short i = 0; i < 8; ++i) {
+        for (int loop_k = 0; loop_k < args.ne00; loop_k += NK) {
+            if (is_same<T0_4x4, block_q>::value && FC_mul_mm_bc_inp) {
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+
+                for (short i = 0; i < 16; i++) {
+                    const short sx = 2*il0 + i/8;
+                    const short sy = (tiitg/NL0)/8;
+
+                    const short lx = (tiitg/NL0)%8;
+                    const short ly = i%8;
+
+                    const short ib = 8*sx + sy;
+
+                    *(sa + 64*ib + 8*ly + lx) = loop_k + 16*il + i < args.ne00 ? *((device T0 *) x + i) : 0;
+                }
+            } else {
+                S0_4x4 temp_a;
+                dequantize_func(x, il, temp_a);
+
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+
+                FOR_UNROLL (short i = 0; i < 16; i++) {
+                    const short sx = 2*il0 + i/8;
+                    const short sy = (tiitg/NL0)/8;
+
+                    const short lx = (tiitg/NL0)%8;
+                    const short ly = i%8;
+
+                    const short ib = 8*sx + sy;
+
+                    *(sa + 64*ib + 8*ly + lx) = temp_a[i/4][i%4];
+                }
+            }
+
+            if (FC_mul_mm_bc_inp) {
+                for (short i = 0; i < 8; ++i) {
+                    const short sx = (tiitg%NL1);
+                    const short sy = (tiitg/NL1)/8;
+
+                    const short lx = i;
+                    const short ly = (tiitg/NL1)%8;
+
+                    const short ib = 4*sx + sy;
+
+                    *(sb + 64*ib + 8*ly + lx) = loop_k + iy + i < args.ne00 ? (S1) *((device T1 *) y + i) : 0;
+                }
+            } else {
                 const short sx = (tiitg%NL1);
                 const short sy = (tiitg/NL1)/8;
 
-                const short lx = i;
                 const short ly = (tiitg/NL1)%8;
 
                 const short ib = 4*sx + sy;
 
-                *(sb + 64*ib + 8*ly + lx) = loop_k + iy + i < args.ne00 ? (S1) *((device T1 *) y + i) : 0;
+                *(threadgroup S1_2x4 *)(sb + 64*ib + 8*ly) = (S1_2x4)(*((device T1_2x4 *) y));
             }
-        } else {
-            const short sx = (tiitg%NL1);
-            const short sy = (tiitg/NL1)/8;
 
-            const short ly = (tiitg/NL1)%8;
+            il = (il + 2 < nl) ? il + 2 : il % 2;
+            x  = (il < 2) ? x + (2 + nl - 1)/nl : x;
 
-            const short ib = 4*sx + sy;
+            y += NK;
 
-            *(threadgroup S1_2x4 *)(sb + 64*ib + 8*ly) = (S1_2x4)(*((device T1_2x4 *) y));
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            threadgroup const S0 * lsma = (sa + 4*64*(sgitg%2));
+            threadgroup const S1 * lsmb = (sb + 2*64*(sgitg/2));
+
+            // M5 compiles this as a tighter simdgroup_matrix load/MMA chain without no-op barriers.
+            FOR_UNROLL (short ik = 0; ik < NK/8; ik++) {
+                if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+
+                FOR_UNROLL (short i = 0; i < 4; i++) {
+                    simdgroup_load(ma[i], lsma + 64*i, 8, 0, false);
+                }
+
+                if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+
+                FOR_UNROLL (short i = 0; i < 2; i++) {
+                    simdgroup_load(mb[i], lsmb + 64*i, 8, 0, false);
+                }
+
+                if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
+
+                FOR_UNROLL (short i = 0; i < 8; i++){
+                    simdgroup_multiply_accumulate(mc[i], mb[i/4], ma[i%4], mc[i]);
+                }
+
+                lsma += 8*64;
+                lsmb += 4*64;
+            }
         }
-
-        il = (il + 2 < nl) ? il + 2 : il % 2;
-        x  = (il < 2) ? x + (2 + nl - 1)/nl : x;
-
-        y += NK;
 
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
-        threadgroup const S0 * lsma = (sa + 4*64*(sgitg%2));
-        threadgroup const S1 * lsmb = (sb + 2*64*(sgitg/2));
+        threadgroup float * temp_str = ((threadgroup float *) shmem) + 32*(sgitg&1) + (16*(sgitg >> 1))*NR0;
 
-        // M5 compiles this as a tighter simdgroup_matrix load/MMA chain without no-op barriers.
-        FOR_UNROLL (short ik = 0; ik < NK/8; ik++) {
-            if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
-
-            FOR_UNROLL (short i = 0; i < 4; i++) {
-                simdgroup_load(ma[i], lsma + 64*i, 8, 0, false);
-            }
-
-            if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
-
-            FOR_UNROLL (short i = 0; i < 2; i++) {
-                simdgroup_load(mb[i], lsmb + 64*i, 8, 0, false);
-            }
-
-            if (!FC_mul_mm_m5_sgmatrix) simdgroup_barrier(mem_flags::mem_none);
-
-            FOR_UNROLL (short i = 0; i < 8; i++){
-                simdgroup_multiply_accumulate(mc[i], mb[i/4], ma[i%4], mc[i]);
-            }
-
-            lsma += 8*64;
-            lsmb += 4*64;
-        }
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    threadgroup float * temp_str = ((threadgroup float *) shmem) + 32*(sgitg&1) + (16*(sgitg >> 1))*NR0;
-
-    for (short i = 0; i < 8; i++) {
-        simdgroup_store(mc[i], temp_str + 8*(i%4) + 8*NR0*(i/4), NR0, 0, false);
-    }
-
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-
-    for (short j = sgitg; j < nr1; j += 4) {
-        const int idj = ids_i32[im*args.ne21 + r1 + j];
-
-        const short ide = idj % args.ne20;
-        const short idt = idj / args.ne20;
-
-        device float  * D  = (device float  *) dst + r0 + ide*args.ne0 + idt*args.ne1*args.ne0;
-        device float4 * D4 = (device float4 *) D;
-
-        threadgroup float  * C  = (threadgroup float  *) shmem + j*NR0;
-        threadgroup float4 * C4 = (threadgroup float4 *) C;
-
-        int i = tiisg;
-        for (; i < nr0/4; i += 32) {
-            *(D4 + i) = *(C4 + i);
+        for (short i = 0; i < 8; i++) {
+            simdgroup_store(mc[i], temp_str + 8*(i%4) + 8*NR0*(i/4), NR0, 0, false);
         }
 
-        i = (4*(nr0/4)) + tiisg;
-        for (; i < nr0; i += 32) {
-            *(D + i) = *(C + i);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        for (short j = sgitg; j < nr1; j += 4) {
+            const int idj = ids_i32[im*args.ne21 + r1 + j];
+
+            const short ide = idj % args.ne20;
+            const short idt = idj / args.ne20;
+
+            device float  * D  = (device float  *) dst + r0 + ide*args.ne0 + idt*args.ne1*args.ne0;
+            device float4 * D4 = (device float4 *) D;
+
+            threadgroup float  * C  = (threadgroup float  *) shmem + j*NR0;
+            threadgroup float4 * C4 = (threadgroup float4 *) C;
+
+            int i = tiisg;
+            for (; i < nr0/4; i += 32) {
+                *(D4 + i) = *(C4 + i);
+            }
+
+            i = (4*(nr0/4)) + tiisg;
+            for (; i < nr0; i += 32) {
+                *(D + i) = *(C + i);
+            }
         }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
     }
 }
 
-typedef decltype(kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K, QK_NL, dequantize_q2_K, float, float4x4, float, float2x4>) mul_mm_id;
-typedef decltype(kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K, QK_NL, dequantize_q2_K, half, half4x4, half, half2x4>) mul_mm_id_f16_rhs;
+typedef decltype(kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K, QK_NL, dequantize_q2_K, float, float4x4, float, float2x4>) mul_mm_id;
+typedef decltype(kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K, QK_NL, dequantize_q2_K, half, half4x4, half, half2x4>) mul_mm_id_f16_rhs;
 
 // Host-visible batched MoE matmul variants for the DS4 quant formats.
-template [[host_name("kernel_mul_mm_id_q8_0_f32")]]    kernel mul_mm_id kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0,    2,     dequantize_q8_0,    float, float4x4, float, float2x4>;
-template [[host_name("kernel_mul_mm_id_q2_K_f32")]]    kernel mul_mm_id kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    float, float4x4, float, float2x4>;
-template [[host_name("kernel_mul_mm_id_q4_K_f32")]]    kernel mul_mm_id kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    float, float4x4, float, float2x4>;
-template [[host_name("kernel_mul_mm_id_iq2_xxs_f32")]] kernel mul_mm_id kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, float, float4x4, float, float2x4>;
-template [[host_name("kernel_mul_mm_id_q8_0_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0,    2,     dequantize_q8_0,    half, half4x4, half, half2x4>;
-template [[host_name("kernel_mul_mm_id_q2_K_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    half, half4x4, half, half2x4>;
-template [[host_name("kernel_mul_mm_id_q4_K_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    half, half4x4, half, half2x4>;
-template [[host_name("kernel_mul_mm_id_iq2_xxs_f16")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q8_0_f32")]]    kernel mul_mm_id kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0,    2,     dequantize_q8_0,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f32")]]    kernel mul_mm_id kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f32_n64")]]  kernel mul_mm_id kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f32_n128")]] kernel mul_mm_id kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f32_n256")]] kernel mul_mm_id kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f32")]]    kernel mul_mm_id kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f32_n64")]]  kernel mul_mm_id kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f32_n128")]] kernel mul_mm_id kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f32_n256")]] kernel mul_mm_id kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f32")]] kernel mul_mm_id kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f32_n64")]]  kernel mul_mm_id kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f32_n128")]] kernel mul_mm_id kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f32_n256")]] kernel mul_mm_id kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, float, float4x4, float, float2x4>;
+template [[host_name("kernel_mul_mm_id_q8_0_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0,    2,     dequantize_q8_0,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f16_n64")]]  kernel mul_mm_id_f16_rhs kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f16_n128")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q2_K_f16_n256")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q2_K,    QK_NL, dequantize_q2_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f16")]]    kernel mul_mm_id_f16_rhs kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f16_n64")]]  kernel mul_mm_id_f16_rhs kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f16_n128")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_q4_K_f16_n256")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q4_K,    QK_NL, dequantize_q4_K,    half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f16")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<32, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f16_n64")]]  kernel mul_mm_id_f16_rhs kernel_mul_mm_id<64,  half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f16_n128")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<128, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, half, half4x4, half, half2x4>;
+template [[host_name("kernel_mul_mm_id_iq2_xxs_f16_n256")]] kernel mul_mm_id_f16_rhs kernel_mul_mm_id<256, half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_iq2_xxs, QK_NL, dequantize_iq2_xxs, half, half4x4, half, half2x4>;
 
 #undef QK_NL
 #undef kmask_iq2xs

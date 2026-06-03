@@ -159,6 +159,7 @@ int ds4_token_assistant(ds4_engine *e);
 int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size);
 void ds4_session_free(ds4_session *s);
 void ds4_session_set_progress(ds4_session *s, ds4_session_progress_fn fn, void *ud);
+void ds4_session_set_display_progress(ds4_session *s, ds4_session_progress_fn fn, void *ud);
 
 typedef enum {
     DS4_SESSION_REWRITE_ERROR = -1,
