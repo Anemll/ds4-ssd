@@ -73,17 +73,21 @@ Run the package root directly. DS4 detects the dense GGUF and sidecar metadata;
 no explicit `--moe-sidecar` or `--moe-mode` flag is needed:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --ctx 32768 \
   -p "Hello"
 ```
 
-`--ctx 32768` is the KV window in this example. `DS4_METAL_PREFILL_CHUNK=16384`
-is the prefill chunk cap used by the alpha smoke path. Leave the Metal raw-KV
-cap automatic so it follows the chunk size and server checkpoint frontiers stay
-aligned.
+`--ctx 32768` is the KV window in this example. Leave the Metal raw-KV cap
+automatic so it follows the prefill chunk size and server checkpoint frontiers
+stay aligned.
+
+On low-RAM machines, start with `--moe-slot-bank 8` and raise it once you
+confirm there is headroom. The slot bank is the cap on resident routed-expert
+slots, so a larger value trades RAM for fewer SSD reads; 64 assumes a
+high-memory system.
 
 Run the committed sidecar smoke:
 
