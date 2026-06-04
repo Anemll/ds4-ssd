@@ -257,13 +257,11 @@ make tests/ane_ds4_mlp_i8i8_precision_smoke
 ./tests/ane_ds4_mlp_i8i8_precision_smoke
 ```
 
-4. One sidecar smoke. Use explicit 16K prefill:
+4. One sidecar smoke. Use package-root autodetection plus explicit 16K prefill:
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m /path/to/dsv4-iq2xxs-expert-major/dense/model-dense.gguf \
-  --moe-sidecar /path/to/dsv4-iq2xxs-expert-major \
-  --moe-mode slot-bank \
+  -m /path/to/dsv4-iq2xxs-expert-major \
   --moe-slot-bank 64 \
   --ctx 32768 \
   -n 1 \

@@ -8,6 +8,8 @@
 /ds4flash.gguf
 /TODO.md
 /gguf/
+/.external/
+/profile_runs/
 *.o
 *.dSYM/
 /misc/

@@ -486,6 +486,52 @@ static char *ds4_strdup(const char *s) {
     return p;
 }
 
+static char *ds4_join_path(const char *dir, const char *name) {
+    const size_t nd = strlen(dir);
+    const size_t nn = strlen(name);
+    const bool slash = nd != 0 && dir[nd - 1] == '/';
+    char *out = xmalloc(nd + (slash ? 0 : 1) + nn + 1);
+    memcpy(out, dir, nd);
+    size_t p = nd;
+    if (!slash) out[p++] = '/';
+    memcpy(out + p, name, nn + 1);
+    return out;
+}
+
+static bool ds4_path_is_dir(const char *path) {
+    struct stat st;
+    return path && path[0] && stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static bool ds4_path_readable_file(const char *path) {
+    struct stat st;
+    return path && path[0] && stat(path, &st) == 0 &&
+           S_ISREG(st.st_mode) && access(path, R_OK) == 0;
+}
+
+static bool ds4_detect_sidecar_package(const char *path, char **dense_out) {
+    if (dense_out) *dense_out = NULL;
+    if (!ds4_path_is_dir(path)) return false;
+
+    char *manifest = ds4_join_path(path, "manifest.json");
+    char *dense_dir = ds4_join_path(path, "dense");
+    char *dense = ds4_join_path(dense_dir, "model-dense.gguf");
+    const bool ok = ds4_path_readable_file(manifest) &&
+                    ds4_path_readable_file(dense);
+    free(manifest);
+    free(dense_dir);
+    if (!ok) {
+        free(dense);
+        return false;
+    }
+    if (dense_out) {
+        *dense_out = dense;
+    } else {
+        free(dense);
+    }
+    return true;
+}
+
 static void *xrealloc(void *ptr, size_t size) {
     ds4_alloc_guard_check("realloc", size);
     void *p = realloc(ptr, size);
@@ -2507,15 +2553,7 @@ static void tensor_expect_routed_expert(
 
 #ifndef DS4_NO_GPU
 static char *flash_moe_join_path(const char *dir, const char *name) {
-    const size_t nd = strlen(dir);
-    const size_t nn = strlen(name);
-    const bool slash = nd != 0 && dir[nd - 1] == '/';
-    char *out = xmalloc(nd + (slash ? 0 : 1) + nn + 1);
-    memcpy(out, dir, nd);
-    size_t p = nd;
-    if (!slash) out[p++] = '/';
-    memcpy(out + p, name, nn + 1);
-    return out;
+    return ds4_join_path(dir, name);
 }
 
 static bool flash_moe_read_file(const char *path, char **out, size_t *len_out) {
@@ -10691,9 +10729,69 @@ static bool env_flag_enabled(const char *name) {
     return env && env[0] && atoi(env) != 0;
 }
 
+static void ds4_setenv_override(const char *name, const char *value) {
+    if (setenv(name, value, 1) != 0) {
+        fprintf(stderr, "ds4: warning: failed to set %s=%s\n", name, value);
+    }
+}
+
+static bool ds4_no_int8_paths_enabled(void) {
+    return env_flag_enabled("DS4_NO_INT8");
+}
+
 static bool backend_diagnostic_logs_suppressed(void) {
     if (env_flag_enabled("DS4_AGENT_ALLOW_BACKEND_STATS")) return false;
     return env_flag_enabled("DS4_AGENT_SUPPRESS_BACKEND_LOGS");
+}
+
+static void ds4_apply_no_int8_paths(void) {
+    static bool announced = false;
+    ds4_setenv_override("DS4_NO_INT8", "1");
+
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_OVERLAP_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_OVERLAP_SCHEDULER", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_HYBRID_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_CONCURRENT_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_HYBRID_CONCURRENT_PREFILL", "0");
+
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_INT8_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_INT8_ACT", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_I8I8_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_I8I8_TILED_FUSED_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_MPP_I8I8_FULL_FUSED_PREFILL", "0");
+
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_FP16W", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_FP16X_INT8W", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_I8I8_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_I8I8_FUSED_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_I8I8_FULL_FUSED_PREFILL", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_SHARED_EXPERT", "0");
+    ds4_setenv_override("DS4_SHARED_EXPERT_ANE_I8I8", "0");
+    ds4_setenv_override("DS4_FLASH_MOE_ANE_OUTPUT_PROJ", "0");
+    ds4_setenv_override("DS4_GPU_DENSE_I8", "0");
+
+    ds4_setenv_override("DS4_RESIDENT_MOE_MPP_INT8_PREFILL", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_NAX_INT8_PREFILL", "0");
+    ds4_setenv_override("DS4_RESIDENT_MPP_INT8_PREFILL", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_MPP_PAIRROW_BRIDGE", "1");
+    ds4_setenv_override("DS4_RESIDENT_MOE_NAX_FULL_FUSED", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_ANE_HYBRID", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_ANE_NAX_HYBRID", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_ANE_ALU_HYBRID", "0");
+    ds4_setenv_override("DS4_RESIDENT_MOE_NAX_HALF", "1");
+
+    if (!announced && !backend_diagnostic_logs_suppressed()) {
+        fprintf(stderr,
+                "ds4: --no-int8 active: disabled int8 dense/NAX/Flash-MoE/ANE paths; "
+                "resident routing will prefer NAX-half where safe, GPU otherwise\n");
+        announced = true;
+    }
 }
 
 static bool backend_stats_logs_enabled(void) {
@@ -10712,6 +10810,7 @@ static bool backend_stats_logs_enabled(void) {
 }
 
 static bool ane_output_proj_enabled_for_run(void) {
+    if (ds4_no_int8_paths_enabled()) return false;
     if (!env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ")) return false;
     if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") &&
         !env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_FORCE") &&
@@ -10744,6 +10843,9 @@ static bool flash_moe_mpp_nax_allowed(void) {
 }
 
 static bool flash_moe_mpp_int8_prefill_requested(void) {
+    if (ds4_no_int8_paths_enabled()) {
+        return env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
+    }
     const char *env = getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL");
     return env && env[0] && atoi(env) != 0;
 }
@@ -10754,10 +10856,16 @@ static bool flash_moe_mpp_int8_prefill_enabled(void) {
     static bool warned = false;
     if (!warned && !backend_diagnostic_logs_suppressed()) {
         warned = true;
-        fprintf(stderr,
-                "ds4: DS4_FLASH_MOE_MPP_INT8_PREFILL ignored on this Metal device; "
-                "GPU sidecar stays on grouped ALU. Set DS4_MPP_NAX_FORCE_NON_M5=1 "
-                "for explicit NAX/MPP experiments.\n");
+        if (ds4_no_int8_paths_enabled()) {
+            fprintf(stderr,
+                    "ds4: --no-int8 requested but NAX-half fallback is unavailable "
+                    "on this Metal device; GPU sidecar stays on grouped ALU\n");
+        } else {
+            fprintf(stderr,
+                    "ds4: DS4_FLASH_MOE_MPP_INT8_PREFILL ignored on this Metal device; "
+                    "GPU sidecar stays on grouped ALU. Set DS4_MPP_NAX_FORCE_NON_M5=1 "
+                    "for explicit NAX/MPP experiments.\n");
+        }
     }
     return false;
 }
@@ -10778,12 +10886,14 @@ static bool resident_moe_backend_name_is_ane(const char *backend) {
 }
 
 static bool resident_moe_prefill_backend_is_ane(uint32_t n_tokens) {
+    if (ds4_no_int8_paths_enabled()) return false;
     char backend[24];
     ds4_gpu_resident_backend_for_tokens(n_tokens, backend, sizeof(backend));
     return resident_moe_backend_name_is_ane(backend);
 }
 
 static bool resident_moe_prefill_config_has_ane_backend(void) {
+    if (ds4_no_int8_paths_enabled()) return false;
     const char *forced = getenv("DS4_RESIDENT_MOE_BACKEND");
     if (resident_moe_backend_name_is_ane(forced)) return true;
     const char *tbl = getenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS");
@@ -15690,7 +15800,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 }
                 if (best < 0) break;
                 chosen[best] = true;
-                /* Skip experts already resident in the next layer's slot bank. */
+                /* Skip experts already cached in the next layer's slot bank. */
                 if (metal_graph_flash_moe_find_resident_slot(g, next_il, best, NULL)) continue;
                 const uint64_t src = (uint64_t)best * next_layer->expert_stride;
                 if (!ds4_flash_prefill_async_submit(p_async_reader, next_il, best,
@@ -21097,6 +21207,7 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
 
     const bool try_ane = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool try_mpp = flash_moe_mpp_int8_prefill_enabled();
+    const bool no_int8 = ds4_no_int8_paths_enabled();
     const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     const bool resident_ane_hybrid_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
     const bool resident_ane_hybrid =
@@ -21131,6 +21242,8 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
         routed = "ANE i8i8 (W8A8) + GPU MPP-int8/NAX (W8A8) hybrid";
     } else if (try_ane) {
         routed = "ANE i8i8 (W8A8)";
+    } else if (try_mpp && no_int8) {
+        routed = "NAX-half (no int8; GPU fallback for unsafe chunks)";
     } else if (try_mpp) {
         routed = "GPU MPP-int8 / NAX (W8A8)";
     } else {
@@ -22119,6 +22232,7 @@ struct ds4_engine {
     ds4_moe_mode moe_mode;
     uint32_t moe_slot_bank;
     bool quality;
+    bool no_int8;
     bool metal_ready;
     bool mtp_ready;
 };
@@ -24275,6 +24389,10 @@ int ds4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_bytes, c
         payload_set_err(err, errlen, "KV checkpoint raw ring layout does not match current context");
         return 1;
     }
+    if (ds4_ctx_grow_enabled() && saved_comp_cap > g->comp_cap &&
+        saved_comp_cap <= g->comp_cap_max) {
+        (void)metal_graph_ctx_grow_shared(g, saved_comp_cap);
+    }
     if (saved_comp_cap > g->comp_cap) {
         payload_set_err(err, errlen, "KV checkpoint compressed cache is larger than current context");
         return 1;
@@ -24977,15 +25095,52 @@ int ds4_engine_first_token_test(ds4_engine *e, const ds4_tokens *prompt) {
     return 0;
 }
 
+bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
+                                                   const char *program_name) {
+    if (!opt || !opt->model_path || !opt->model_path[0]) return false;
+
+    char *dense_model = NULL;
+    if (!ds4_detect_sidecar_package(opt->model_path, &dense_model)) {
+        return false;
+    }
+
+    const char *package_dir = opt->model_path;
+    if (!opt->moe_sidecar_path || !opt->moe_sidecar_path[0]) {
+        opt->moe_sidecar_path = package_dir;
+    }
+    opt->model_path = dense_model;
+    if (opt->moe_mode == DS4_MOE_MODE_OFF) {
+        opt->moe_mode = DS4_MOE_MODE_SLOT_BANK;
+    }
+
+    fprintf(stderr,
+            "%s: detected DS4 sidecar package: -m %s, --moe-sidecar %s, --moe-mode slot-bank\n",
+            program_name && program_name[0] ? program_name : "ds4",
+            opt->model_path,
+            opt->moe_sidecar_path);
+    return true;
+}
+
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
+    ds4_engine_options resolved = *opt;
+    ds4_engine_options_autodetect_sidecar_package(&resolved, "ds4");
+    opt = &resolved;
+
+    if (opt->quality || opt->no_int8) {
+        ds4_setenv_override("DS4_NO_INT8", "1");
+    }
     /* Apply the machine tuning profile before any knob is read (env still wins). */
     ds4_profile_set_sidecar_mode(opt->moe_mode == DS4_MOE_MODE_SLOT_BANK && opt->moe_sidecar_path);
     ds4_profile_load_and_apply();
+    if (opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled()) {
+        ds4_apply_no_int8_paths();
+    }
     ds4_engine *e = xcalloc(1, sizeof(*e));
     e->model.fd = -1;
     e->mtp_model.fd = -1;
     e->backend = opt->backend;
     e->quality = opt->quality;
+    e->no_int8 = opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled();
     e->mtp_draft_tokens = opt->mtp_draft_tokens > 0 ? opt->mtp_draft_tokens : 1;
     if (e->mtp_draft_tokens > 16) e->mtp_draft_tokens = 16;
     e->mtp_margin = opt->mtp_margin >= 0.0f ? opt->mtp_margin : 3.0f;

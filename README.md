@@ -54,6 +54,23 @@ quant layouts and tables, CPU quant/dot logic, and certain kernels. For this
 reason, and because we are genuinely grateful, we keep the GGML authors copyright
 notice in our `LICENSE` file.
 
+## Acknowledgements to Apple Silicon ANE work
+
+The Apple Neural Engine path in DS4 combines Metal/GPU-side int8 preparation and
+dequantization with ANE execution of routed MLP work through Apple's private,
+undocumented ANE interfaces, plus a number of DS4-specific scheduling and
+batching optimizations.
+
+This direction is indebted to prior public Apple Silicon inference work. We
+credit [Liu Liu / @liuliu](https://github.com/liuliu) and
+[Draw Things](https://drawthings.ai/) for pioneering practical custom-runtime
+work around GPU-side int8 dequantization and selective Apple Neural Engine use.
+We also credit [maderix](https://github.com/maderix/ANE) for early public
+documentation and reverse engineering of the private ANE API surface, including
+the `_ANEClient`, `_ANECompiler`, and `_ANEInMemoryModel` family of interfaces.
+These projects are not DS4 dependencies, but they materially informed the
+engineering direction.
+
 ## Status
 
 The code and GGUF files are to be considered of **alpha quality** because
@@ -79,6 +96,13 @@ next sections.
   how the calibration prompt corpus is generated.
 - [gguf-tools/quality-testing/README.md](gguf-tools/quality-testing/README.md):
   how local GGUFs are scored against official DeepSeek V4 Flash continuations.
+- [docs/ANE_KERNELS.md](docs/ANE_KERNELS.md): Apple Neural Engine kernel
+  variants, private-API notes, and current release usage.
+- [docs/SIDECAR_EXPORT.md](docs/SIDECAR_EXPORT.md): how to export an
+  expert-major Flash-MoE sidecar from a supported DS4 GGUF.
+- [docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md): SSD sidecar streaming
+  and prefill knobs, profile environment variables, CLI equivalents, and
+  defaults.
 - [dir-steering/README.md](dir-steering/README.md): directional steering data,
   vector generation, and usage.
 - [speed-bench/README.md](speed-bench/README.md): benchmark CSV files and graph
@@ -144,6 +168,62 @@ make cpu              # CPU-only diagnostics build
 `./ds4flash.gguf` is the default model path used by both binaries. Pass `-m` to
 select another supported GGUF from `./gguf/`. Run `./ds4 --help` and
 `./ds4-server --help` for the full flag list.
+
+## SSD Streaming Slot Banks
+
+When `-m` points at a Flash-MoE sidecar package root containing
+`manifest.json` and `dense/model-dense.gguf`, DS4 auto-detects SSD streaming,
+uses the dense GGUF internally, and implies `--moe-sidecar DIR --moe-mode
+slot-bank`. The explicit long form still works for expert-only sidecar export
+validation.
+
+In sidecar mode, the `--moe-slot-bank N` flag is the main user-facing
+memory/cache knob. It is not auto-sized today. It controls how many routed
+expert slots are cached per layer in the Metal slot bank. Slot contents are
+replaceable: experts can be evicted and reloaded from SSD as the access pattern
+changes.
+
+Use this knob to choose the RAM occupancy you want:
+
+- Lower values use less unified/Metal memory, but reload experts from SSD more
+  often.
+- Higher values cache more experts and can reduce SSD stalls, but use
+  more RAM and can hurt decode throughput if the slot bank starves the rest of
+  the system.
+- The valid range is `6..256`. The normal CLI/server default is `32`;
+  `ds4-bench` defaults to `8` so sweeps start conservatively unless you pass a
+  larger value.
+
+At startup, the runtime prints the selected sidecar and the actual slot-bank
+allocation:
+
+```text
+ds4: Flash-MoE sidecar loaded: ... (slot-bank=N, expert-record X MiB)
+ds4: Flash-MoE slot banks allocated: layers=... slots=N gpu-bank=Y MiB
+```
+
+Use the reported `gpu-bank` value as the concrete memory cost for your model
+and quantization. As rough starting points, try `32` for conservative RAM use,
+`48` or `64` when you have more headroom, and `96` or `128` only on larger
+memory systems after checking macOS memory pressure and decode speed. Leave
+headroom for the OS, the KV cache, the dense model tensors, and any agent or
+browser processes you keep open.
+
+## Apple Silicon Profiles, ANE, and NAX
+
+On macOS, DS4 loads `ds4_profile.json` at startup and applies the matching
+machine profile for systems such as M3 Ultra and M5 Max. These profiles select
+prefill backends by prompt chunk size and hardware. The policy is to use ANE
+when it is faster than GPU or NAX for that machine and chunk shape; otherwise
+the runtime stays on GPU or NAX. ANE support is experimental and uses Apple's
+private ANE APIs, so profile defaults may change as the kernels are retested.
+
+`--no-int8` is optional. Normal runs use the machine profile's fastest measured
+backend choices. For quality-preserving runs, pass `--no-int8`; it disables the
+current int8 accelerator paths, so NAX-int8 drops to NAX-half when the chunk
+shape is safe, and ANE/int8 profile entries fall back to NAX-half or GPU.
+`--quality` implies `--no-int8`. See [docs/ANE_KERNELS.md](docs/ANE_KERNELS.md)
+for the implemented ANE kernel variants.
 
 ## Speed
 

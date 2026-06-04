@@ -1209,6 +1209,7 @@ typedef struct {
     bool plain;
     bool warm_weights;
     bool quality;
+    bool no_int8;
 } eval_config;
 
 typedef struct {
@@ -1488,7 +1489,8 @@ static void usage(FILE *fp) {
         "  --mtp FILE             Optional MTP support GGUF.\n"
         "  --metal | --cuda | --cpu | --backend NAME\n"
         "  -t, --threads N        CPU helper threads.\n"
-        "  --quality              Prefer exact kernels where applicable.\n"
+        "  --quality              Prefer exact kernels where applicable; implies --no-int8.\n"
+        "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
         "  --warm-weights         Touch mapped tensor pages before evaluation.\n"
         "\n"
         "Evaluation:\n"
@@ -1573,6 +1575,17 @@ static eval_config parse_options(int argc, char **argv) {
             c.backend = DS4_BACKEND_CPU;
         } else if (!strcmp(arg, "--quality")) {
             c.quality = true;
+            c.no_int8 = true;
+            if (setenv("DS4_NO_INT8", "1", 1) != 0) {
+                fprintf(stderr, "ds4-eval: setenv DS4_NO_INT8: %s\n", strerror(errno));
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--no-int8")) {
+            c.no_int8 = true;
+            if (setenv("DS4_NO_INT8", "1", 1) != 0) {
+                fprintf(stderr, "ds4-eval: setenv DS4_NO_INT8: %s\n", strerror(errno));
+                exit(2);
+            }
         } else if (!strcmp(arg, "--warm-weights")) {
             c.warm_weights = true;
         } else if (!strcmp(arg, "--think")) {
@@ -3242,6 +3255,7 @@ int main(int argc, char **argv) {
         .mtp_margin = 3.0f,
         .warm_weights = cfg.warm_weights,
         .quality = cfg.quality,
+        .no_int8 = cfg.no_int8,
     };
 
     ds4_engine *engine = NULL;
