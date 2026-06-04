@@ -26,16 +26,20 @@ compatible GGUF model plus the sidecar explicitly:
 ```
 
 This repository does not currently ship an in-tree sidecar packer. The public
-export tool below exports the routed expert sidecar records. It does not
-currently build the full alpha package layout with a stripped dense GGUF at
-`dense/model-dense.gguf`; for a turnkey low-RAM SSD streaming package, use the
-prebuilt Hugging Face sidecar documented in `MODEL_SETUP.md`.
+tools below can export both parts of the DS4 package:
+
+- routed expert sidecar records in the package root
+- a dense/shared-only GGUF at `dense/model-dense.gguf`
+
+For a turnkey low-RAM SSD streaming package, you can also use the prebuilt
+Hugging Face sidecar documented in `MODEL_SETUP.md`.
 
 The public export tool lives in:
 
 - Repo: `https://github.com/anemll/anemll-flash-llama.cpp`
 - Branch: `DeepSeek-V4-SSD`
-- Script: `tools/flashmoe-sidecar/flashmoe_sidecar.py`
+- Expert sidecar script: `tools/flashmoe-sidecar/flashmoe_sidecar.py`
+- Dense GGUF script: `tools/flashmoe-sidecar/export_dense_gguf.py`
 
 Use that branch specifically. The current `origin/master` version of that repo
 may not expose `extract --layout expert-major`. The same path has also existed
@@ -71,29 +75,42 @@ scripts/export_flash_moe_sidecar.sh \
 The wrapper refuses to run if the converter does not expose `--layout`, because
 that means it is not on the expected branch or equivalent commit.
 
-## Direct Command
+The wrapper currently exports and verifies the routed expert sidecar records.
+To build the full DS4 package, run the dense export command from the next
+section after the wrapper completes.
 
-If you prefer to run the converter directly:
+## Direct Full Package Export
+
+If you prefer to run the public tools directly:
 
 ```sh
 git clone --branch DeepSeek-V4-SSD --single-branch \
   https://github.com/anemll/anemll-flash-llama.cpp.git \
   /path/to/anemll-flash-llama.cpp
 
+export SOURCE_GGUF=/path/to/DeepSeek-V4-Flash-IQ2XXS.gguf
+export PACKAGE_DIR=/path/to/dsv4-iq2xxs-expert-major
+
 python3 /path/to/anemll-flash-llama.cpp/tools/flashmoe-sidecar/flashmoe_sidecar.py \
   extract \
-  --model /path/to/DeepSeek-V4-Flash-IQ2XXS.gguf \
-  --out-dir /path/to/dsv4-iq2xxs-expert-major \
+  --model "$SOURCE_GGUF" \
+  --out-dir "$PACKAGE_DIR" \
   --layout expert-major \
+  --force
+
+python3 /path/to/anemll-flash-llama.cpp/tools/flashmoe-sidecar/export_dense_gguf.py \
+  --model "$SOURCE_GGUF" \
+  --sidecar "$PACKAGE_DIR" \
+  --out-dir "$PACKAGE_DIR/dense" \
   --force
 
 python3 /path/to/anemll-flash-llama.cpp/tools/flashmoe-sidecar/flashmoe_sidecar.py \
   verify \
-  --model /path/to/DeepSeek-V4-Flash-IQ2XXS.gguf \
-  --sidecar /path/to/dsv4-iq2xxs-expert-major
+  --model "$SOURCE_GGUF" \
+  --sidecar "$PACKAGE_DIR"
 ```
 
-Expected converter output layout:
+Expected DS4 package layout:
 
 ```text
 dsv4-iq2xxs-expert-major/
@@ -101,16 +118,21 @@ dsv4-iq2xxs-expert-major/
   layer_000.bin
   layer_001.bin
   ...
+  dense/
+    model-dense.gguf
+    flashmoe-package.json
 ```
 
 The `expert-major` layout stores each layer as expert-contiguous records. DS4
 uses `manifest.json` to find each routed family inside the per-layer files.
+The dense exporter removes routed expert tensors from the source GGUF after
+validating that the sidecar manifest contains those routed tensors. The
+resulting `dense/model-dense.gguf` keeps the dense and shared tensors needed by
+DS4 while routed experts stream from the package root.
 
-To match the public alpha package layout, pair this expert sidecar with a
-compatible dense-only GGUF under `dense/model-dense.gguf`. If you run DS4 with a
-full resident GGUF as `-m`, the sidecar path can still be useful for export
-validation and experiments, but it is not the same low-RAM package as the
-prebuilt alpha sidecar.
+If you run DS4 with a full resident GGUF as `-m`, the sidecar path can still be
+useful for export validation and experiments, but it is not the same low-RAM
+package as the full DS4 package layout above.
 
 ## Run With DS4
 
@@ -140,8 +162,8 @@ Startup should include:
 
 ```text
 ds4: applied sidecar tuning profile [...]
-ds4: Flash-MoE sidecar loaded: ... (slot-bank=64, expert-record ... MiB)
-ds4: Flash-MoE slot banks allocated: layers=... slots=64 gpu-bank=... MiB
+ds4: Flash-MoE sidecar loaded: ... (slot-bank=..., expert-record ... MiB)
+ds4: Flash-MoE slot banks allocated: layers=... slots=... gpu-bank=... MiB
 ```
 
 See [STREAMING_KNOBS.md](STREAMING_KNOBS.md) for the slot-bank, prefill, I/O,
