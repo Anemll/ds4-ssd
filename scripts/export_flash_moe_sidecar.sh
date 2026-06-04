@@ -46,8 +46,9 @@ The converter command used is:
 Important:
   origin/master of anemll-flash-llama.cpp may not expose --layout.
   Use branch DeepSeek-V4-SSD for the expert-major export path.
-  This exports expert sidecar records only; it does not create
-  dense/model-dense.gguf.
+  This wrapper extracts expert sidecar records. After extraction, use
+  export_dense_gguf.py from the same checkout to create dense/model-dense.gguf;
+  the wrapper prints that command when it completes.
 EOF
 }
 
@@ -199,12 +200,14 @@ cat <<EOF
 Sidecar export command completed.
 
 Note: this wrapper exports the routed expert sidecar records. For the public
-alpha low-RAM package layout, pair the sidecar with a compatible dense-only GGUF
-at dense/model-dense.gguf. Running with a full resident GGUF as -m is useful for
-export validation and experiments, but it is not the same low-RAM package.
+alpha low-RAM package layout, also export the dense/shared-only GGUF:
+  python3 "$llama_dir/tools/flashmoe-sidecar/export_dense_gguf.py" \\
+    --model "$model" \\
+    --sidecar "$out_dir" \\
+    --out-dir "$out_dir/dense" \\
+    --force
 
-If you add a compatible dense-only GGUF at "$out_dir/dense/model-dense.gguf",
-use the package root:
+After dense export, run the package root:
   ./ds4 \\
     -m "$out_dir" \\
     --moe-slot-bank 8 \\

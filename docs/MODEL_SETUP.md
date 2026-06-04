@@ -88,10 +88,10 @@ sidecar package from
 ./download_model.sh sidecar
 ```
 
-For expert-sidecar export from a supported GGUF, see
+For package export from a supported GGUF, see
 [SIDECAR_EXPORT.md](SIDECAR_EXPORT.md). That path uses an external public
-converter branch and does not currently create the `dense/model-dense.gguf`
-low-RAM package layout by itself.
+converter branch to export both the routed sidecar records and the
+dense/shared-only `dense/model-dense.gguf`.
 
 After extracting or mounting the sidecar:
 

@@ -132,8 +132,7 @@ resident GGUFs only.
 For alpha, use the prebuilt sidecar distribution for the turnkey low-RAM path.
 This repo also includes `scripts/export_flash_moe_sidecar.sh`, which calls the
 public `anemll/anemll-flash-llama.cpp` converter branch to export expert-major
-routed sidecar records. That wrapper does not currently build the full alpha
-package layout with a stripped `dense/model-dense.gguf`. See
-[SIDECAR_EXPORT.md](SIDECAR_EXPORT.md) for the exact command and caveats, and
-[STREAMING_KNOBS.md](STREAMING_KNOBS.md) for slot-bank, prefill, I/O, and ANE
-tuning knobs.
+routed sidecar records. The same external branch also provides the dense GGUF
+export step needed for `dense/model-dense.gguf`. See [SIDECAR_EXPORT.md](SIDECAR_EXPORT.md)
+for the full package command and caveats, and [STREAMING_KNOBS.md](STREAMING_KNOBS.md)
+for slot-bank, prefill, I/O, and ANE tuning knobs.
