@@ -189,6 +189,15 @@ DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
   -p "Hello"
 ```
 
+Quick smoke:
+
+```sh
+DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
+```
+
+The smoke uses `tests/test-vectors/prompts/long_code_audit.txt`, a 4K-class
+prompt, and generates 64 deterministic tokens with a 4K prefill chunk cap.
+
 In sidecar mode, the `--moe-slot-bank N` flag is the main user-facing
 memory/cache knob. It is not auto-sized today. It controls how many routed
 expert slots are cached per layer in the Metal slot bank. Slot contents are

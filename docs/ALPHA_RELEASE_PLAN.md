@@ -257,23 +257,17 @@ make tests/ane_ds4_mlp_i8i8_precision_smoke
 ./tests/ane_ds4_mlp_i8i8_precision_smoke
 ```
 
-4. One sidecar smoke. Use package-root autodetection plus explicit 16K prefill:
+4. One sidecar smoke. Use package-root autodetection plus a 4K-class prompt:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64 \
-  --ctx 32768 \
-  -n 1 \
-  --temp 0 \
-  --prompt-file tests/test-vectors/prompts/coding/coding_16k.txt
+DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 ```
 
 Expected sidecar smoke signals:
 
 - exit code `0`
 - `Flash-MoE sidecar loaded`
-- `prefill chunk cap: 16384`
+- `prefill chunk cap: 4096`
 - `Flash-MoE slot banks allocated`
 - routed compute banner
 
@@ -299,7 +293,7 @@ are planned for 0.2.
   - `make clean && make`
   - `./ds4_test --server --metal-kernels`
   - precision smoke built and ran
-  - 16K sidecar smoke exited `0`
+  - 4K sidecar smoke exited `0`
 
 ## Open Decisions
 

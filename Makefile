@@ -32,7 +32,7 @@ CPU_CORE_OBJS = ds4_cpu.o ds4_profile.o
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression moe-batch-bench ane-mlp-bench mpp-int8-bench
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression sidecar-smoke moe-batch-bench ane-mlp-bench mpp-int8-bench
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
@@ -44,6 +44,7 @@ help:
 	@echo "  make moe-batch-bench Build standalone MoE batch GPU/AMX benchmark"
 	@echo "  make ane-mlp-bench Build private-API ANE MLP W-input benchmark"
 	@echo "  make mpp-int8-bench Build Metal 4 MPP int8 matmul probe"
+	@echo "  make sidecar-smoke Run the 4K SSD sidecar smoke (requires DS4_SIDECAR_DIR)"
 	@echo "  make test         Build and run tests"
 	@echo "  make clean        Remove build outputs"
 
@@ -61,6 +62,9 @@ ds4-eval: ds4_eval.o $(CORE_OBJS)
 
 ds4-agent: ds4_agent.o ds4_kvstore.o linenoise.o $(CORE_OBJS)
 	$(CC) $(CFLAGS) -o $@ ds4_agent.o ds4_kvstore.o linenoise.o $(CORE_OBJS) $(METAL_LDLIBS)
+
+sidecar-smoke: ds4
+	DS4_METAL_PREFILL_CHUNK=4096 ./tests/sidecar_smoke.sh
 
 moe-batch-bench: moe-batch-bench/moe-batch-bench
 
@@ -128,6 +132,7 @@ help:
 	@echo "  make moe-batch-bench     Requires macOS"
 	@echo "  make ane-mlp-bench       Requires macOS private ANE framework"
 	@echo "  make mpp-int8-bench      Requires macOS 26 / Metal 4"
+	@echo "  make sidecar-smoke       Requires macOS Metal"
 	@echo "  make test                Build and run tests"
 	@echo "  make clean               Remove build outputs"
 
@@ -137,6 +142,10 @@ moe-batch-bench:
 
 ane-mlp-bench:
 	@echo "ane-mlp-bench requires macOS private ANE framework"
+	@exit 2
+
+sidecar-smoke:
+	@echo "sidecar-smoke requires macOS Metal"
 	@exit 2
 
 cuda-spark:
