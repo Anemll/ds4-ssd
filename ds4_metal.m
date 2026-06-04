@@ -735,7 +735,16 @@ int ds4_gpu_mpp_nax_supported(void) {
     return ds4_gpu_is_m5_device();
 }
 
+static int ds4_gpu_no_int8_paths_enabled(void) {
+    const char *env = getenv("DS4_NO_INT8");
+    return env && env[0] && atoi(env) != 0;
+}
+
 static int ds4_gpu_resident_mpp_int8_prefill_requested(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) {
+        const char *half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
+        return half_env && half_env[0] && atoi(half_env) != 0;
+    }
     const char *env = getenv("DS4_RESIDENT_MOE_MPP_INT8_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_RESIDENT_MOE_NAX_INT8_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_RESIDENT_MPP_INT8_PREFILL");
@@ -775,6 +784,29 @@ static uint32_t ds4_gpu_resident_mpp_sync_max_tokens(void) {
     return ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_MPP_SYNC_MAX_TOKENS", 7168u);
 }
 
+static int ds4_gpu_resident_nax_half_safe(uint32_t n_tokens) {
+    if (!ds4_gpu_mpp_nax_supported()) return 0;
+    if (n_tokens >= 64u && (n_tokens % 64u) == 0u) return 1;
+    return ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL");
+}
+
+static const char *ds4_gpu_no_int8_backend_remap(const char *backend,
+                                                 uint32_t n_tokens) {
+    if (!ds4_gpu_no_int8_paths_enabled() || !backend || !backend[0]) return backend;
+    if (strcmp(backend, "mulmm") == 0) return backend;
+
+    const int is_half = strstr(backend, "half") != NULL;
+    const int is_int8 = strstr(backend, "int8") != NULL;
+    const int is_ane = strncmp(backend, "ane", 3) == 0;
+    const int is_pathc = strcmp(backend, "pathc") == 0;
+    if (!is_half && !is_int8 && !is_ane && !is_pathc) return backend;
+
+    if (ds4_gpu_resident_nax_half_safe(n_tokens)) {
+        return is_half ? backend : "nax_half";
+    }
+    return "mulmm";
+}
+
 /* Per-chunk routed-MoE backend resolution for the grouped path. PRECEDENCE:
  *   1. DS4_RESIDENT_MOE_BACKEND            explicit param: force one backend, all chunks
  *   2. DS4_RESIDENT_MOE_PREFILL_BY_TOKENS  the JSON prefill_by_tokens table (the profile
@@ -789,6 +821,7 @@ void ds4_gpu_resident_backend_for_tokens(uint32_t n_tokens, char *out, size_t ou
     out[0] = '\0';
     const char *forced = getenv("DS4_RESIDENT_MOE_BACKEND");
     if (forced && forced[0]) {
+        forced = ds4_gpu_no_int8_backend_remap(forced, n_tokens);
         size_t n = strlen(forced);
         if (n >= outsz) n = outsz - 1;
         memcpy(out, forced, n);
@@ -806,8 +839,14 @@ void ds4_gpu_resident_backend_for_tokens(uint32_t n_tokens, char *out, size_t ou
         const char *comma = strchr(name, ',');
         size_t nlen = comma ? (size_t)(comma - name) : strlen(name);
         if ((long)n_tokens <= mx) {
+            char name_buf[24];
+            if (nlen >= sizeof(name_buf)) nlen = sizeof(name_buf) - 1;
+            memcpy(name_buf, name, nlen);
+            name_buf[nlen] = '\0';
+            const char *mapped = ds4_gpu_no_int8_backend_remap(name_buf, n_tokens);
+            nlen = strlen(mapped);
             if (nlen >= outsz) nlen = outsz - 1;
-            memcpy(out, name, nlen);
+            memcpy(out, mapped, nlen);
             out[nlen] = '\0';
             return;
         }
@@ -7508,6 +7547,7 @@ static float ds4_shared_expert_qscale_env(const char *name,
 }
 
 static int ds4_shared_expert_ane_use_i8i8(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *e = getenv("DS4_SHARED_EXPERT_ANE_I8I8");
     if (!e || !e[0]) e = getenv("DS4_FLASH_MOE_ANE_SHARED_I8I8");
     return e && e[0] && atoi(e) != 0;
@@ -18828,33 +18868,39 @@ static ds4_ane_mlp_int8w_ctx *ds4_gpu_ane_get_i8i8_tiled_ctx_d_mode(uint32_t H,
 
 
 static int ds4_gpu_ane_prefill_fp16w_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_FP16W");
     return env && env[0] && atoi(env) != 0;
 }
 
 static int ds4_gpu_ane_prefill_fp16x_i8w_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_FP16X_INT8W");
     return env && env[0] && atoi(env) != 0;
 }
 
 static int ds4_gpu_ane_prefill_i8i8_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_I8I8_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL");
     return env && env[0] && atoi(env) != 0;
 }
 
 static int ds4_gpu_ane_prefill_i8i8_fused_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_I8I8_FUSED_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL");
     return env && env[0] && atoi(env) != 0;
 }
 
 static int ds4_gpu_ane_prefill_i8i8_full_fused_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_I8I8_FULL_FUSED_PREFILL");
     return env && env[0] && atoi(env) != 0;
 }
 
 static int ds4_gpu_ane_prefill_i8i8_tiled_fused_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     const char *env = getenv("DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL");
     if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_MPP_I8I8_TILED_FUSED_PREFILL");
     return env && env[0] && atoi(env) != 0;
@@ -22967,6 +23013,7 @@ static uint64_t ds4_gpu_dense_i8_min_tokens(void) {
  * (load-time repack), per-token activation scale, fused int8xint8->int32
  * rescale. */
 static int ds4_gpu_dense_i8_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     static int cached = -1;
     if (cached < 0) {
         const char *env = getenv("DS4_GPU_DENSE_I8");
@@ -24025,6 +24072,7 @@ static int ds4_gpu_resident_mpp_dual_gate_up_enabled(void) {
  * with no global int8 weight buffer.  Enabled by DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT
  * (default on when the fused library compiled). */
 static int ds4_gpu_resident_mpp_fused_dequant_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     if (!g_mpp_iq2_fused_pipeline || !g_mpp_q2k_fused_pipeline) return 0;
     const char *env = getenv("DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT");
     if (env && env[0]) return atoi(env) != 0;
@@ -24063,6 +24111,7 @@ static id<MTLComputePipelineState> ds4_gpu_q2k_fused_pipeline_for_tile(uint32_t 
  * Opt-in via DS4_RESIDENT_MOE_NAX_FULL_FUSED=1 (default off — new code, behind a
  * flag for safe rollout). Only meaningful when use_fused is already on. */
 static int ds4_gpu_resident_mpp_full_fused_gate_up_swiglu_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     if (!g_mpp_iq2_fused_gate_up_swiglu_pipeline) return 0;
     const char *env = getenv("DS4_RESIDENT_MOE_NAX_FULL_FUSED");
     if (env && env[0]) return atoi(env) != 0;
@@ -24070,6 +24119,7 @@ static int ds4_gpu_resident_mpp_full_fused_gate_up_swiglu_enabled(void) {
 }
 
 static int ds4_gpu_flash_mpp_full_fused_gate_up_swiglu_enabled(void) {
+    if (ds4_gpu_no_int8_paths_enabled()) return 0;
     if (!g_mpp_iq2_fused_gate_up_swiglu_contig_pipeline &&
         !g_mpp_iq2_fused_gate_up_swiglu_contig_m32_pipeline) return 0;
     const char *env = getenv("DS4_FLASH_MOE_MPP_I8I8_FULL_FUSED_PREFILL");
@@ -25106,11 +25156,16 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         const uint64_t down_i8_bytes = (uint64_t)expert_mid_dim * out_dim;
         const uint64_t gate_i32_bytes = (uint64_t)n_tokens * expert_mid_dim * sizeof(int32_t);
         const uint64_t out_i32_bytes = (uint64_t)n_tokens * out_dim * sizeof(int32_t);
+        const bool no_int8_paths = ds4_gpu_no_int8_paths_enabled();
+        if (no_int8_paths && !ds4_gpu_resident_nax_half_safe(n_tokens)) {
+            return 0;
+        }
         const char *i8_i8_env = getenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL");
         const char *i8_act_env = getenv("DS4_FLASH_MOE_MPP_INT8_ACT");
         const bool use_i8_i8 =
-            (i8_i8_env && i8_i8_env[0] && atoi(i8_i8_env) != 0) ||
-            (i8_act_env && i8_act_env[0] && atoi(i8_act_env) != 0);
+            !no_int8_paths &&
+            ((i8_i8_env && i8_i8_env[0] && atoi(i8_i8_env) != 0) ||
+             (i8_act_env && i8_act_env[0] && atoi(i8_act_env) != 0));
         const char *i8_i8_fused_env = getenv("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL");
         const bool use_i8_i8_fused = use_i8_i8 &&
                                      i8_i8_fused_env != NULL &&
@@ -25119,7 +25174,9 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
          * weight bank, half activations, matmul2d half x half. Tile (N) swept
          * 32/64/128/256 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
         const char *nax_half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
-        const bool use_h_h = nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
+        const bool use_h_h =
+            (nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0) ||
+            no_int8_paths;
         uint32_t h_h_tile = ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
         h_h_tile = (h_h_tile >= 256u) ? 256u :
                    (h_h_tile >= 128u) ? 128u :
@@ -25749,6 +25806,9 @@ int ds4_gpu_routed_moe_batch_tensor(
         const bool ane_nax_under_skip =
             skip_mask_active &&
             ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_ANE_NAX_HYBRID");
+        const bool no_int8_paths = ds4_gpu_no_int8_paths_enabled();
+        const bool no_int8_resident_nax_half_safe =
+            !no_int8_paths || ds4_gpu_resident_nax_half_safe(n_tokens);
         const bool resident_mpp_requested =
             resident_mpp_shape_supported &&
             (!skip_mask_active || ane_nax_under_skip) &&
@@ -25758,6 +25818,7 @@ int ds4_gpu_routed_moe_batch_tensor(
              ane_nax_under_skip);
         const bool use_resident_mpp_standard =
             resident_mpp_requested &&
+            no_int8_resident_nax_half_safe &&
             (ane_nax_under_skip
                 /* ANE+NAX: always take the resident NAX path for the cold tail */
                 ? true
@@ -25769,13 +25830,21 @@ int ds4_gpu_routed_moe_batch_tensor(
         if (resident_mpp_requested && !use_resident_mpp_standard) {
             static bool warned_resident_mpp_auto_gpu = false;
             if (!warned_resident_mpp_auto_gpu) {
-                fprintf(stderr,
-                        "ds4: resident MPP/NAX requested, but %u-token "
-                        "resident chunks use the faster fused GPU path "
-                        "(auto min=%u; set DS4_RESIDENT_MOE_MPP_FORCE=1 to "
-                        "force staged MPP/NAX)\n",
-                        n_tokens,
-                        ds4_gpu_resident_mpp_int8_min_tokens());
+                if (no_int8_paths && !no_int8_resident_nax_half_safe) {
+                    fprintf(stderr,
+                            "ds4: --no-int8 requested, but %u-token resident chunks "
+                            "cannot use NAX-half safely -> using GPU mul_mm_id "
+                            "(NAX-half requires M5+ and n_tokens %% 64 == 0)\n",
+                            n_tokens);
+                } else {
+                    fprintf(stderr,
+                            "ds4: resident MPP/NAX requested, but %u-token "
+                            "resident chunks use the faster fused GPU path "
+                            "(auto min=%u; set DS4_RESIDENT_MOE_MPP_FORCE=1 to "
+                            "force staged MPP/NAX)\n",
+                            n_tokens,
+                            ds4_gpu_resident_mpp_int8_min_tokens());
+                }
                 warned_resident_mpp_auto_gpu = true;
             }
         }
@@ -26871,10 +26940,14 @@ int ds4_gpu_routed_moe_batch_tensor(
                     /* fallback gate (to be phased out): static NAX_HALF env clamped by
                      * the NAX_HALF_MAX_TOKENS auto-threshold. */
                     use_h_h = nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0;
-                    const uint32_t nax_half_max_tokens =
-                        ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", 0u);
-                    if (use_h_h && nax_half_max_tokens != 0u && n_tokens >= nax_half_max_tokens) {
-                        use_h_h = false;
+                    if (no_int8_paths) {
+                        use_h_h = true;
+                    } else {
+                        const uint32_t nax_half_max_tokens =
+                            ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS", 0u);
+                        if (use_h_h && nax_half_max_tokens != 0u && n_tokens >= nax_half_max_tokens) {
+                            use_h_h = false;
+                        }
                     }
                 }
                 /* CORRECTNESS FLOOR: the NAX-half matmul2d tiles M (tokens) in units of
@@ -26882,17 +26955,19 @@ int ds4_gpu_routed_moe_batch_tensor(
                  * correct when n_tokens is a full multiple of 64 — a partial M-tile
                  * over-reads and corrupts output. Round benchmark chunks (4096/8192/...)
                  * masked this; real prefill (a short/odd prompt, the partial last chunk)
-                 * and decode (n_tokens=1) are NOT multiples of 64 and must use int8
-                 * instead. Mirrors the same guard on the mul_mm_id n64 kernel (n_tokens
+                 * and decode (n_tokens=1) are NOT multiples of 64. Normal fast mode
+                 * demotes them to int8; --no-int8 keeps them on GPU before this branch.
+                 * Mirrors the same guard on the mul_mm_id n64 kernel (n_tokens
                  * >= 64 && n_tokens % 64 == 0). Override with
                  * DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL=1 only for isolated A/B. */
                 if (use_h_h && (n_tokens < 64u || (n_tokens % 64u) != 0u) &&
                     !ds4_gpu_env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL")) {
                     use_h_h = false;
                     /* NEVER demote silently: NAX-half was requested but the matmul2d M-tile
-                     * is a fixed 64 and the h_h_f kernel over-reads a partial tile, so a
-                     * non-multiple-of-64 chunk is demoted to int8 (whose counted-indirect
-                     * kernels clamp the partial tile and stay correct). Log it once so a
+                     * is a fixed 64 and the h_h_f kernel over-reads a partial tile, so in
+                     * normal fast mode a non-multiple-of-64 chunk is demoted to int8
+                     * (whose counted-indirect kernels clamp the partial tile and stay correct).
+                     * Log it once so a
                      * "requested half, ran int8" surprise is visible, not hidden. */
                     if (!ds4_gpu_backend_logs_suppressed()) {
                         static bool warned_half_floor = false;

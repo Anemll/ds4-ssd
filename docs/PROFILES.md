@@ -45,8 +45,9 @@ Each profile can have separate resident and sidecar settings:
 - `prefill_by_tokens`: resident per-chunk backend routing by token count.
 - `sidecar_env`: defaults for SSD sidecar mode.
 
-Sidecar defaults are used only when DS4 is launched with a sidecar path, for
-example `--moe-sidecar "$DS4_SIDECAR_DIR"` and `--moe-mode slot-bank`.
+Sidecar defaults are used only when DS4 is launched in sidecar mode, for
+example `-m "$DS4_SIDECAR_DIR"` with a package root, or the explicit
+`--moe-sidecar "$DS4_SIDECAR_DIR" --moe-mode slot-bank` form.
 
 Resident profiles can select classic Metal ALU, NAX-backed `matmul2d`, and ANE
 hybrid prefill paths. Sidecar profiles tune the Flash-MoE SSD slot-bank path,
@@ -78,9 +79,7 @@ DS4_PROFILE=/path/to/custom-profile.json ./ds4 -p "Hello"
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
-  --moe-mode slot-bank
+  -m "$DS4_SIDECAR_DIR"
 ```
 
 For normal sidecar runs, leave `DS4_METAL_GRAPH_RAW_CAP` unset so the Metal
@@ -89,4 +88,9 @@ aligned.
 
 The many internal `DS4_*` switches are intentionally not all documented. Treat
 `ds4_profile.json` and the explicitly named environment variables in these docs
-as the supported alpha control surface.
+as the supported alpha control surface. For the sidecar/prefill knobs that are
+public enough to tune, see [STREAMING_KNOBS.md](STREAMING_KNOBS.md).
+
+For quality-preserving runs, `--no-int8` disables current int8 dense, NAX,
+Flash-MoE, and ANE accelerator paths after profile defaults are applied.
+`--quality` implies `--no-int8`.

@@ -9,6 +9,7 @@
 /TODO.md
 /gguf/
 /models/
+/.external/
 *.o
 *.dSYM/
 /misc/

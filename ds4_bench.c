@@ -39,6 +39,7 @@ typedef struct {
     double step_mul;
     bool warm_weights;
     bool quality;
+    bool no_int8;
     const char *moe_sidecar_path;
     ds4_moe_mode moe_mode;
     int moe_slot_bank;
@@ -74,10 +75,13 @@ static void usage(FILE *fp) {
         "\n"
         "Model and backend:\n"
         "  -m, --model FILE       GGUF model path. Default: ds4flash.gguf\n"
+        "                         A sidecar package directory is accepted when it\n"
+        "                         contains manifest.json and dense/model-dense.gguf.\n"
         "  --metal | --cuda | --cpu | --backend NAME\n"
         "      Select backend explicitly. Defaults to Metal on macOS, CUDA elsewhere.\n"
         "  -t, --threads N        CPU helper threads.\n"
-        "  --quality              Prefer exact kernels where applicable.\n"
+        "  --quality              Prefer exact kernels where applicable; implies --no-int8.\n"
+        "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
         "  --warm-weights         Touch mapped tensor pages before benchmarking.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -89,7 +93,8 @@ static void usage(FILE *fp) {
         "  --no-decode-split      Disable the mid-token Metal decode command-buffer split.\n"
         "  --moe-sidecar DIR      Flash-MoE expert sidecar dir (enables dedup MoE).\n"
         "  --moe-mode NAME        off | slot-bank. Default: off (slot-bank if sidecar set).\n"
-        "  --moe-slot-bank N      Routed expert slots/layer (6..256). Default: 8.\n"
+        "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 8.\n"
+        "                         Higher caches more experts; lower uses less RAM.\n"
         "\n"
         "Sweep:\n"
         "  --ctx-start N          First measured frontier. Default: 2048\n"
@@ -335,6 +340,11 @@ static bench_config parse_options(int argc, char **argv) {
             c.backend = DS4_BACKEND_CPU;
         } else if (!strcmp(arg, "--quality")) {
             c.quality = true;
+            c.no_int8 = true;
+            bench_setenv_or_die("DS4_NO_INT8", "1");
+        } else if (!strcmp(arg, "--no-int8")) {
+            c.no_int8 = true;
+            bench_setenv_or_die("DS4_NO_INT8", "1");
         } else if (!strcmp(arg, "--warm-weights")) {
             c.warm_weights = true;
         } else if (!strcmp(arg, "--resident-ane-prefill") ||
@@ -369,6 +379,16 @@ static bench_config parse_options(int argc, char **argv) {
     if (!!c.prompt_path == !!c.chat_prompt_path) {
         fprintf(stderr, "ds4-bench: specify exactly one of --prompt-file or --chat-prompt-file\n");
         exit(2);
+    }
+    ds4_engine_options sidecar_probe = {
+        .model_path = c.model_path,
+        .moe_sidecar_path = c.moe_sidecar_path,
+        .moe_mode = c.moe_mode,
+    };
+    if (ds4_engine_options_autodetect_sidecar_package(&sidecar_probe, "ds4-bench")) {
+        c.model_path = sidecar_probe.model_path;
+        c.moe_sidecar_path = sidecar_probe.moe_sidecar_path;
+        c.moe_mode = sidecar_probe.moe_mode;
     }
     if (c.resident_ane_prefill &&
         (c.moe_mode != DS4_MOE_MODE_OFF || c.moe_sidecar_path)) {
@@ -440,6 +460,7 @@ int main(int argc, char **argv) {
         .n_threads = cfg.threads,
         .warm_weights = cfg.warm_weights,
         .quality = cfg.quality,
+        .no_int8 = cfg.no_int8,
         .moe_sidecar_path = cfg.moe_sidecar_path,
         .moe_mode = cfg.moe_mode,
         .moe_slot_bank = cfg.moe_slot_bank,

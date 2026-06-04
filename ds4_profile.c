@@ -19,6 +19,11 @@
 
 static bool g_profile_sidecar_mode = false;
 
+static bool profile_env_flag_enabled(const char *name) {
+    const char *env = getenv(name);
+    return env && env[0] && atoi(env) != 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Minimal JSON parser (objects, arrays, strings, numbers, bool, null) */
 /* ------------------------------------------------------------------ */
@@ -331,6 +336,8 @@ static bool profile_matches(const jval *match, const char *chip, uint64_t ram_by
 }
 
 static void apply_resident_ane_prefill_defaults(void) {
+    if (profile_env_flag_enabled("DS4_NO_INT8")) return;
+
     /* Profile-level equivalent of the safe parts of --resident-ane-prefill.
      * Do not set DS4_RESIDENT_MOE_BACKEND here: the prefill_by_tokens table must
      * keep control so small chunks can stay on mulmm while large chunks use ane*. */
@@ -474,9 +481,11 @@ void ds4_profile_load_and_apply(void) {
             /* If any range selects an ANE backend, ingest the resident ANE prefill
              * defaults. The per-chunk router still sends only ane* chunks there; other
              * chunks stay on the grouped path. Defaults; user env still wins. */
-            if (has_ane) {
+            if (has_ane && !profile_env_flag_enabled("DS4_NO_INT8")) {
                 apply_resident_ane_prefill_defaults();
                 fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present -> resident ANE prefill defaults enabled for ane* chunks\n");
+            } else if (has_ane) {
+                fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present but DS4_NO_INT8=1 -> ANE defaults skipped\n");
             }
             if (half_boundary > 0 &&
                 getenv("DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS") == NULL) {

@@ -11776,6 +11776,8 @@ static void usage(FILE *fp) {
         "Model and runtime:\n"
         "  -m, --model FILE\n"
         "      GGUF model path. Default: ds4flash.gguf\n"
+        "      A sidecar package directory is also accepted when it contains\n"
+        "      manifest.json and dense/model-dense.gguf.\n"
         "  --mtp FILE\n"
         "      Optional MTP support GGUF used for draft-token probes.\n"
         "  --mtp-draft N\n"
@@ -11787,7 +11789,8 @@ static void usage(FILE *fp) {
         "  --moe-mode NAME\n"
         "      Routed expert weight source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N\n"
-        "      Number of routed expert slots per layer for --moe-mode slot-bank. Default: 32\n"
+        "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
+        "      Higher caches more experts; lower uses less RAM.\n"
         "  -c, --ctx N\n"
         "      Context size allocated at startup. Default: 32768\n"
         "  -n, --tokens N\n"
@@ -11797,7 +11800,9 @@ static void usage(FILE *fp) {
         "  --chdir DIR\n"
         "      Change working directory before loading the model or runtime assets.\n"
         "  --quality\n"
-        "      Prefer exact kernels where faster approximate paths exist; MTP uses strict verification.\n"
+        "      Prefer exact kernels where faster approximate paths exist; implies --no-int8.\n"
+        "  --no-int8\n"
+        "      Disable int8 accelerator paths; use NAX-half/GPU fallbacks for quality-preserving runs.\n"
         "  --dir-steering-file FILE\n"
         "      Load one f32 direction vector per layer for directional steering.\n"
         "  --dir-steering-ffn F\n"
@@ -11970,6 +11975,17 @@ static server_config parse_options(int argc, char **argv) {
             c.tool_memory_max_ids = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--quality")) {
             c.engine.quality = true;
+            c.engine.no_int8 = true;
+            if (setenv("DS4_NO_INT8", "1", 1) != 0) {
+                server_log(DS4_LOG_DEFAULT, "ds4-server: setenv DS4_NO_INT8: %s", strerror(errno));
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--no-int8")) {
+            c.engine.no_int8 = true;
+            if (setenv("DS4_NO_INT8", "1", 1) != 0) {
+                server_log(DS4_LOG_DEFAULT, "ds4-server: setenv DS4_NO_INT8: %s", strerror(errno));
+                exit(2);
+            }
         } else if (!strcmp(arg, "--dir-steering-file")) {
             c.engine.directional_steering_file = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--dir-steering-ffn")) {
@@ -12027,6 +12043,7 @@ int main(int argc, char **argv) {
                    cfg.chdir_path, strerror(errno));
         return 1;
     }
+    ds4_engine_options_autodetect_sidecar_package(&cfg.engine, "ds4-server");
 
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();

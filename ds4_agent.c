@@ -450,12 +450,15 @@ static void usage(FILE *fp) {
         "\n"
         "Options:\n"
         "  -m, --model FILE        GGUF model path. Default: ds4flash.gguf\n"
+        "                         A sidecar package directory is accepted when it\n"
+        "                         contains manifest.json and dense/model-dense.gguf.\n"
         "  --mtp FILE             Optional MTP support GGUF.\n"
         "  --mtp-draft N          Maximum MTP draft tokens. Default: 1\n"
         "  --mtp-margin F         MTP verifier margin. Default: 3\n"
         "  --moe-sidecar PATH     Flash-MoE sidecar directory.\n"
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
-        "  --moe-slot-bank N      Number of routed expert slots per layer. Default: 32\n"
+        "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 32\n"
+        "                         Higher caches more experts; lower uses less RAM.\n"
         "  --moe-prefetch-temporal\n"
         "                         Enable decode temporal prefetch for sidecar MoE.\n"
         "  --no-moe-prefetch-temporal\n"
@@ -465,7 +468,7 @@ static void usage(FILE *fp) {
         "                         the slot bank for headroom; 0 disables it.\n"
         "  --moe-cache-io-split N Split each decode/slot-bank expert read into N\n"
         "                         page-aligned concurrent reads (deeper NVMe queue).\n"
-        "                         Default 1 (off); page-misaligned sizes fall back to 1.\n"
+        "                         Default 4; page-misaligned sizes fall back to 1.\n"
         "  --moe-prefill-io-split N  Same, for prefill expert reads. Falls back to\n"
         "                         --moe-cache-io-split when unset.\n"
         "  --moe-prefill-banks N  Transient prefill expert banks (read-ahead depth).\n"
@@ -488,7 +491,8 @@ static void usage(FILE *fp) {
         "  --backend NAME         metal, cuda, or cpu.\n"
         "  --metal, --cuda, --cpu Select backend explicitly.\n"
         "  -t, --threads N        CPU helper threads.\n"
-        "  --quality              Prefer exact kernels where available.\n"
+        "  --quality              Prefer exact kernels where available; implies --no-int8.\n"
+        "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
         "  --warm-weights         Touch mapped tensor pages before generation.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -730,6 +734,11 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.n_threads = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--quality")) {
             c.engine.quality = true;
+            c.engine.no_int8 = true;
+            agent_setenv_or_die("DS4_NO_INT8", "1");
+        } else if (!strcmp(arg, "--no-int8")) {
+            c.engine.no_int8 = true;
+            agent_setenv_or_die("DS4_NO_INT8", "1");
         } else if (!strcmp(arg, "--warm-weights")) {
             c.engine.warm_weights = true;
         } else if (!strcmp(arg, "--resident-ane-prefill") ||
@@ -772,6 +781,7 @@ static agent_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !steering_scale_set)
         c.engine.directional_steering_ffn = 1.0f;
+    ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4-agent");
     if (c.resident_ane_prefill &&
         (c.engine.moe_mode != DS4_MOE_MODE_OFF || c.engine.moe_sidecar_path)) {
         fprintf(stderr,
@@ -4257,8 +4267,9 @@ static void agent_history_render_text(agent_worker *w, const char *text,
 
 /* Render recent saved transcript text without mutating the live session. */
 static bool agent_worker_show_history(agent_worker *w, int user_turns,
+                                      bool require_idle,
                                       char *err, size_t err_len) {
-    if (!worker_is_idle(w)) {
+    if (require_idle && !worker_is_idle(w)) {
         snprintf(err, err_len, "model is busy");
         return false;
     }
@@ -4452,8 +4463,9 @@ typedef enum {
 static bool agent_worker_switch_session(agent_worker *w, const char *prefix,
                                         int history_turns,
                                         agent_switch_announce announce,
+                                        bool require_idle,
                                         char *err, size_t err_len) {
-    if (!worker_is_idle(w)) {
+    if (require_idle && !worker_is_idle(w)) {
         snprintf(err, err_len, "model is busy");
         return false;
     }
@@ -4488,7 +4500,7 @@ static bool agent_worker_switch_session(agent_worker *w, const char *prefix,
                    sha, w->transcript.len);
         }
         if (history_turns > 0)
-            (void)agent_worker_show_history(w, history_turns, err, err_len);
+            (void)agent_worker_show_history(w, history_turns, require_idle, err, err_len);
     } else {
         ds4_tokens_free(&loaded);
     }
@@ -6878,6 +6890,7 @@ static void *worker_main(void *arg) {
             AGENT_SWITCH_ANNOUNCE_NONE : AGENT_SWITCH_ANNOUNCE_PUBLISH;
         if (!agent_worker_switch_session(w, w->cfg->resume_sha, history_turns,
                                          announce,
+                                         false,
                                          resume_err, sizeof(resume_err)))
         {
             char msg[220];
@@ -8359,6 +8372,7 @@ static void agent_print_resume_hint(agent_worker *w) {
         free(steer);
     }
     if (cfg->engine.quality) printf(" --quality");
+    if (!cfg->engine.quality && cfg->engine.no_int8) printf(" --no-int8");
     if (cfg->engine.warm_weights) printf(" --warm-weights");
     if (cfg->resident_ane_prefill) printf(" --resident-ane-prefill");
     if (cfg->resident_ane_shared_expert) printf(" --resident-ane-shared-expert");
@@ -8785,6 +8799,7 @@ static int run_agent(ds4_engine *engine, agent_config *cfg) {
                             if (!agent_worker_switch_session(&worker, sha,
                                                              AGENT_HISTORY_DEFAULT_TURNS,
                                                              AGENT_SWITCH_ANNOUNCE_PRINTF,
+                                                             true,
                                                              err, sizeof(err)))
                                 printf("switch failed: %s\n", err);
                             else
@@ -8801,6 +8816,7 @@ static int run_agent(ds4_engine *engine, agent_config *cfg) {
                         AGENT_HISTORY_DEFAULT_TURNS;
                     char err[160] = {0};
                     if (!agent_worker_show_history(&worker, history_turns,
+                                                   true,
                                                    err, sizeof(err)))
                         printf("history failed: %s\n", err);
                 } else if (cmd[0] == '/') {

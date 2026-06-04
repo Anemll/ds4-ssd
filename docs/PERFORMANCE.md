@@ -20,14 +20,13 @@ Use `ds4-bench` for local throughput sweeps:
 ```
 
 That command is resident/full-GGUF mode. To benchmark SSD streaming, pass the
-dense sidecar GGUF and `--moe-sidecar`:
+sidecar package root as `-m`:
 
 ```sh
 export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4-bench \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
+  -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --prompt-file speed-bench/promessi_sposi.txt \
   --ctx-start 2048 \

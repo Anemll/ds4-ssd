@@ -17,8 +17,10 @@ SIDECAR_DIR/
   ...
 ```
 
-Use `SIDECAR_DIR/dense/model-dense.gguf` as the model path and `SIDECAR_DIR` as
-the sidecar path.
+Use the package root as the model path. If `-m SIDECAR_DIR` points at a
+directory containing `manifest.json` and `dense/model-dense.gguf`, DS4
+auto-detects the package, uses the dense GGUF, and enables
+`--moe-sidecar SIDECAR_DIR --moe-mode slot-bank`.
 
 Download the prebuilt alpha package from
 [anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major):
@@ -30,7 +32,8 @@ export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 
 Do not point `-m` at a full resident GGUF and expect SSD streaming. A command
 with only `-m /path/to/full-model.gguf` runs resident/full-GGUF mode. SSD
-streaming requires:
+streaming auto-detects only the package-root layout shown above. The explicit
+long form also works:
 
 - `-m "$SIDECAR_DIR/dense/model-dense.gguf"`
 - `--moe-sidecar "$SIDECAR_DIR"`
@@ -42,9 +45,7 @@ streaming requires:
 export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
-  --moe-mode slot-bank \
+  -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --ctx 32768 \
   -p "Hello"
@@ -72,9 +73,7 @@ Equivalent direct command:
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
-  --moe-mode slot-bank \
+  -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --ctx 32768 \
   -n 1 \
@@ -102,8 +101,7 @@ print `Flash-MoE sidecar loaded`.
 export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4-bench \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
+  -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --prompt-file speed-bench/promessi_sposi.txt \
   --ctx-start 2048 \
@@ -128,5 +126,11 @@ public alpha tree does not yet include a sidecar packer. Do not use
 `gguf-tools/deepseek4-quantize` expecting a sidecar output; it currently emits
 resident GGUFs only.
 
-For alpha, use the prebuilt sidecar distribution. A public converter/packer is a
-go/no-go item for a later self-hosted release path.
+For alpha, use the prebuilt sidecar distribution for the turnkey low-RAM path.
+This repo also includes `scripts/export_flash_moe_sidecar.sh`, which calls the
+public `anemll/anemll-flash-llama.cpp` converter branch to export expert-major
+routed sidecar records. That wrapper does not currently build the full alpha
+package layout with a stripped `dense/model-dense.gguf`. See
+[SIDECAR_EXPORT.md](SIDECAR_EXPORT.md) for the exact command and caveats, and
+[STREAMING_KNOBS.md](STREAMING_KNOBS.md) for slot-bank, prefill, I/O, and ANE
+tuning knobs.

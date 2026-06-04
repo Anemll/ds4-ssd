@@ -2,7 +2,14 @@
 
 ## `--moe-sidecar requires --moe-mode slot-bank`
 
-Sidecar mode must use slot-bank routing:
+The simplest command is package-root autodetection:
+
+```sh
+./ds4 -m "$DS4_SIDECAR_DIR"
+```
+
+If you pass `--moe-sidecar` explicitly instead, sidecar mode must use slot-bank
+routing:
 
 ```sh
 --moe-sidecar "$DS4_SIDECAR_DIR" --moe-mode slot-bank

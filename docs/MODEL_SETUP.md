@@ -58,17 +58,25 @@ dsv4-iq2xxs-expert-major/
 ```
 
 The runtime parses `manifest.json` and opens the expert records directly from
-the sidecar directory. The dense GGUF is passed with `-m`; the sidecar directory
-is passed with `--moe-sidecar`.
+the sidecar directory. Pass the package root with `-m SIDECAR_DIR`; DS4 detects
+`manifest.json` plus `dense/model-dense.gguf`, uses the dense GGUF internally,
+and enables `--moe-sidecar SIDECAR_DIR --moe-mode slot-bank`. The explicit
+`-m SIDECAR_DIR/dense/model-dense.gguf --moe-sidecar SIDECAR_DIR --moe-mode
+slot-bank` form also works.
 
-The current alpha does not ship a public self-conversion command. In particular,
 `gguf-tools/deepseek4-quantize` creates resident GGUF outputs and does not pack
-sidecar expert shards. Use the prebuilt sidecar package from
+sidecar expert shards. For the turnkey low-RAM alpha path, use the prebuilt
+sidecar package from
 [anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major):
 
 ```sh
 ./download_model.sh sidecar
 ```
+
+For expert-sidecar export from a supported GGUF, see
+[SIDECAR_EXPORT.md](SIDECAR_EXPORT.md). That path uses an external public
+converter branch and does not currently create the `dense/model-dense.gguf`
+low-RAM package layout by itself.
 
 After extracting or mounting the sidecar:
 

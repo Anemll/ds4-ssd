@@ -73,9 +73,7 @@ Run:
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
-  -m "$DS4_SIDECAR_DIR/dense/model-dense.gguf" \
-  --moe-sidecar "$DS4_SIDECAR_DIR" \
-  --moe-mode slot-bank \
+  -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --ctx 32768 \
   -p "Hello"
@@ -100,14 +98,26 @@ Flash-MoE sidecar loaded
 Flash-MoE slot banks allocated
 ```
 
-If you pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF
-mode. SSD streaming requires both the dense sidecar GGUF and `--moe-sidecar`.
+If `-m` points at a directory containing `manifest.json` and
+`dense/model-dense.gguf`, DS4 auto-detects SSD sidecar mode, rewrites the model
+path to the dense GGUF, and implies `--moe-sidecar DIR --moe-mode slot-bank`. If
+you pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF mode.
 
-See [docs/SIDECAR.md](docs/SIDECAR.md).
+See [docs/SIDECAR.md](docs/SIDECAR.md). For the external expert-sidecar
+export wrapper, see [docs/SIDECAR_EXPORT.md](docs/SIDECAR_EXPORT.md); the
+prebuilt Hugging Face sidecar remains the turnkey low-RAM package.
 
 Machine-specific defaults for M5, M5 Max, M3 Ultra, and M1 Max are selected
 from `ds4_profile.json`. Profiles set defaults only; exported environment
-variables still win. See [docs/PROFILES.md](docs/PROFILES.md).
+variables still win. Profiles choose ANE only for chunk shapes where it has
+measured faster than GPU or NAX on that machine. See
+[docs/PROFILES.md](docs/PROFILES.md) and
+[docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md).
+
+`--no-int8` is optional. Normal runs use the fastest measured profile path.
+For quality-preserving runs, pass `--no-int8`; it disables current int8 dense,
+NAX, Flash-MoE, and ANE accelerator paths, using NAX-half where safe and GPU
+fallbacks otherwise. `--quality` implies `--no-int8`.
 
 ## Run Resident GGUF Mode
 
@@ -161,11 +171,17 @@ deterministic token with a 16K prefill chunk cap.
 - [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md): model files, downloads, and
   sidecar package expectations.
 - [docs/SIDECAR.md](docs/SIDECAR.md): SSD streaming mode and smoke test.
+- [docs/SIDECAR_EXPORT.md](docs/SIDECAR_EXPORT.md): external expert-sidecar
+  export wrapper and its dense-GGUF caveats.
+- [docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md): SSD sidecar slot-bank,
+  prefill, I/O, ANE, and profile knobs.
 - [docs/RESIDENT.md](docs/RESIDENT.md): full-GGUF resident mode.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): runtime layout and accelerator
   paths.
 - [docs/PROFILES.md](docs/PROFILES.md): machine-specific tuning defaults and
   override rules.
+- [docs/ANE_KERNELS.md](docs/ANE_KERNELS.md): experimental Apple Neural Engine
+  kernel families and private API notes.
 - [docs/PERFORMANCE.md](docs/PERFORMANCE.md): current benchmark stance.
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): common first-run failures.
 - [docs/DWARFSTAR4_REFERENCE.md](docs/DWARFSTAR4_REFERENCE.md): original DS4
@@ -184,6 +200,12 @@ paper and to the original [danveloper/flash-moe](https://github.com/danveloper/f
 work by Claude Opus 4.6 and Daniel Woods. Read the
 [original Flash-MoE paper](https://github.com/danveloper/flash-moe/blob/main/paper/flash_moe.pdf)
 for the full story of how they built that engine in 24 hours.
+
+The Apple Neural Engine path uses GPU-side int8 dequantization/packing together
+with ANE MLP execution through private Apple APIs and additional scheduling
+optimizations. GPU int8 dequantization for this class of local inference was
+pioneered by Liu Liu (Draw Things, @liuliu), and the private ANE API path was
+first documented publicly by @maderix.
 
 Keep the repository `LICENSE` with redistributions and preserve attribution to
 antirez, llama.cpp, GGML, and their contributors.

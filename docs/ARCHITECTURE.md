@@ -21,8 +21,9 @@ GGUF runner.
 - NAX is the Apple neural-accelerator backed `matmul2d` path exposed through
   Metal on M5-class hardware. DS4 uses it for dense and routed-MoE matrix work
   where the profile selects it.
-- `ds4_ane_mlp_int8w.*` is core runtime code for the ANE int8 MLP path. It is
-  top-level runtime code, not a benchmark artifact.
+- `ds4_ane_mlp_int8w.*` is core runtime code for the ANE MLP path. It is
+  top-level runtime code, not a benchmark artifact. See
+  [ANE_KERNELS.md](ANE_KERNELS.md) for the implemented ANE kernel families.
 - `ds4_cuda.cu` and `ds4_iq2_tables_cuda.inc` are inherited CUDA support. They
   remain in tree, but Apple Silicon sidecar mode is the alpha validation focus.
 

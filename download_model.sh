@@ -211,6 +211,7 @@ download_sidecar() {
     echo "  export DS4_SIDECAR_DIR=$SIDECAR_OUT_DIR"
     echo
     echo "Then run:"
+    echo "  DS4_METAL_PREFILL_CHUNK=16384 ./ds4 -m $SIDECAR_OUT_DIR --moe-slot-bank 64 -p 'Hello'"
     echo "  DS4_SIDECAR_DIR=$SIDECAR_OUT_DIR make sidecar-smoke"
 }
 

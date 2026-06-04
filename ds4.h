@@ -79,6 +79,7 @@ typedef struct {
     int moe_slot_bank;
     bool warm_weights;
     bool quality;
+    bool no_int8;
 } ds4_engine_options;
 
 typedef void (*ds4_token_emit_fn)(void *ud, int token);
@@ -102,6 +103,8 @@ typedef struct {
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 void ds4_engine_close(ds4_engine *e);
+bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
+                                                   const char *program_name);
 void ds4_engine_summary(ds4_engine *e);
 const char *ds4_backend_name(ds4_backend backend);
 bool ds4_think_mode_enabled(ds4_think_mode mode);
