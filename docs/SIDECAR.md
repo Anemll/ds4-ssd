@@ -19,8 +19,9 @@ SIDECAR_DIR/
 
 Use the package root as the model path. If `-m SIDECAR_DIR` points at a
 directory containing `manifest.json` and `dense/model-dense.gguf`, DS4
-auto-detects the package, uses the dense GGUF, and enables
-`--moe-sidecar SIDECAR_DIR --moe-mode slot-bank`.
+auto-detects the package, uses the dense GGUF, and enables sidecar slot-bank
+mode. No explicit `--moe-sidecar` or `--moe-mode` flag is needed for this
+package-root path.
 
 Download the prebuilt alpha package from
 [anemll/dsv4-iq2xxs-expert-major](https://huggingface.co/anemll/dsv4-iq2xxs-expert-major):
@@ -33,7 +34,7 @@ export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 Do not point `-m` at a full resident GGUF and expect SSD streaming. A command
 with only `-m /path/to/full-model.gguf` runs resident/full-GGUF mode. SSD
 streaming auto-detects only the package-root layout shown above. The explicit
-long form also works:
+long form is still useful when validating an expert-only sidecar:
 
 - `-m "$SIDECAR_DIR/dense/model-dense.gguf"`
 - `--moe-sidecar "$SIDECAR_DIR"`

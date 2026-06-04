@@ -5,7 +5,11 @@
 The simplest command is package-root autodetection:
 
 ```sh
-./ds4 -m "$DS4_SIDECAR_DIR"
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --moe-slot-bank 64 \
+  --ctx 32768 \
+  -p "Hello"
 ```
 
 If you pass `--moe-sidecar` explicitly instead, sidecar mode must use slot-bank

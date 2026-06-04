@@ -60,9 +60,21 @@ dsv4-iq2xxs-expert-major/
 The runtime parses `manifest.json` and opens the expert records directly from
 the sidecar directory. Pass the package root with `-m SIDECAR_DIR`; DS4 detects
 `manifest.json` plus `dense/model-dense.gguf`, uses the dense GGUF internally,
-and enables `--moe-sidecar SIDECAR_DIR --moe-mode slot-bank`. The explicit
-`-m SIDECAR_DIR/dense/model-dense.gguf --moe-sidecar SIDECAR_DIR --moe-mode
-slot-bank` form also works.
+and enables sidecar slot-bank mode. This is the preferred public command shape:
+
+```sh
+export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
+
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --moe-slot-bank 64 \
+  --ctx 32768 \
+  -p "Hello"
+```
+
+The explicit `-m SIDECAR_DIR/dense/model-dense.gguf --moe-sidecar SIDECAR_DIR
+--moe-mode slot-bank` form still works, but it is mainly useful for
+expert-only export validation or debugging.
 
 `gguf-tools/deepseek4-quantize` creates resident GGUF outputs and does not pack
 sidecar expert shards. For the turnkey low-RAM alpha path, use the prebuilt
@@ -82,7 +94,7 @@ After extracting or mounting the sidecar:
 
 ```sh
 export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
-DS4_SIDECAR_DIR="$DS4_SIDECAR_DIR" make sidecar-smoke
+make sidecar-smoke
 ```
 
 ## Local Host Note

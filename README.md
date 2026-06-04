@@ -62,14 +62,15 @@ Download the prebuilt sidecar package:
 ./download_model.sh sidecar
 ```
 
-Then set `DS4_SIDECAR_DIR` to the sidecar directory containing `manifest.json`
-and `dense/model-dense.gguf`:
+Then set `DS4_SIDECAR_DIR` to the sidecar package root containing
+`manifest.json` and `dense/model-dense.gguf`:
 
 ```sh
 export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 ```
 
-Run:
+Run the package root directly. DS4 detects the dense GGUF and sidecar metadata;
+no explicit `--moe-sidecar` or `--moe-mode` flag is needed:
 
 ```sh
 DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
@@ -100,8 +101,8 @@ Flash-MoE slot banks allocated
 
 If `-m` points at a directory containing `manifest.json` and
 `dense/model-dense.gguf`, DS4 auto-detects SSD sidecar mode, rewrites the model
-path to the dense GGUF, and implies `--moe-sidecar DIR --moe-mode slot-bank`. If
-you pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF mode.
+path to the dense GGUF, and enables sidecar slot-bank mode internally. If you
+pass only `-m /path/to/full-model.gguf`, DS4 is in resident/full-GGUF mode.
 
 See [docs/SIDECAR.md](docs/SIDECAR.md). For the external expert-sidecar
 export wrapper, see [docs/SIDECAR_EXPORT.md](docs/SIDECAR_EXPORT.md); the

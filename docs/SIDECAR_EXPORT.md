@@ -2,12 +2,15 @@
 
 DS4 can load routed MoE expert weights from a Flash-MoE sidecar directory. If
 the directory is a full alpha package with `manifest.json` and
-`dense/model-dense.gguf`, use the package root directly:
+`dense/model-dense.gguf`, use the package root directly. DS4 detects the dense
+GGUF and sidecar metadata; no explicit `--moe-sidecar` or `--moe-mode` flag is
+needed:
 
 ```sh
 ./ds4 \
   -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64
+  --moe-slot-bank 64 \
+  --ctx 32768
 ```
 
 For export validation or experiments with an expert-only sidecar, use a
