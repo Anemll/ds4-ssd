@@ -173,9 +173,21 @@ select another supported GGUF from `./gguf/`. Run `./ds4 --help` and
 
 When `-m` points at a Flash-MoE sidecar package root containing
 `manifest.json` and `dense/model-dense.gguf`, DS4 auto-detects SSD streaming,
-uses the dense GGUF internally, and implies `--moe-sidecar DIR --moe-mode
-slot-bank`. The explicit long form still works for expert-only sidecar export
-validation.
+uses the dense GGUF internally, and enables sidecar slot-bank mode. No explicit
+`--moe-sidecar` or `--moe-mode` flag is needed for this package-root path. The
+explicit long form still works for expert-only sidecar export validation.
+
+Preferred package-root command:
+
+```sh
+export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
+
+DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --moe-slot-bank 64 \
+  --ctx 32768 \
+  -p "Hello"
+```
 
 In sidecar mode, the `--moe-slot-bank N` flag is the main user-facing
 memory/cache knob. It is not auto-sized today. It controls how many routed

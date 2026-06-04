@@ -207,12 +207,14 @@ If you add a compatible dense-only GGUF at "$out_dir/dense/model-dense.gguf",
 use the package root:
   DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \\
     -m "$out_dir" \\
-    --moe-slot-bank 64
+    --moe-slot-bank 64 \\
+    --ctx 32768
 
 For expert-only export validation, use an explicit GGUF plus sidecar:
   DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \\
     -m "$model" \\
     --moe-sidecar "$out_dir" \\
     --moe-mode slot-bank \\
-    --moe-slot-bank 64
+    --moe-slot-bank 64 \\
+    --ctx 32768
 EOF
