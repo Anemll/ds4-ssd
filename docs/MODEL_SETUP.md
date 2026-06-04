@@ -65,12 +65,15 @@ and enables sidecar slot-bank mode. This is the preferred public command shape:
 ```sh
 export DS4_SIDECAR_DIR="$PWD/models/dsv4-iq2xxs-expert-major"
 
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m "$DS4_SIDECAR_DIR" \
-  --moe-slot-bank 64 \
-  --ctx 32768 \
+  --moe-slot-bank 8 \
+  --ctx 8192 \
   -p "Hello"
 ```
+
+Increase `--moe-slot-bank` and `--ctx` only after checking memory pressure.
+`--moe-slot-bank 64 --ctx 32768` is a high-memory setting.
 
 The explicit `-m SIDECAR_DIR/dense/model-dense.gguf --moe-sidecar SIDECAR_DIR
 --moe-mode slot-bank` form still works, but it is mainly useful for

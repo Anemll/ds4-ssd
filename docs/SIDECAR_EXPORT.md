@@ -9,8 +9,8 @@ needed:
 ```sh
 ./ds4 \
   -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64 \
-  --ctx 32768
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 For export validation or experiments with an expert-only sidecar, use a
@@ -21,7 +21,8 @@ compatible GGUF model plus the sidecar explicitly:
   -m /path/to/DeepSeek-V4-Flash-IQ2XXS.gguf \
   --moe-sidecar /path/to/dsv4-iq2xxs-expert-major \
   --moe-mode slot-bank \
-  --moe-slot-bank 64
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 This repository does not currently ship an in-tree sidecar packer. The public
@@ -117,22 +118,22 @@ If you paired the exported sidecar with a compatible dense GGUF under
 `dense/model-dense.gguf`, run the package root:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64 \
-  --ctx 32768
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 If you only exported expert records, use a compatible DS4 GGUF as `-m` and the
 exported sidecar as `--moe-sidecar`:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m /path/to/DeepSeek-V4-Flash-IQ2XXS.gguf \
   --moe-sidecar /path/to/dsv4-iq2xxs-expert-major \
   --moe-mode slot-bank \
-  --moe-slot-bank 64 \
-  --ctx 32768
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 Startup should include:

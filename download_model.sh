@@ -211,7 +211,9 @@ download_sidecar() {
     echo "  export DS4_SIDECAR_DIR=$SIDECAR_OUT_DIR"
     echo
     echo "Then run:"
-    echo "  DS4_METAL_PREFILL_CHUNK=16384 ./ds4 -m \"\$DS4_SIDECAR_DIR\" --moe-slot-bank 64 --ctx 32768 -p 'Hello'"
+    echo "  ./ds4 -m \"\$DS4_SIDECAR_DIR\" --moe-slot-bank 8 --ctx 8192 -p 'Hello'"
+    echo
+    echo "After checking memory pressure, raise --moe-slot-bank and --ctx as needed."
     echo "  make sidecar-smoke"
 }
 

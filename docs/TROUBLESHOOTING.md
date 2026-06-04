@@ -5,10 +5,10 @@
 The simplest command is package-root autodetection:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m "$DS4_SIDECAR_DIR" \
-  --moe-slot-bank 64 \
-  --ctx 32768 \
+  --moe-slot-bank 8 \
+  --ctx 8192 \
   -p "Hello"
 ```
 

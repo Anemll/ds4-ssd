@@ -45,19 +45,20 @@ long form is still useful when validating an expert-only sidecar:
 ```sh
 export DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major
 
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m "$DS4_SIDECAR_DIR" \
-  --moe-slot-bank 64 \
-  --ctx 32768 \
+  --moe-slot-bank 8 \
+  --ctx 8192 \
   -p "Hello"
 ```
 
 Important axes:
 
 - `--ctx` is the KV context window.
-- `DS4_METAL_PREFILL_CHUNK=16384` caps each prefill chunk at 16K tokens.
+- Start with `--ctx 8192` for a low-RAM first run; raise it after checking
+  memory pressure.
 - Leave `DS4_METAL_GRAPH_RAW_CAP` unset. The Metal raw-KV cap should auto-follow
-  the 16K chunk size so server continued checkpoints stay aligned.
+  the selected prefill chunk size so server continued checkpoints stay aligned.
 - `--moe-slot-bank` controls how many routed expert slots per layer are kept in
   memory. Increase it for more RAM and fewer SSD fetches; decrease it when RAM
   pressure is high.
@@ -76,8 +77,8 @@ Equivalent direct command:
 ```sh
 DS4_METAL_PREFILL_CHUNK=4096 ./ds4 \
   -m "$DS4_SIDECAR_DIR" \
-  --moe-slot-bank 64 \
-  --ctx 32768 \
+  --moe-slot-bank 8 \
+  --ctx 8192 \
   -n 64 \
   --temp 0 \
   --prompt-file tests/test-vectors/prompts/long_code_audit.txt

@@ -205,16 +205,16 @@ export validation and experiments, but it is not the same low-RAM package.
 
 If you add a compatible dense-only GGUF at "$out_dir/dense/model-dense.gguf",
 use the package root:
-  DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \\
+  ./ds4 \\
     -m "$out_dir" \\
-    --moe-slot-bank 64 \\
-    --ctx 32768
+    --moe-slot-bank 8 \\
+    --ctx 8192
 
 For expert-only export validation, use an explicit GGUF plus sidecar:
-  DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \\
+  ./ds4 \\
     -m "$model" \\
     --moe-sidecar "$out_dir" \\
     --moe-mode slot-bank \\
-    --moe-slot-bank 64 \\
-    --ctx 32768
+    --moe-slot-bank 8 \\
+    --ctx 8192
 EOF

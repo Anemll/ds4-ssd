@@ -5,7 +5,8 @@ This document covers the Flash-MoE SSD streaming path:
 ```sh
 ./ds4 \
   -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 In this mode, the dense/shared model tensors stay mmap-backed while routed MoE
@@ -199,10 +200,10 @@ machines such as M3 Ultra and M5 Max. Change them only for controlled A/B runs.
 For a first streaming run:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+./ds4 \
   -m /path/to/dsv4-iq2xxs-expert-major \
-  --moe-slot-bank 64 \
-  --ctx 32768
+  --moe-slot-bank 8 \
+  --ctx 8192
 ```
 
 Then tune only one axis at a time:
