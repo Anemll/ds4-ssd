@@ -12047,6 +12047,7 @@ int main(int argc, char **argv) {
 
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
+    ds4_model_shape_select_for_path(cfg.engine.model_path);
     log_context_memory(cfg.engine.backend, cfg.ctx_size);
 
     ds4_engine *engine = NULL;

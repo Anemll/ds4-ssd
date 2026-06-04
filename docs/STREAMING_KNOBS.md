@@ -29,8 +29,30 @@ ds4: Flash-MoE sidecar loaded: ... (slot-bank=N, expert-record X MiB)
 ds4: Flash-MoE slot banks allocated: layers=... slots=N gpu-bank=Y MiB
 ds4: prefill compute: ...
 ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... bank-prefetch=... xlayer=...
-ds4: decode  I/O: io-split=... temporal-prefetch=... slots=N
+ds4: decode  I/O: io-split=... temporal-prefetch=... shared-down=... slots=N
 ```
+
+## Experimental Pro Support
+
+DeepSeek V4 Pro sidecar support is experimental. For Pro agent testing, start
+with `--moe-slot-bank 32` or lower, add `--nothink`, and keep shared-down
+decode prefetch enabled:
+
+```sh
+DS4_FLASH_MOE_DECODE_PREFETCH_SHARED_DOWN=1 ./ds4-agent \
+  -m ~/Models/DSv4Pro-flash/ \
+  --moe-slot-bank 32 \
+  --ctx 32768 \
+  --nothink
+```
+
+Pro expert records are larger than Flash records, so high slot counts can make
+decode slower even when SSD I/O looks low. Treat `32` slots as the upper
+baseline for Pro until reuse and stall traces show that a larger bank helps.
+
+To test fewer actual streamed experts, add `--moe-expert-topk 4` or export
+`DS4_MOE_EXPERT_TOPK=4`. This applies to both prefill and decode routed refs.
+It is a quality-changing diagnostic override, not a cache/prefetch hint.
 
 ## Profile-Style Block
 
@@ -124,7 +146,8 @@ They are safe to document, but most users should start with profile defaults.
 | `DS4_FLASH_MOE_CACHE_IO_SPLIT` | `ds4-agent --moe-cache-io-split N` | `4` | Agent flag overrides env | Splits decode/slot-bank expert reads into up to `N` page-aligned concurrent reads. Clamped `1..16`; page-misaligned reads fall back to `1`. |
 | `DS4_FLASH_MOE_PREFILL_IO_SPLIT` | `ds4-agent --moe-prefill-io-split N` | Inherits `DS4_FLASH_MOE_CACHE_IO_SPLIT` | Agent flag overrides env | Same split policy for prefill expert reads. |
 | `DS4_FLASH_MOE_DECODE_PREFETCH` | `ds4-agent --moe-prefetch-temporal`, `--no-moe-prefetch-temporal` | `1` | Some profiles set `1` explicitly | Enables temporal decode prefetch so likely next expert records are read before the layer needs them. |
-| `DS4_FLASH_MOE_DECODE_PREFETCH_SHARED_DOWN` | none | `0` | Experimental | Extends decode prefetch to shared/down staging paths. Leave unset unless measuring. |
+| `DS4_FLASH_MOE_DECODE_PREFETCH_SHARED_DOWN` | none | `0` | M5-family sidecar profiles set `1` | Extends decode prefetch overlap through shared-down work. Set `0` for A/B tests against blocking install or gate/up-only overlap. |
+| `DS4_MOE_EXPERT_TOPK` | `--moe-expert-topk N` | Model metadata (`deepseek4.expert_used_count`, usually `6`) | Experimental diagnostic; `DS4_FLASH_MOE_EXPERT_TOPK` is accepted as an env alias | Overrides the actual routed expert fanout. `4` means prefill emits `tokens*4` routed refs and decode streams/computes 4 experts per layer/token. Changes logits/quality. |
 | `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK` | `ds4-agent --moe-prefetch-topk N` | Usually `0`; explicit values are clamped to half the slot bank | Agent flag overrides env | During prefill, installs the top routed experts per layer into the decode slot cache for reuse. |
 | `DS4_FLASH_MOE_PREFILL_SLOT_PREFETCH` | none | Auto | Auto can engage when decode prefetch is on and ANE prefill is off | Forces whether prefill should populate the decode slot cache. |
 | `DS4_FLASH_MOE_ASYNC_PREAD` | none | `0` | Sidecar profiles set `1` | Enables async prefill expert reads through a reader pool. |
@@ -194,6 +217,8 @@ machines such as M3 Ultra and M5 Max. Change them only for controlled A/B runs.
 | `DS4_FLASH_MOE_ANE_STATS` | none | `0` | ANE batch/reference statistics. |
 | `DS4_FLASH_MOE_ANE_DEBUG` | none | `0` | Verbose ANE routing diagnostics. |
 | `DS4_FLASH_MOE_ASYNC_PREAD_DEBUG` | none | `0` | Verbose async pread diagnostics. |
+| `DS4_FLASH_MOE_DECODE_TRACE_OUT` | none | unset | Writes decode routed expert IDs as `pos layer expert...` rows for oracle/predictor A/B tests. |
+| `DS4_FLASH_MOE_DECODE_ORACLE_IN` | none | unset | Replays a `DS4_FLASH_MOE_DECODE_TRACE_OUT` file as an exact decode prefetch oracle. Diagnostic only; it is not a production predictor. |
 
 ## Practical Starting Points
 

@@ -100,6 +100,9 @@ static void usage(FILE *fp) {
         "  --moe-slot-bank N\n"
         "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
         "      Higher caches more experts; lower uses less RAM.\n"
+        "  --moe-expert-topk N\n"
+        "      Experimental: route/stream only N experts per token instead of\n"
+        "      the model default. Applies to both prefill and decode.\n"
         "  -c, --ctx N\n"
         "      Context size allocated for the session. Default: 32768\n"
         "  --metal\n"
@@ -1300,6 +1303,15 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--moe-expert-topk")) {
+            int topk = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (topk < 1) topk = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", topk);
+            if (setenv("DS4_MOE_EXPERT_TOPK", buf, 1) != 0) {
+                fprintf(stderr, "ds4: setenv DS4_MOE_EXPERT_TOPK: %s\n", strerror(errno));
+                exit(2);
+            }
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
             c.gen.n_predict = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
@@ -1431,6 +1443,7 @@ int main(int argc, char **argv) {
         return rc;
     }
     if (!cfg.inspect) {
+        ds4_model_shape_select_for_path(cfg.engine.model_path);
         log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
         cli_warn_think_max_downgraded(&cfg.gen, "--think-max");
     }

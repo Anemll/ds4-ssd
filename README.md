@@ -119,6 +119,28 @@ measured faster than GPU or NAX on that machine. See
 [docs/PROFILES.md](docs/PROFILES.md) and
 [docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md).
 
+### Experimental Pro Support
+
+DeepSeek V4 Pro sidecar support is experimental. For Pro agent runs, use
+`--nothink`, keep the slot bank at or below 32 slots while tuning, and keep
+shared-down decode prefetch enabled:
+
+```sh
+DS4_FLASH_MOE_DECODE_PREFETCH_SHARED_DOWN=1 ./ds4-agent \
+  -m ~/Models/DSv4Pro-flash/ \
+  --moe-slot-bank 32 \
+  --ctx 32768 \
+  --nothink
+```
+
+Larger Pro slot banks can consume enough memory bandwidth and residency budget
+to collapse decode throughput, so only raise `--moe-slot-bank` after measuring
+reuse and decode stalls on your machine.
+
+For diagnostic fanout tests, add `--moe-expert-topk 4`. This is different from
+`--moe-prefetch-topk`: it changes the actual routed expert count for both
+prefill and decode, so quality and logits are expected to change.
+
 `--no-int8` is optional. Normal runs use the fastest measured profile path.
 For quality-preserving runs, pass `--no-int8`; it disables current int8 dense,
 NAX, Flash-MoE, and ANE accelerator paths, using NAX-half where safe and GPU

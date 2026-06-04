@@ -65,6 +65,7 @@ typedef struct {
     const char *resume_sha;
     int moe_prefetch_temporal;
     int moe_prefetch_topk;
+    int moe_expert_topk;
     bool resident_ane_prefill;
     bool resident_ane_shared_expert;
     bool resident_ane_oproj;
@@ -459,6 +460,8 @@ static void usage(FILE *fp) {
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 32\n"
         "                         Higher caches more experts; lower uses less RAM.\n"
+        "  --moe-expert-topk N    Experimental routed expert fanout override.\n"
+        "                         Applies to both prefill and decode.\n"
         "  --moe-prefetch-temporal\n"
         "                         Enable decode temporal prefetch for sidecar MoE.\n"
         "  --no-moe-prefetch-temporal\n"
@@ -623,6 +626,7 @@ static agent_config parse_options(int argc, char **argv) {
         },
         .moe_prefetch_temporal = -1,
         .moe_prefetch_topk = -1,
+        .moe_expert_topk = -1,
     };
 
     bool steering_scale_set = false;
@@ -655,6 +659,16 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--moe-expert-topk")) {
+            int topk = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (topk < 1) topk = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", topk);
+            if (setenv("DS4_MOE_EXPERT_TOPK", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_MOE_EXPERT_TOPK");
+                exit(2);
+            }
+            c.moe_expert_topk = topk;
         } else if (!strcmp(arg, "--moe-prefetch-temporal")) {
             if (setenv("DS4_FLASH_MOE_DECODE_PREFETCH", "1", 1) != 0) {
                 perror("ds4-agent: setenv DS4_FLASH_MOE_DECODE_PREFETCH");
@@ -8361,6 +8375,9 @@ static void agent_print_resume_hint(agent_worker *w) {
     if (cfg->moe_prefetch_topk >= 0) {
         printf(" --moe-prefetch-topk %d", cfg->moe_prefetch_topk);
     }
+    if (cfg->moe_expert_topk >= 0) {
+        printf(" --moe-expert-topk %d", cfg->moe_expert_topk);
+    }
     if (cfg->engine.directional_steering_file &&
         cfg->engine.directional_steering_file[0])
     {
@@ -8883,6 +8900,7 @@ int main(int argc, char **argv) {
     agent_config cfg = parse_options(argc, argv);
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
+    ds4_model_shape_select_for_path(cfg.engine.model_path);
     log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
 
     ds4_engine *engine = NULL;

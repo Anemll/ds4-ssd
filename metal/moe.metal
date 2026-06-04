@@ -2108,7 +2108,7 @@ template [[host_name("kernel_mul_mm_id_iq2_xxs_f16_n256")]] kernel mul_mm_id_f16
 
 struct FlashDedupHistogramArgs {
     uint32_t n_pairs;
-    uint32_t _pad;
+    uint32_t n_expert;
 };
 
 kernel void kernel_flash_moe_dedup_histogram(
@@ -2120,7 +2120,7 @@ kernel void kernel_flash_moe_dedup_histogram(
     if (gid >= args.n_pairs) return;
 
     int32_t e = selected[gid];
-    if (e >= 0 && e < 256) {
+    if (e >= 0 && (uint32_t)e < args.n_expert) {
         atomic_fetch_add_explicit(&counts[e], 1u, memory_order_relaxed);
     }
 }
@@ -2130,6 +2130,7 @@ kernel void kernel_flash_moe_dedup_histogram(
 struct FlashDedupCompactArgs {
     uint32_t n_pairs;
     uint32_t expert_used;   // usually 8
+    uint32_t n_expert;
 };
 
 kernel void kernel_flash_moe_dedup_compact(
@@ -2144,7 +2145,7 @@ kernel void kernel_flash_moe_dedup_compact(
     if (gid >= args.n_pairs) return;
 
     int32_t e = selected[gid];
-    if (e < 0 || e >= 256) return;
+    if (e < 0 || (uint32_t)e >= args.n_expert) return;
 
     uint32_t slot = atomic_fetch_add_explicit(&offsets[e], 1u, memory_order_relaxed);
     uint32_t token = gid / args.expert_used;

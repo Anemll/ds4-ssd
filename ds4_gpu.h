@@ -777,7 +777,11 @@ int ds4_gpu_router_select_tensor(
         uint64_t                bias_offset,
         uint64_t                hash_offset,
         uint32_t                hash_rows,
+        uint32_t                hash_width,
         uint32_t                token,
+        uint32_t                n_expert,
+        uint32_t                n_expert_used,
+        float                   expert_weight_scale,
         uint32_t                n_expert_groups,
         uint32_t                n_group_used,
         bool                    has_bias,
@@ -793,12 +797,16 @@ int ds4_gpu_router_select_batch_tensor(
         uint64_t                bias_offset,
         uint64_t                hash_offset,
         uint32_t                hash_rows,
+        uint32_t                hash_width,
         uint32_t                n_expert_groups,
         uint32_t                n_group_used,
         bool                    has_bias,
         bool                    hash_mode,
         const ds4_gpu_tensor *logits,
         const ds4_gpu_tensor *tokens,
+        uint32_t                n_expert,
+        uint32_t                n_expert_used,
+        float                   expert_weight_scale,
         uint32_t                n_tokens);
 
 int ds4_gpu_routed_moe_one_tensor(
@@ -823,6 +831,7 @@ int ds4_gpu_routed_moe_one_tensor(
         uint32_t                out_dim,
         const ds4_gpu_tensor *selected,
         const ds4_gpu_tensor *weights,
+        uint32_t                n_total_expert,
         uint32_t                n_expert,
         float                   clamp,
         const ds4_gpu_tensor *x);
@@ -1022,6 +1031,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
 /* GPU dedup for Flash-MoE prefill (histogram of router top-k over n_pairs) */
 int ds4_gpu_flash_moe_dedup_histogram(const ds4_gpu_tensor *selected,
                                       ds4_gpu_tensor       *counts256,
+                                      uint32_t              n_expert,
                                       uint32_t              n_pairs);
 
 int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
@@ -1029,6 +1039,7 @@ int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
                                     ds4_gpu_tensor       *offsets,
                                     ds4_gpu_tensor       *out_tokens,
                                     ds4_gpu_tensor       *out_weights,
+                                    uint32_t              n_expert,
                                     uint32_t              n_pairs,
                                     uint32_t              expert_used);
 
@@ -1071,6 +1082,7 @@ int ds4_gpu_routed_moe_batch_tensor(
         uint32_t                out_dim,
         const ds4_gpu_tensor *selected,
         const ds4_gpu_tensor *weights,
+        uint32_t                n_total_expert,
         uint32_t                n_expert,
         float                   clamp,
         const ds4_gpu_tensor *x,
