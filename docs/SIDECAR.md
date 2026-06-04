@@ -64,7 +64,8 @@ Important axes:
 
 ## Smoke Test
 
-The committed smoke uses a 16K prompt and one deterministic generated token:
+The committed smoke uses a shorter 4K-class prompt and 64 deterministic
+generated tokens:
 
 ```sh
 DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
@@ -73,13 +74,13 @@ DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 Equivalent direct command:
 
 ```sh
-DS4_METAL_PREFILL_CHUNK=16384 ./ds4 \
+DS4_METAL_PREFILL_CHUNK=4096 ./ds4 \
   -m "$DS4_SIDECAR_DIR" \
   --moe-slot-bank 64 \
   --ctx 32768 \
-  -n 1 \
+  -n 64 \
   --temp 0 \
-  --prompt-file tests/test-vectors/prompts/sidecar_16k.txt
+  --prompt-file tests/test-vectors/prompts/long_code_audit.txt
 ```
 
 Expected startup logs include:
@@ -87,7 +88,7 @@ Expected startup logs include:
 ```text
 applied sidecar tuning profile
 Flash-MoE sidecar loaded
-prefill chunk cap: 16384
+prefill chunk cap: 4096
 Flash-MoE slot banks allocated
 ```
 

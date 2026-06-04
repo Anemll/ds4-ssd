@@ -4,10 +4,10 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 SIDECAR_DIR=${DS4_SIDECAR_DIR:-"$ROOT/models/dsv4-iq2xxs-expert-major"}
 DENSE_GGUF=${DS4_DENSE_GGUF:-}
-PROMPT_FILE=${DS4_SIDECAR_PROMPT:-"$ROOT/tests/test-vectors/prompts/sidecar_16k.txt"}
+PROMPT_FILE=${DS4_SIDECAR_PROMPT:-"$ROOT/tests/test-vectors/prompts/long_code_audit.txt"}
 SLOT_BANK=${DS4_SLOT_BANK:-64}
 CTX=${DS4_CTX:-32768}
-GEN_TOKENS=${DS4_GEN_TOKENS:-1}
+GEN_TOKENS=${DS4_GEN_TOKENS:-64}
 
 if [ ! -x "$ROOT/ds4" ]; then
     echo "tests/sidecar_smoke.sh: build ./ds4 first" >&2
@@ -34,7 +34,7 @@ else
     MODEL_ARG=$DENSE_GGUF
 fi
 
-export DS4_METAL_PREFILL_CHUNK=${DS4_METAL_PREFILL_CHUNK:-16384}
+export DS4_METAL_PREFILL_CHUNK=${DS4_METAL_PREFILL_CHUNK:-4096}
 
 if [ -z "$DENSE_GGUF" ]; then
     "$ROOT/ds4" \

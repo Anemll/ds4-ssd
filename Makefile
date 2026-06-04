@@ -42,7 +42,7 @@ help:
 	@echo "  make              Build Metal ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make cpu          Build CPU-only ./ds4, ./ds4-server, ./ds4-bench, ./ds4-eval, and ./ds4-agent"
 	@echo "  make ane-smoke    Build and run the ANE int8 MLP precision smoke"
-	@echo "  make sidecar-smoke Run the 16K SSD sidecar smoke (requires DS4_SIDECAR_DIR)"
+	@echo "  make sidecar-smoke Run the 4K SSD sidecar smoke (requires DS4_SIDECAR_DIR)"
 	@echo "  make test         Build and run tests"
 	@echo "  make clean        Remove build outputs"
 
@@ -71,7 +71,7 @@ ane-smoke: tests/ane_ds4_mlp_i8i8_precision_smoke
 	./tests/ane_ds4_mlp_i8i8_precision_smoke
 
 sidecar-smoke: ds4
-	DS4_METAL_PREFILL_CHUNK=16384 ./tests/sidecar_smoke.sh
+	DS4_METAL_PREFILL_CHUNK=4096 ./tests/sidecar_smoke.sh
 
 cpu: ds4_cli_cpu.o ds4_server_cpu.o ds4_bench_cpu.o ds4_eval_cpu.o ds4_agent_cpu.o ds4_kvstore.o linenoise.o rax.o $(CPU_CORE_OBJS)
 	$(CC) $(CFLAGS) -o ds4 ds4_cli_cpu.o linenoise.o $(CPU_CORE_OBJS) $(LDLIBS)

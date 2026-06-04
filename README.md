@@ -164,8 +164,9 @@ make ane-smoke
 DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 ```
 
-The sidecar smoke uses `tests/test-vectors/prompts/sidecar_16k.txt` and runs one
-deterministic token with a 16K prefill chunk cap.
+The sidecar smoke uses `tests/test-vectors/prompts/long_code_audit.txt`, a
+shorter 4K-class prompt, and generates 64 deterministic tokens with a 4K
+prefill chunk cap.
 
 ## Docs
 
