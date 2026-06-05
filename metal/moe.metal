@@ -1136,14 +1136,97 @@ kernel void kernel_mul_mv_id(
         sgitg);
 }
 
+template<mul_mv_id_disp_fn_t disp_fn, int nr0>
+kernel void kernel_mul_mv_id_accum(
+        constant ds4_metal_args_mul_mv_id & args,
+        device const char * src0s,
+        device const char * src1,
+        device       char * dst,
+        device const char * ids,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiitg[[thread_index_in_threadgroup]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    (void)tiitg;
+
+    const short NSG = FC_mul_mv_nsg;
+    const int first_row = (tgpig.x * NSG + sgitg) * nr0;
+    const int iid1 = tgpig.z / args.nei0;
+    const int idx  = tgpig.z % args.nei0;
+
+    tgpig.z = 0;
+
+    const int32_t i02 = ((device const int32_t *) (ids + iid1 * args.nbi1))[idx];
+    const int64_t i11 = idx % args.ne11;
+    const int64_t i12 = iid1;
+
+    device const char *src0_cur = src0s + i02 * args.nb02;
+    device const char *src1_cur = src1 + i11 * args.nb11 + i12 * args.nb12;
+    device char *dst_cur = dst + ((uint64_t)idx * args.ne0 +
+                                  (uint64_t)i12 * args.ne1 * args.ne0) * sizeof(float);
+
+    float prior[nr0] = {0.f};
+    device float *dst_f32 = (device float *)dst_cur;
+    const bool accumulate = args.ne13 != 0;
+    if (accumulate && tiisg == 0) {
+        for (int row = 0; row < nr0 && first_row + row < args.ne0; ++row) {
+            prior[row] = dst_f32[first_row + row];
+        }
+    }
+
+    ds4_metal_args_mul_mv args0 = {
+        /*.ne00 =*/ args.ne00,
+        /*.ne01 =*/ args.ne01,
+        /*.ne02 =*/ 1,
+        /*.nb00 =*/ args.nb00,
+        /*.nb01 =*/ args.nb01,
+        /*.nb02 =*/ args.nb02,
+        /*.nb03 =*/ args.nb02,
+        /*.ne10 =*/ args.ne10,
+        /*.ne11 =*/ 1,
+        /*.ne12 =*/ 1,
+        /*.nb10 =*/ args.nb10,
+        /*.nb11 =*/ args.nb11,
+        /*.nb12 =*/ args.nb12,
+        /*.nb13 =*/ args.nb12,
+        /*.ne0  =*/ args.ne0,
+        /*.ne1  =*/ 1,
+        /*.nr0  =*/ args.nr0,
+        /*.r2   =*/ 1,
+        /*.r3   =*/ 1,
+    };
+
+    disp_fn(
+        args0,
+        /* src0 */ src0_cur,
+        /* src1 */ src1_cur,
+        /* dst  */ dst_cur,
+        shmem,
+        tgpig,
+        tiitg,
+        tiisg,
+        sgitg);
+
+    if (accumulate && tiisg == 0) {
+        for (int row = 0; row < nr0 && first_row + row < args.ne0; ++row) {
+            dst_f32[first_row + row] += prior[row];
+        }
+    }
+}
+
 typedef decltype(kernel_mul_mv_id<mmv_fn<kernel_mul_mv_q2_K_f32_impl<N_R0_Q2_K>>>) kernel_mul_mv_id_q_t;
 typedef decltype(kernel_mul_mv_id<mmv_fn<kernel_mul_mv_q8_0_f32_impl<N_R0_Q8_0>>>) kernel_mul_mv_id_q8_0_t;
+typedef decltype(kernel_mul_mv_id_accum<mmv_fn<kernel_mul_mv_q2_K_f32_impl<N_R0_Q2_K>>, N_R0_Q2_K>) kernel_mul_mv_id_q2_accum_t;
+typedef decltype(kernel_mul_mv_id_accum<mmv_fn<kernel_mul_mv_q4_K_f32_impl<N_R0_Q4_K>>, N_R0_Q4_K>) kernel_mul_mv_id_q4_accum_t;
 
 // Host-visible decode MoE matvec variants for the DS4 quant formats.
 template [[host_name("kernel_mul_mv_id_q8_0_f32")]]    kernel kernel_mul_mv_id_q8_0_t kernel_mul_mv_id<mmv_fn<kernel_mul_mv_q8_0_f32_impl<N_R0_Q8_0>>>;
 template [[host_name("kernel_mul_mv_id_q2_K_f32")]]    kernel kernel_mul_mv_id_q_t kernel_mul_mv_id<mmv_fn<kernel_mul_mv_q2_K_f32_impl<N_R0_Q2_K>>>;
 template [[host_name("kernel_mul_mv_id_q4_K_f32")]]    kernel kernel_mul_mv_id_q_t kernel_mul_mv_id<mmv_fn<kernel_mul_mv_q4_K_f32_impl<N_R0_Q4_K>>>;
 template [[host_name("kernel_mul_mv_id_iq2_xxs_f32")]] kernel kernel_mul_mv_id_q_t kernel_mul_mv_id<mmv_fn<kernel_mul_mv_iq2_xxs_f32_impl<N_R0_IQ2_XXS>>>;
+template [[host_name("kernel_mul_mv_id_q2_K_accum_f32")]] kernel kernel_mul_mv_id_q2_accum_t kernel_mul_mv_id_accum<mmv_fn<kernel_mul_mv_q2_K_f32_impl<N_R0_Q2_K>>, N_R0_Q2_K>;
+template [[host_name("kernel_mul_mv_id_q4_K_accum_f32")]] kernel kernel_mul_mv_id_q4_accum_t kernel_mul_mv_id_accum<mmv_fn<kernel_mul_mv_q4_K_f32_impl<N_R0_Q4_K>>, N_R0_Q4_K>;
 
 // DS4 attention output low projection, specialized for the fixed block
 // diagonal mapping used by the model:
@@ -1398,8 +1481,10 @@ kernel void kernel_mul_mv_id_iq2_xxs_pair_swiglu_f32(
                 g = min(g, c);
                 u = clamp(u, -c, c);
             }
-            dst_gate_f32[out_row] = gate;
-            dst_up_f32[out_row] = up;
+            if (act.write_clamped != 0) {
+                dst_gate_f32[out_row] = g;
+                dst_up_f32[out_row] = u;
+            }
             const float silu = g / (1.0f + exp(-g));
             dst_mid_f32[out_row] = silu * u * route_weight;
         }
