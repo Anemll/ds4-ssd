@@ -77,6 +77,8 @@ typedef struct {
     const char *moe_sidecar_path;
     ds4_moe_mode moe_mode;
     int moe_slot_bank;
+    const char *ssd_cache;
+    int ctx_size;
     bool warm_weights;
     bool quality;
     bool no_int8;

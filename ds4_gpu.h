@@ -30,6 +30,7 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
+int ds4_gpu_tensor_touch_pages(ds4_gpu_tensor *tensor, uint64_t page_bytes);
 int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count);
 int ds4_gpu_tensor_write(ds4_gpu_tensor *tensor, uint64_t offset, const void *data, uint64_t bytes);
 int ds4_gpu_tensor_read(const ds4_gpu_tensor *tensor, uint64_t offset, void *data, uint64_t bytes);
@@ -98,6 +99,10 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
                                           uint64_t    offset,
                                           uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
+int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity);
+int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor);
+int ds4_gpu_flash_slot_bank_residency_commit(void);
+void ds4_gpu_flash_slot_bank_residency_clear(void);
 int ds4_gpu_cache_model_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, const char *label);
 int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, uint64_t in_dim, uint64_t out_dim, const char *label);
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);

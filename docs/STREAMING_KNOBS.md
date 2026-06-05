@@ -29,7 +29,7 @@ ds4: Flash-MoE sidecar loaded: ... (slot-bank=N, expert-record X MiB)
 ds4: Flash-MoE slot banks allocated: layers=... slots=N gpu-bank=Y MiB
 ds4: prefill compute: ...
 ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... bank-prefetch=... xlayer=...
-ds4: decode  I/O: io-split=... temporal-prefetch=... shared-down=... slots=N
+ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
 ## Experimental Pro Support
@@ -118,6 +118,7 @@ SSD behavior, or quality.
 | --- | --- | ---: | --- | --- |
 | `DS4_FLASH_MOE_SLOT_BANK_SLOTS` | Use `--moe-slot-bank N` | Not consumed directly | Current profiles record values such as `96`, `64`, or `48` | Profile-side suggested slot count. The live slot bank is currently sized by `--moe-slot-bank`, not by this env var. |
 | `--moe-slot-bank N` | `--moe-slot-bank N` | `32` for `ds4`, `ds4-server`, `ds4-agent`; `8` for `ds4-bench` | Valid range `6..256` | Number of cached routed expert slots per layer. Higher values cache more experts and use more unified/Metal memory; lower values use less RAM and stream/reload more often. |
+| `--ssd-cache BYTES\|auto` | `--ssd-cache 25GB`, `--ssd-cache auto` | unset | Shared by `ds4`, `ds4-agent`, and `ds4-server` | Sizes the Flash-MoE slot bank from a memory budget instead of a slot count. Explicit sizes are the target slot-bank GPU cache budget. `auto` uses currently available memory, subtracts dense mapped weights and estimated context buffers for `--ctx`, then assigns 85% of the remainder to slots. |
 | `DS4_METAL_PREFILL_CHUNK` | none | Whole prompt if `<=4096`, else `4096`; `0` means whole prompt | Current sidecar profiles use `16384` | Max Metal prefill chunk size. Use `16384` for the alpha sidecar path unless measuring another value. Do not assume `32768` chunks are supported. |
 | `DS4_CTX_GROW` | none | `1` | Profiles set `1` | Enables high-water compressed-KV growth instead of eagerly allocating the full `--ctx` compressed KV cache. Usually leave on for streaming. |
 | `DS4_CTX_GROW_BLOCK` | none | `2048` | Profiles use `16384` on larger-memory sidecar targets and `2048` on tighter targets | Context-token growth step for compressed KV. Larger values reduce grow events; smaller values keep memory occupancy tighter. |
@@ -150,6 +151,7 @@ They are safe to document, but most users should start with profile defaults.
 | `DS4_MOE_EXPERT_TOPK` | `--moe-expert-topk N` | Model metadata (`deepseek4.expert_used_count`, usually `6`) | Experimental diagnostic; `DS4_FLASH_MOE_EXPERT_TOPK` is accepted as an env alias | Overrides the actual routed expert fanout. `4` means prefill emits `tokens*4` routed refs and decode streams/computes 4 experts per layer/token. Changes logits/quality. |
 | `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK` | `ds4-agent --moe-prefetch-topk N` | Usually `0`; explicit values are clamped to half the slot bank | Agent flag overrides env | During prefill, installs the top routed experts per layer into the decode slot cache for reuse. |
 | `DS4_FLASH_MOE_PREFILL_SLOT_PREFETCH` | none | Auto | Auto can engage when decode prefetch is on and ANE prefill is off | Forces whether prefill should populate the decode slot cache. |
+| `DS4_FLASH_MOE_DIRECT_SLOT_PREAD` | none | `1` | Usually leave on | On decode/prefill slot-cache misses, reads expert bytes directly into the CPU-visible Metal slot buffer. Set `0` to force the staged path: `pread` into a CPU scratch record, then `ds4_gpu_tensor_write` into the slot. |
 | `DS4_FLASH_MOE_ASYNC_PREAD` | none | `0` | Sidecar profiles set `1` | Enables async prefill expert reads through a reader pool. |
 | `DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE` | none | `0` | Sidecar profiles set `1` | Allows the async reader to keep running after staging begins. |
 | `DS4_FLASH_MOE_PREAD_THREADS` | none | `4` | Profiles use `4` or `6` | Number of async prefill read worker threads. Clamped `1..8`. |
@@ -217,6 +219,9 @@ machines such as M3 Ultra and M5 Max. Change them only for controlled A/B runs.
 | `DS4_FLASH_MOE_ANE_STATS` | none | `0` | ANE batch/reference statistics. |
 | `DS4_FLASH_MOE_ANE_DEBUG` | none | `0` | Verbose ANE routing diagnostics. |
 | `DS4_FLASH_MOE_ASYNC_PREAD_DEBUG` | none | `0` | Verbose async pread diagnostics. |
+| `DS4_FLASH_MOE_SLOT_BANK_RESIDENCY` | none | `0` | Metal-only diagnostic. Requests a Metal residency set for slot-bank owner buffers after allocation. Use for high-slot decode cliff A/B tests. |
+| `DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES` | none | `0` | Metal-only diagnostic. Touches one byte per slot-bank page at startup so page faults happen before decode. Expensive for large banks; use only for cliff diagnosis. |
+| `DS4_FLASH_MOE_RESET_SLOT_CACHE_AFTER_PREFILL` | none | `0` | Diagnostic. Clears slot ownership/replay metadata after full or resume prefill, so decode starts with an empty slot cache while keeping the same allocated slot-bank memory. Alias: `DS4_FLASH_MOE_CLEAR_SLOT_CACHE_AFTER_PREFILL`. |
 | `DS4_FLASH_MOE_DECODE_TRACE_OUT` | none | unset | Writes decode routed expert IDs as `pos layer expert...` rows for oracle/predictor A/B tests. |
 | `DS4_FLASH_MOE_DECODE_ORACLE_IN` | none | unset | Replays a `DS4_FLASH_MOE_DECODE_TRACE_OUT` file as an exact decode prefetch oracle. Diagnostic only; it is not a production predictor. |
 

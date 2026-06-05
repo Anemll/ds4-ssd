@@ -237,6 +237,9 @@ static NSMutableArray<id> *g_resident_model_ranges;
 static uint64_t g_resident_model_cache_bytes;
 static uint64_t g_resident_model_cache_count;
 static id g_model_residency_set;
+static id g_flash_slot_bank_residency_set;
+static uint64_t g_flash_slot_bank_residency_count;
+static uint64_t g_flash_slot_bank_residency_bytes;
 static id<MTLBuffer> g_flash_attn_mask_buffer;
 static id<MTLBuffer> g_flash_attn_pad_buffer;
 static id<MTLBuffer> g_flash_attn_tmp_buffer;
@@ -1352,6 +1355,79 @@ static void ds4_gpu_model_residency_clear(void) {
     }
 #endif
     g_model_residency_count = 0;
+}
+
+void ds4_gpu_flash_slot_bank_residency_clear(void) {
+#if TARGET_OS_OSX
+    if (@available(macOS 15.0, *)) {
+        if (g_flash_slot_bank_residency_set) {
+            [g_flash_slot_bank_residency_set endResidency];
+            [g_flash_slot_bank_residency_set removeAllAllocations];
+            g_flash_slot_bank_residency_set = nil;
+        }
+    }
+#endif
+    g_flash_slot_bank_residency_count = 0;
+    g_flash_slot_bank_residency_bytes = 0;
+}
+
+int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+
+    ds4_gpu_flash_slot_bank_residency_clear();
+    if (ds4_gpu_model_residency_disabled_now()) return 1;
+
+#if TARGET_OS_OSX
+    if (@available(macOS 15.0, *)) {
+        MTLResidencySetDescriptor *desc = [[MTLResidencySetDescriptor alloc] init];
+        desc.label = @"ds4_flash_moe_slot_bank";
+        desc.initialCapacity = initial_capacity ? initial_capacity : 1u;
+
+        NSError *error = nil;
+        g_flash_slot_bank_residency_set = [g_device newResidencySetWithDescriptor:desc error:&error];
+        if (!g_flash_slot_bank_residency_set) {
+            fprintf(stderr, "ds4: Metal slot-bank residency set creation failed: %s\n",
+                    [[error localizedDescription] UTF8String]);
+            return 0;
+        }
+    }
+#endif
+
+    return 1;
+}
+
+int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor) {
+    if (!tensor) return 0;
+    if (!g_flash_slot_bank_residency_set) return 1;
+
+#if TARGET_OS_OSX
+    if (@available(macOS 15.0, *)) {
+        DS4MetalTensor *obj = ds4_gpu_tensor_obj(tensor);
+        if (!obj.buffer) return 0;
+        [g_flash_slot_bank_residency_set addAllocation:obj.buffer];
+        g_flash_slot_bank_residency_count++;
+        g_flash_slot_bank_residency_bytes += obj.bytes;
+    }
+#endif
+
+    return 1;
+}
+
+int ds4_gpu_flash_slot_bank_residency_commit(void) {
+    if (!g_flash_slot_bank_residency_set) return 1;
+
+#if TARGET_OS_OSX
+    if (@available(macOS 15.0, *)) {
+        [g_flash_slot_bank_residency_set commit];
+        [g_flash_slot_bank_residency_set requestResidency];
+    }
+#endif
+
+    fprintf(stderr,
+            "ds4: Flash-MoE slot-bank Metal residency requested: buffers=%llu bytes=%.2f GiB\n",
+            (unsigned long long)g_flash_slot_bank_residency_count,
+            (double)g_flash_slot_bank_residency_bytes / (1024.0 * 1024.0 * 1024.0));
+    return 1;
 }
 
 static int ds4_gpu_model_residency_request_views(void) {
@@ -5518,6 +5594,24 @@ void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor) {
     return (uint8_t *)[obj.buffer contents] + obj.offset;
 }
 
+int ds4_gpu_tensor_touch_pages(ds4_gpu_tensor *tensor, uint64_t page_bytes) {
+    if (!tensor) return 0;
+    const uint64_t bytes = ds4_gpu_tensor_bytes(tensor);
+    if (bytes == 0) return 1;
+    if (page_bytes == 0) {
+        const long sys_page = sysconf(_SC_PAGESIZE);
+        page_bytes = sys_page > 0 ? (uint64_t)sys_page : 16384u;
+    }
+    if (page_bytes == 0) return 0;
+    volatile uint8_t *p = (volatile uint8_t *)ds4_gpu_tensor_contents(tensor);
+    if (!p) return 0;
+    for (uint64_t off = 0; off < bytes; off += page_bytes) {
+        p[off] = p[off];
+    }
+    p[bytes - 1u] = p[bytes - 1u];
+    return 1;
+}
+
 int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count) {
     if (!tensor || count > ds4_gpu_tensor_bytes(tensor) / sizeof(float)) return 0;
     float *p = ds4_gpu_tensor_contents(tensor);
@@ -6131,6 +6225,7 @@ void ds4_gpu_cleanup(void) {
         g_model_request_residency = 1;
         g_model_warm_views = 1;
         ds4_gpu_model_residency_clear();
+        ds4_gpu_flash_slot_bank_residency_clear();
         ds4_gpu_model_views_clear();
         ds4_gpu_resident_model_cache_clear();
         [g_pipeline_cache removeAllObjects];

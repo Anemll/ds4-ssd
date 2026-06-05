@@ -61,6 +61,285 @@ Profile defaults are applied with `setenv(..., overwrite=0)`, so explicit shell
 exports still win. The async/ICB paths stay available for experiments, but they
 should not turn on from a bare `./ds4` sidecar run.
 
+## 2026-06-05 Async Handout Review Plan
+
+External review of the current dynamic grouped / async stable path agrees with
+the local measurements:
+
+```text
+grouped baseline                  ~20.07 t/s
+stable slot                       ~20.31 t/s
+dynamic grouped / async stable    ~18.05 t/s
+async wait-all then grouped       ~19.19 t/s
+```
+
+The combined diagnosis is that async handout loses for stacked reasons:
+
+- the split decision happens after expensive setup: slot reservation, per-miss
+  multi-MiB `xmalloc`, and per-miss `pthread_create`;
+- miss layers are dominated by one or two misses, where splitting the optimized
+  grouped call hides little read latency and adds route-level submit/sum cost;
+- default split submits drain the GPU per missing route unless parallel submits
+  are explicitly enabled;
+- all reservation paths only protect routed experts incrementally, so an early
+  miss can evict a later route's already-resident expert and inflate misses;
+- the shared-expert work is currently the best overlap candidate because it does
+  not break the grouped routed-MoE unit.
+
+Implementation order:
+
+1. Pre-protect the full routed top-k before victim selection.
+   - Apply to `metal_graph_flash_moe_prepare_decode()`.
+   - Apply to `metal_graph_flash_moe_prepare_decode_prefetch_ids()`.
+   - Apply to `metal_graph_flash_moe_decode_async_handout()`.
+   - Keep `reserved_slots` as the hard per-decode-step guard.
+
+2. Refactor async handout into plan -> policy -> execute.
+   - Planning resolves `true_ids`, `slot_ids`, `route_load_idx`, resident/miss
+     flags, and evicted slots.
+   - Planning must not allocate expert buffers or start read threads.
+   - Record async miss histograms after planning so policy and stats match.
+
+3. Make the async miss default conservative.
+   - Zero-miss layers still run grouped/stable immediately.
+   - Miss layers default to install/read misses and then fall through to the
+     existing grouped/stable caller.
+   - Route splitting is experimental only: require explicit opt-in and a
+     minimum miss count, initially `n_loads >= 4`.
+   - Cache `DS4_FLASH_MOE_ASYNC_HANDOUT_OVERLAP_MISSES` like the other async
+     flags so the hot path does not call `getenv()` per layer.
+
+4. Remove per-miss allocation churn.
+   - Add reusable async read scratch buffers sized to `DS4_N_EXPERT_ACTIVE_USED`
+     records, or share the decode-prefetch scratch pattern with a separate
+     async allocation so `max-loads=0` does not disable it.
+   - Start with `io_split=1` for async handout reads because misses are already
+     parallel across experts; benchmark this against the old nested split-read
+     fan-out before making it permanent.
+
+5. Add minimal policy metrics.
+   - Count planned miss layers by miss count.
+   - Track whether joins found the read already complete.
+   - Keep per-miss-count pread/upload timing so split can become a measured
+     exception instead of a default.
+   - Convert `job.complete` from `volatile int` to atomic or mutex-backed state
+     before depending on it for ready/deadline policy.
+
+6. Only after parity: overlap shared-expert work with miss reads.
+   - Mirror the decode-prefetch ordering that already hash-matched:
+     start reads, encode shared gate/up/down, flush, join/upload misses, then
+     run one intact grouped/stable routed-MoE call.
+   - Verify at slot64 first, then slot128/256 because CPU upload into resident
+     slot buffers while flushed GPU work is in flight is the known hazard class.
+
+7. Keep ICB and route-split kernel cleanup out of the default path.
+   - ICB remains diagnostic-only.
+   - Do not optimize the route-level tensor-view churn or sum-tail until split
+     earns a measured cold-cache win.
+
+Benchmark matrix for this sequence:
+
+```text
+A   grouped default, slot64, n500
+B   stable slot, no async
+C   current async, before refactor
+D   async wait-all grouped
+E   async + DS4_FLASH_MOE_CACHE_IO_SPLIT=1
+E'  grouped default + DS4_FLASH_MOE_CACHE_IO_SPLIT=1
+F   wait-all async + DS4_FLASH_MOE_CACHE_IO_SPLIT=1
+G   after pre-protect only
+H   after plan/policy + reusable scratch
+I   after shared-work overlap
+J   cold-cache rows A-I, if needed
+```
+
+Run direct Terminal only, one row at a time, with a cooldown and `stdout` hashes
+captured. The PyGame prompt hash should remain `ab4a2b...`; grouped baseline
+should be run first and last to bracket thermal drift.
+
+## 2026-06-05 Async Handout Pass 1
+
+Implemented the first conservative refactor pass:
+
+- Added opt-in full top-k pre-protection before victim selection in:
+  `metal_graph_flash_moe_prepare_decode()`,
+  `metal_graph_flash_moe_prepare_decode_prefetch_ids()`, and
+  `metal_graph_flash_moe_decode_async_handout()`.
+  It is gated by `DS4_FLASH_MOE_PREPROTECT_TOPK=1` and defaults off after an
+  outside-run report suggested grouped default may regress with it enabled.
+- Async handout now plans all misses before starting any read thread.
+- `DS4_FLASH_MOE_ASYNC_HANDOUT_OVERLAP_MISSES` is cached and now defaults off.
+- Route split is opt-in and additionally gated by
+  `DS4_FLASH_MOE_ASYNC_HANDOUT_SPLIT_MISS_MIN` (default `4`).
+- Added `DS4_FLASH_MOE_ASYNC_HANDOUT_IO_SPLIT`; async handout reads default to
+  `io_split=1` because misses are already parallelized across experts.
+- Conservative async miss path reads directly into resident slots before GPU
+  commands reopen, then falls through to the existing stable/grouped caller.
+- Experimental split path uses lazy reusable async scratch instead of per-miss
+  `xmalloc`.
+- `job.complete` now uses acquire/release helper access instead of raw volatile
+  reads.
+- Backend stats now include async split count plus join-ready/join-wait counts.
+
+Small correctness checks after this pass:
+
+```text
+PyGame prompt, slot64, n64:
+grouped hash   1828e1f5088e...
+stable hash    1828e1f5088e...
+async hash     1828e1f5088e...
+
+PyGame prompt, slot64, n32:
+async conservative hash     e589d9c6337a...
+forced split opt-in hash    e589d9c6337a...
+
+PyGame prompt, slot64, n500:
+async conservative hash     ab4a2b0851af...
+```
+
+Rough Codex tool-run n500 matrix after pass 1:
+
+```text
+grouped default            17.07 t/s  hash ab4a2b...
+stable slot                19.22 t/s  hash ab4a2b...
+async conservative         14.18 t/s  hash ab4a2b...
+```
+
+Stats probe (`DS4_FLASH_MOE_PROFILE=1`, PyGame slot64 n32):
+
+```text
+async handout calls=1376
+grouped=267 (19.4%)
+miss-calls=1109
+miss-routes=2805
+avg-miss-routes=2.53
+sync-miss=1109
+wait-grouped=0
+split=0
+join-ready=1102
+join-wait=1703
+miss-hist[0..6]=267,329,324,207,111,65,73
+```
+
+This confirms the new default does not enter the route-split branch. The tool-run
+generation speeds are not representative of direct Terminal benchmarks, but the
+relative result still shows conservative async has not yet become the speed path.
+
+Next planned step: run the direct Terminal benchmark matrix after cooldown. If
+async conservative is still below stable/grouped, implement shared-expert
+overlap during miss reads before revisiting route split.
+
+Outside-environment benchmark helper:
+
+```sh
+scripts/bench_flash_moe_async_pass1.sh
+```
+
+Default rows:
+
+```text
+grouped_first
+stable_slot
+async_conservative
+grouped_last
+```
+
+Optional probes:
+
+```sh
+INCLUDE_SPLIT=1 scripts/bench_flash_moe_async_pass1.sh
+INCLUDE_PROFILE=1 scripts/bench_flash_moe_async_pass1.sh
+INCLUDE_PREPROTECT=1 scripts/bench_flash_moe_async_pass1.sh
+```
+
+Useful overrides:
+
+```sh
+N_TOKENS=32 COOLDOWN_SECONDS=0 scripts/bench_flash_moe_async_pass1.sh
+N_TOKENS=500 COOLDOWN_SECONDS=45 scripts/bench_flash_moe_async_pass1.sh
+```
+
+Clean outside-Terminal run after killing stray PyGame processes:
+
+```text
+/tmp/ds4_flash_moe_async_pass1_20260605_111433
+slot64, n500, all hashes ab4a2b...
+
+grouped_first          20.29 t/s
+stable_slot            20.73 t/s
+async_conservative     19.16 t/s
+grouped_preprotect     21.16 t/s
+grouped_last           21.23 t/s
+```
+
+Interpretation: pre-protect is not the grouped-default regression source in
+this run. The earlier low grouped numbers were run-state noise. Stable remains
+slightly ahead of grouped, and async conservative is still behind; the next
+speed item remains shared-expert overlap during miss reads.
+
+Longer M5 Max outside-Terminal run:
+
+```text
+/tmp/ds4_flash_moe_async_pass1_20260605_112944
+slot64, n2000, all hashes 80895569...
+
+grouped_first          20.30 t/s
+stable_slot            19.97 t/s
+async_conservative     18.32 t/s
+grouped_preprotect     20.39 t/s
+grouped_last           20.32 t/s
+```
+
+Interpretation: the longer run removes the short-run ambiguity. Grouped is
+stable at ~20.3 t/s, pre-protect is effectively neutral/slightly positive, and
+async conservative is consistently slower. This strengthens the conclusion that
+the current async miss path still adds overhead without enough overlap work.
+
+M3 Ultra 96G run from attached logs:
+
+```text
+/Volumes/SN8100/DS/dsv4-iq2xxs-expert-major
+slot64, n500, all row hashes 5c51868c...
+decode shared-down banner: off
+
+grouped_first          12.88 t/s
+stable_slot            12.62 t/s
+async_conservative     12.01 t/s
+grouped_preprotect     12.98 t/s
+grouped_last           12.86 t/s
+```
+
+Interpretation: M3U shows the same broad shape as M5 Max but at a lower
+throughput level. Pre-protect is not a regression source here either; it is
+slightly ahead of grouped_first/last. Async conservative remains behind grouped,
+so the missing speed win is still not route splitting or wait-all; the next
+candidate remains overlapping shared-expert work with miss reads while keeping
+the grouped routed-MoE call intact. The first prefill row was much colder
+(`3.49 t/s`) than later rows (`6.3-6.7 t/s`), so decode comparisons should use
+generation speed, not prefill speed.
+
+Pro short-run check:
+
+```text
+/tmp/ds4_flash_moe_async_pass1_20260605_150116
+/Users/anemll/Models/DSv4Pro-flash
+slot32, ctx32768, n32, all hashes dea9219a...
+decode banner: miss-direct-slot-pread=on, prefetch-direct-slot-pread=off
+
+grouped_first          2.20 t/s
+stable_slot            2.25 t/s
+async_conservative     2.40 t/s
+grouped_last           2.25 t/s
+```
+
+Interpretation: correctness is good across the three rows. On this very short
+Pro sample, async conservative is ahead of grouped/stable, but this should not
+be treated as the final Pro policy until a longer `n500` or `n2000` run confirms
+it. It is separate from the high-slot cliff: a Pro slot50 run at ctx32768/n500
+collapsed to roughly `0.23 t/s`, and the small model with `--ssd-cache 64GB`
+resolved to `slots=225`, `gpu-bank=63.78 GiB`, total about `76 GiB`, and also
+ran at roughly `0.2 t/s`.
+
 ## Benchmark Clues
 
 Small model runs showed slot count itself changes decode time even when memory is not exhausted.
@@ -74,6 +353,115 @@ Small model runs showed slot count itself changes decode time even when memory i
   - zero-miss routed calls also got slower with larger banks.
 
 This points at the resident bank execution/memory shape, not just SSD or prefetch overlap.
+
+The high-slot cliff is not currently explained by an extra user-space copy:
+the slow logs already showed `miss-direct-slot-pread=on`. In the default direct
+path, `pread()` targets the CPU-visible Metal slot buffer returned by
+`MTLBuffer.contents` plus the slot offset. The staged copy path only runs when
+`DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0` or when DS4 cannot get slot pointers; that
+path is `pread -> CPU scratch -> ds4_gpu_tensor_write() -> memcpy into
+MTLBuffer.contents`.
+
+DS4 currently allocates slot banks as shared `id<MTLBuffer>` tensors via
+`newBufferWithLength`. The llama.cpp SSD branch uses CPU-visible slot writes too,
+and its Metal backend additionally wraps page-aligned host memory with
+`newBufferWithBytesNoCopy` and uses Metal residency sets for large model buffers.
+To isolate whether DS4's high-slot collapse is page/residency related, this
+branch now has two opt-in diagnostics:
+
+```text
+DS4_FLASH_MOE_SLOT_BANK_RESIDENCY=1
+DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES=1
+```
+
+`DS4_FLASH_MOE_SLOT_BANK_RESIDENCY=1` requests a Metal residency set for the
+slot-bank owner buffers after allocation. `DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES=1`
+touches one byte per page at startup so first-touch page faults are moved out of
+decode. A slot8 smoke test requested residency and touched `2.27 GiB` of slot
+banks successfully; the real A/B still needs to run at the cliff size
+(`--ssd-cache 64GB` / slot225, or a smaller binary-search point).
+
+Follow-up high-slot run:
+
+```text
+small model, ds4-agent, --ssd-cache 64GB -> slots=225, total about 76.0GB
+DS4_FLASH_MOE_SLOT_BANK_RESIDENCY=1
+DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES=1
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+DS4_FLASH_MOE_STABLE_REPLAY=1
+DS4_FLASH_MOE_ASYNC_HANDOUT=0
+DS4_FLASH_MOE_ICB_REPLAY=0
+--no-int8
+
+decode status after reading ../ds4/ds4.c:
+ctx 46.2k/60.8k, generation about 0.2 t/s
+```
+
+Residency plus page-touch did not move the cliff. That weakens the simple
+"first-touch page fault" theory. `--no-int8` was intentional here to disable
+ANE/int8 effects for the experiment; it routes Flash-MoE through NAX-half/GPU
+fallback and is slower for large chunks, but we can leave that as a separate
+compute-path issue. The other live axis was that the agent prompt had already
+grown to about `46.2k` tokens after reading a large file, so high-slot tests
+should compare both a tiny prompt and the long-context agent state.
+
+Added one more falsifier:
+
+```text
+DS4_FLASH_MOE_RESET_SLOT_CACHE_AFTER_PREFILL=1
+```
+
+Alias:
+
+```text
+DS4_FLASH_MOE_CLEAR_SLOT_CACHE_AFTER_PREFILL=1
+```
+
+This clears slot ownership, replay metadata, decode slot IDs, slot ages, and ICB
+slot generations after full or resume prefill, while keeping the same allocated
+slot-bank buffers. It answers whether inference/decode throughput is hurt by
+inheriting a prefill-populated resident cache. If this does not improve the
+high-slot decode tokens/sec, the issue is more likely tied to the long-context
+decode path, the huge tool-result prompt shape, or the `--no-int8` compute path
+rather than prefill's slot-cache contents.
+
+Short-context falsifier:
+
+```text
+same small model, ds4-agent, --ssd-cache 64GB -> slots=225
+same residency/page-touch/no-int8/reset-after-prefill flags
+prompt: "hi"
+ctx 1.3k/60.8k, generation 37 tokens, 11.6 t/s
+```
+
+This shows the large slot-bank allocation itself is not sufficient to trigger
+the `0.2 t/s` inference-throughput collapse. Also, about 40k prompt/context
+tokens is not inherently fatal because the same class of prompt works with
+smaller slot allocations. The measured failure is still decode/generation
+speed; the current trigger is more likely the combination of high slot-bank
+memory footprint and non-tiny/agent tool-result decode state. Next tests should
+compare slot225 at a controlled long prompt against slot64/96 with the same
+prompt and compute flags, and add per-layer decode stage/profile counters around
+attention, indexer, routed MoE, and output head.
+
+In the ds4-agent tool-result reproduction, `-p ./ds4.c` is a short literal
+prompt first, then the agent reads the file as a tool result and resumes
+prefill:
+
+```text
+slot cache reset after KV payload load: layers=43 slots=225 cleared=9675
+session sync path=decode-suffix checkpoint=1274 prompt=1281 suffix=7
+session sync path=resume-prefill checkpoint=1356 prompt=46225 suffix=44869
+prefill 44869/44869 (100.0%) batch=191.8 t/s avg=285.6 t/s
+slot cache reset after resume prefill: layers=43 slots=225 cleared=9675
+decode still crawling after reset
+```
+
+That trace confirms the reset hook is active both after KV payload load and
+after the 44.9k-token resume-prefill. Since decode still crawls after the reset,
+prefill-populated slot metadata is ruled out. The next diagnostic should profile
+decode stages directly, preferably one token at slot225 and the same prompt at
+slot64/96.
 
 These measurements are only guardrails until the real per-expert replay object
 exists. The current branch still executes decode as one grouped banked routed-MoE
@@ -1356,6 +1744,67 @@ Conclusion: current ICB replay is useful for diagnosing stability, but it is
 not the speed path yet. A real stable execution object should be per resident
 layer/slot and should treat route position, weight scalar, and scratch/output
 offsets as rebound data rather than cache-key identity.
+
+## Pro 1.6T Slot-Bank Caveat
+
+The smaller `dsv4-iq2xxs-expert-major` sweeps do not directly predict the best
+slot-bank size for the 1.6T Pro Flash sidecar. For Pro, each expert record is
+much larger and a bank around 50 slots/layer may still be fastest if the higher
+expert hit rate outweighs residency/page-locality costs. Treat large-bank
+warnings as calibration prompts, not as advice to force tiny banks; compare the
+actual model/storage/device combination before drawing conclusions.
+
+Follow-up Pro run on M5 Max, `~/Models/DSv4Pro-flash`, slot50, ctx32768,
+PyGame prompt, n500:
+
+```text
+/tmp/ds4_flash_moe_async_pass1_20260605_131533
+grouped_first hash f1878e3437c...
+decode I/O: max-loads=0, miss-direct-slot-pread=on, shared-down=on, slots=50
+prefill 0.52 t/s, generation 0.23 t/s
+```
+
+This run shows a severe slot50 Pro decode-throughput collapse under the current defaults. The
+sweep helper failed after the first row because it was edited while Bash was
+still executing it; the final helper passes `bash -n`. Rerun Pro comparisons
+from a fresh helper process, preferably starting with shorter `N_TOKENS` and
+explicit `--ssd-cache` budgets or lower slot counts to map the cliff before
+spending another full 500-token row.
+
+## SSD Cache Budget Flag
+
+Added a shared `--ssd-cache BYTES|auto` frontend option for `ds4`, `ds4-agent`,
+and `ds4-server`. It feeds the common `ds4_engine_options` path and resolves the
+Flash-MoE slot count before Metal slot-bank allocation.
+
+- Explicit values such as `25GB`, `25gb`, `25GiB`, `25000M`, or raw bytes are
+  treated as the target GPU slot-bank cache budget.
+- `auto` reads currently available memory, subtracts the dense mapped weight
+  size and the context-buffer estimate for the selected `--ctx`, then assigns
+  85% of the remainder to the slot bank.
+- The resolver uses the current sidecar layout mode when converting budget to
+  slots, so mixed expert-major and layer-slab overhead are reflected in the
+  selected slot count.
+- `--ssd-cache` is rejected unless Flash-MoE slot-bank mode is active, either
+  explicitly or through package auto-detection.
+
+Smoke checks while another Pro sweep owned a 50-slot bank:
+
+```text
+./ds4 -m ~/Models/DSv4Pro-flash --ssd-cache 25GB --ctx 32768 --inspect
+resolved slots=23, gpu-bank=24.28 GiB, budget=25.00 GiB
+
+./ds4 -m ~/Models/DSv4Pro-flash --ssd-cache 1GB --ctx 32768 --inspect
+rejected: min-slots=6 needs 6.33 GiB
+
+./ds4 -m ~/Models/DSv4Pro-flash --ssd-cache auto --ctx 32768 --inspect
+rejected under active memory pressure:
+available=26.56 GiB, dense=27.40 GiB, context=3.54 GiB
+```
+
+The `auto` result is pressure-sensitive by design; it should be measured after
+the active benchmark/model process exits if the goal is startup sizing for a
+clean machine.
 
 ## Open Questions
 
