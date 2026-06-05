@@ -463,6 +463,144 @@ prefill-populated slot metadata is ruled out. The next diagnostic should profile
 decode stages directly, preferably one token at slot225 and the same prompt at
 slot64/96.
 
+Controlled prompt-file reproduction, outside the agent/tool loop:
+
+```text
+prompt: first 140000 bytes of ds4.c, about 46.7k token-dump lines
+ctx: 60768
+flags: no decode prefetch, stable replay on, async/ICB off, Metal replay on,
+       --no-int8, reset-after-prefill on
+
+slot225 / --ssd-cache 64GB:
+prefill 302.97 t/s, generation 0.30 t/s
+
+slot64:
+prefill 312.02 t/s, generation 5.16 t/s
+```
+
+Decode-stage-only profile for one generated token on the same prompt:
+
+```text
+slot225:
+routed_moe             2039.396 ms total, avg 47.428 ms/layer, max 134.807 ms
+kv_path                 138.701 ms total
+compressor_indexer       86.014 ms total
+profiled generation       0.41 t/s
+
+slot64:
+routed_moe              302.350 ms total, avg 7.031 ms/layer, max 19.309 ms
+compressor_indexer       20.407 ms total
+kv_path                  16.073 ms total
+profiled generation       2.33 t/s
+```
+
+This localizes the high-slot cliff to the routed-MoE banked decode kernel path,
+not attention, indexer, KV, or decode prefetch. The routed-MoE cost grows by
+about 6.7x between slot64 and slot225 on the same prompt, while prefill remains
+healthy in both runs.
+
+New falsifier to test the prefill-write/page-placement theory:
+
+```text
+DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL=1
+```
+
+Alias:
+
+```text
+DS4_FLASH_MOE_RECREATE_SLOT_BANK_AFTER_PREFILL=1
+```
+
+This synchronizes after prefill/KV payload load, frees resident slot-bank Metal
+buffers, recreates them with the same slot count/layout, then clears metadata.
+If slot225 decode recovers, prefill writes/page placement are poisoning the
+resident bank. If it does not recover, the slot225 routed-MoE kernel is slow
+because of the large bank's live address/stride/working-set shape itself.
+
+First slot225 reallocation test on the same controlled prompt:
+
+```text
+DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL=1
+slot225 / --ssd-cache 64GB
+prefill 282.78 t/s, generation 2.60 t/s
+```
+
+This is a major recovery from `0.30 t/s` without reallocation, while still below
+slot64's `5.16 t/s`. That points to prefill-time slot-bank writes/page placement
+as a real part of the cliff. The next split is to disable prefill writes into the
+resident slot bank and prefill lookahead/prefetch, then compare against the
+reallocation recovery.
+
+Related prefill knobs to isolate if reallocation helps:
+
+```text
+DS4_FLASH_MOE_PREFETCH=0
+DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=0
+DS4_FLASH_MOE_XLAYER_PREFETCH=0
+```
+
+All three disabled, without slot-bank reallocation:
+
+```text
+slot225 / --ssd-cache 64GB
+prefill I/O: bank-prefetch=0 xlayer=off
+realloc-after-prefill=off
+prefill 308.94 t/s, generation 1.69 t/s
+```
+
+This partially recovers the cliff without teardown. It is still below the
+reallocation result (`2.60 t/s`), so prefill-side resident-bank writes/prefetch
+are implicated but may not be the only page-placement effect.
+
+`DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=0` only, leaving bank-prefetch at default:
+
+```text
+slot225 / --ssd-cache 64GB
+prefill I/O: bank-prefetch=3 xlayer=auto<=6k-tok topk=112
+realloc-after-prefill=off
+prefill 308.44 t/s, generation 1.20 t/s
+```
+
+This also partially recovers from `0.30 t/s`, but less than disabling the whole
+prefill-side prefetch/cache set.
+
+`DS4_FLASH_MOE_PREFETCH=0` only, leaving prefill slot-cache top-k behavior at
+default:
+
+```text
+slot225 / --ssd-cache 64GB
+prefill I/O: bank-prefetch=0 xlayer=auto<=6k-tok topk=112
+realloc-after-prefill=off
+prefill 306.46 t/s, generation 1.44 t/s
+```
+
+Both prefill bank-prefetch and resident slot-cache top-k behavior contribute to
+the cliff; disabling either partially recovers, disabling both recovers more.
+
+`DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0`, leaving prefill-side behavior at default:
+
+```text
+slot225 / --ssd-cache 64GB
+decode I/O: miss-direct-slot-pread=off
+realloc-after-prefill=off
+prefill 309.19 t/s, generation 1.50 t/s
+```
+
+This partially recovers from `0.30 t/s`, so direct pread into resident Metal slot
+buffers participates in the bad interaction. It is not the whole issue because
+full reallocation still performs better, and prefill-side knobs also matter.
+
+Code-path note:
+
+- `metal_graph_flash_moe_install()` uses direct slot pread by default:
+  `DS4_FLASH_MOE_DIRECT_SLOT_PREAD` defaults on, mixed layout gets the resident
+  slot pointer and calls `flash_moe_pread_split(..., dst, expert_stride, ...)`.
+- Prefill top-k slot prefetch usually stages the expert first, then calls
+  `metal_graph_flash_moe_prefetch_slot_from_buf()`, which reserves a resident
+  slot and writes from `slot_prefetch_src` into that slot.
+- The prefill I/O banner now prints `slot-cache-topk=N` separately from the
+  x-layer prefetch `topk=N` descriptor to avoid confusing those two knobs.
+
 These measurements are only guardrails until the real per-expert replay object
 exists. The current branch still executes decode as one grouped banked routed-MoE
 call for the six routed experts, so it has not yet implemented the original

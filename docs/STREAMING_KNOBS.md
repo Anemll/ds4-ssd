@@ -28,7 +28,7 @@ ds4: applied sidecar tuning profile [...]
 ds4: Flash-MoE sidecar loaded: ... (slot-bank=N, expert-record X MiB)
 ds4: Flash-MoE slot banks allocated: layers=... slots=N gpu-bank=Y MiB
 ds4: prefill compute: ...
-ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... bank-prefetch=... xlayer=...
+ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... bank-prefetch=... slot-cache-topk=... xlayer=...
 ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
@@ -222,6 +222,7 @@ machines such as M3 Ultra and M5 Max. Change them only for controlled A/B runs.
 | `DS4_FLASH_MOE_SLOT_BANK_RESIDENCY` | none | `0` | Metal-only diagnostic. Requests a Metal residency set for slot-bank owner buffers after allocation. Use for high-slot decode cliff A/B tests. |
 | `DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES` | none | `0` | Metal-only diagnostic. Touches one byte per slot-bank page at startup so page faults happen before decode. Expensive for large banks; use only for cliff diagnosis. |
 | `DS4_FLASH_MOE_RESET_SLOT_CACHE_AFTER_PREFILL` | none | `0` | Diagnostic. Clears slot ownership/replay metadata after full or resume prefill, so decode starts with an empty slot cache while keeping the same allocated slot-bank memory. Alias: `DS4_FLASH_MOE_CLEAR_SLOT_CACHE_AFTER_PREFILL`. |
+| `DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL` | none | `0` | Diagnostic. After full/resume prefill or KV payload load, synchronizes, frees the resident slot-bank Metal buffers, recreates them with the same slot count/layout, and resets slot metadata. Alias: `DS4_FLASH_MOE_RECREATE_SLOT_BANK_AFTER_PREFILL`. Use to test whether prefill writes/page placement poison high-slot decode. |
 | `DS4_FLASH_MOE_DECODE_TRACE_OUT` | none | unset | Writes decode routed expert IDs as `pos layer expert...` rows for oracle/predictor A/B tests. |
 | `DS4_FLASH_MOE_DECODE_ORACLE_IN` | none | unset | Replays a `DS4_FLASH_MOE_DECODE_TRACE_OUT` file as an exact decode prefetch oracle. Diagnostic only; it is not a production predictor. |
 
