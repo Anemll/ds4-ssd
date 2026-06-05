@@ -549,33 +549,34 @@ prefill 308.94 t/s, generation 1.69 t/s
 ```
 
 This partially recovers the cliff without teardown. It is still below the
-reallocation result (`2.60 t/s`), so prefill-side resident-bank writes/prefetch
-are implicated but may not be the only page-placement effect.
+reallocation result (`2.60 t/s`), so prefill-side write/prefetch behavior is
+implicated but may not be the only page-placement effect.
 
-`DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=0` only, leaving bank-prefetch at default:
+Important correction after adding the clearer prefill banner:
 
 ```text
-slot225 / --ssd-cache 64GB
-prefill I/O: bank-prefetch=3 xlayer=auto<=6k-tok topk=112
-realloc-after-prefill=off
-prefill 308.44 t/s, generation 1.20 t/s
+prefill I/O: ... bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=112
 ```
 
-This also partially recovers from `0.30 t/s`, but less than disabling the whole
-prefill-side prefetch/cache set.
+The old `topk=112` reading was the x-layer prefetch descriptor, not resident
+slot-cache top-k. For this controlled long prompt, resident `slot-cache-topk`
+is `0` unless explicitly configured. Therefore the `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=0`
+row should be treated as a no-op/noisy run, not evidence that resident top-k
+installs were active by default.
 
-`DS4_FLASH_MOE_PREFETCH=0` only, leaving prefill slot-cache top-k behavior at
-default:
+`DS4_FLASH_MOE_PREFETCH=0` only:
 
 ```text
 slot225 / --ssd-cache 64GB
-prefill I/O: bank-prefetch=0 xlayer=auto<=6k-tok topk=112
+prefill I/O: bank-prefetch=0 slot-cache-topk=0 xlayer=auto<=6k-tok topk=112
 realloc-after-prefill=off
 prefill 306.46 t/s, generation 1.44 t/s
 ```
 
-Both prefill bank-prefetch and resident slot-cache top-k behavior contribute to
-the cliff; disabling either partially recovers, disabling both recovers more.
+Bank-prefetch-off partially recovers from `0.30 t/s`, but less than reallocation.
+The `1.44` vs `1.69` difference between bank-prefetch-off-only and "all off" is
+not yet clean because resident slot-cache top-k appears to have been `0` already,
+and x-layer auto is off for this >6k-token prompt.
 
 `DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0`, leaving prefill-side behavior at default:
 
@@ -590,12 +591,43 @@ This partially recovers from `0.30 t/s`, so direct pread into resident Metal slo
 buffers participates in the bad interaction. It is not the whole issue because
 full reallocation still performs better, and prefill-side knobs also matter.
 
+Combined reallocation plus direct-slot-pread-off:
+
+```text
+DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL=1
+DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0
+prefill I/O: bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=112
+decode I/O: miss-direct-slot-pread=off realloc-after-prefill=on
+prefill 294.80 t/s, generation 2.47 t/s
+```
+
+This does not beat reallocation alone (`2.60 t/s`), so staged decode misses do
+not improve the fresh-bank case. The strongest mitigation remains recreating the
+resident slot bank after prefill.
+
+Current recommended direction for the high-slot cliff:
+
+- Treat reset-after-prefill as a failed metadata-only fix. It clears slot
+  ownership/replay state, but decode remains slow at slot225.
+- Treat reallocation-after-prefill as the strongest signal. It recovers slot225
+  from `0.30 t/s` to `2.60 t/s`, so prefill-time writes/page placement of the
+  resident Metal slot bank are part of the issue.
+- For high-slot SSD-cache runs, prototype a production version where prefill
+  uses transient scratch/staging only, then the decode resident slot bank is
+  allocated or refreshed after prefill.
+- If we want to preserve prefill-warmed experts, copy a small warm set into the
+  fresh decode bank after prefill with a Metal/GPU copy path, not direct CPU
+  `pread` into the final resident slots.
+- Keep direct resident-slot `pread` as an A/B flag until we understand why the
+  nominal no-copy path is slower than the staged path at high slot counts.
+
 Code-path note:
 
 - `metal_graph_flash_moe_install()` uses direct slot pread by default:
   `DS4_FLASH_MOE_DIRECT_SLOT_PREAD` defaults on, mixed layout gets the resident
   slot pointer and calls `flash_moe_pread_split(..., dst, expert_stride, ...)`.
-- Prefill top-k slot prefetch usually stages the expert first, then calls
+- If resident prefill slot-cache top-k is enabled, prefill slot prefetch usually
+  stages the expert first, then calls
   `metal_graph_flash_moe_prefetch_slot_from_buf()`, which reserves a resident
   slot and writes from `slot_prefetch_src` into that slot.
 - The prefill I/O banner now prints `slot-cache-topk=N` separately from the
