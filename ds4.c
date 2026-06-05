@@ -23426,13 +23426,14 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
             "ds4: prefill I/O: io-split=%d async-pread=%s pread-threads=%d readahead=%d bank-prefetch=%d xlayer=%s\n",
             prefill_split, async_pread ? "on" : "off", pread_thr, readahead, bank_pf, xlayer_desc);
         fprintf(stderr,
-            "ds4: decode  I/O: io-split=%d router-prefetch=%s scratch-prefetch=%s max-loads=%u layer-stride=%u direct-slot-pread=%s shared-down=%s slots=%u\n",
+            "ds4: decode  I/O: io-split=%d router-prefetch=%s scratch-prefetch=%s max-loads=%u layer-stride=%u miss-direct-slot-pread=%s prefetch-direct-slot-pread=%s shared-down=%s slots=%u\n",
             decode_split,
             decode_router_prefetch ? "on" : "off",
             (decode_router_prefetch &&
              flash_moe_decode_prefetch_scratch_only_enabled()) ? "on" : "off",
             flash_moe_decode_prefetch_max_loads(),
             flash_moe_decode_prefetch_layer_stride(),
+            flash_moe_direct_slot_pread_enabled() ? "on" : "off",
             flash_moe_decode_prefetch_direct_slot_pread_enabled() ? "on" : "off",
             flash_moe_decode_prefetch_shared_down_enabled() ? "on" : "off",
             slot_bank);

@@ -1,6 +1,6 @@
 # Flash-MoE Stable Slot Progress
 
-Date: 2026-06-04
+Date: 2026-06-05
 
 Branch: `codex/stable-slot-replay-experiment`
 
@@ -19,6 +19,47 @@ The current `ds4-ssd` decode path has a stable residency map, but not the full s
 - The replay cache currently caches shallow encoder args/grid for that 6-expert call, not a reusable per-expert execution object.
 
 The 6-expert signature is unlikely to repeat often, so caching the whole top-6 group is the wrong unit for stable replay.
+
+## Stable Default Preset
+
+The release-stable sidecar default is now the conservative fast path:
+
+- grouped banked decode remains the default execution mode;
+- mixed expert-major slots are default-on;
+- direct miss installs into resident slots are default-on;
+- decode router/scratch prefetch is default-off with
+  `DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0`;
+- stable/baked slot replay, async handout, and ICB replay are default-off;
+- generic Metal decode replay remains default-on;
+- routed-down `sum6` remains opt-in through
+  `DS4_METAL_ENABLE_ROUTED_DOWN_SUM6=1`.
+
+The three comparison modes are:
+
+```text
+# 1. Stable release default / grouped baseline
+DS4_FLASH_MOE_STABLE_REPLAY=0
+DS4_FLASH_MOE_BAKED_SLOT_DECODE=0
+DS4_FLASH_MOE_ASYNC_HANDOUT=0
+DS4_FLASH_MOE_ICB_REPLAY=0
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+
+# 2. Stable slot execution, no async
+DS4_FLASH_MOE_STABLE_REPLAY=1
+DS4_FLASH_MOE_ASYNC_HANDOUT=0
+DS4_FLASH_MOE_ICB_REPLAY=0
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+
+# 3. Dynamic grouped / async stable experiment
+DS4_FLASH_MOE_STABLE_REPLAY=1
+DS4_FLASH_MOE_ASYNC_HANDOUT=1
+DS4_FLASH_MOE_ICB_REPLAY=0
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+```
+
+Profile defaults are applied with `setenv(..., overwrite=0)`, so explicit shell
+exports still win. The async/ICB paths stay available for experiments, but they
+should not turn on from a bare `./ds4` sidecar run.
 
 ## Benchmark Clues
 
@@ -915,7 +956,8 @@ explicit replay env flags):
 
 decode banner:
 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1
-direct-slot-pread=off shared-down=on slots=64
+miss-direct-slot-pread=on prefetch-direct-slot-pread=off shared-down=on
+slots=64
 
 Terminal run 1: generation 20.87 t/s
 Terminal run 2: generation 20.82 t/s
