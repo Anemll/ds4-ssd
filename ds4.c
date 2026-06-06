@@ -9722,6 +9722,7 @@ typedef struct {
     bool flash_layer_slot_slab;
     ds4_gpu_tensor *flash_layer_slot_slab_bank;
     uint64_t flash_layer_slot_slab_bytes;
+    uint64_t flash_slot_bank_bytes;
     ds4_gpu_tensor *flash_mixed_bank[DS4_MAX_LAYER];
     ds4_gpu_tensor *flash_gate_bank[DS4_MAX_LAYER];
     ds4_gpu_tensor *flash_up_bank[DS4_MAX_LAYER];
@@ -11275,13 +11276,14 @@ static bool metal_graph_alloc(
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
 static int get_prefill_dedup_prefetch(void);
 static int get_prefill_slot_cache_topk(uint32_t slot_bank);
-static void metal_graph_log_prefill_compute_once(uint32_t slot_bank);
+static void metal_graph_log_prefill_compute_once(const ds4_gpu_graph *g, uint32_t slot_bank);
 static bool flash_moe_mixed_slot_bank_enabled(void);
 static bool flash_moe_layer_slot_slab_enabled(void);
 static bool flash_moe_slot_bank_residency_enabled(void);
 static bool flash_moe_slot_bank_touch_pages_enabled(void);
 static bool flash_moe_baked_slot_decode_enabled(void);
 static uint32_t flash_moe_decode_prefetch_max_loads(void);
+static const char *flash_moe_realloc_slot_bank_after_prefill_mode(const ds4_gpu_graph *g);
 
 static bool metal_graph_flash_moe_prepare_slot_bank_owner(
         ds4_gpu_tensor *tensor,
@@ -11325,6 +11327,7 @@ static void metal_graph_flash_moe_free_slot_banks(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->flash_layer_slot_slab_bank);
     g->flash_layer_slot_slab_bank = NULL;
     g->flash_layer_slot_slab_bytes = 0;
+    g->flash_slot_bank_bytes = 0;
 }
 
 static bool metal_graph_flash_moe_alloc_slot_banks(
@@ -11494,6 +11497,7 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
     const uint64_t dense_bytes = g->dense_mapped_bytes;
     const uint64_t context_bytes = g->context_buffer_bytes;
     const uint64_t total_bytes = total_bank_bytes + dense_bytes + context_bytes;
+    g->flash_slot_bank_bytes = total_bank_bytes;
     fprintf(stderr,
             "ds4: Flash-MoE slot banks %s: layers=%u slots=%u "
             "gpu-bank=%.1fGB Dense: %.1fGB Context: %.1fGB Total <<<< %.1fGB >>>>\n",
@@ -11516,18 +11520,20 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     "(slots=%u, gpu-bank=%.2f GiB, expert-record %.2f MiB). "
                     "For Pro SSD decode, calibrate on this model/storage: very large models may "
                     "prefer larger banks for hit rate, while residency/page-locality cliffs can "
-                    "still make smaller banks faster.\n",
+                    "still make smaller banks faster. High-slot post-prefill bank recreation is %s.\n",
                     sidecar->slot_bank,
                     (double)total_bank_bytes / 1073741824.0,
-                    (double)g->flash_moe->max_expert_stride / 1048576.0);
+                    (double)g->flash_moe->max_expert_stride / 1048576.0,
+                    flash_moe_realloc_slot_bank_after_prefill_mode(g));
         } else {
             fprintf(stderr,
                     "ds4: warning: very large Flash-MoE slot bank can collapse decode throughput "
                     "(slots=%u, gpu-bank=%.2f GiB). On 96 GiB M3 Ultra, 128 slots can work "
                     "with current tuning; if decode tanks, compare --moe-slot-bank 64/96 and "
-                    "remove profiling/no-residency test flags.\n",
+                    "remove profiling/no-residency test flags. High-slot post-prefill bank recreation is %s.\n",
                     sidecar->slot_bank,
-                    (double)total_bank_bytes / 1073741824.0);
+                    (double)total_bank_bytes / 1073741824.0,
+                    flash_moe_realloc_slot_bank_after_prefill_mode(g));
         }
     }
 
@@ -11671,7 +11677,7 @@ static bool metal_graph_enable_flash_moe(
 
     /* Resolved prefill compute path (routed/dense + precision), printed right
      * here alongside the slot-bank line so it shows at startup. */
-    metal_graph_log_prefill_compute_once(sidecar->slot_bank);
+    metal_graph_log_prefill_compute_once(g, sidecar->slot_bank);
 
     /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
     {
@@ -11765,6 +11771,17 @@ static int get_prefill_slot_cache_target(uint32_t slot_bank)
 static bool env_flag_enabled(const char *name) {
     const char *env = getenv(name);
     return env && env[0] && atoi(env) != 0;
+}
+
+static bool env_flag_configured_value(
+        const char *primary,
+        const char *alias,
+        bool       *value_out) {
+    const char *env = primary ? getenv(primary) : NULL;
+    if ((!env || !env[0]) && alias) env = getenv(alias);
+    if (!env || !env[0]) return false;
+    if (value_out) *value_out = atoi(env) != 0;
+    return true;
 }
 
 static void ds4_setenv_override(const char *name, const char *value) {
@@ -15443,9 +15460,37 @@ static bool flash_moe_reset_slot_cache_after_prefill_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_CLEAR_SLOT_CACHE_AFTER_PREFILL");
 }
 
-static bool flash_moe_realloc_slot_bank_after_prefill_enabled(void) {
-    return env_flag_enabled("DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL") ||
-           env_flag_enabled("DS4_FLASH_MOE_RECREATE_SLOT_BANK_AFTER_PREFILL");
+static uint64_t flash_moe_auto_realloc_slot_bank_threshold_bytes(void) {
+    const char *env = getenv("DS4_FLASH_MOE_HIGH_SLOT_REALLOC_GB");
+    double gib = 44.0;
+    if (env && env[0]) gib = atof(env);
+    if (gib <= 0.0) return 0;
+    const double bytes = gib * 1073741824.0;
+    if (bytes >= (double)UINT64_MAX) return UINT64_MAX;
+    return (uint64_t)bytes;
+}
+
+static bool flash_moe_realloc_slot_bank_after_prefill_enabled(
+        const ds4_gpu_graph *g) {
+    bool explicit_value = false;
+    if (env_flag_configured_value("DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL",
+                                  "DS4_FLASH_MOE_RECREATE_SLOT_BANK_AFTER_PREFILL",
+                                  &explicit_value)) {
+        return explicit_value;
+    }
+    const uint64_t threshold = flash_moe_auto_realloc_slot_bank_threshold_bytes();
+    return g && threshold > 0 && g->flash_slot_bank_bytes >= threshold;
+}
+
+static const char *flash_moe_realloc_slot_bank_after_prefill_mode(
+        const ds4_gpu_graph *g) {
+    bool explicit_value = false;
+    if (env_flag_configured_value("DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL",
+                                  "DS4_FLASH_MOE_RECREATE_SLOT_BANK_AFTER_PREFILL",
+                                  &explicit_value)) {
+        return explicit_value ? "on" : "off";
+    }
+    return flash_moe_realloc_slot_bank_after_prefill_enabled(g) ? "auto" : "off";
 }
 
 static void metal_graph_flash_moe_reset_slot_cache(
@@ -15498,14 +15543,16 @@ static void metal_graph_flash_moe_reset_slot_cache(
 static bool metal_graph_flash_moe_realloc_slot_banks_after_prefill(
         ds4_gpu_graph *g,
         const char    *reason) {
-    if (!flash_moe_realloc_slot_bank_after_prefill_enabled()) return true;
+    if (!flash_moe_realloc_slot_bank_after_prefill_enabled(g)) return true;
     if (!g || !g->flash_moe || g->flash_slot_bank == 0) return true;
 
     fprintf(stderr,
-            "ds4: Flash-MoE slot banks tearing down/recreating %s: layers=%u slots=%u\n",
+            "ds4: Flash-MoE slot banks tearing down/recreating %s: layers=%u slots=%u gpu-bank=%.2f GiB mode=%s\n",
             reason && reason[0] ? reason : "after prefill",
             (unsigned)DS4_N_LAYER,
-            g->flash_slot_bank);
+            g->flash_slot_bank,
+            (double)g->flash_slot_bank_bytes / 1073741824.0,
+            flash_moe_realloc_slot_bank_after_prefill_mode(g));
     if (ds4_gpu_synchronize() == 0) {
         fprintf(stderr,
                 "ds4: failed to synchronize before Flash-MoE slot-bank reallocation\n");
@@ -15525,7 +15572,7 @@ static bool metal_graph_flash_moe_reset_slot_cache_after_prefill(
         ds4_gpu_graph *g,
         const char    *reason) {
     const bool do_reset = flash_moe_reset_slot_cache_after_prefill_enabled();
-    const bool do_realloc = flash_moe_realloc_slot_bank_after_prefill_enabled();
+    const bool do_realloc = flash_moe_realloc_slot_bank_after_prefill_enabled(g);
     if (!do_reset && !do_realloc) return true;
     if (do_realloc && !metal_graph_flash_moe_realloc_slot_banks_after_prefill(g, reason)) {
         return false;
@@ -15535,13 +15582,14 @@ static bool metal_graph_flash_moe_reset_slot_cache_after_prefill(
 }
 
 static void metal_graph_flash_moe_trace_session_sync(
+        const ds4_gpu_graph *g,
         const char *path,
         int         checkpoint_len,
         int         prompt_len,
         int         suffix,
         uint32_t    resume_min) {
     if (!flash_moe_reset_slot_cache_after_prefill_enabled() &&
-        !flash_moe_realloc_slot_bank_after_prefill_enabled() &&
+        !flash_moe_realloc_slot_bank_after_prefill_enabled(g) &&
         !env_flag_enabled("DS4_SESSION_SYNC_TRACE")) {
         return;
     }
@@ -15553,7 +15601,7 @@ static void metal_graph_flash_moe_trace_session_sync(
             suffix,
             resume_min,
             flash_moe_reset_slot_cache_after_prefill_enabled() ? "on" : "off",
-            flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off");
+            flash_moe_realloc_slot_bank_after_prefill_mode(g));
 }
 
 /* Single eviction policy shared by every slot-acquisition path over the one
@@ -23979,7 +24027,9 @@ static bool metal_graph_prefill_batch_row_logits(
  */
 /* One-time banner naming the resolved prefill compute path (routed experts +
  * dense projections, with precision), printed like the other startup lines. */
-static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
+static void metal_graph_log_prefill_compute_once(
+        const ds4_gpu_graph *g,
+        uint32_t             slot_bank) {
     static bool logged = false;
     if (logged) return;
     logged = true;
@@ -24086,7 +24136,7 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
             flash_moe_decode_prefetch_direct_slot_pread_enabled() ? "on" : "off",
             flash_moe_decode_prefetch_shared_down_enabled() ? "on" : "off",
             flash_moe_reset_slot_cache_after_prefill_enabled() ? "on" : "off",
-            flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off",
+            flash_moe_realloc_slot_bank_after_prefill_mode(g),
             slot_bank);
 }
 
@@ -28602,7 +28652,8 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
         const int suffix = prompt->len - s->checkpoint.len;
         const uint32_t resume_min = metal_graph_resume_prefill_min_tokens();
         if (suffix > 0 && (uint32_t)suffix >= resume_min) {
-            metal_graph_flash_moe_trace_session_sync("resume-prefill",
+            metal_graph_flash_moe_trace_session_sync(&s->graph,
+                                                     "resume-prefill",
                                                      sync_checkpoint_len,
                                                      prompt->len,
                                                      suffix,
@@ -28669,7 +28720,8 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
             return 0;
         }
 
-        metal_graph_flash_moe_trace_session_sync(suffix > 0 ? "decode-suffix" : "cache-hit",
+        metal_graph_flash_moe_trace_session_sync(&s->graph,
+                                                 suffix > 0 ? "decode-suffix" : "cache-hit",
                                                  sync_checkpoint_len,
                                                  prompt->len,
                                                  suffix,
@@ -28697,7 +28749,8 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
 full_reprefill: ;
     bool ok;
     const uint32_t effective_prefill_cap = metal_graph_effective_prefill_cap(&s->graph);
-    metal_graph_flash_moe_trace_session_sync("full-prefill",
+    metal_graph_flash_moe_trace_session_sync(&s->graph,
+                                             "full-prefill",
                                              sync_checkpoint_len,
                                              prompt->len,
                                              prompt->len,

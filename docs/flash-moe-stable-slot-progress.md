@@ -621,6 +621,18 @@ Current recommended direction for the high-slot cliff:
 - Keep direct resident-slot `pread` as an A/B flag until we understand why the
   nominal no-copy path is slower than the staged path at high slot counts.
 
+Implementation update after external review:
+
+- `DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL` now has an automatic
+  high-slot policy. If the flag is unset and the allocated resident slot bank is
+  at least `DS4_FLASH_MOE_HIGH_SLOT_REALLOC_GB` GiB, default `44`, DS4 tears
+  down and recreates the decode slot bank after full/resume prefill or KV
+  payload load.
+- Explicit `DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL=0` disables the
+  policy for A/B tests; explicit `1` forces it even below the threshold.
+- Startup/session logs print `realloc-after-prefill=auto` when the high-slot
+  policy, rather than an explicit env flag, is active.
+
 Code-path note:
 
 - `metal_graph_flash_moe_install()` uses direct slot pread by default:

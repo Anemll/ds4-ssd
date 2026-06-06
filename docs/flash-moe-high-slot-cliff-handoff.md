@@ -43,6 +43,13 @@ another path known not to poison later GPU reads. Resetting metadata alone is
 not enough: `DS4_FLASH_MOE_CLEAR_SLOT_CACHE_AFTER_PREFILL=1` clears ownership
 and replay state but the high-slot decode cliff remains.
 
+Branch update: the first safe lifecycle is now implemented as an automatic
+high-slot policy. If `DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL` is unset
+and the resident slot bank is at least `DS4_FLASH_MOE_HIGH_SLOT_REALLOC_GB` GiB
+(`44` by default), DS4 recreates the decode slot bank after prefill/KV payload
+load and logs `realloc-after-prefill=auto`. Explicit env `0` disables this for
+A/B tests; explicit env `1` forces it.
+
 ## Reproduction Setup
 
 Machine:
