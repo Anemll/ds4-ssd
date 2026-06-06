@@ -5617,6 +5617,29 @@ int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count)
     float *p = ds4_gpu_tensor_contents(tensor);
     if (!p && count != 0) return 0;
     for (uint64_t i = 0; i < count; i++) p[i] = value;
+    if (count != 0 && !ds4_gpu_tensor_did_modify(tensor, 0, count * sizeof(float))) return 0;
+    return 1;
+}
+
+static int ds4_gpu_tensor_did_modify_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_DID_MODIFY_RANGE");
+    return env == NULL || env[0] == '\0' || atoi(env) != 0;
+}
+
+int ds4_gpu_tensor_did_modify(ds4_gpu_tensor *tensor, uint64_t offset, uint64_t bytes) {
+    if (!tensor) return 0;
+    DS4MetalTensor *obj = ds4_gpu_tensor_obj(tensor);
+    if (offset > obj.bytes || bytes > obj.bytes - offset) return 0;
+    if (bytes == 0) return 1;
+    if (!ds4_gpu_tensor_did_modify_enabled()) return 1;
+    if (obj.offset > (uint64_t)NSUIntegerMax || offset > (uint64_t)NSUIntegerMax - obj.offset ||
+        bytes > (uint64_t)NSUIntegerMax) {
+        return 0;
+    }
+    const uint64_t absolute_offset = obj.offset + offset;
+    @autoreleasepool {
+        [obj.buffer didModifyRange:NSMakeRange((NSUInteger)absolute_offset, (NSUInteger)bytes)];
+    }
     return 1;
 }
 
@@ -5626,6 +5649,7 @@ int ds4_gpu_tensor_write(ds4_gpu_tensor *tensor, uint64_t offset, const void *da
     if (offset > obj.bytes || bytes > obj.bytes - offset) return 0;
     if (bytes != 0) {
         memcpy((uint8_t *)[obj.buffer contents] + obj.offset + offset, data, (size_t)bytes);
+        return ds4_gpu_tensor_did_modify(tensor, offset, bytes);
     }
     return 1;
 }
@@ -21696,7 +21720,9 @@ int ds4_gpu_ane_direct_eval_one_expert(
         /* Direct ANE eval. Inputs are i8, output fp16 written to out_p. */
         const bool ok = ds4_ane_mlp_i8w_i8x_tiled_fused_eval(
             ctx, gate_p, up_p, down_p, x_p, out_p);
-        return ok ? 1 : 0;
+        if (!ok) return 0;
+        const uint64_t out_bytes = (uint64_t)refs * out_dim * sizeof(uint16_t);
+        return ds4_gpu_tensor_did_modify(out_f16, 0, out_bytes);
     }
 }
 

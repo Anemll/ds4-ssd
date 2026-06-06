@@ -340,18 +340,44 @@ GPU-read locality.
 
 ## Candidate Direction
 
+Updated direction after the user correction:
+
+Do not treat automatic teardown/reallocation after prefill as the solution. It is
+only a diagnostic showing that the resident bank's allocation/write history can
+poison decode throughput.
+
+Do not start with one allocation per slot/stride. That still lets CPU writes land
+inside a cache-managed slot abstraction and does not test the desired ownership
+model cleanly.
+
+The current diagnostic implementation is:
+
+```bash
+DS4_FLASH_MOE_DID_MODIFY_RANGE=1
+DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1
+# alias:
+DS4_FLASH_MOE_FULL_RESIDENT_EXPERT_BUFFERS=1
+```
+
+This allocates one Metal buffer per `(layer, semantic expert_id)`, preloads every
+expert record into its own buffer, sets `slot_id == expert_id`, disables decode
+prefetch/prefill slot-cache writes, and runs routed decode route-wise by binding
+that expert-owned buffer as a one-entry bank. It also calls `didModifyRange`
+after CPU writes into Metal buffers, including direct `pread()` preloads.
+
 What I would do next:
 
-- keep decode prefetch off while debugging this cliff;
-- for large `--ssd-cache`/high-slot runs, allocate or recreate the decode slot
-  bank after prefill by default;
-- disable or reduce prefill bank-prefetch writes into the final resident bank;
-- avoid direct `pread` into final resident Metal buffers for high-slot banks until
-  Metal/page-placement behavior is understood;
-- test a Metal-copy based warm-expert transfer from prefill scratch into the
-  fresh decode bank.
+- first A/B direct slot `pread()` with `DS4_FLASH_MOE_DID_MODIFY_RANGE=0/1`;
+- test the new per-semantic-expert mode on the small IQ2XXS sidecar;
+- compare stage profile `routed_moe` against slot64, slot225 baseline, and
+  slot225 reallocate-after-prefill;
+- if per-expert buffers recover speed, reintroduce direct `pread()` only into
+  expert-owned buffers and compare against scratch -> Metal write/blit;
+- keep Pro separate: full resident per-expert is probably too large for Pro, but
+  the small-model result should tell whether semantic ownership is the right
+  architecture.
 
-The longer-term design should probably separate prefill streaming scratch from
-decode resident slots. Prefill can stream experts efficiently, but the resident
-decode bank should be filled in a decode-friendly way, ideally by GPU copy or a
-Metal write path that preserves GPU read locality.
+Longer-term design likely separates prefill streaming scratch from decode
+resident semantic expert buffers. Prefill can stream experts efficiently, but
+decode residency should avoid CPU writes into arbitrary subranges of a giant
+shared layer bank.

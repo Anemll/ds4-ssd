@@ -1978,6 +1978,8 @@ clean machine.
 
 ## Open Questions
 
+- Does full-resident one-allocation-per-semantic-expert remove the slot225
+  routed-MoE cliff?
 - Does one expert-major resident buffer remove the slot32 vs slot256 slowdown?
 - Is the slowdown dominated by memory layout/cache pressure, by many small dispatches, or by the 6-expert grouped execution unit?
 - After mixed residency is correct, should the replay object be per expert, per slot, or per layer-slot-family bundle?
@@ -1988,3 +1990,96 @@ clean machine.
   recency/frequency hybrid?
 - Which slot64 prefetch strategy helps after correctness is stable: no prefetch,
   one scratch load, layer-strided scratch loads, or a narrower preloaded unit?
+
+## Per-Semantic-Expert Buffer Diagnostic
+
+User correction: do not test "one allocation per slot/stride" as the solution
+candidate. The diagnostic now tests one allocation per semantic expert:
+
+```text
+layer L, expert E -> one MTLBuffer containing that expert's full record
+```
+
+Implemented knob:
+
+```bash
+DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1
+# alias:
+DS4_FLASH_MOE_FULL_RESIDENT_EXPERT_BUFFERS=1
+```
+
+Current behavior under this knob:
+
+- overrides the effective decode resident slot count to `DS4_N_EXPERT`;
+- preloads every `(layer, expert_id)` record into its own Metal buffer at graph
+  creation;
+- records `slot_id == expert_id`, so decode does not evict or install experts;
+- disables decode prefetch and prefill slot-cache installs for this diagnostic;
+- bypasses the grouped banked ABI and computes routed experts route-wise by
+  binding the selected expert-owned buffer as a one-entry bank;
+- disables ICB replay inside the route-wise helper by passing
+  `layer_index=UINT32_MAX`, because local slot zero is not a stable semantic key;
+- calls `didModifyRange` after CPU writes to Metal buffers, including direct
+  `pread()` into the expert-owned preload buffers.
+
+This is deliberately memory-heavy and intended first for the small IQ2XXS
+sidecar. Full resident per-expert Pro likely does not fit a useful cache budget.
+
+First test command shape:
+
+```bash
+DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1 \
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0 \
+DS4_FLASH_MOE_STABLE_REPLAY=1 \
+DS4_FLASH_MOE_ASYNC_HANDOUT=0 \
+DS4_FLASH_MOE_ICB_REPLAY=0 \
+DS4_METAL_DECODE_STAGE_PROFILE=1 \
+./ds4 \
+  -m "$HOME/Models/flash/dsv4-iq2xxs-expert-major" \
+  --ctx 4096 \
+  --temp 0 \
+  -p "Who are you" \
+  -n 8
+```
+
+If this recovers slot225/large-bank decode throughput, the high-slot cliff is
+very likely tied to mixed allocation/subrange ownership rather than the core
+expert math. The next step would be to reintroduce direct `pread()` into the
+expert-owned buffer and compare against scratch -> upload/blit, without going
+back to CPU writes in the middle of a giant layer bank.
+
+## didModifyRange Diagnostic
+
+Metal `didModifyRange` now has an explicit runtime knob:
+
+```bash
+DS4_FLASH_MOE_DID_MODIFY_RANGE=1  # default
+DS4_FLASH_MOE_DID_MODIFY_RANGE=0  # reproduce old behavior
+```
+
+Implemented calls:
+
+- `ds4_gpu_tensor_write()` marks the written view range;
+- `ds4_gpu_tensor_fill_f32()` marks the filled range;
+- direct slot-bank `pread()` marks the installed expert range;
+- direct async/prefetch slot `pread()` marks the installed expert range;
+- full-resident per-expert preload marks the whole expert-owned buffer;
+- direct ANE output writes mark the output tensor range.
+
+Important nuance: `didModifyRange` announces CPU-written bytes to Metal; it is
+not a CPU/GPU ordering primitive. Tests should still avoid writing a range while
+an in-flight command buffer may read that range.
+
+Immediate high-slot matrix:
+
+```text
+A. slot225 direct pread, DS4_FLASH_MOE_DID_MODIFY_RANGE=0
+B. slot225 direct pread, DS4_FLASH_MOE_DID_MODIFY_RANGE=1
+C. B + strict handoff/drain if needed
+D. realloc-after-prefill, didModifyRange off
+E. realloc-after-prefill, didModifyRange on
+F. DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1, didModifyRange on
+```
+
+Primary metric remains `DS4_METAL_DECODE_STAGE_PROFILE=1` routed-MoE time, not
+only generation tokens/sec.
