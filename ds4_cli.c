@@ -321,7 +321,10 @@ typedef struct {
 static void cli_prefill_progress_cb(void *ud, const char *event, int current, int total) {
     (void)total;
     cli_prefill_progress *p = ud;
-    if (!p || !event || strcmp(event, "prefill_chunk") || p->input_tokens <= 0) return;
+    if (!p || !event || p->input_tokens <= 0) return;
+    if (strcmp(event, "prefill_chunk") &&
+        strcmp(event, "prefill_display") &&
+        strcmp(event, "prefill_display_ane")) return;
 
     int processed = current - p->base_tokens;
     if (processed < 0) processed = 0;
@@ -531,13 +534,16 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     };
 
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(session, prompt, err, sizeof(err)) != 0) {
         ds4_session_set_progress(session, NULL, NULL);
+        ds4_session_set_display_progress(session, NULL, NULL);
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         ds4_session_free(session);
         return 1;
     }
     ds4_session_set_progress(session, NULL, NULL);
+    ds4_session_set_display_progress(session, NULL, NULL);
     const double t_prefill1 = cli_now_sec();
 
     int max_tokens = cfg->gen.n_predict;
@@ -699,13 +705,16 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
         .use_color = ds4_log_is_tty(stderr),
     };
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(session, prompt, err, sizeof(err)) != 0) {
         ds4_session_set_progress(session, NULL, NULL);
+        ds4_session_set_display_progress(session, NULL, NULL);
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         ds4_session_free(session);
         return 1;
     }
     ds4_session_set_progress(session, NULL, NULL);
+    ds4_session_set_display_progress(session, NULL, NULL);
 
     FILE *fp = fopen(cfg->gen.dump_logprobs_path, "wb");
     if (!fp) {
@@ -994,13 +1003,16 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
         .use_color = ds4_log_is_tty(stderr),
     };
     ds4_session_set_progress(chat->session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(chat->session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(chat->session, &chat->transcript, err, sizeof(err)) != 0) {
         ds4_session_set_progress(chat->session, NULL, NULL);
+        ds4_session_set_display_progress(chat->session, NULL, NULL);
         chat->transcript.len = rollback_len;
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         return 1;
     }
     ds4_session_set_progress(chat->session, NULL, NULL);
+    ds4_session_set_display_progress(chat->session, NULL, NULL);
     const double t_prefill1 = cli_now_sec();
 
     token_printer printer = {

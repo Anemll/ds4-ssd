@@ -2083,3 +2083,1089 @@ F. DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1, didModifyRange on
 
 Primary metric remains `DS4_METAL_DECODE_STAGE_PROFILE=1` routed-MoE time, not
 only generation tokens/sec.
+
+## 2026-06-05 Per-Expert Buffer Correctness Pass
+
+Important testing correction: do not pack environment assignments into a single
+zsh scalar such as `BASE_ENV='A=1 B=1'` and then run `env $BASE_ENV ...`.
+Several early failures were caused by zsh not splitting that scalar into
+separate assignments. Use explicit `env A=1 B=1 ... ./ds4 ...` commands, or a
+proper shell array, so the logs show the expected kept environment count.
+
+Implementation update after the first per-expert smoke failure:
+
+- `DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1` remains decode-resident only for the
+  slot-cache view of the world.
+- Prefill no longer tries to satisfy its streaming routed-MoE reads from the
+  resident slot cache when per-expert buffers are active.
+- Prefill still uses its normal grouped/streaming path; decode reads the
+  preloaded semantic expert buffers.
+- Guarded breadcrumbs were added under `DS4_FLASH_MOE_PER_EXPERT_DEBUG=1` or
+  `DS4_DEBUG_RESUME=1` for decode failures.
+
+Validated command shape:
+
+```bash
+env \
+  DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0 \
+  DS4_FLASH_MOE_STABLE_REPLAY=1 \
+  DS4_FLASH_MOE_ASYNC_HANDOUT=0 \
+  DS4_FLASH_MOE_ICB_REPLAY=0 \
+  DS4_FLASH_MOE_METAL_DECODE_REPLAY=1 \
+  DS4_FLASH_MOE_DID_MODIFY_RANGE=1 \
+  DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1 \
+  ./ds4 \
+    -m "$HOME/Models/flash/dsv4-iq2xxs-expert-major" \
+    --moe-slot-bank 6 --ctx 60768 \
+    -p "make a game of Space invaders in PyGame" \
+    --temp 0 -n 32
+```
+
+Results directory:
+
+```text
+/tmp/ds4_flash_moe_expert_diag_20260605_174400
+```
+
+Hash comparison against the slot-bank path:
+
+```text
+PyGame prompt, ctx60768, n8:
+slot225 grouped/stable bank     hash d6d70d53947a...  generation 2.71 t/s
+per-expert semantic buffers     hash d6d70d53947a...  generation 1.29 t/s
+
+PyGame prompt, ctx60768, n32:
+slot225 grouped/stable bank     hash e589d9c6337a...  generation 5.79 t/s
+per-expert semantic buffers     hash e589d9c6337a...  generation 2.15 t/s
+
+ds4-agent smoke, ctx4096, n1:
+per-expert semantic buffers     status 0, output "Hello"
+
+Huge prompt, ctx60768, n5, `--no-int8`, no teardown/realloc:
+per-expert semantic buffers     hash 6ac133b4cb9d...  prefill 301.73 t/s, generation 1.44 t/s
+```
+
+Conclusion:
+
+- The per-semantic-expert allocation path is now correctness-clean for n8 and
+  n32 on the long-context PyGame prompt.
+- `ds4-agent --non-interactive` also runs through the per-expert path for a
+  one-token smoke test.
+- On the huge 46.7k-token prompt, full-resident semantic GPU buffers avoid the
+  old slot225 `0.30 t/s` collapse, but the current diagnostic path only reaches
+  `1.44 t/s`; it is still below slot-bank reallocation-after-prefill (`2.60 t/s`)
+  because decode is route-wise instead of grouped/fused.
+- The current per-expert path is not yet the speed path. It bypasses the grouped
+  banked routed-MoE ABI and computes the six routed experts route-wise by
+  binding one expert-owned buffer at a time.
+- The next speed item is a grouped/fused execution path over separate semantic
+  expert buffers: argument buffer/pointer table, compact descriptor list, or an
+  equivalent Metal ABI that preserves one allocation per expert while avoiding
+  six route-wise submissions.
+
+## 2026-06-05 Exact Metal Dirty-Range Audit
+
+Rule applied: only call `didModifyRange` after the CPU has actually written into
+a Metal-backed buffer, and only for the exact written range.
+
+Implemented/audited paths:
+
+- direct slot `pread()` into Flash-MoE mixed/family Metal slot pointers marks the
+  installed expert range after the read succeeds;
+- scratch `pread()` followed by upload no longer double-marks in
+  `metal_graph_flash_moe_install()`, because `ds4_gpu_tensor_write()` already
+  marks the copied range;
+- decode prefetch and async handout direct-slot reads mark after thread join;
+- `ds4_gpu_tensor_write()` and `ds4_gpu_tensor_fill_f32()` mark their exact
+  tensor view range;
+- raw Objective-C `MTLBuffer.contents` CPU writes now mark exact ranges for
+  transient RoPE/row/mask/index buffers, resident model copies, ANE skip masks,
+  async shared-expert/O-proj outputs, and ANE prefill staging/output buffers.
+
+High-slot retest used a trimmed `ds4.c` prompt file because the full source now
+exceeds the 60.8k context as a raw CLI prompt:
+
+```text
+prompt bytes: 120000
+prompt tokens: 39894
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+ctx: 60768
+cache: --ssd-cache 64GB -> slots=225, gpu-bank=63.78 GiB
+flags: no decode prefetch, stable replay on, reset-after-prefill on,
+       slot-bank residency/touch-pages on, --no-int8
+logs: /tmp/ds4_didmodify_retest_20260605_190746
+```
+
+Results:
+
+```text
+direct slot pread on:
+prefill 289.64 t/s, generation 0.22 t/s
+
+direct slot pread off:
+prefill 290.58 t/s, generation 0.23 t/s
+```
+
+Conclusion:
+
+- Exact dirty-range marking is necessary correctness hygiene, but it does not
+  fix the high-slot decode cliff.
+- Disabling direct slot pread no longer materially changes this 39.9k-token
+  slot225 repro, so the current cliff is not explained solely by missing
+  `didModifyRange` on direct pread into Metal pages.
+- The remaining likely culprit is the large resident slot-bank GPU read path
+  itself: allocation/page locality, sparse subrange access over 63.8 GiB, or the
+  grouped routed-MoE ABI over that giant mixed bank.
+
+## 2026-06-05 Per-Slot Shared Metal Buffers
+
+Added an opt-in slot cache layout:
+
+```text
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+alias: DS4_FLASH_MOE_SEPARATE_SLOT_BUFFERS=1
+```
+
+This keeps the normal resident slot-cache policy and eviction semantics, but
+allocates each `(layer, slot)` as its own `ds4_gpu_tensor_alloc(expert_stride)`.
+`ds4_gpu_tensor_alloc()` creates a separate `MTLResourceStorageModeShared`
+`MTLBuffer`, so this removes CPU writes into sparse subranges of the one huge
+mixed layer bank.
+
+Important distinction:
+
+- `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1`: one shared Metal buffer per resident slot;
+  slot ownership/eviction still work as before.
+- `DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1` or
+  `DS4_FLASH_MOE_FULL_RESIDENT_EXPERT_BUFFERS=1`: one shared Metal buffer per
+  semantic expert id; diagnostic full-resident mode.
+
+Current execution path:
+
+- decode uses route-wise one-slot execution for per-slot buffers;
+- grouped/fused execution over separate buffers is not implemented yet;
+- async handout is disabled for this layout for now;
+- direct slot `pread()` can write into the per-slot buffer and marks the exact
+  expert range with `didModifyRange`.
+
+Small correctness smoke:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: "Who are you"
+ctx: 4096
+slot_bank: 8
+n: 8
+flags: no decode prefetch
+logs: /tmp/ds4_per_slot_buffers_20260605_201520
+
+mixed bank hash:    9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+per-slot hash:      9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+mixed generation:   10.47 t/s
+per-slot generation: 9.63 t/s
+```
+
+High-slot cliff diagnostic with a 100 KB `ds4.c` prompt file:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt file bytes: 100037
+ctx: 60768
+cache: --ssd-cache 64GB -> slots=225, gpu-bank=63.78 GiB
+flags: --no-int8, no decode prefetch, stable replay on,
+       async handout off, ICB replay off, Metal decode replay on
+logs: /tmp/ds4_per_slot_fileprompt_20260605_202052
+
+per-slot buffers:
+  prefill 301.48 t/s, generation 8.97 t/s
+
+mixed giant bank:
+  prefill 301.62 t/s, generation 0.21 t/s
+```
+
+Interpretation:
+
+- This is the strongest evidence so far that the slot225 cliff is caused by the
+  huge mixed resident bank/subrange access pattern, not by SSD read bandwidth or
+  prefill speed.
+- Separate shared Metal resources per resident slot recover usable decode speed
+  even before grouped/fused execution is implemented.
+- The long-prompt outputs are both plausible summaries but diverge after the
+  first few generated tokens, likely because per-slot route-wise execution and
+  grouped mixed-bank execution are not bit-identical at long greedy decode.
+- Next speed item: implement grouped/fused routed-MoE execution over separate
+  slot/expert buffers, probably via an argument buffer or compact descriptor
+  list, so we keep the recovered allocation behavior without paying route-wise
+  dispatch overhead.
+
+## 2026-06-05 Lazy Per-Slot Allocation Diagnostic
+
+The sibling `/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4` SSD streaming
+cache does not preallocate its whole byte budget. It lazily allocates one
+combined shared Metal buffer per cached `(layer, expert)`, fills it via
+`pread()`, calls `didModifyRange`, publishes GPU addresses in per-layer address
+tables, and reuses buffers after eviction. It also attempts `mlock()` once at
+buffer allocation.
+
+Added an opt-in Flash-MoE diagnostic that preserves per-slot cache semantics but
+does not allocate all `layers * slots` buffers at startup:
+
+```text
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1
+alias: DS4_FLASH_MOE_LAZY_SLOT_BUFFERS=1
+```
+
+Behavior:
+
+- startup computes planned cache capacity but allocates zero expert slot buffers;
+- each per-slot shared `MTLBuffer` is allocated on first slot install/direct
+  `pread()`;
+- decode/prefill miss uploads still call exact `didModifyRange`;
+- `DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES=1` is applied only to newly allocated
+  lazy slot buffers, not the whole planned bank at startup;
+- upfront slot-bank residency set is intentionally skipped in lazy mode, closer
+  to the older SSD streaming cache behavior.
+
+Smoke test:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: "Who are you"
+ctx: 4096
+slot_bank: 8
+n: 8
+logs: /tmp/ds4_per_slot_lazy_20260605_225412
+
+eager per-slot hash: 9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+lazy per-slot hash:  9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+
+eager startup: gpu-bank=2.3GB
+lazy startup:  gpu-bank=0.0GB allocated, planned=2.3GB
+eager generation: 5.99 t/s
+lazy generation:  10.00 t/s
+```
+
+High-slot prompt retest:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: /tmp/ds4_per_slot_fileprompt_20260605_202052/prompt.txt
+ctx: 60768
+cache: --ssd-cache 64GB -> slots=225, planned gpu-bank=63.8GB
+flags: --no-int8, no decode prefetch, stable replay on,
+       async handout off, ICB replay off, Metal decode replay on
+
+lazy per-slot:
+  logs /tmp/ds4_per_slot_lazy_high_20260605_225617
+  startup gpu-bank=0.0GB allocated, planned=63.8GB
+  prefill 307.67 t/s, generation 8.82 t/s
+
+current eager per-slot:
+  logs /tmp/ds4_per_slot_eager_high_20260605_225833
+  startup gpu-bank=63.8GB
+  prefill 308.72 t/s, generation 9.16 t/s
+```
+
+Interpretation:
+
+- Lazy allocation is correctness-clean for the small deterministic smoke.
+- Lazy allocation removes the huge startup allocation and gives a direct way to
+  test whether preallocation/VM pressure is hurting interactive `ds4-agent`.
+- On the 100KB high-slot CLI prompt, lazy allocation did not beat eager per-slot;
+  both are in the same band and both remain far faster than the old mixed-bank
+  collapse.
+- The remaining major per-slot speed gap versus normal fast mixed-bank decode is
+  still route-wise execution; grouped/fused separate-buffer execution remains
+  the main architecture item.
+
+## 2026-06-05 Separate Buffers Must Preserve Grouped Decode
+
+Important correction: the first `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1`
+implementation changed two variables at once:
+
+- storage layout changed from one giant mixed bank to separate shared Metal
+  buffers;
+- decode execution also changed from grouped top-k execution to a per-route
+  fallback loop.
+
+That was a measurement bug. `PER_SLOT_BUFFERS=1` should be a residency/layout
+choice, not a request to execute six routed experts as six independent MoE
+calls.
+
+Root cause:
+
+- the existing grouped banked decode ABI expects one bank base pointer plus
+  `slot * stride`;
+- separate per-slot buffers do not fit that base+stride ABI;
+- the branch therefore bound each expert buffer as a fake one-slot bank and
+  called `metal_graph_flash_moe_compute_route_to_down()` once per route;
+- this was not communicated clearly enough when the diagnostic was added.
+
+Fix implemented:
+
+- ported the sibling `ds4` direct `slots6` grouped kernel shape for the main
+  Flash quant combo: IQ2_XXS gate/up and Q2_K down, top-k 6;
+- added `ds4_gpu_routed_moe_one_slots6_tensor()`, which accepts six separate
+  gate/up/down tensor views in route order;
+- `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1` and `DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1`
+  now try grouped slots6 decode first;
+- the old route-wise path remains only as fallback/debug, forceable with
+  `DS4_FLASH_MOE_FORCE_PER_ROUTE=1` or by disabling grouped with
+  `DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED=1`;
+- startup/decode now logs:
+
+```text
+ds4: Flash-MoE separate slot buffers using grouped slots6 decode path (direct 6-buffer IQ2_XXS/Q2_K)
+```
+
+Validation:
+
+```text
+logs: /tmp/ds4_slots6_fix_20260605_235148
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: "Who are you"
+slot_bank: 8
+ctx: 4096
+n: 8
+
+mixed bank hash:             efe53724915ea81458eed5b97818882eaf7fd094fcc8183b989d0da3c5721e04
+per-slot grouped hash:       efe53724915ea81458eed5b97818882eaf7fd094fcc8183b989d0da3c5721e04
+forced per-route hash:       efe53724915ea81458eed5b97818882eaf7fd094fcc8183b989d0da3c5721e04
+
+mixed generation:            6.96 t/s
+per-slot grouped generation: 9.82 t/s
+forced per-route generation: 6.25 t/s
+```
+
+User-shaped 50-token prompt:
+
+```text
+logs: /tmp/ds4_slots6_fix_space_20260605_235428
+prompt: "craete game of spsce invaders in PyGame, keep files and compile in /tmp/tmp1 compile, test, iterate"
+cache: --ssd-cache 32GB -> slots=112
+ctx: 32768
+n: 50
+
+mixed bank hash:             f944e748face7f4222bc9ab3229a489d44c49460a06b857327828c9d87e2a743
+per-slot grouped hash:       f944e748face7f4222bc9ab3229a489d44c49460a06b857327828c9d87e2a743
+
+mixed generation:            10.40 t/s
+lazy per-slot grouped:       9.37 t/s
+```
+
+500-token Space Invaders prompt:
+
+```text
+logs: /tmp/ds4_slots6_fix_space500_20260605_235731
+prompt: "make a game of Space invaders in PyGame"
+cache: --ssd-cache 32GB -> slots=112
+ctx: 32768
+n: 500
+
+mixed bank hash:             b424c5003c694a3bf52acf6cdab1bb31383dc3c64494b9d3f309920e4038ae78
+per-slot grouped hash:       b424c5003c694a3bf52acf6cdab1bb31383dc3c64494b9d3f309920e4038ae78
+
+mixed generation:            18.33 t/s
+lazy per-slot grouped:       16.58 t/s
+```
+
+Interpretation:
+
+- grouped execution itself was not the problem;
+- the problem was that the first separate-buffer diagnostic bypassed grouped
+  execution;
+- direct slots6 grouped decode removes the accidental per-route execution
+  penalty while preserving separate Metal resources;
+- the remaining delta versus mixed bank on non-cliff settings is likely slot
+  install/resource binding overhead and lazy allocation behavior, not six serial
+  expert computes;
+- next production improvement is still address-table/descriptor grouped decode
+  or broader slots6 support for other quant combos, plus optional buffer reuse
+  and `mlock()` diagnostics from the sibling streaming cache.
+
+## 2026-06-06 YOLO Follow-Up: Slots6 Gated Off, Agent Small-Suffix Prefill Avoided
+
+User reported two issues after the initial separate-buffer grouped work:
+
+- `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1` was still slower than the mixed bank on
+  normal 32GB/112-slot runs;
+- `ds4-agent` could appear frozen after a short tool result, showing
+  `prefill 0/90`.
+
+Findings:
+
+- The agent pause is explained by `ds4_session_sync()` taking `resume-prefill`
+  for suffixes >= the default `DS4_METAL_RESUME_PREFILL_MIN=32`. A 90-token
+  tool result therefore entered chunked prefill, and progress stayed at `0/90`
+  until the whole small chunk completed.
+- `ds4-agent` now defaults `DS4_METAL_RESUME_PREFILL_MIN=256` unless the user
+  sets it explicitly. This keeps small tool-result continuations on
+  `decode-suffix`, which is more responsive in the interactive tool loop.
+- Added cached per-slot family views for separate slot buffers so each allocated
+  slot gets persistent gate/up/down tensor views instead of rebuilding wrapper
+  views for future direct-buffer grouped experiments.
+- The custom direct slots6 grouped kernel failed a longer deterministic
+  correctness check. It is now opt-in only with:
+
+```bash
+DS4_FLASH_MOE_ENABLE_SLOTS6_GROUPED=1
+```
+
+Default `PER_SLOT_BUFFERS=1` now falls back to the known-good route-wise path.
+The previous force/disable flags still work:
+
+```bash
+DS4_FLASH_MOE_FORCE_PER_ROUTE=1
+DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED=1
+```
+
+Correctness split:
+
+```text
+prompt: "craete game of spsce invaders in PyGame, keep files and compile in /tmp/tmp1a compile, test, iterate"
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+ctx: 32768
+n: 100
+temp: 0
+decode prefetch: off
+
+32GB/112-slot mixed:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  generation 13.48 t/s before rerun, 15.03 t/s after rebuild/rerun
+
+32GB/112-slot per-slot with direct slots6 grouped enabled by old default:
+  hash c9d0d5855ebc17629e8e5a71bd5f82789d582c79d35f11a30d9e2820c81adfc1
+  generation 10.81 t/s
+  cmp vs mixed = 1
+
+32GB/112-slot per-slot forced route-wise:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  generation 13.36 t/s
+
+32GB/112-slot per-slot corrected default:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  generation 13.14 t/s
+  cmp vs mixed = 0
+  logs: /tmp/ds4_yolo_32gb_default_20260606_002254
+```
+
+User-requested 64GB/225-slot smoke:
+
+```text
+command shape:
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1
+DS4_FLASH_MOE_XLAYER_PREFETCH=0
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+DS4_FLASH_MOE_PREPROTECT_TOPK=1
+DS4_FLASH_MOE_STABLE_REPLAY=0
+DS4_FLASH_MOE_BAKED_SLOT_DECODE=0
+DS4_FLASH_MOE_ASYNC_HANDOUT=0
+DS4_FLASH_MOE_ICB_REPLAY=0
+./ds4 -m ~/Models/flash/dsv4-iq2xxs-expert-major --ssd-cache 64GB --ctx 32768 --temp 0 -n 100 -p ...
+
+corrected default route-wise per-slot:
+  slots=225
+  prefill 0.72 t/s
+  generation 13.13 t/s
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  logs: /tmp/ds4_yolo_64gb_default_20260606_002506
+
+earlier same-shape mixed 64GB comparator:
+  generation 9.76 t/s
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  logs: /tmp/ds4_yolo_mixed_20260606_001618
+```
+
+Agent trace check:
+
+```text
+logs: /tmp/ds4_yolo_agent_trace_20260606_002620
+ds4: session sync path=decode-suffix checkpoint=1274 prompt=1278 suffix=4 resume-min=256
+```
+
+Follow-up UI note:
+
+- The agent status label still says `prefill` while it is synchronizing prompt
+  tokens into KV, even when the underlying sync path is `decode-suffix`.
+- Before the follow-up patch, the GPU decode-suffix loop did not call the
+  progress callback, so a slow suffix could display `prefill 0/N 0.0%` until
+  it finished.
+- Added the same per-token `prefill_chunk` callback used by the CPU/decode
+  helper path after each GPU decode-suffix token is appended. The label is still
+  `prefill`, but the bar/counter/tps should now advance for suffixes below the
+  `DS4_METAL_RESUME_PREFILL_MIN` threshold.
+- Runtime verification was attempted at
+  `/tmp/ds4_agent_decode_suffix_progress_20260606_114600`, but the single
+  process guard refused to start because an existing `ds4-agent` was running.
+
+Related `ds4` CLI startup-prefill note:
+
+- `ds4` had an analogous missing-progress case on startup full-prefill.
+- Root cause: the CLI only registered `ds4_session_set_progress()`, and its
+  callback ignored `prefill_display`. One-chunk/full-prefill reports useful
+  per-layer progress through `ds4_session_set_display_progress()`, not through
+  durable `prefill_chunk` boundaries.
+- Updated the CLI callback to accept both `prefill_chunk` and
+  `prefill_display`, and registered display progress in sampled generation,
+  logprob dump, and interactive chat turns.
+- Also registered display progress in the Flash-MoE
+  `ds4_engine_generate_argmax()` session path.
+- Expected user-visible effect: startup prompt processing should show advancing
+  `processing N input tokens: x/N ...` progress during full-prefill rather than
+  staying silent until the first chunk/done boundary.
+
+Interpretation:
+
+- The safe default is correctness-first route-wise separate buffers.
+- At high slots, per-slot lazy route-wise still beats the giant mixed bank
+  cliff in the 64GB/225-slot smoke (`13.13` vs `9.76 t/s`).
+- At normal 32GB/112-slot settings, mixed remains faster (`15.03` vs
+  `13.14 t/s`), so per-slot is not a universal default yet.
+- The direct slots6 kernel needs a separate correctness fix before it can be a
+  production grouped path. The first failing comparator is the 100-token prompt
+  above; forced route-wise proves the per-slot cache/install path itself is
+  correct.
+
+Lazy allocation banner clarification:
+
+- With `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1` and
+  `DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1`, `--ssd-cache 32GB` sizes the planned
+  slot capacity, but no slot `MTLBuffer`s are allocated at startup.
+- Therefore startup can correctly print `gpu-bank=0.0GB allocated,
+  planned=31.7GB`, while `Total allocated` is only dense mapped weights plus
+  context buffers (`8.2GB + 2.8GB = 11.0GB` for the local small model run).
+- Updated the banner to print both total allocated and total planned:
+
+```text
+Total <<<< 11.0GB allocated, 42.7GB planned >>>>
+```
+
+- `DS4_FLASH_MOE_PREPROTECT_TOPK=1` does not preallocate or prefill slots. It
+  protects the token's currently routed experts from eviction while decode
+  reserves/installs slots. Prefill-side resident installation is controlled by
+  `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK` / `--moe-prefetch-topk`.
+
+## 2026-06-06 Slots6 Correctness Fix and Grouped Exact-Down Path
+
+User asked to investigate the direct separate-buffer `slots6` path instead of
+leaving it gated off. The previous failure was:
+
+```text
+mixed / route-wise per-slot hash: 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+old direct slots6 hash:          c9d0d5855ebc17629e8e5a71bd5f82789d582c79d35f11a30d9e2820c81adfc1
+```
+
+Root cause:
+
+- The first direct slots6 implementation changed two things at once:
+  grouped separate-buffer gate/up and a direct six-expert down-sum kernel.
+- The profile baseline has `DS4_METAL_ENABLE_ROUTED_DOWN_SUM6=0`, so the
+  correct path computes six routed-down rows and then runs the existing sum
+  kernel. The old slots6 path always accumulated all six down experts inside
+  one q2_K kernel, changing floating-point order enough to alter generated
+  tokens.
+- Per-slot cache/install was not the culprit: forced route-wise per-slot had
+  already matched mixed exactly.
+
+Fixes:
+
+- `ds4_gpu_routed_moe_one_slots6_tensor()` now takes `routed_down`/expert
+  scratch and, by default, preserves the baseline down shape.
+- The old direct sum6 experiment is only used with:
+
+```bash
+DS4_FLASH_MOE_SLOTS6_DIRECT_DOWN_SUM=1
+```
+
+- Added `kernel_mul_mv_slots6_q2_K_f32`, a separate-buffer grouped down
+  projection that binds six down buffers and writes six ordinary routed-down
+  rows in one dispatch. The existing `moe_sum_experts` kernel then performs the
+  exact baseline final sum.
+- The grouped exact-down kernel is enabled by default for slots6; disable it
+  for A/B with:
+
+```bash
+DS4_FLASH_MOE_SLOTS6_DISABLE_GROUPED_DOWN=1
+```
+
+- `DS4_FLASH_MOE_SLOTS6_FRESH_VIEWS=1` remains as an isolation diagnostic for
+  cached per-slot family views.
+- Corrected slots6 is now default-on for independent per-slot/per-expert
+  buffers when the shape is supported (`topk=6`, IQ2_XXS gate/up, Q2_K down).
+  Escape hatches:
+
+```bash
+DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED=1
+DS4_FLASH_MOE_FORCE_PER_ROUTE=1
+DS4_FLASH_MOE_ENABLE_SLOTS6_GROUPED=0
+```
+
+Validation:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: "craete game of spsce invaders in PyGame, keep files and compile in /tmp/tmp1a compile, test, iterate"
+ctx: 32768
+temp: 0
+prefetch: DS4_FLASH_MOE_XLAYER_PREFETCH=0, DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+slot mode: DS4_FLASH_MOE_PER_SLOT_BUFFERS=1, DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1
+```
+
+Before grouped exact-down, after disabling direct sum6:
+
+```text
+n20, 32GB/112 slots:
+  route fallback:  hash 5c2009e5a68b1718eccc3c8cc760e1134f9885ea46d84971c120e8f250903ba1, generation 8.42 t/s
+  slots6 gate/up:  hash 5c2009e5a68b1718eccc3c8cc760e1134f9885ea46d84971c120e8f250903ba1, generation 8.82 t/s
+  cmp=0
+
+n100, 32GB/112 slots:
+  route fallback:  hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 8.54 t/s
+  slots6 gate/up:  hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 8.24 t/s
+  cmp=0
+```
+
+After adding grouped exact-down:
+
+```text
+n50, 32GB/112 slots:
+  route fallback:       hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 9.80 t/s
+  default slots6 group: hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 11.01 t/s
+  cmp=0
+  logs: /tmp/ds4_slots6_grouped_down_n50_20260606_142236
+
+n100, 32GB/112 slots:
+  route fallback:       hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 9.06 t/s
+  default slots6 group: hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 9.02 t/s
+  cmp=0
+  logs: /tmp/ds4_slots6_grouped_down_n100_20260606_142458
+
+n50, 64GB/225 slots:
+  route fallback:       hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 10.60 t/s
+  default slots6 group: hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 10.90 t/s
+  cmp=0
+  logs: /tmp/ds4_slots6_grouped_down_64gb_n50_20260606_142732
+
+n20 default-on sanity:
+  default grouped:  hash 5c2009e5a68b1718eccc3c8cc760e1134f9885ea46d84971c120e8f250903ba1, generation 8.89 t/s
+  disabled route:   hash 5c2009e5a68b1718eccc3c8cc760e1134f9885ea46d84971c120e8f250903ba1, generation 8.73 t/s
+  cmp=0
+  logs: /tmp/ds4_slots6_default_n20_20260606_143031
+```
+
+Interpretation:
+
+- Correctness regression is fixed for the old n100 repro.
+- The grouped exact-down path gives a clear n50 win and a small 64GB/225-slot
+  win, but n100 at 32GB was effectively tied. Treat speed as promising but noisy
+  until longer 500-token runs are repeated.
+- The first visible `processing 0/N` pause in these tests is expected with an
+  empty lazy slot cache: the first prompt token performs many slot installs
+  before the progress counter can advance. This was previously mostly silent;
+  the CLI display-progress fix now exposes it.
+
+Next performance items:
+
+- Repeat 500-token sweeps with default grouped slots6 at 32GB and 64GB.
+- Add stage profiling around the new slots6 grouped-down dispatch versus six
+  individual down dispatches to verify dispatch overhead is the actual win/loss.
+- If the old direct sum6 path is ever reconsidered, it needs a numerical policy:
+  it is faster-shaped but not baseline-exact because it changes accumulation
+  order.
+
+## 2026-06-06 Agent Tool/Prefill Status Clarity
+
+User reported another freeze-shaped footer:
+
+```text
+Reading /tmp/timeout_staging/timeout.c 1:500...
+
+ds4-agent>
+ctx 6.4k/132.8k | prefill 0/4896 0.0% 0.0 t/s
+```
+
+The confusing part is that two different waits were both visually collapsed
+into `prefill`:
+
+- executing the tool itself;
+- synchronizing the tool result back into the live DS4 session/KV before the
+  assistant can continue.
+
+Implemented UI/status changes in `ds4_agent.c`:
+
+- added an explicit `AGENT_WORKER_TOOL` state;
+- footer now shows active tool calls as
+  `tool <name> <current>/<total> running <elapsed>`;
+- bash tools additionally report live captured output size and line count while
+  the process is being refreshed, for example
+  `tool bash 1/1 running 12s 4.1KiB 37 lines`;
+- ordinary user prompt sync remains `prefill`;
+- tool continuation sync now displays as `sync tool result`;
+- system prompt and compaction rebuild syncs display as `sync system`,
+  `compact prompt`, or `sync compacted`;
+- the initial accepted-turn handoff now displays `starting` instead of
+  `prefill cached`;
+- non-interactive stderr progress uses the same labels.
+
+Important limitation:
+
+- `read`, `more`, `write`, `edit`, `list`, and `search` tools are still
+  synchronous. The footer now makes it clear which tool is executing, but there
+  is no per-byte or per-line progress inside `read` yet. If `read` itself is
+  materially slow, the next diagnostic is to make `agent_read_file_bytes()` or
+  line rendering publish chunked status updates while it scans the file.
+
+Verification:
+
+```text
+make ds4-agent
+make
+git diff --check -- ds4_agent.c docs/flash-moe-stable-slot-progress.md
+./ds4-agent --help
+status: passed
+```
+
+## 2026-06-06 Prefill Setup Verbose Trace
+
+User observed another stall-looking interval:
+
+```text
+ctx 1.9k/132.8k | prefill 0/675 0.0% 0.0 t/s
+```
+
+This status is set just before `ds4_session_sync()` enters the backend. If it
+sits at `0/N`, the worker has already tokenized the next prompt and is inside
+session sync, but the backend has not emitted its first durable
+`prefill_chunk`/`prefill_display` progress callback yet.
+
+The pre-callback work can include:
+
+- switching Metal model views for prefill;
+- allocating/ensuring prefill scratch;
+- uploading prompt token ids;
+- warming Metal prefill kernels;
+- precompiling ANE/i8i8 prefill contexts;
+- growing compressed/raw KV context buffers.
+
+Added display-progress phase events and verbose stderr timing around those
+setup calls:
+
+```text
+prefill_model_views
+prefill_setup
+prefill_upload
+prefill_warmup
+prefill_ane_compile
+prefill_ctx_grow
+```
+
+`ds4-agent` now maps those into footer labels such as:
+
+```text
+prefill warmup 0/675 ...
+prefill ANE compile 0/675 ...
+sync tool result ctx grow 0/4896 ...
+```
+
+Verbose trace flags:
+
+```bash
+DS4_SESSION_SYNC_TRACE=1
+DS4_SESSION_SYNC_TRACE_VERBOSE=1
+```
+
+Equivalent extra aliases:
+
+```bash
+DS4_PREFILL_VERBOSE_TRACE=1
+DS4_PREFILL_PHASE_TRACE=1
+```
+
+Example repro command:
+
+```bash
+DS4_SESSION_SYNC_TRACE=1 \
+DS4_SESSION_SYNC_TRACE_VERBOSE=1 \
+DS4_FLASH_MOE_XLAYER_PREFETCH=0 \
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0 \
+./ds4-agent \
+  -m "$HOME/Models/flash/dsv4-iq2xxs-expert-major" \
+  --ssd-cache 32GB \
+  --ctx 132768 \
+  --temp 0
+```
+
+Expected verbose lines:
+
+```text
+ds4: prefill trace scope=session-sync phase=model_views begin ...
+ds4: prefill trace scope=chunked phase=warmup begin ...
+ds4: prefill trace backend=ANE-precompile begin mode=...
+ds4: prefill trace backend=ANE-precompile create begin mode=...
+ds4: prefill trace backend=ANE-precompile create end mode=... elapsed=...
+ds4: prefill trace scope=chunked phase=ANE compile end ...
+```
+
+Diagnostic interpretation:
+
+- If `--no-int8` removes the stall, suspect the int8/ANE prefill setup branch.
+- The current code confirms `--no-int8` forces `DS4_FLASH_MOE_ANE_PREFILL=0`
+  and disables MPP/i8i8 prefill envs.
+- If the next run stalls after `backend=ANE-precompile create begin`, the delay
+  is inside ANE context creation/compilation.
+- If it stalls after `phase=warmup begin`, the delay is Metal prefill kernel
+  warmup before the ANE precompile branch.
+- If it stalls after `phase=ctx grow begin`, the delay is KV/context buffer
+  growth rather than prefill compute.
+
+Follow-up after seeing `prefill ANE compile` in the footer:
+
+- The agent footer now appends elapsed time for the current prefill phase, so a
+  long ANE compile should display as `prefill ANE compile ... 37s` rather than
+  only `0.0 t/s`.
+- The ANE tiled-fused prefill path is cached in-process.
+- Default profile sets `DS4_FLASH_MOE_ANE_BATCHES=256`, so ordinary precompile
+  should compile one primary tiled context for batch 256.
+- Cache capacity is `DS4_ANE_CTX_CACHE_MAX=12` per cache table.
+- There is one primary cache plus secondary B/C/D cache tables for multi-worker
+  ANE execution. Precompile warms the primary table; actual dual/quad ANE
+  execution can later compile B/C/D contexts too.
+- Verbose trace now logs cache hits and per-context compile begin/end:
+
+```text
+ds4: prefill trace backend=ANE-cache compile begin cache=primary mode=... slot=0 B=256 ...
+ds4: prefill trace backend=ANE-cache compile end cache=primary mode=... slot=0 B=256 elapsed=...
+ds4: prefill trace backend=ANE-cache hit cache=primary mode=... slot=0 B=256 ...
+ds4: prefill trace backend=ANE-cache compile begin cache=B mode=... slot=0 B=256 ...
+```
+
+Current suspicion:
+
+- If the footer stalls at `prefill ANE compile`, the expensive call is not the
+  main prefill computation. It is compiling/loading the ANE/CoreML context for
+  the configured routed-MoE prefill mode and batch shape.
+- If `--no-int8` makes the same prompt immediate, that is consistent with this
+  path because `--no-int8` disables `DS4_FLASH_MOE_ANE_PREFILL` and the
+  MPP/i8i8 prefill envs.
+
+Verification:
+
+```text
+make ds4-agent
+make
+git diff --check -- ds4.c ds4_agent.c ds4_metal.m docs/flash-moe-stable-slot-progress.md
+status: passed
+```
+
+## 2026-06-06 ANE Prefill Compile Trace Gap
+
+User observed:
+
+```text
+ds4: prefill trace scope=chunked phase=scratch end start=1274 n_tokens=675 prompt=1949 elapsed=0.014 ms
+```
+
+but no visible ANE compile duration. Root cause in the trace surface: the
+chunked prefill path still ignored the `ds4_gpu_ane_prefill_precompile_from_env`
+return value and only emitted a coarse `phase=ANE compile` bracket when the
+ANE-precompile condition was true. If the condition was false, or if the backend
+returned early, there was no explicit verbose line saying "skipped" or "returned
+0", making the blank startup/pre-fill region ambiguous.
+
+Trace additions:
+
+- both layer-major and chunked prefill now emit:
+
+```text
+ds4: prefill trace scope=chunked phase=ANE-precompile check ... flash_ane=... resident_ane=... token_backend_ane=... result=...
+ds4: prefill trace scope=chunked phase=ANE-precompile skip ...
+ds4: prefill trace scope=chunked phase=ANE-precompile end ... result=<0|1> elapsed=...
+```
+
+- `ds4_gpu_ane_prefill_precompile_from_env()` now logs verbose early exits:
+
+```text
+ds4: prefill trace backend=ANE-precompile init-failed ...
+ds4: prefill trace backend=ANE-precompile unsupported-shape ...
+```
+
+- ANE tiled context cache now logs silent failure cases:
+
+```text
+ds4: prefill trace backend=ANE-cache compile-budget-exhausted ...
+ds4: prefill trace backend=ANE-cache cache-full ...
+```
+
+Expected diagnosis after this change:
+
+- If startup still pauses after `phase=ANE-precompile check result=0`, the delay
+  is not inside the explicit precompile call and the next suspect is warmup,
+  ctx-grow, tokenization, or agent prompt/session sync.
+- If it pauses after `backend=ANE-cache compile begin`, the delay is inside the
+  CoreML/ANE context creation call.
+- If it prints `phase=ANE-precompile end elapsed=<large>`, the coarse prefill
+  phase is now correctly accounting for the ANE compile wall time.
+
+Follow-up after terminal redraw ambiguity:
+
+- Added `DS4_PREFILL_TRACE_LOG=/path/file.log` to mirror prefill/session trace
+  lines to an append-only plain file. This avoids relying on the interactive
+  agent footer, which can visually overwrite stderr lines.
+- Added direct private ANE trace in `ds4_ane_mlp_int8w.m` around:
+
+```text
+modelWithMILText:weights:optionsPlist:
+inMemoryModelWithDescriptor:
+compileWithQoS:options:error:
+loadWithQoS:options:error:
+```
+
+- This means a real ANE compile should now emit:
+
+```text
+ds4: prefill trace backend=ANE-inmemory ... stage=compileWithQoS begin ...
+ds4: prefill trace backend=ANE-inmemory ... stage=compileWithQoS end ... elapsed=...
+```
+
+- If the log only contains `session-sync phase=model_views end` and does not
+  contain `resume_prefill_call begin`, the process did not reach the prefill
+  handoff in the rebuilt binary. If it contains `resume_prefill_call begin` but
+  no `chunked phase=scratch begin`, the stall is inside the call boundary before
+  the chunked prefill function body starts, which would be unexpected enough to
+  inspect symbols/binary freshness first.
+
+Smoke result with file logging:
+
+```text
+command: ctx=4096, --moe-slot-bank 6, prompt "hi", n=1
+trace: /tmp/ds4_prefill_trace_smoke.log
+
+tmp_cleanup:    54004.863 ms
+compileWithQoS:   557.351 ms
+loadWithQoS:       16.693 ms
+ANE create total: 54585.561 ms
+```
+
+Conclusion:
+
+- The observed ~45-55 second startup pause was not CoreML/ANE compile itself.
+- It was `ane_cleanup_stale_tmp_dirs_once()` scanning/removing stale
+  `NSTemporaryDirectory()` ANE model directories on the hot prefill path.
+- The private `_ANEInMemoryModel compileWithQoS` call was sub-second in this
+  smoke.
+
+Interim fix:
+
+- `DS4_ANE_TMP_CLEANUP` is now opt-in. Default behavior is no startup cleanup.
+- To manually run the old cleanup behavior for diagnostics, set:
+
+```bash
+DS4_ANE_TMP_CLEANUP=1
+```
+
+Retest after making cleanup opt-in:
+
+```text
+command: same ctx=4096, --moe-slot-bank 6, prompt "hi", n=1
+trace: /tmp/ds4_prefill_trace_smoke2.log
+
+tmp_cleanup:       0.001 ms
+compileWithQoS:  302.186 ms
+loadWithQoS:      17.119 ms
+ANE compile end: 324.203 ms
+prefill call:   1424.945 ms
+```
+
+This confirms the visible 45-55 second startup pause was stale ANE temp cleanup,
+not CoreML compile.
+
+Follow-up fix after inspecting `$TMPDIR`:
+
+- `$TMPDIR` currently contains roughly 1.18M top-level `tmp.*` entries. Any
+  foreground cleanup that lists the parent temp directory is unsafe, even if it
+  only deletes a narrow ANE pattern.
+- ANE temp creation is now isolated under:
+
+```text
+$TMPDIR/ds4-ane/
+```
+
+- During private `_ANEInMemoryModel` descriptor/compile/load, DS4 temporarily
+  sets process `TMPDIR` to that DS4-only root under a mutex, then restores the
+  caller's `TMPDIR` immediately. This keeps both DS4's explicit
+  `NSTemporaryDirectory()/hexId/model.mil` writes and CoreML's private
+  temporary files inside the same DS4-owned root without leaking the altered
+  temp directory to `ds4-agent` tool subprocesses.
+- Cleanup is now non-blocking and DS4-root-only: the first ANE create schedules
+  a detached background cleanup of stale children in `$TMPDIR/ds4-ane/`.
+  It never scans `$TMPDIR/tmp.*` and does not block prefill startup.
+- Runtime knobs:
+
+```bash
+DS4_ANE_TMP_CLEANUP=0              # disable background DS4-root cleanup
+DS4_ANE_TMP_CLEANUP_AGE_SEC=7200   # stale age, default 2 hours
+DS4_ANE_TMP_ROOT=/path/to/root     # override the DS4 ANE temp root
+DS4_ANE_TMP_CLEANUP_DEBUG=1        # log cleanup summary/errors
+```
+
+Retest after dedicated-root/background cleanup:
+
+```text
+command: same ctx=4096, --moe-slot-bank 6, prompt "hi", n=1
+trace: /tmp/ds4_prefill_trace_ds4ane.log
+root: /var/folders/.../T/ds4-ane
+
+tmp_cleanup:       0.008 ms
+compileWithQoS:  331.837 ms
+loadWithQoS:      16.163 ms
+ANE create total: 349.531 ms
+prefill call:   1487.016 ms
+post-run DS4 root children: 0
+```
+
+Agent smoke:
+
+```text
+command: ds4-agent --non-interactive, ctx=4096, --moe-slot-bank 6, prompt "hi", n=1
+trace: /tmp/ds4_agent_prefill_trace_ds4ane.log
+
+system sync tokens: 1274
+tmp_cleanup:        0.026 ms
+compileWithQoS:   404.141 ms
+loadWithQoS:       16.498 ms
+ANE create total: 422.347 ms
+system sync call: 7166.525 ms
+post-run DS4 root children: 0
+```
+
+This validates the agent path too: the remaining multi-second startup work in
+that smoke is real system-prompt prefill, not hidden ANE temp cleanup.
+
+### 2026-06-06: Agent Footer ANE Prefill Color
+
+Request: make the agent prefill progress bar red when ANE is the active prefill
+chunk backend, instead of using the normal magenta fill.
+
+Implementation:
+
+- `ds4.c` now emits `prefill_display_ane` display-progress events when the
+  current prefill work is ANE-backed:
+  - full/layer-major prefill uses the existing ANE precompile/backend decision;
+  - chunked prefill computes the decision per chunk from
+    `DS4_FLASH_MOE_ANE_PREFILL`, `DS4_RESIDENT_MOE_ANE_HYBRID`, or the
+    per-token backend table.
+- `ds4-agent` stores this as `status.prefill_ane` and renders the filled
+  progress-bar segment as bright red (`38;5;196`) while the event is active.
+  Normal prefill remains the existing magenta (`38;5;201`).
+- `ds4` CLI text progress accepts the new event so display-progress updates are
+  not dropped, but it keeps its existing textual progress styling.
+
+Validation:
+
+```text
+make: pass
+git diff --check -- ds4.c ds4_cli.c ds4_agent.c: pass
+DS4_FLASH_MOE_ANE_PREFILL=1 ./ds4 ... -p hi -n 1: pass
+```

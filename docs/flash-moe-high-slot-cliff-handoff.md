@@ -381,3 +381,384 @@ Longer-term design likely separates prefill streaming scratch from decode
 resident semantic expert buffers. Prefill can stream experts efficiently, but
 decode residency should avoid CPU writes into arbitrary subranges of a giant
 shared layer bank.
+
+## Latest Local Test Update
+
+After implementing the per-semantic-expert diagnostic, the current local result
+is correctness-positive but not speed-positive yet.
+
+Current behavior under:
+
+```bash
+DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1
+DS4_FLASH_MOE_DID_MODIFY_RANGE=1
+```
+
+- allocates one Metal buffer per `(layer, semantic expert_id)`;
+- preloads every expert record into its own buffer and calls `didModifyRange`;
+- sets `slot_id == expert_id`;
+- disables decode prefetch and prefill slot-cache reuse for this diagnostic;
+- keeps prefill on the normal grouped streaming path;
+- runs decode routed experts route-wise by binding one expert-owned buffer at a
+  time.
+
+The explicit-env correctness matrix on the small IQ2XXS sidecar:
+
+```text
+PyGame prompt, ctx60768, n8:
+slot225 grouped/stable bank     hash d6d70d53947a...  generation 2.71 t/s
+per-expert semantic buffers     hash d6d70d53947a...  generation 1.29 t/s
+
+PyGame prompt, ctx60768, n32:
+slot225 grouped/stable bank     hash e589d9c6337a...  generation 5.79 t/s
+per-expert semantic buffers     hash e589d9c6337a...  generation 2.15 t/s
+
+ds4-agent smoke, ctx4096, n1:
+per-expert semantic buffers     status 0, output "Hello"
+
+Huge prompt, ctx60768, n5, `--no-int8`, no teardown/realloc:
+per-expert semantic buffers     hash 6ac133b4cb9d...  prefill 301.73 t/s, generation 1.44 t/s
+```
+
+Result logs:
+
+```text
+/tmp/ds4_flash_moe_expert_diag_20260605_174400
+/tmp/ds4_huge_perexpert_gpu_current_20260605_181515
+```
+
+Interpretation:
+
+- One allocation per semantic expert is now a working, hash-matching diagnostic.
+- It has not proved a speed win because the current execution path deliberately
+  uses route-wise one-entry bank calls, not a grouped/fused kernel over separate
+  expert buffers.
+- On the huge no-teardown prompt, per-expert GPU buffers improve over the old
+  slot225 `0.30 t/s` cliff but only reach `1.44 t/s`, so separate allocation
+  alone is not enough while execution remains route-wise.
+- The next review question should be how to represent a top-k list of separate
+  expert buffers to Metal without rebuilding the giant mixed layer bank:
+  argument buffer, pointer/descriptor table, or another grouped ABI that keeps
+  semantic expert ownership.
+- If that grouped separate-buffer path recovers routed-MoE time, the high-slot
+  cliff is very likely giant allocation/subrange/page ownership. If it remains
+  slow even with grouped separate buffers, the routed-MoE kernel or total working
+  set is the remaining suspect.
+
+## Exact Dirty-Range Retest
+
+An audit tightened `didModifyRange` usage to exact CPU-written Metal ranges:
+direct slot `pread()` marks after successful read, scratch upload relies on
+`ds4_gpu_tensor_write()`, decode prefetch/async handout mark after join, and raw
+`MTLBuffer.contents` CPU writes in `ds4_metal.m` now mark their exact ranges.
+
+Retest on M5 Max with a 39,894-token trimmed `ds4.c` prompt, `--ssd-cache 64GB`
+(`slots=225`, `gpu-bank=63.78 GiB`), decode prefetch off, reset-after-prefill on,
+residency/touch-pages on, and `--no-int8`:
+
+```text
+direct slot pread on   prefill 289.64 t/s, generation 0.22 t/s
+direct slot pread off  prefill 290.58 t/s, generation 0.23 t/s
+logs: /tmp/ds4_didmodify_retest_20260605_190746
+```
+
+This means exact `didModifyRange` cleanup is not sufficient to fix the cliff.
+The bad interaction is now more likely in the large resident bank GPU read path
+or allocation/page locality than in only the direct `pread()` dirty-range path.
+
+## Per-Slot Shared Buffer Diagnostic
+
+Added an opt-in layout:
+
+```bash
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+# alias:
+DS4_FLASH_MOE_SEPARATE_SLOT_BUFFERS=1
+```
+
+This is different from the existing full semantic expert diagnostic:
+
+```bash
+DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1
+DS4_FLASH_MOE_FULL_RESIDENT_EXPERT_BUFFERS=1
+```
+
+Per-slot mode keeps the normal slot cache and eviction policy, but allocates
+each resident `(layer, slot)` as its own `ds4_gpu_tensor_alloc(expert_stride)`.
+That creates a separate `MTLResourceStorageModeShared` `MTLBuffer` per resident
+slot instead of one huge mixed layer buffer with `slot * expert_stride`
+subranges.
+
+Validation:
+
+```text
+small prompt, slot8, n8:
+mixed hash    9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+per-slot hash 9b7d4e56be73293b81fcc0625aa4b382742f8e81a692f44dcadc6a06fda36f18
+logs: /tmp/ds4_per_slot_buffers_20260605_201520
+```
+
+High-slot diagnostic:
+
+```text
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+prompt: 100 KB ds4.c prompt file
+ctx: 60768
+cache: --ssd-cache 64GB -> slots=225, gpu-bank=63.78 GiB
+flags: --no-int8, no decode prefetch, stable replay on,
+       async handout off, ICB replay off, Metal decode replay on
+logs: /tmp/ds4_per_slot_fileprompt_20260605_202052
+
+per-slot buffers  prefill 301.48 t/s, generation 8.97 t/s
+mixed giant bank   prefill 301.62 t/s, generation 0.21 t/s
+```
+
+Interpretation for reviewer:
+
+- This strongly implicates the giant mixed resident bank/subrange access pattern.
+- Separate shared Metal buffers per resident slot recover high-slot decode speed
+  even though the current per-slot execution path is still route-wise and not
+  grouped/fused.
+- The next architecture question is how to run grouped routed-MoE over separate
+  expert/slot buffers without rebuilding a huge mixed bank. Candidate Metal ABIs:
+  argument buffers, pointer/descriptor tables, or a compact per-token descriptor
+  list consumed by a fused routed-MoE kernel.
+
+## Lazy Per-Slot Allocation Follow-Up
+
+The sibling `/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4` SSD streaming
+cache allocates expert buffers lazily on miss, not as one upfront byte-budget
+reservation. It also reuses evicted buffers and attempts `mlock()` once when a
+buffer is allocated.
+
+Added a matching Flash-MoE diagnostic:
+
+```bash
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1
+# alias:
+DS4_FLASH_MOE_LAZY_SLOT_BUFFERS=1
+```
+
+This preserves per-slot cache semantics but allocates each separate shared
+`MTLBuffer` only when a slot is first installed. Startup logs distinguish
+allocated bytes from planned capacity:
+
+```text
+gpu-bank=0.0GB allocated, planned=63.8GB
+slot bank layout: lazy per-slot expert buffers
+decode I/O: resident=per-slot-lazy
+```
+
+Results:
+
+```text
+slot8 smoke, n8:
+eager/lazy hashes match
+lazy startup avoids 2.3GB preallocation
+
+slot225, --ssd-cache 64GB, 100KB prompt, n50, --no-int8:
+lazy per-slot   prefill 307.67 t/s, generation 8.82 t/s
+eager per-slot  prefill 308.72 t/s, generation 9.16 t/s
+mixed bank      generation 0.21 t/s from earlier same prompt
+```
+
+Interpretation:
+
+- Lazy allocation is useful to test whether agent slowdown is caused by upfront
+  preallocation/VM pressure.
+- In the controlled CLI high-slot prompt it does not beat eager per-slot, so
+  preallocation alone is not the only speed factor.
+- The fast sibling allocation also has features still missing here: buffer reuse
+  and optional `mlock()`, plus grouped execution via GPU address tables. Those
+  are separate follow-up diagnostics.
+
+## Correction: Per-Slot Buffers Now Preserve Grouped Decode
+
+The first per-slot implementation had a major hidden variable: it allocated
+separate Metal buffers but decoded route-wise. That made `PER_SLOT_BUFFERS=1`
+look like a storage-only diagnostic while it had actually stopped using grouped
+top-k execution.
+
+Fixed in the current branch:
+
+- added direct `slots6` grouped decode kernels for IQ2_XXS gate/up and Q2_K
+  down;
+- added `ds4_gpu_routed_moe_one_slots6_tensor()`;
+- `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1` and
+  `DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1` now try grouped six-buffer decode first;
+- route-wise execution remains only as fallback/debug:
+
+```bash
+DS4_FLASH_MOE_FORCE_PER_ROUTE=1
+DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED=1
+```
+
+Successful grouped-path log:
+
+```text
+ds4: Flash-MoE separate slot buffers using grouped slots6 decode path (direct 6-buffer IQ2_XXS/Q2_K)
+```
+
+Validation:
+
+```text
+/tmp/ds4_slots6_fix_20260605_235148
+slot8, ctx4096, n8:
+mixed/per-slot/forced-route hashes all match
+mixed              6.96 t/s
+per-slot grouped   9.82 t/s
+forced per-route   6.25 t/s
+
+/tmp/ds4_slots6_fix_space_20260605_235428
+--ssd-cache 32GB -> slots=112, ctx32768, n50:
+mixed hash             f944e748face7f4222bc9ab3229a489d44c49460a06b857327828c9d87e2a743
+per-slot grouped hash  f944e748face7f4222bc9ab3229a489d44c49460a06b857327828c9d87e2a743
+mixed                  10.40 t/s
+lazy per-slot grouped  9.37 t/s
+```
+
+Reviewer takeaway:
+
+- grouped decode was not the root problem;
+- the branch accidentally bypassed grouped decode for separate buffers;
+- separate buffers plus grouped slots6 is the correct diagnostic baseline now;
+- for high-slot cliff work, compare mixed bank versus per-slot grouped, not
+  mixed bank versus route-wise separate buffers.
+
+## 2026-06-06 Correction: Direct Slots6 Is Not Yet Correct
+
+The direct slots6 grouped path above passed short smokes, but failed a longer
+deterministic 100-token prompt. Do not treat it as the current baseline.
+
+Current default has been changed:
+
+```bash
+# direct slots6 is opt-in only
+DS4_FLASH_MOE_ENABLE_SLOTS6_GROUPED=1
+```
+
+Without that opt-in, `DS4_FLASH_MOE_PER_SLOT_BUFFERS=1` uses the known-good
+route-wise fallback.
+
+Failure split:
+
+```text
+prompt: "craete game of spsce invaders in PyGame, keep files and compile in /tmp/tmp1a compile, test, iterate"
+model: ~/Models/flash/dsv4-iq2xxs-expert-major
+cache: --ssd-cache 32GB -> slots=112
+ctx: 32768
+n: 100
+
+mixed bank:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  generation 15.03 t/s
+
+per-slot direct slots6:
+  hash c9d0d5855ebc17629e8e5a71bd5f82789d582c79d35f11a30d9e2820c81adfc1
+  generation 10.81 t/s
+  cmp vs mixed = 1
+
+per-slot route-wise fallback:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  generation 13.14 t/s
+  cmp vs mixed = 0
+  logs: /tmp/ds4_yolo_32gb_default_20260606_002254
+```
+
+High-slot 64GB smoke with corrected default:
+
+```text
+per-slot lazy route-wise, --ssd-cache 64GB -> slots=225:
+  hash 92fd701d4cd59f7a64448e24b6cdf5f705ab67678c00d166e05d82bef60186d8
+  prefill 0.72 t/s
+  generation 13.13 t/s
+  logs: /tmp/ds4_yolo_64gb_default_20260606_002506
+
+same-shape mixed 64GB comparator:
+  generation 9.76 t/s
+  logs: /tmp/ds4_yolo_mixed_20260606_001618
+```
+
+Agent responsiveness change:
+
+```text
+ds4-agent now defaults DS4_METAL_RESUME_PREFILL_MIN=256
+unless the user sets it explicitly.
+```
+
+Reason: the old library default `32` made short tool-result suffixes such as
+`90` tokens take `resume-prefill`; the status footer sat at `prefill 0/90`
+until the whole chunk completed. The new agent-only default keeps these small
+continuations on `decode-suffix`.
+
+Reviewer takeaway update:
+
+- Current correctness baseline is mixed bank versus per-slot route-wise fallback.
+- Direct slots6 needs a kernel correctness fix before being used for speed
+  conclusions.
+- The per-slot allocation/locality diagnostic remains valuable: even route-wise,
+  it beats the giant-bank high-slot cliff in the 64GB/225-slot smoke.
+
+## 2026-06-06 Update: Corrected Slots6 Is Default for Supported Separate Buffers
+
+The direct slots6 failure above has been fixed. The bug was not the per-slot
+cache/install path and not cached family views. The first slots6 implementation
+also forced a direct six-expert q2_K down-sum kernel, while the profile baseline
+keeps `DS4_METAL_ENABLE_ROUTED_DOWN_SUM6=0` and sums six routed-down rows after
+the down projection. That changed floating-point accumulation order and altered
+tokens.
+
+Current behavior:
+
+```bash
+# default for supported independent buffers:
+#   topk=6, IQ2_XXS gate/up, Q2_K down
+DS4_FLASH_MOE_PER_SLOT_BUFFERS=1
+
+# escape hatches:
+DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED=1
+DS4_FLASH_MOE_FORCE_PER_ROUTE=1
+DS4_FLASH_MOE_ENABLE_SLOTS6_GROUPED=0
+
+# old direct sum6 remains experimental only:
+DS4_FLASH_MOE_SLOTS6_DIRECT_DOWN_SUM=1
+```
+
+Implementation status:
+
+- slots6 gate/up uses the six separate gate/up buffers in one grouped dispatch.
+- down now defaults to `kernel_mul_mv_slots6_q2_K_f32`, which binds six separate
+  down buffers and writes six normal routed-down rows in one dispatch.
+- the existing exact `moe_sum_experts` kernel performs the final sum, preserving
+  route-wise/mixed output.
+- `DS4_FLASH_MOE_SLOTS6_DISABLE_GROUPED_DOWN=1` forces the slower six-dispatch
+  down fallback for A/B.
+
+Latest validation:
+
+```text
+n50, 32GB/112 slots:
+  route fallback:       hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 9.80 t/s
+  default slots6 group: hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 11.01 t/s
+  cmp=0
+
+n100, 32GB/112 slots:
+  route fallback:       hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 9.06 t/s
+  default slots6 group: hash 004407eae977e457fac5ef8fbcc147c2f53d5a8ee7a32fb7a15d3a9487ffadfc, generation 9.02 t/s
+  cmp=0
+
+n50, 64GB/225 slots:
+  route fallback:       hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 10.60 t/s
+  default slots6 group: hash d316b5d3a34eea56e017c76620b831334668f55d30e2c99307803bb3412d4766, generation 10.90 t/s
+  cmp=0
+```
+
+Updated reviewer takeaway:
+
+- Use default per-slot grouped slots6 as the current separate-buffer baseline.
+- Keep the old direct sum6 disabled unless specifically testing numerical drift
+  versus speed.
+- Longer 500-token sweeps are still needed; short runs are dominated by empty
+  lazy-slot first-token installs, visible as `processing 0/N` before the prompt
+  counter advances.

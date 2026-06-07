@@ -145,7 +145,14 @@ kernel void kernel_dsv4_qkv_rms_norm_f32_4(
     sumf = shmem_f32[tiisg];
     sumf = simd_sum(sumf);
 
+#ifdef DS4_METAL_NORM_RSQRT_DISABLE
+    // Match the fused RMSNorm formula so both entry points produce the same
+    // scale. Hardware rsqrt() and 1.0f/sqrt() can differ by about one ULP and
+    // that difference compounds across many layers.
+    const float scale = 1.0f / sqrt(sumf / float(n) + args.eps);
+#else
     const float scale = rsqrt(sumf / float(n) + args.eps);
+#endif
 
     for (int i = tpitg.x; i < n4; i += ntg.x) {
         y[i] = (x[i] * scale) * w[i];

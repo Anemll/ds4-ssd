@@ -9726,8 +9726,13 @@ typedef struct {
     ds4_gpu_tensor *flash_gate_bank[DS4_MAX_LAYER];
     ds4_gpu_tensor *flash_up_bank[DS4_MAX_LAYER];
     ds4_gpu_tensor *flash_down_bank[DS4_MAX_LAYER];
+    bool flash_per_slot_buffers;
+    bool flash_per_slot_lazy_alloc;
     bool flash_per_expert_buffers;
     ds4_gpu_tensor *flash_expert_bank[DS4_MAX_LAYER][DS4_MAX_EXPERT];
+    ds4_gpu_tensor *flash_expert_gate_view[DS4_MAX_LAYER][DS4_MAX_EXPERT];
+    ds4_gpu_tensor *flash_expert_up_view[DS4_MAX_LAYER][DS4_MAX_EXPERT];
+    ds4_gpu_tensor *flash_expert_down_view[DS4_MAX_LAYER][DS4_MAX_EXPERT];
     uint64_t flash_per_expert_bank_bytes;
     ds4_gpu_tensor *flash_prefill_gate_bank;
     ds4_gpu_tensor *flash_prefill_up_bank;
@@ -11285,6 +11290,8 @@ static bool flash_moe_slot_bank_residency_enabled(void);
 static bool flash_moe_slot_bank_touch_pages_enabled(void);
 static bool flash_moe_baked_slot_decode_enabled(void);
 static bool flash_moe_per_expert_buffers_enabled(void);
+static bool flash_moe_per_slot_buffers_enabled(void);
+static bool flash_moe_per_slot_lazy_alloc_enabled(void);
 static int flash_moe_cache_io_split(void);
 static bool flash_moe_pread_split(int fd, uint64_t offset, uint8_t *dst,
                                   uint64_t bytes, int want);
@@ -11316,11 +11323,99 @@ static bool metal_graph_flash_moe_prepare_slot_bank_owner(
     return true;
 }
 
+static void metal_graph_flash_moe_free_expert_family_views(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       slot) {
+    if (!g || il >= DS4_N_LAYER || slot >= DS4_MAX_EXPERT) return;
+    ds4_gpu_tensor_free(g->flash_expert_down_view[il][slot]);
+    ds4_gpu_tensor_free(g->flash_expert_up_view[il][slot]);
+    ds4_gpu_tensor_free(g->flash_expert_gate_view[il][slot]);
+    g->flash_expert_down_view[il][slot] = NULL;
+    g->flash_expert_up_view[il][slot] = NULL;
+    g->flash_expert_gate_view[il][slot] = NULL;
+}
+
+static bool metal_graph_flash_moe_init_expert_family_views(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       slot) {
+    if (!g || !g->flash_moe || il >= DS4_N_LAYER || slot >= DS4_MAX_EXPERT) {
+        return false;
+    }
+    ds4_gpu_tensor *expert = g->flash_expert_bank[il][slot];
+    if (!expert) return false;
+    const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    metal_graph_flash_moe_free_expert_family_views(g, il, slot);
+    g->flash_expert_gate_view[il][slot] =
+        ds4_gpu_tensor_view(expert,
+                            layer->family_offset[DS4_FLASH_FAMILY_GATE],
+                            layer->family_bytes[DS4_FLASH_FAMILY_GATE]);
+    g->flash_expert_up_view[il][slot] =
+        ds4_gpu_tensor_view(expert,
+                            layer->family_offset[DS4_FLASH_FAMILY_UP],
+                            layer->family_bytes[DS4_FLASH_FAMILY_UP]);
+    g->flash_expert_down_view[il][slot] =
+        ds4_gpu_tensor_view(expert,
+                            layer->family_offset[DS4_FLASH_FAMILY_DOWN],
+                            layer->family_bytes[DS4_FLASH_FAMILY_DOWN]);
+    const bool ok =
+        g->flash_expert_gate_view[il][slot] &&
+        g->flash_expert_up_view[il][slot] &&
+        g->flash_expert_down_view[il][slot];
+    if (!ok) metal_graph_flash_moe_free_expert_family_views(g, il, slot);
+    return ok;
+}
+
+static bool metal_graph_flash_moe_ensure_per_slot_buffer(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        int32_t        slot) {
+    if (!g || !g->flash_moe || !g->flash_per_slot_buffers ||
+        il >= DS4_N_LAYER ||
+        slot < 0 || slot >= (int32_t)g->flash_slot_bank ||
+        slot >= (int32_t)DS4_MAX_EXPERT) {
+        return false;
+    }
+    if (g->flash_expert_bank[il][slot]) return true;
+
+    const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    ds4_gpu_tensor *buf = ds4_gpu_tensor_alloc(layer->expert_stride);
+    if (!buf) return false;
+
+    char label[80];
+    snprintf(label, sizeof(label), "slot-layer-%u-id-%u", il, (uint32_t)slot);
+    const bool ok = metal_graph_flash_moe_prepare_slot_bank_owner(
+            buf,
+            label,
+            false,
+            flash_moe_slot_bank_touch_pages_enabled(),
+            NULL,
+            NULL);
+    if (!ok) {
+        ds4_gpu_tensor_free(buf);
+        return false;
+    }
+    g->flash_expert_bank[il][slot] = buf;
+    if (!metal_graph_flash_moe_init_expert_family_views(g, il, (uint32_t)slot)) {
+        ds4_gpu_tensor_free(g->flash_expert_bank[il][slot]);
+        g->flash_expert_bank[il][slot] = NULL;
+        return false;
+    }
+    if (g->flash_per_expert_bank_bytes > UINT64_MAX - layer->expert_stride) {
+        g->flash_per_expert_bank_bytes = UINT64_MAX;
+    } else {
+        g->flash_per_expert_bank_bytes += layer->expert_stride;
+    }
+    return true;
+}
+
 static void metal_graph_flash_moe_free_slot_banks(ds4_gpu_graph *g) {
     if (!g) return;
     if (g->flash_moe) ds4_gpu_flash_slot_bank_residency_clear();
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
         for (uint32_t expert = 0; expert < DS4_N_EXPERT && expert < DS4_MAX_EXPERT; expert++) {
+            metal_graph_flash_moe_free_expert_family_views(g, il, expert);
             ds4_gpu_tensor_free(g->flash_expert_bank[il][expert]);
             g->flash_expert_bank[il][expert] = NULL;
         }
@@ -11347,18 +11442,40 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
 
     bool ok = true;
     uint64_t total_bank_bytes = 0;
+    uint64_t planned_bank_bytes = 0;
     uint64_t layer_mixed_bytes[DS4_MAX_LAYER] = { 0 };
     uint64_t layer_slab_offsets[DS4_MAX_LAYER] = { 0 };
-    const bool use_slot_residency = flash_moe_slot_bank_residency_enabled();
-    const bool touch_slot_pages = flash_moe_slot_bank_touch_pages_enabled();
     const bool per_expert = g->flash_per_expert_buffers;
+    const bool per_slot = g->flash_per_slot_buffers;
+    const bool lazy_per_slot = per_slot && g->flash_per_slot_lazy_alloc;
+    const bool use_slot_residency =
+        flash_moe_slot_bank_residency_enabled() && !lazy_per_slot;
+    const bool touch_slot_pages = flash_moe_slot_bank_touch_pages_enabled();
     uint64_t touched_slot_bytes = 0;
     uint32_t touched_slot_buffers = 0;
     uint32_t residency_capacity = 0;
 
-    if (use_slot_residency) {
-        residency_capacity = per_expert ?
-            (uint32_t)(DS4_N_LAYER * DS4_N_EXPERT) :
+    if (per_slot) {
+        for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
+            const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+            if (sidecar->slot_bank != 0 &&
+                layer->expert_stride > UINT64_MAX / (uint64_t)sidecar->slot_bank) {
+                ok = false;
+                break;
+            }
+            const uint64_t layer_bytes =
+                (uint64_t)sidecar->slot_bank * layer->expert_stride;
+            if (planned_bank_bytes > UINT64_MAX - layer_bytes) {
+                ok = false;
+                break;
+            }
+            planned_bank_bytes += layer_bytes;
+        }
+    }
+
+    if (ok && use_slot_residency) {
+        residency_capacity = (per_expert || per_slot) ?
+            (uint32_t)(DS4_N_LAYER * g->flash_slot_bank) :
             (g->flash_mixed_slot_bank ?
              (g->flash_layer_slot_slab ? 1u : (uint32_t)DS4_N_LAYER) :
              (uint32_t)DS4_N_LAYER * DS4_FLASH_FAMILY_COUNT);
@@ -11388,6 +11505,8 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                         touch_slot_pages,
                         &touched_slot_bytes,
                         &touched_slot_buffers);
+                if (!ok) break;
+                ok = metal_graph_flash_moe_init_expert_family_views(g, il, expert);
                 if (!ok) break;
 
                 uint8_t *dst = (uint8_t *)ds4_gpu_tensor_contents(buf);
@@ -11434,7 +11553,35 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
             g->flash_per_expert_bank_bytes = total_bank_bytes;
         }
     }
-    if (ok && !per_expert && g->flash_mixed_slot_bank) {
+    if (ok && per_slot && !lazy_per_slot) {
+        for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
+            const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+            for (uint32_t slot = 0; ok && slot < sidecar->slot_bank; slot++) {
+                if (slot >= DS4_MAX_EXPERT) {
+                    ok = false;
+                    break;
+                }
+                ds4_gpu_tensor *buf = ds4_gpu_tensor_alloc(layer->expert_stride);
+                g->flash_expert_bank[il][slot] = buf;
+                ok = buf != NULL;
+                if (!ok) break;
+
+                char label[80];
+                snprintf(label, sizeof(label), "slot-layer-%u-id-%u", il, slot);
+                ok = metal_graph_flash_moe_prepare_slot_bank_owner(
+                        buf,
+                        label,
+                        use_slot_residency,
+                        touch_slot_pages,
+                        &touched_slot_bytes,
+                        &touched_slot_buffers);
+                if (ok) ok = metal_graph_flash_moe_init_expert_family_views(g, il, slot);
+                if (ok) total_bank_bytes += layer->expert_stride;
+            }
+        }
+        if (ok) g->flash_per_expert_bank_bytes = total_bank_bytes;
+    }
+    if (ok && !per_expert && !per_slot && g->flash_mixed_slot_bank) {
         const uint64_t slab_align = 4096u;
         uint64_t slab_bytes = 0;
         for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
@@ -11476,7 +11623,7 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
         }
     }
 
-    for (uint32_t il = 0; ok && !per_expert && il < DS4_N_LAYER; il++) {
+    for (uint32_t il = 0; ok && !per_expert && !per_slot && il < DS4_N_LAYER; il++) {
         const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
         if (g->flash_mixed_slot_bank) {
             const uint64_t mixed_bytes = layer_mixed_bytes[il];
@@ -11577,23 +11724,44 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
     const uint64_t dense_bytes = g->dense_mapped_bytes;
     const uint64_t context_bytes = g->context_buffer_bytes;
     const uint64_t total_bytes = total_bank_bytes + dense_bytes + context_bytes;
-    fprintf(stderr,
-            "ds4: Flash-MoE slot banks %s: layers=%u slots=%u "
-            "gpu-bank=%.1fGB Dense: %.1fGB Context: %.1fGB Total <<<< %.1fGB >>>>\n",
-            action && action[0] ? action : "allocated",
-            (uint32_t)DS4_N_LAYER,
-            g->flash_slot_bank,
-            (double)total_bank_bytes / 1073741824.0,
-            (double)dense_bytes / 1073741824.0,
-            (double)context_bytes / 1073741824.0,
-            (double)total_bytes / 1073741824.0);
+    const uint64_t planned_total_bytes =
+        lazy_per_slot ? (planned_bank_bytes + dense_bytes + context_bytes) : total_bytes;
+    if (lazy_per_slot) {
+        fprintf(stderr,
+                "ds4: Flash-MoE slot banks %s: layers=%u slots=%u "
+                "gpu-bank=%.1fGB allocated, planned=%.1fGB Dense: %.1fGB Context: %.1fGB "
+                "Total <<<< %.1fGB allocated, %.1fGB planned >>>>\n",
+                action && action[0] ? action : "allocated",
+                (uint32_t)DS4_N_LAYER,
+                g->flash_slot_bank,
+                (double)total_bank_bytes / 1073741824.0,
+                (double)planned_bank_bytes / 1073741824.0,
+                (double)dense_bytes / 1073741824.0,
+                (double)context_bytes / 1073741824.0,
+                (double)total_bytes / 1073741824.0,
+                (double)planned_total_bytes / 1073741824.0);
+    } else {
+        fprintf(stderr,
+                "ds4: Flash-MoE slot banks %s: layers=%u slots=%u "
+                "gpu-bank=%.1fGB Dense: %.1fGB Context: %.1fGB Total <<<< %.1fGB >>>>\n",
+                action && action[0] ? action : "allocated",
+                (uint32_t)DS4_N_LAYER,
+                g->flash_slot_bank,
+                (double)total_bank_bytes / 1073741824.0,
+                (double)dense_bytes / 1073741824.0,
+                (double)context_bytes / 1073741824.0,
+                (double)total_bytes / 1073741824.0);
+    }
     fprintf(stderr,
             "ds4: Flash-MoE slot bank layout: %s\n",
             per_expert ? "full-resident semantic-expert buffers" :
+            lazy_per_slot ? "lazy per-slot expert buffers" :
+            per_slot ? "per-slot expert buffers" :
             g->flash_layer_slot_slab ? "layer-major slab mixed expert-major" :
             (g->flash_mixed_slot_bank ? "mixed expert-major" : "separate families"));
     const uint64_t warn_slot_bank_bytes = 44ull * 1024ull * 1024ull * 1024ull;
-    if (g->flash_slot_bank > 128u || total_bank_bytes >= warn_slot_bank_bytes) {
+    const uint64_t warn_bank_bytes = lazy_per_slot ? planned_bank_bytes : total_bank_bytes;
+    if (g->flash_slot_bank > 128u || warn_bank_bytes >= warn_slot_bank_bytes) {
         if (DS4_MODEL_VARIANT == DS4_VARIANT_PRO) {
             fprintf(stderr,
                     "ds4: warning: very large Pro Flash-MoE slot bank can collapse decode throughput "
@@ -11602,7 +11770,7 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     "prefer larger banks for hit rate, while residency/page-locality cliffs can "
                     "still make smaller banks faster.\n",
                     g->flash_slot_bank,
-                    (double)total_bank_bytes / 1073741824.0,
+                    (double)warn_bank_bytes / 1073741824.0,
                     (double)g->flash_moe->max_expert_stride / 1048576.0);
         } else {
             fprintf(stderr,
@@ -11611,7 +11779,7 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     "with current tuning; if decode tanks, compare --moe-slot-bank 64/96 and "
                     "remove profiling/no-residency test flags.\n",
                     g->flash_slot_bank,
-                    (double)total_bank_bytes / 1073741824.0);
+                    (double)warn_bank_bytes / 1073741824.0);
         }
     }
 
@@ -11627,6 +11795,8 @@ static bool metal_graph_enable_flash_moe(
     if (DS4_N_EXPERT > DS4_MAX_EXPERT) return false;
 
     const bool per_expert = flash_moe_per_expert_buffers_enabled();
+    const bool per_slot = !per_expert && flash_moe_per_slot_buffers_enabled();
+    const bool per_slot_lazy = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
     const uint32_t effective_slot_bank = per_expert ? DS4_N_EXPERT : sidecar->slot_bank;
     const uint64_t layer_slots = (uint64_t)DS4_N_LAYER * effective_slot_bank;
     if (layer_slots > SIZE_MAX / sizeof(int32_t) ||
@@ -11637,8 +11807,12 @@ static bool metal_graph_enable_flash_moe(
 
     g->flash_moe = sidecar;
     g->flash_slot_bank = effective_slot_bank;
+    g->flash_per_slot_buffers = per_slot;
+    g->flash_per_slot_lazy_alloc = per_slot_lazy;
     g->flash_per_expert_buffers = per_expert;
-    g->flash_mixed_slot_bank = !g->flash_per_expert_buffers && flash_moe_mixed_slot_bank_enabled();
+    g->flash_mixed_slot_bank = !g->flash_per_expert_buffers &&
+                                !g->flash_per_slot_buffers &&
+                                flash_moe_mixed_slot_bank_enabled();
     g->flash_layer_slot_slab = g->flash_mixed_slot_bank && flash_moe_layer_slot_slab_enabled();
     g->flash_layer_slot_slab_bytes = 0;
     g->router_slot_selected = ds4_gpu_tensor_alloc((uint64_t)DS4_N_EXPERT_USED * sizeof(int32_t));
@@ -12596,6 +12770,16 @@ static bool flash_moe_per_expert_buffers_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_FULL_RESIDENT_EXPERT_BUFFERS");
 }
 
+static bool flash_moe_per_slot_buffers_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_PER_SLOT_BUFFERS") ||
+           env_flag_enabled("DS4_FLASH_MOE_SEPARATE_SLOT_BUFFERS");
+}
+
+static bool flash_moe_per_slot_lazy_alloc_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC") ||
+           env_flag_enabled("DS4_FLASH_MOE_LAZY_SLOT_BUFFERS");
+}
+
 static bool flash_moe_did_modify_range_enabled(void) {
     const char *env = getenv("DS4_FLASH_MOE_DID_MODIFY_RANGE");
     return env == NULL || env[0] == '\0' || atoi(env) != 0;
@@ -12736,6 +12920,24 @@ static bool metal_graph_flash_moe_direct_slot_ptrs(
         uint8_t                          *dst[DS4_FLASH_FAMILY_COUNT]) {
     if (!g || !g->flash_moe || il >= DS4_N_LAYER || slot < 0) return false;
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    if (g->flash_per_slot_buffers) {
+        if (slot >= (int32_t)g->flash_slot_bank ||
+            !metal_graph_flash_moe_ensure_per_slot_buffer(g, il, slot)) {
+            return false;
+        }
+        uint8_t *base = (uint8_t *)ds4_gpu_tensor_contents(g->flash_expert_bank[il][slot]);
+        if (!base && layer->expert_stride != 0) return false;
+        const uint64_t bytes = ds4_gpu_tensor_bytes(g->flash_expert_bank[il][slot]);
+        if (layer->expert_stride > bytes) return false;
+        for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+            if (layer->family_offset[fam] > bytes ||
+                layer->family_bytes[fam] > bytes - layer->family_offset[fam]) {
+                return false;
+            }
+            dst[fam] = base + layer->family_offset[fam];
+        }
+        return true;
+    }
     const uint64_t gate_stride = g->flash_mixed_slot_bank ?
                                  layer->expert_stride :
                                  layer->family_bytes[DS4_FLASH_FAMILY_GATE];
@@ -12773,11 +12975,18 @@ static uint8_t *metal_graph_flash_moe_mixed_slot_ptr(
         ds4_gpu_graph *g,
         uint32_t       il,
         int32_t        slot) {
-    if (!g || !g->flash_moe || !g->flash_mixed_slot_bank ||
+    if (!g || !g->flash_moe ||
         il >= DS4_N_LAYER || slot < 0 || slot >= (int32_t)g->flash_slot_bank) {
         return NULL;
     }
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    if (g->flash_per_slot_buffers) {
+        if (!metal_graph_flash_moe_ensure_per_slot_buffer(g, il, slot)) return NULL;
+        ds4_gpu_tensor *buf = g->flash_expert_bank[il][slot];
+        if (!buf || layer->expert_stride > ds4_gpu_tensor_bytes(buf)) return NULL;
+        return (uint8_t *)ds4_gpu_tensor_contents(buf);
+    }
+    if (!g->flash_mixed_slot_bank) return NULL;
     if (layer->expert_stride != 0 &&
         (uint64_t)slot > UINT64_MAX / layer->expert_stride) {
         return NULL;
@@ -12802,6 +13011,12 @@ static ds4_gpu_tensor *metal_graph_flash_moe_family_slot_view(
         return NULL;
     }
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    if (g->flash_per_slot_buffers) {
+        if (slot >= (int32_t)g->flash_slot_bank || !g->flash_expert_bank[il][slot]) return NULL;
+        return ds4_gpu_tensor_view(g->flash_expert_bank[il][slot],
+                                   layer->family_offset[fam],
+                                   layer->family_bytes[fam]);
+    }
     ds4_gpu_tensor *base = NULL;
     switch (fam) {
     case DS4_FLASH_FAMILY_GATE: base = g->flash_gate_bank[il]; break;
@@ -12819,6 +13034,33 @@ static ds4_gpu_tensor *metal_graph_flash_moe_family_slot_view(
     return ds4_gpu_tensor_view(base,
                                (uint64_t)slot * slot_stride,
                                layer->family_bytes[fam]);
+}
+
+static ds4_gpu_tensor *metal_graph_flash_moe_family_slot_cached_view(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       fam,
+        int32_t        slot) {
+    if (!g || !g->flash_moe ||
+        il >= DS4_N_LAYER || fam >= DS4_FLASH_FAMILY_COUNT ||
+        slot < 0 || slot >= (int32_t)g->flash_slot_bank ||
+        slot >= (int32_t)DS4_MAX_EXPERT) {
+        return NULL;
+    }
+    if (g->flash_per_slot_buffers &&
+        !metal_graph_flash_moe_ensure_per_slot_buffer(g, il, slot)) {
+        return NULL;
+    }
+    switch (fam) {
+    case DS4_FLASH_FAMILY_GATE:
+        return g->flash_expert_gate_view[il][slot];
+    case DS4_FLASH_FAMILY_UP:
+        return g->flash_expert_up_view[il][slot];
+    case DS4_FLASH_FAMILY_DOWN:
+        return g->flash_expert_down_view[il][slot];
+    default:
+        return NULL;
+    }
 }
 
 static bool metal_graph_flash_moe_pread_slot_direct(
@@ -12859,6 +13101,13 @@ static bool metal_graph_flash_moe_write_slot_from_buf(
     }
 
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    if (g->flash_per_slot_buffers) {
+        if (!metal_graph_flash_moe_ensure_per_slot_buffer(g, il, slot)) return false;
+        return ds4_gpu_tensor_write(g->flash_expert_bank[il][slot],
+                                    0,
+                                    src_buf,
+                                    layer->expert_stride) != 0;
+    }
     if (g->flash_mixed_slot_bank) {
         if (!g->flash_mixed_bank[il] ||
             (layer->expert_stride != 0 &&
@@ -12899,8 +13148,10 @@ static bool metal_graph_flash_moe_mark_slot_modified(
     }
 
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
-    if (g->flash_per_expert_buffers) {
-        if (slot >= (int32_t)DS4_N_EXPERT || !g->flash_expert_bank[il][slot]) {
+    if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
+        const uint32_t slot_limit =
+            g->flash_per_expert_buffers ? DS4_N_EXPERT : g->flash_slot_bank;
+        if (slot >= (int32_t)slot_limit || !g->flash_expert_bank[il][slot]) {
             return false;
         }
         return ds4_gpu_tensor_did_modify(g->flash_expert_bank[il][slot],
@@ -15499,7 +15750,10 @@ static void metal_graph_flash_moe_record_decode_slots(
         const int32_t *true_ids,
         const int32_t *slot_ids,
         uint32_t       n_ids) {
-    if (!flash_moe_replay_plan_enabled()) return;
+    const bool needs_decode_ids =
+        flash_moe_replay_plan_enabled() ||
+        (g && (g->flash_per_expert_buffers || g->flash_per_slot_buffers));
+    if (!needs_decode_ids) return;
     if (!g || il >= DS4_N_LAYER || !true_ids || !slot_ids ||
         n_ids > DS4_MAX_EXPERT_USED) {
         return;
@@ -15700,6 +15954,87 @@ static void metal_graph_flash_moe_trace_session_sync(
             flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off");
 }
 
+static bool metal_graph_prefill_verbose_trace_enabled(void) {
+    return env_flag_enabled("DS4_SESSION_SYNC_TRACE_VERBOSE") ||
+           env_flag_enabled("DS4_PREFILL_VERBOSE_TRACE") ||
+           env_flag_enabled("DS4_PREFILL_PHASE_TRACE");
+}
+
+static void metal_graph_prefill_trace_emit(const char *line, size_t len) {
+    if (!line || len == 0) return;
+    (void)fwrite(line, 1, len, stderr);
+    fflush(stderr);
+
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static int fd = -2;
+    pthread_mutex_lock(&mu);
+    if (fd == -2) {
+        const char *path = getenv("DS4_PREFILL_TRACE_LOG");
+        fd = (path && path[0]) ?
+            open(path, O_WRONLY | O_CREAT | O_APPEND, 0644) : -1;
+    }
+    if (fd >= 0) {
+        (void)write(fd, line, len);
+    }
+    pthread_mutex_unlock(&mu);
+}
+
+static void metal_graph_prefill_trace_phase(
+        const char *scope,
+        const char *phase,
+        const char *edge,
+        uint32_t    start,
+        uint32_t    n_tokens,
+        int         prompt_len,
+        double      t0) {
+    if (!metal_graph_prefill_verbose_trace_enabled()) return;
+    const double now = now_sec();
+    char line[512];
+    const int n = snprintf(
+            line,
+            sizeof(line),
+            "ds4: prefill trace scope=%s phase=%s %s start=%u n_tokens=%u prompt=%d elapsed=%.3f ms\n",
+            scope && scope[0] ? scope : "prefill",
+            phase && phase[0] ? phase : "unknown",
+            edge && edge[0] ? edge : "mark",
+            start,
+            n_tokens,
+            prompt_len,
+            t0 > 0.0 ? (now - t0) * 1000.0 : 0.0);
+    if (n > 0) metal_graph_prefill_trace_emit(line, (size_t)n < sizeof(line) ? (size_t)n : strlen(line));
+}
+
+static void metal_graph_prefill_trace_ane_decision(
+        const char *scope,
+        const char *edge,
+        uint32_t    start,
+        uint32_t    n_tokens,
+        int         prompt_len,
+        bool        flash_ane_env,
+        bool        resident_ane_env,
+        bool        token_backend_ane,
+        int         result,
+        double      t0) {
+    if (!metal_graph_prefill_verbose_trace_enabled()) return;
+    const double now = now_sec();
+    char line[640];
+    const int n = snprintf(
+            line,
+            sizeof(line),
+            "ds4: prefill trace scope=%s phase=ANE-precompile %s start=%u n_tokens=%u prompt=%d flash_ane=%s resident_ane=%s token_backend_ane=%s result=%d elapsed=%.3f ms\n",
+            scope && scope[0] ? scope : "prefill",
+            edge && edge[0] ? edge : "mark",
+            start,
+            n_tokens,
+            prompt_len,
+            flash_ane_env ? "on" : "off",
+            resident_ane_env ? "on" : "off",
+            token_backend_ane ? "on" : "off",
+            result,
+            t0 > 0.0 ? (now - t0) * 1000.0 : 0.0);
+    if (n > 0) metal_graph_prefill_trace_emit(line, (size_t)n < sizeof(line) ? (size_t)n : strlen(line));
+}
+
 /* Single eviction policy shared by every slot-acquisition path over the one
  * per-layer slot bank (prefill install + decode reserve). The bank is shared
  * between prefill and decode, so both MUST agree on how a slot is chosen or the
@@ -15799,6 +16134,7 @@ static bool metal_graph_flash_moe_install(
 
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
     bool wrote = false;
+    bool direct_metal_write = false;
     if (flash_moe_direct_slot_pread_enabled()) {
         errno = 0;
         if (g->flash_mixed_slot_bank) {
@@ -15810,6 +16146,7 @@ static bool metal_graph_flash_moe_install(
                                               dst,
                                               layer->expert_stride,
                                               flash_moe_cache_io_split());
+                direct_metal_write = wrote;
             }
         } else {
             uint8_t *family_dst[DS4_FLASH_FAMILY_COUNT] = { NULL, NULL, NULL };
@@ -15818,6 +16155,7 @@ static bool metal_graph_flash_moe_install(
                                                             true_expert,
                                                             family_dst,
                                                             flash_moe_cache_io_split());
+            direct_metal_write = wrote;
         }
         if (!wrote && errno != 0) {
             fprintf(stderr,
@@ -15854,7 +16192,7 @@ static bool metal_graph_flash_moe_install(
                 slot);
         return false;
     }
-    if (!metal_graph_flash_moe_mark_slot_modified(g, il, (int32_t)slot)) {
+    if (direct_metal_write && !metal_graph_flash_moe_mark_slot_modified(g, il, (int32_t)slot)) {
         fprintf(stderr, "ds4: Flash-MoE failed to mark layer %u slot %u modified\n",
                 il,
                 slot);
@@ -17018,7 +17356,101 @@ static bool metal_graph_flash_moe_compute_grouped_banked(
                                                 g->router_weights,
                                                 active_expert_used,
                                                 DS4_SWIGLU_CLAMP_EXP,
-                                                g->ffn_norm) != 0;
+	                                                g->ffn_norm) != 0;
+}
+
+static bool flash_moe_independent_slots6_grouped_enabled(void) {
+    if (env_flag_enabled("DS4_FLASH_MOE_DISABLE_SLOTS6_GROUPED") ||
+        env_flag_enabled("DS4_FLASH_MOE_FORCE_PER_ROUTE")) {
+        return false;
+    }
+    const char *explicit_enable = getenv("DS4_FLASH_MOE_ENABLE_SLOTS6_GROUPED");
+    if (explicit_enable && explicit_enable[0] && atoi(explicit_enable) == 0) {
+        return false;
+    }
+    return true;
+}
+
+static bool metal_graph_flash_moe_compute_independent_slots6_grouped(
+        ds4_gpu_graph             *g,
+        const ds4_layer_weights   *layer,
+        uint32_t                   il,
+        uint32_t                   active_expert_used,
+        uint64_t                   gate_row_bytes,
+        uint64_t                   down_row_bytes,
+        uint32_t                   expert_in_dim,
+        uint32_t                   expert_mid_dim,
+        uint32_t                   out_dim) {
+    if (!g || !layer || !g->flash_moe || il >= DS4_N_LAYER ||
+        active_expert_used != DS4_N_EXPERT_ACTIVE_USED ||
+        active_expert_used != 6 ||
+        !flash_moe_independent_slots6_grouped_enabled()) {
+        return false;
+    }
+    if (layer->ffn_gate_exps->type != DS4_TENSOR_IQ2_XXS ||
+        layer->ffn_down_exps->type != DS4_TENSOR_Q2_K) {
+        return false;
+    }
+    if (!g->flash_decode_ids_valid[il]) return false;
+
+    ds4_gpu_tensor *gate_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+    ds4_gpu_tensor *up_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+    ds4_gpu_tensor *down_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+    const bool use_fresh_views =
+        env_flag_enabled("DS4_FLASH_MOE_SLOTS6_FRESH_VIEWS");
+    bool ok = true;
+    for (uint32_t k = 0; ok && k < active_expert_used; k++) {
+        const int32_t slot = g->flash_decode_slot_ids[il][k];
+        gate_slots[k] = use_fresh_views ?
+            metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_GATE, slot) :
+            metal_graph_flash_moe_family_slot_cached_view(g, il, DS4_FLASH_FAMILY_GATE, slot);
+        up_slots[k] = use_fresh_views ?
+            metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_UP, slot) :
+            metal_graph_flash_moe_family_slot_cached_view(g, il, DS4_FLASH_FAMILY_UP, slot);
+        down_slots[k] = use_fresh_views ?
+            metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_DOWN, slot) :
+            metal_graph_flash_moe_family_slot_cached_view(g, il, DS4_FLASH_FAMILY_DOWN, slot);
+        ok = gate_slots[k] && up_slots[k] && down_slots[k];
+    }
+
+    if (ok) {
+        static int logged_slots6 = 0;
+        if (!logged_slots6) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE separate slot buffers using grouped slots6 decode path "
+                    "(direct 6-buffer gate/up, baseline down unless explicitly enabled)\n");
+            logged_slots6 = 1;
+        }
+        ok = ds4_gpu_routed_moe_one_slots6_tensor(g->routed_out,
+                                                  g->routed_gate,
+                                                  g->routed_up,
+                                                  g->routed_mid,
+                                                  g->routed_down,
+                                                  gate_slots,
+                                                  up_slots,
+                                                  down_slots,
+                                                  layer->ffn_gate_exps->type,
+                                                  layer->ffn_down_exps->type,
+                                                  gate_row_bytes,
+                                                  down_row_bytes,
+                                                  expert_in_dim,
+                                                  expert_mid_dim,
+                                                  out_dim,
+                                                  g->router_weights,
+                                                  active_expert_used,
+                                                  DS4_SWIGLU_CLAMP_EXP,
+                                                  g->ffn_norm) != 0;
+    }
+
+    if (use_fresh_views) {
+        for (uint32_t k = 0; k < active_expert_used; k++) {
+            ds4_gpu_tensor_free(down_slots[k]);
+            ds4_gpu_tensor_free(up_slots[k]);
+            ds4_gpu_tensor_free(gate_slots[k]);
+        }
+    }
+
+    return ok;
 }
 
 static bool metal_graph_flash_moe_compute_route_to_down(
@@ -17037,6 +17469,12 @@ static bool metal_graph_flash_moe_compute_route_to_down(
         uint32_t                   expert_mid_dim,
         uint32_t                   out_dim) {
     if (!g || !layer || route >= DS4_N_EXPERT_ACTIVE_USED || slot < 0) return false;
+    const bool independent_slot_buffer =
+        g->flash_per_expert_buffers || g->flash_per_slot_buffers;
+    const bool per_expert_debug =
+        independent_slot_buffer &&
+        (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+         env_flag_enabled("DS4_DEBUG_RESUME"));
     const uint64_t mid_row_bytes = (uint64_t)expert_mid_dim * sizeof(float);
     const uint64_t out_row_bytes = (uint64_t)out_dim * sizeof(float);
     ds4_gpu_tensor *gate_view = ds4_gpu_tensor_view(g->routed_gate,
@@ -17065,9 +17503,21 @@ static bool metal_graph_flash_moe_compute_route_to_down(
     ds4_gpu_tensor *expert_gate_view = NULL;
     ds4_gpu_tensor *expert_up_view = NULL;
     ds4_gpu_tensor *expert_down_view = NULL;
-    if (g->flash_per_expert_buffers) {
-        if (slot >= (int32_t)DS4_N_EXPERT || !g->flash_expert_bank[il][slot] ||
+    if (independent_slot_buffer) {
+        const uint32_t slot_limit =
+            g->flash_per_expert_buffers ? DS4_N_EXPERT : g->flash_slot_bank;
+        if (slot >= (int32_t)slot_limit || !g->flash_expert_bank[il][slot] ||
             !g->flash_moe) {
+            if (per_expert_debug) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE independent-slot route invalid layer=%u route=%u slot=%d has_graph=%d has_bank=%d\n",
+                        il,
+                        route,
+                        slot,
+                        g->flash_moe != NULL,
+                        slot >= 0 && slot < (int32_t)slot_limit &&
+                        g->flash_expert_bank[il][slot] != NULL);
+            }
             ds4_gpu_tensor_free(weight_view);
             ds4_gpu_tensor_free(down_view);
             ds4_gpu_tensor_free(mid_view);
@@ -17127,6 +17577,39 @@ static bool metal_graph_flash_moe_compute_route_to_down(
                                                             1,
                                                             DS4_SWIGLU_CLAMP_EXP,
                                                             g->ffn_norm) != 0;
+    if (!ok && per_expert_debug) {
+        const uint64_t gate_view_bytes = expert_gate_view ? ds4_gpu_tensor_bytes(expert_gate_view) : 0;
+        const uint64_t up_view_bytes = expert_up_view ? ds4_gpu_tensor_bytes(expert_up_view) : 0;
+        const uint64_t down_view_bytes = expert_down_view ? ds4_gpu_tensor_bytes(expert_down_view) : 0;
+        fprintf(stderr,
+                "ds4: Flash-MoE per-expert route compute failed layer=%u route=%u slot=%d "
+                "gate_view=%d up_view=%d mid_view=%d down_view=%d weight_view=%d "
+                "bank_gate=%d bank_up=%d bank_down=%d gate_bytes=%llu/%llu up_bytes=%llu down_bytes=%llu/%llu "
+                "dims in=%u mid=%u out=%u types gate=%u down=%u strides gate=%llu down=%llu\n",
+                il,
+                route,
+                slot,
+                gate_view != NULL,
+                up_view != NULL,
+                mid_view != NULL,
+                down_view != NULL,
+                weight_view != NULL,
+                route_gate_bank != NULL,
+                route_up_bank != NULL,
+                route_down_bank != NULL,
+                (unsigned long long)gate_view_bytes,
+                (unsigned long long)gate_expert_bytes,
+                (unsigned long long)up_view_bytes,
+                (unsigned long long)down_view_bytes,
+                (unsigned long long)down_expert_bytes,
+                expert_in_dim,
+                expert_mid_dim,
+                out_dim,
+                layer->ffn_gate_exps->type,
+                layer->ffn_down_exps->type,
+                (unsigned long long)route_gate_slot_stride,
+                (unsigned long long)route_down_slot_stride);
+    }
     ds4_gpu_tensor_free(expert_down_view);
     ds4_gpu_tensor_free(expert_up_view);
     ds4_gpu_tensor_free(expert_gate_view);
@@ -17590,6 +18073,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     for (uint32_t i = 0; i < DS4_N_EXPERT; i++) expert_to_index[i] = -1;
 
     const bool backend_logs = !backend_diagnostic_logs_suppressed();
+    const bool prefill_slot_bank_cache_enabled = !g->flash_per_expert_buffers;
     const bool profile = backend_logs && env_flag_enabled("DS4_FLASH_MOE_PROFILE");
     const bool use_gpu_dedup = getenv("DS4_FLASH_MOE_GPU_DEDUP") == NULL || atoi(getenv("DS4_FLASH_MOE_GPU_DEDUP")) != 0;
 
@@ -17869,7 +18353,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             const uint32_t _ui = plan ? plan[_exec_idx].ui : _exec_idx; \
             if (_ui < n_unique) { \
                 const int32_t _expert = unique[_ui]; \
-                const bool _slot_resident = _expert >= 0 && _expert < (int32_t)DS4_N_EXPERT && \
+                const bool _slot_resident = prefill_slot_bank_cache_enabled && \
+                                            _expert >= 0 && _expert < (int32_t)DS4_N_EXPERT && \
                                             metal_graph_flash_moe_find_resident_slot(g, il, _expert, NULL); \
                 if (_slot_resident) { \
                     ds4_flash_prefill_async_cancel_expert(&async_reader, il, _expert); \
@@ -17912,7 +18397,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 break;
             }
             const int future_expert = unique[future];
-            if (future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
+            if (prefill_slot_bank_cache_enabled &&
+                future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
                 metal_graph_flash_moe_find_resident_slot(g, il, future_expert, NULL)) {
                 continue;
             }
@@ -18127,8 +18613,10 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
         const bool valid_expert = expert >= 0 && expert < (int32_t)DS4_N_EXPERT;
         const bool use_slot_cache =
+            prefill_slot_bank_cache_enabled &&
             valid_expert && metal_graph_flash_moe_find_resident_slot(g, il, expert, NULL);
         const bool wants_slot_prefetch =
+            prefill_slot_bank_cache_enabled &&
             valid_expert && slot_cache_expert[expert] && !use_slot_cache;
         uint8_t *slot_prefetch_src = NULL;
         bool slot_prefetch_src_owned = false;
@@ -18597,7 +19085,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 uint32_t future_exec = exec_i + (uint32_t)prefetch;
                 uint32_t future = plan ? plan[future_exec].ui : future_exec;
                 int future_expert = unique[future];
-                if (future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
+                if (prefill_slot_bank_cache_enabled &&
+                    future_expert >= 0 && future_expert < (int)DS4_N_EXPERT &&
                     metal_graph_flash_moe_find_resident_slot(g, il, future_expert, NULL)) {
                     continue;
                 }
@@ -18642,7 +19131,10 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 if (best < 0) break;
                 chosen[best] = true;
                 /* Skip experts already cached in the next layer's slot bank. */
-                if (metal_graph_flash_moe_find_resident_slot(g, next_il, best, NULL)) continue;
+                if (prefill_slot_bank_cache_enabled &&
+                    metal_graph_flash_moe_find_resident_slot(g, next_il, best, NULL)) {
+                    continue;
+                }
                 const uint64_t src = (uint64_t)best * next_layer->expert_stride;
                 if (!ds4_flash_prefill_async_submit(p_async_reader, next_il, best,
                                                     0, (uint32_t)best_refs,
@@ -19114,6 +19606,7 @@ static bool metal_graph_encode_decode_layer(
     bool decode_pf_active = false;
     bool decode_overlap = false;
     bool flash_moe_async_handout_done = false;
+    const char *decode_debug_stage = "entry";
 #define DS4_METAL_PROFILE_DECODE_STAGE(name) do { \
         if (decode_stage_profile) { \
             if (ok) { \
@@ -19127,6 +19620,7 @@ static bool metal_graph_encode_decode_layer(
         } \
     } while (0)
     if (ok && g->flash_moe && !decode_stage_profile) {
+        decode_debug_stage = "decode_oracle_prefetch";
         int32_t oracle_ids[DS4_MAX_EXPERT_USED];
         if (flash_moe_decode_oracle_lookup(pos, il, oracle_ids)) {
             const uint64_t hits_before = g->flash_hits;
@@ -19149,6 +19643,7 @@ static bool metal_graph_encode_decode_layer(
         }
     }
     if (ok) {
+        decode_debug_stage = "attn_hc_pre.rms";
         ok = ds4_gpu_rms_norm_plain_tensor(g->flat_hc,
                                            g->cur_hc,
                                            (uint32_t)hc_dim,
@@ -19160,6 +19655,7 @@ static bool metal_graph_encode_decode_layer(
         }
     }
     if (ok) {
+        decode_debug_stage = "attn_hc_pre.matmul";
         ok = metal_graph_matmul_plain_tensor(g->hc_mix,
                                              model,
                                              layer->hc_attn_fn,
@@ -19177,6 +19673,7 @@ static bool metal_graph_encode_decode_layer(
         !metal_graph_use_reference_hc_decode() &&
         !metal_graph_use_reference_hc_norm_decode();
     if (ok && fuse_hc_norm) {
+        decode_debug_stage = "attn_hc_pre.split_norm";
         ok = ds4_gpu_hc_split_weighted_sum_norm_tensor(g->attn_cur,
                                                          g->attn_norm,
                                                          g->hc_split,
@@ -19198,6 +19695,7 @@ static bool metal_graph_encode_decode_layer(
                     il, pos, (uint32_t)DS4_N_EMBD, (uint32_t)DS4_N_HC, mix_hc);
         }
     } else if (ok) {
+        decode_debug_stage = "attn_hc_pre.split";
         ok = metal_graph_decode_hc_pre(g->attn_cur,
                                        g->hc_split,
                                        g->hc_mix,
@@ -19743,9 +20241,14 @@ static bool metal_graph_encode_decode_layer(
     const uint64_t down_row_bytes = routed_expert_row_bytes(layer->ffn_down_exps);
     const uint64_t down_expert_bytes = routed_out_dim * down_row_bytes;
     const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
-    if (ok) ok = metal_graph_matmul_plain_tensor(g->router_logits, model, layer->ffn_gate_inp,
-                                                 DS4_N_EMBD, DS4_N_EXPERT, g->ffn_norm, 1);
-    if (ok) ok = ds4_gpu_router_select_tensor(g->router_selected, g->router_weights, g->router_probs,
+    if (ok) {
+        decode_debug_stage = "router.matmul";
+        ok = metal_graph_matmul_plain_tensor(g->router_logits, model, layer->ffn_gate_inp,
+                                             DS4_N_EMBD, DS4_N_EXPERT, g->ffn_norm, 1);
+    }
+    if (ok) {
+        decode_debug_stage = "router.select";
+        ok = ds4_gpu_router_select_tensor(g->router_selected, g->router_weights, g->router_probs,
                                                 model->map, model->size,
                                                 layer->ffn_exp_probs_b ? layer->ffn_exp_probs_b->abs_offset : 0,
                                                 layer->ffn_gate_tid2eid ? layer->ffn_gate_tid2eid->abs_offset : 0,
@@ -19760,6 +20263,7 @@ static bool metal_graph_encode_decode_layer(
                                                 layer->ffn_exp_probs_b != NULL,
                                                 layer->ffn_gate_tid2eid != NULL,
                                                 g->router_logits) != 0;
+    }
     DS4_METAL_PROFILE_DECODE_STAGE("router");
     if (ok) {
         metal_graph_debug_dump_tensor("ffn_moe_logits", g->router_logits, DS4_N_EXPERT, il, pos);
@@ -19786,6 +20290,7 @@ static bool metal_graph_encode_decode_layer(
     } else if (ok && g->flash_moe) {
         if (!decode_pf_active) {
             if (!g->flash_per_expert_buffers &&
+                !g->flash_per_slot_buffers &&
                 flash_moe_async_handout_enabled() &&
                 flash_moe_baked_slot_decode_enabled() &&
                 !decode_stage_profile) {
@@ -19809,7 +20314,16 @@ static bool metal_graph_encode_decode_layer(
                                                                 (uint32_t)routed_out_dim,
                                                                 &flash_moe_async_handout_done);
             } else {
+                decode_debug_stage = "flash_moe.prepare_decode";
                 ok = metal_graph_flash_moe_prepare_decode(g, il, pos);
+                if (!ok && (g->flash_per_expert_buffers || g->flash_per_slot_buffers) &&
+                    (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+                     env_flag_enabled("DS4_DEBUG_RESUME"))) {
+                    fprintf(stderr,
+                            "ds4: Flash-MoE per-expert prepare decode failed layer=%u pos=%u\n",
+                            il,
+                            pos);
+                }
             }
         }
     }
@@ -19853,11 +20367,39 @@ static bool metal_graph_encode_decode_layer(
             (g->flash_mixed_slot_bank && flash_layer) ? flash_layer->expert_stride : gate_expert_bytes;
         const uint64_t down_slot_stride =
             (g->flash_mixed_slot_bank && flash_layer) ? flash_layer->expert_stride : down_expert_bytes;
-        if (g->flash_per_expert_buffers) {
+        if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
+            decode_debug_stage = g->flash_per_expert_buffers ?
+                "flash_moe.per_expert_slots6" : "flash_moe.per_slot_slots6";
             if (!g->flash_decode_ids_valid[il]) {
+                if (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+                    env_flag_enabled("DS4_DEBUG_RESUME")) {
+                    fprintf(stderr,
+                            "ds4: Flash-MoE per-expert decode ids missing layer=%u pos=%u\n",
+                            il,
+                            pos);
+                }
                 ok = false;
             }
-            for (uint32_t k = 0; ok && k < active_expert_used; k++) {
+            bool grouped_done = false;
+            if (ok) {
+                grouped_done =
+                    metal_graph_flash_moe_compute_independent_slots6_grouped(
+                            g,
+                            layer,
+                            il,
+                            active_expert_used,
+                            gate_row_bytes,
+                            down_row_bytes,
+                            (uint32_t)expert_in_dim,
+                            (uint32_t)down_in_dim,
+                            (uint32_t)routed_out_dim);
+            }
+            if (!grouped_done) {
+                decode_debug_stage = g->flash_per_expert_buffers ?
+                    "flash_moe.per_expert_routes_fallback" :
+                    "flash_moe.per_slot_routes_fallback";
+            }
+            for (uint32_t k = 0; ok && !grouped_done && k < active_expert_used; k++) {
                 ok = metal_graph_flash_moe_compute_route_to_down(g,
                                                                  layer,
                                                                  il,
@@ -19872,8 +20414,17 @@ static bool metal_graph_encode_decode_layer(
                                                                  (uint32_t)expert_in_dim,
                                                                  (uint32_t)down_in_dim,
                                                                  (uint32_t)routed_out_dim);
+                if (!ok && (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+                            env_flag_enabled("DS4_DEBUG_RESUME"))) {
+                    fprintf(stderr,
+                            "ds4: Flash-MoE per-expert decode route failed layer=%u pos=%u route=%u slot=%d\n",
+                            il,
+                            pos,
+                            k,
+                            g->flash_decode_slot_ids[il][k]);
+                }
             }
-            if (ok) {
+            if (ok && !grouped_done) {
                 if (active_expert_used > 1) {
                     ok = ds4_gpu_moe_sum_experts_tensor(g->routed_out,
                                                         g->routed_down,
@@ -19888,6 +20439,7 @@ static bool metal_graph_encode_decode_layer(
                 }
             }
         } else if (flash_moe_baked_slot_decode_enabled()) {
+            decode_debug_stage = "flash_moe.slotwise_baked";
             if (!g->flash_decode_ids_valid[il]) {
                 ok = false;
             } else {
@@ -19916,6 +20468,7 @@ static bool metal_graph_encode_decode_layer(
                 }
             }
         } else if (flash_moe_slotwise_decode_enabled()) {
+            decode_debug_stage = "flash_moe.slotwise";
             ok = ds4_gpu_routed_moe_one_banked_tensor_slotwise(g->routed_out,
                                                                g->routed_gate,
                                                                g->routed_up,
@@ -19935,6 +20488,7 @@ static bool metal_graph_encode_decode_layer(
                                                                g->router_slot_selected, g->router_weights,
                                                                active_expert_used, DS4_SWIGLU_CLAMP_EXP, g->ffn_norm) != 0;
         } else {
+            decode_debug_stage = "flash_moe.grouped";
             ok = ds4_gpu_routed_moe_one_banked_tensor(g->routed_out,
                                                        g->routed_gate,
                                                        g->routed_up,
@@ -19955,6 +20509,7 @@ static bool metal_graph_encode_decode_layer(
                                                        active_expert_used, DS4_SWIGLU_CLAMP_EXP, g->ffn_norm) != 0;
         }
     } else if (ok && !g->flash_moe) {
+        decode_debug_stage = "resident_moe";
         ok = ds4_gpu_routed_moe_one_tensor(g->routed_out,
                                              g->routed_gate,
                                              g->routed_up,
@@ -20062,6 +20617,16 @@ static bool metal_graph_encode_decode_layer(
     }
     if (decode_pf_active) {
         metal_graph_flash_moe_decode_prefetch_cleanup(&decode_pf);
+    }
+    if (!ok && (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+                env_flag_enabled("DS4_DEBUG_RESUME"))) {
+        fprintf(stderr,
+                "ds4: metal decode layer failed layer=%u pos=%u stage=%s per_expert=%d slots=%u\n",
+                il,
+                pos,
+                decode_debug_stage ? decode_debug_stage : "unknown",
+                g->flash_per_expert_buffers ? 1 : 0,
+                g->flash_slot_bank);
     }
     return ok;
 }
@@ -20929,6 +21494,10 @@ static bool metal_graph_encode_token_raw_swa(
     const uint32_t raw_row = pos % g->raw_cap;
     const uint32_t n_raw = metal_graph_raw_span_for_batch(g, pos, 1);
 
+    const bool decode_debug =
+        env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+        env_flag_enabled("DS4_DEBUG_RESUME");
+    const char *decode_stage = "embed_token_hc";
     bool ok = ds4_gpu_embed_token_hc_tensor(g->cur_hc,
                                               model->map,
                                               model->size,
@@ -20937,6 +21506,14 @@ static bool metal_graph_encode_token_raw_swa(
                                               (uint32_t)token,
                                               DS4_N_EMBD,
                                               DS4_N_HC) != 0;
+    if (!ok && decode_debug) {
+        fprintf(stderr,
+                "ds4: metal decode token failed pos=%u stage=%s per_expert=%d slots=%u\n",
+                pos,
+                decode_stage,
+                g->flash_per_expert_buffers ? 1 : 0,
+                g->flash_slot_bank);
+    }
 
     /*
      * Start executing the prefix of the decode graph while the CPU is still
@@ -20971,6 +21548,7 @@ static bool metal_graph_encode_token_raw_swa(
     }
 
     for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
+        decode_stage = "decode_layer";
         ok = metal_graph_encode_decode_layer(g,
                                              model,
                                              &weights->layer[il],
@@ -20981,20 +21559,58 @@ static bool metal_graph_encode_token_raw_swa(
                                              raw_row,
                                              n_raw,
                                              token);
+        if (!ok && decode_debug) {
+            fprintf(stderr,
+                    "ds4: metal decode token failed pos=%u stage=%s layer=%u per_expert=%d slots=%u\n",
+                    pos,
+                    decode_stage,
+                    il,
+                    g->flash_per_expert_buffers ? 1 : 0,
+                    g->flash_slot_bank);
+        }
         ds4_gpu_tensor *tmp = g->cur_hc;
         g->cur_hc = g->after_ffn_hc;
         g->after_ffn_hc = tmp;
         if (ok && allow_split_flush && flush_every != 0 &&
             il + 1u < DS4_N_LAYER && (il + 1u) % flush_every == 0) {
+            decode_stage = "flush_every";
             ok = ds4_gpu_flush_commands_blocking() != 0;
+            if (!ok && decode_debug) {
+                fprintf(stderr,
+                        "ds4: metal decode token failed pos=%u stage=%s layer=%u per_expert=%d slots=%u\n",
+                        pos,
+                        decode_stage,
+                        il,
+                        g->flash_per_expert_buffers ? 1 : 0,
+                        g->flash_slot_bank);
+            }
         } else if (ok && allow_split_flush && flush_every == 0 &&
                    split_after_layers != 0 && il + 1u == split_after_layers) {
+            decode_stage = "split_flush";
             ok = ds4_gpu_flush_commands() != 0;
+            if (!ok && decode_debug) {
+                fprintf(stderr,
+                        "ds4: metal decode token failed pos=%u stage=%s layer=%u per_expert=%d slots=%u\n",
+                        pos,
+                        decode_stage,
+                        il,
+                        g->flash_per_expert_buffers ? 1 : 0,
+                        g->flash_slot_bank);
+            }
         }
     }
 
     if (ok && need_logits) {
+        decode_stage = "output_head";
         ok = metal_graph_encode_output_head(g, model, weights, weights->output->dim[1]);
+        if (!ok && decode_debug) {
+            fprintf(stderr,
+                    "ds4: metal decode token failed pos=%u stage=%s per_expert=%d slots=%u\n",
+                    pos,
+                    decode_stage,
+                    g->flash_per_expert_buffers ? 1 : 0,
+                    g->flash_slot_bank);
+        }
     }
     return ok;
 }
@@ -23415,16 +24031,56 @@ static bool metal_graph_eval_token_raw_swa(
     /* Decode extends the context one token at a time; grow the compressed caches
      * to cover this position before opening the command batch (no-op until a
      * block boundary is crossed, and disabled unless DS4_CTX_GROW). */
-    if (!metal_graph_ctx_grow_ensure(g, pos + 1u)) return false;
+    const bool decode_debug =
+        env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+        env_flag_enabled("DS4_DEBUG_RESUME");
+    if (!metal_graph_ctx_grow_ensure(g, pos + 1u)) {
+        if (decode_debug) {
+            fprintf(stderr,
+                    "ds4: metal graph token failed pos=%u stage=ctx_grow per_expert=%d slots=%u\n",
+                    pos,
+                    g && g->flash_per_expert_buffers ? 1 : 0,
+                    g ? g->flash_slot_bank : 0);
+        }
+        return false;
+    }
 
     bool ok = ds4_gpu_begin_commands() != 0;
+    if (!ok && decode_debug) {
+        fprintf(stderr,
+                "ds4: metal graph token failed pos=%u stage=begin_commands per_expert=%d slots=%u\n",
+                pos,
+                g && g->flash_per_expert_buffers ? 1 : 0,
+                g ? g->flash_slot_bank : 0);
+    }
     if (ok) ok = metal_graph_encode_token_raw_swa(g, model, weights, token, pos, logits != NULL, true);
+    if (!ok && decode_debug) {
+        fprintf(stderr,
+                "ds4: metal graph token failed pos=%u stage=encode_token per_expert=%d slots=%u\n",
+                pos,
+                g && g->flash_per_expert_buffers ? 1 : 0,
+                g ? g->flash_slot_bank : 0);
+    }
     const double t_encoded = profile ? now_sec() : 0.0;
     if (ok) ok = ds4_gpu_end_commands() != 0;
+    if (!ok && decode_debug) {
+        fprintf(stderr,
+                "ds4: metal graph token failed pos=%u stage=end_commands per_expert=%d slots=%u\n",
+                pos,
+                g && g->flash_per_expert_buffers ? 1 : 0,
+                g ? g->flash_slot_bank : 0);
+    }
     const double t_done = profile ? now_sec() : 0.0;
 
     if (ok && logits) {
         ok = ds4_gpu_tensor_read(g->logits, 0, logits, (uint64_t)DS4_N_VOCAB * sizeof(float)) != 0;
+        if (!ok && decode_debug) {
+            fprintf(stderr,
+                    "ds4: metal graph token failed pos=%u stage=read_logits per_expert=%d slots=%u\n",
+                    pos,
+                    g && g->flash_per_expert_buffers ? 1 : 0,
+                    g ? g->flash_slot_bank : 0);
+        }
     }
     if (profile) {
         const double t_read = now_sec();
@@ -23866,12 +24522,14 @@ static void metal_graph_report_prefill_display_progress(
         uint32_t                start,
         uint32_t                n_tokens,
         uint32_t                layer_done,
-        int                     total) {
+        int                     total,
+        bool                    ane_chunk) {
     if (!display_progress || n_tokens == 0) return;
     if (layer_done > (uint32_t)DS4_N_LAYER) layer_done = (uint32_t)DS4_N_LAYER;
     uint64_t done = (uint64_t)n_tokens * layer_done / (uint32_t)DS4_N_LAYER;
     if (layer_done == (uint32_t)DS4_N_LAYER) done = n_tokens;
-    display_progress(display_progress_ud, "prefill_display",
+    display_progress(display_progress_ud,
+                     ane_chunk ? "prefill_display_ane" : "prefill_display",
                      (int)(start + (uint32_t)done), total);
 }
 
@@ -23889,21 +24547,87 @@ static bool metal_graph_prefill_layer_major(
         ds4_session_progress_fn display_progress,
         void                  *display_progress_ud) {
     if (n_tokens <= 0 || n_tokens > prompt->len || (uint32_t)n_tokens > g->prefill_cap) return false;
+    const double prefill_wall_t0 = now_sec();
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_setup", 0, prompt->len);
+    }
+    metal_graph_prefill_trace_phase("layer-major", "scratch", "begin",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
     if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
+    metal_graph_prefill_trace_phase("layer-major", "scratch", "end",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
     if (display_progress) {
         display_progress(display_progress_ud, "prefill_display", 0, prompt->len);
     }
 
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_upload", 0, prompt->len);
+    }
+    const double upload_t0 = now_sec();
+    metal_graph_prefill_trace_phase("layer-major", "upload", "begin",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
     bool ok = metal_graph_upload_prompt_tokens(g->prefill_tokens, prompt, 0, (uint32_t)n_tokens);
     if (!ok) return false;
+    metal_graph_prefill_trace_phase("layer-major", "upload", "end",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    upload_t0);
 
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_warmup", 0, prompt->len);
+    }
+    const double warmup_t0 = now_sec();
+    metal_graph_prefill_trace_phase("layer-major", "warmup", "begin",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, (uint32_t)n_tokens)) return false;
-    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") ||
-        env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID") ||
-        resident_moe_prefill_backend_is_ane((uint32_t)n_tokens)) {
-        (void)ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
-                                                      (uint32_t)DS4_N_FF_EXP,
-                                                      (uint32_t)DS4_N_EMBD);
+    metal_graph_prefill_trace_phase("layer-major", "warmup", "end",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    warmup_t0);
+    const bool flash_ane_env = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool resident_ane_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
+    const bool token_backend_ane = resident_moe_prefill_backend_is_ane((uint32_t)n_tokens);
+    const bool should_precompile_ane =
+        flash_ane_env || resident_ane_env || token_backend_ane;
+    metal_graph_prefill_trace_ane_decision("layer-major", "check",
+                                           0, (uint32_t)n_tokens, prompt->len,
+                                           flash_ane_env,
+                                           resident_ane_env,
+                                           token_backend_ane,
+                                           should_precompile_ane ? 1 : 0,
+                                           0.0);
+    if (should_precompile_ane) {
+        if (display_progress) {
+            display_progress(display_progress_ud, "prefill_ane_compile", 0, prompt->len);
+        }
+        const double ane_t0 = now_sec();
+        metal_graph_prefill_trace_phase("layer-major", "ANE compile", "begin",
+                                        0, (uint32_t)n_tokens, prompt->len,
+                                        prefill_wall_t0);
+        const int ane_ok =
+            ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
+                                                    (uint32_t)DS4_N_FF_EXP,
+                                                    (uint32_t)DS4_N_EMBD);
+        metal_graph_prefill_trace_phase("layer-major", "ANE compile", "end",
+                                        0, (uint32_t)n_tokens, prompt->len,
+                                        ane_t0);
+        metal_graph_prefill_trace_ane_decision("layer-major", "end",
+                                               0, (uint32_t)n_tokens, prompt->len,
+                                               flash_ane_env,
+                                               resident_ane_env,
+                                               token_backend_ane,
+                                               ane_ok,
+                                               ane_t0);
+    } else {
+        metal_graph_prefill_trace_ane_decision("layer-major", "skip",
+                                               0, (uint32_t)n_tokens, prompt->len,
+                                               flash_ane_env,
+                                               resident_ane_env,
+                                               token_backend_ane,
+                                               0,
+                                               0.0);
     }
 
     const bool backend_logs = !backend_diagnostic_logs_suppressed();
@@ -23962,10 +24686,11 @@ static bool metal_graph_prefill_layer_major(
             }
             metal_graph_report_prefill_display_progress(display_progress,
                                                         display_progress_ud,
-                                                        0,
-                                                        (uint32_t)n_tokens,
-                                                        il + 1,
-                                                        prompt->len);
+	                                                        0,
+	                                                        (uint32_t)n_tokens,
+	                                                        il + 1,
+	                                                        prompt->len,
+	                                                        should_precompile_ane);
         }
         if (stderr_progress) fputc('\n', stderr);
 
@@ -24127,10 +24852,11 @@ static bool metal_graph_prefill_layer_major(
         }
         metal_graph_report_prefill_display_progress(display_progress,
                                                     display_progress_ud,
-                                                    0,
-                                                    (uint32_t)n_tokens,
-                                                    il + 1,
-                                                    prompt->len);
+	                                                    0,
+	                                                    (uint32_t)n_tokens,
+	                                                    il + 1,
+	                                                    prompt->len,
+	                                                    should_precompile_ane);
     }
     if (stderr_progress) fputc('\n', stderr);
 
@@ -24198,8 +24924,17 @@ static bool metal_graph_prefill_raw_swa(
         void                  *display_progress_ud) {
     if (n_tokens <= 0 || n_tokens > prompt->len) return false;
     if ((uint32_t)n_tokens > g->prefill_cap) return false;
-    if (!metal_graph_ctx_grow_ensure(g, (uint32_t)n_tokens)) return false;
     const double prefill_wall_t0 = now_sec();
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_ctx_grow", 0, prompt->len);
+    }
+    metal_graph_prefill_trace_phase("raw-swa", "ctx grow", "begin",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
+    if (!metal_graph_ctx_grow_ensure(g, (uint32_t)n_tokens)) return false;
+    metal_graph_prefill_trace_phase("raw-swa", "ctx grow", "end",
+                                    0, (uint32_t)n_tokens, prompt->len,
+                                    prefill_wall_t0);
     const bool ok = metal_graph_prefill_layer_major(g, model, weights, prompt, n_tokens, logits, show_progress, NULL,
                                                     display_progress, display_progress_ud);
     if (ok && backend_stats_logs_enabled()) {
@@ -24321,6 +25056,8 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
     const int  readahead    = ds4_flash_prefill_readahead();
     const int  bank_pf      = get_prefill_dedup_prefetch();
     const bool per_expert   = flash_moe_per_expert_buffers_enabled();
+    const bool per_slot     = !per_expert && flash_moe_per_slot_buffers_enabled();
+    const bool lazy_per_slot = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
     const bool decode_router_prefetch =
         !per_expert &&
         flash_moe_decode_prefetch_enabled() &&
@@ -24357,7 +25094,8 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
             flash_moe_decode_prefetch_shared_down_enabled() ? "on" : "off",
             flash_moe_reset_slot_cache_after_prefill_enabled() ? "on" : "off",
             flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off",
-            per_expert ? "per-expert-full" : "slot-bank",
+            per_expert ? "per-expert-full" :
+            (lazy_per_slot ? "per-slot-lazy" : (per_slot ? "per-slot" : "slot-bank")),
             slot_bank);
 }
 
@@ -24378,7 +25116,15 @@ static bool metal_graph_prefill_chunked_range(
     if (n_tokens == 0 || g->prefill_cap == 0) return false;
     if (start > (uint32_t)prompt->len) return false;
     if (n_tokens > (uint32_t)prompt->len - start) return false;
+    const double prefill_wall_t0 = now_sec();
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_setup", (int)start, prompt->len);
+    }
+    metal_graph_prefill_trace_phase("chunked", "scratch", "begin",
+                                    start, n_tokens, prompt->len, prefill_wall_t0);
     if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
+    metal_graph_prefill_trace_phase("chunked", "scratch", "end",
+                                    start, n_tokens, prompt->len, prefill_wall_t0);
 
     uint32_t chunk_cap = metal_graph_effective_prefill_cap(g);
     const uint32_t raw_window = g->raw_window ? g->raw_window : DS4_N_SWA;
@@ -24394,20 +25140,61 @@ static bool metal_graph_prefill_chunked_range(
             if (to_boundary < first_chunk) first_chunk = to_boundary;
         }
     }
-    const double prefill_wall_t0 = now_sec();
     const bool dbg_resume = getenv("DS4_DEBUG_RESUME") != NULL;
     if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] start=%u n_tokens=%u prompt_len=%d prefill_cap=%u raw_cap=%u raw_window=%u chunk_cap=%u first_chunk=%u\n",
                             start, n_tokens, prompt->len, g->prefill_cap, g->raw_cap, raw_window, chunk_cap, first_chunk);
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_warmup", (int)start, prompt->len);
+    }
+    const double warmup_t0 = now_sec();
+    metal_graph_prefill_trace_phase("chunked", "warmup", "begin",
+                                    start, first_chunk, prompt->len, prefill_wall_t0);
     if (!metal_graph_warmup_prefill_kernels(g, model, weights, first_chunk)) {
         if (dbg_resume) fprintf(stderr, "ds4: [resume-dbg] FAIL warmup_prefill_kernels(first_chunk=%u)\n", first_chunk);
         return false;
     }
-    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") ||
-        env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID") ||
-        resident_moe_prefill_backend_is_ane(first_chunk)) {
-        (void)ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
-                                                      (uint32_t)DS4_N_FF_EXP,
-                                                      (uint32_t)DS4_N_EMBD);
+    metal_graph_prefill_trace_phase("chunked", "warmup", "end",
+                                    start, first_chunk, prompt->len, warmup_t0);
+    const bool flash_ane_env = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool resident_ane_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
+    const bool token_backend_ane = resident_moe_prefill_backend_is_ane(first_chunk);
+    const bool should_precompile_ane =
+        flash_ane_env || resident_ane_env || token_backend_ane;
+    metal_graph_prefill_trace_ane_decision("chunked", "check",
+                                           start, first_chunk, prompt->len,
+                                           flash_ane_env,
+                                           resident_ane_env,
+                                           token_backend_ane,
+                                           should_precompile_ane ? 1 : 0,
+                                           0.0);
+    if (should_precompile_ane) {
+        if (display_progress) {
+            display_progress(display_progress_ud, "prefill_ane_compile", (int)start, prompt->len);
+        }
+        const double ane_t0 = now_sec();
+        metal_graph_prefill_trace_phase("chunked", "ANE compile", "begin",
+                                        start, first_chunk, prompt->len, prefill_wall_t0);
+        const int ane_ok =
+            ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
+                                                    (uint32_t)DS4_N_FF_EXP,
+                                                    (uint32_t)DS4_N_EMBD);
+        metal_graph_prefill_trace_phase("chunked", "ANE compile", "end",
+                                        start, first_chunk, prompt->len, ane_t0);
+        metal_graph_prefill_trace_ane_decision("chunked", "end",
+                                               start, first_chunk, prompt->len,
+                                               flash_ane_env,
+                                               resident_ane_env,
+                                               token_backend_ane,
+                                               ane_ok,
+                                               ane_t0);
+    } else {
+        metal_graph_prefill_trace_ane_decision("chunked", "skip",
+                                               start, first_chunk, prompt->len,
+                                               flash_ane_env,
+                                               resident_ane_env,
+                                               token_backend_ane,
+                                               0,
+                                               0.0);
     }
 
     const bool backend_logs = !backend_diagnostic_logs_suppressed();
@@ -24423,13 +25210,24 @@ static bool metal_graph_prefill_chunked_range(
     /* Prefill fills the context up to `end`, so grow the compressed caches once
      * to cover the actual prompt length (not the --ctx ceiling) at this clean
      * boundary before the chunk loop opens any command batch. */
+    if (display_progress) {
+        display_progress(display_progress_ud, "prefill_ctx_grow", (int)start, prompt->len);
+    }
+    const double ctx_grow_t0 = now_sec();
+    metal_graph_prefill_trace_phase("chunked", "ctx grow", "begin",
+                                    start, n_tokens, prompt->len, prefill_wall_t0);
     if (!metal_graph_ctx_grow_ensure(g, end)) return false;
+    metal_graph_prefill_trace_phase("chunked", "ctx grow", "end",
+                                    start, n_tokens, prompt->len, ctx_grow_t0);
 
     if (progress) {
         progress(progress_ud, "prefill_chunk", (int)start, prompt->len);
     }
     if (display_progress) {
-        display_progress(display_progress_ud, "prefill_display", (int)start, prompt->len);
+        display_progress(display_progress_ud,
+                         should_precompile_ane ? "prefill_display_ane" : "prefill_display",
+                         (int)start,
+                         prompt->len);
     }
 
     for (uint32_t pos0 = start; pos0 < end; ) {
@@ -24444,6 +25242,10 @@ static bool metal_graph_prefill_chunked_range(
         }
         const uint32_t chunk = remaining < local_cap ? remaining : local_cap;
         last_chunk_tokens = chunk;
+        const bool chunk_uses_ane =
+            flash_ane_env ||
+            resident_ane_env ||
+            resident_moe_prefill_backend_is_ane(chunk);
 
         bool ok = metal_graph_upload_prompt_tokens(g->prefill_tokens, prompt, pos0, chunk);
         if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
@@ -24498,10 +25300,11 @@ static bool metal_graph_prefill_chunked_range(
             }
             metal_graph_report_prefill_display_progress(display_progress,
                                                         display_progress_ud,
-                                                        pos0,
-                                                        chunk,
-                                                        il + 1,
-                                                        prompt->len);
+	                                                        pos0,
+	                                                        chunk,
+	                                                        il + 1,
+	                                                        prompt->len,
+	                                                        chunk_uses_ane);
         }
         if (!ok) {
             if (ds4_gpu_synchronize() == 0) {
@@ -24518,8 +25321,11 @@ static bool metal_graph_prefill_chunked_range(
         if (progress) {
             progress(progress_ud, "prefill_chunk", (int)(pos0 + chunk), prompt->len);
         }
-        if (display_progress) {
-            display_progress(display_progress_ud, "prefill_display", (int)(pos0 + chunk), prompt->len);
+    if (display_progress) {
+            display_progress(display_progress_ud,
+                             chunk_uses_ane ? "prefill_display_ane" : "prefill_display",
+                             (int)(pos0 + chunk),
+                             prompt->len);
         }
         pos0 += chunk;
     }
@@ -27932,13 +28738,17 @@ int ds4_engine_generate_argmax(
             return 1;
         }
         ds4_session_set_progress(s, progress, progress_ud);
+        ds4_session_set_display_progress(s, progress, progress_ud);
         char err[160];
         if (ds4_session_sync(s, prompt, err, sizeof(err)) != 0) {
+            ds4_session_set_progress(s, NULL, NULL);
+            ds4_session_set_display_progress(s, NULL, NULL);
             fprintf(stderr, "ds4: Flash-MoE prompt processing failed: %s\n", err);
             ds4_session_free(s);
             return 1;
         }
         ds4_session_set_progress(s, NULL, NULL);
+        ds4_session_set_display_progress(s, NULL, NULL);
 
         int max_tokens = n_predict;
         int room = ds4_session_ctx(s) - ds4_session_pos(s);
@@ -28878,7 +29688,21 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                                                      prompt->len,
                                                      suffix,
                                                      resume_min);
+            if (s->display_progress)
+                s->display_progress(s->display_progress_ud, "prefill_model_views",
+                                    s->checkpoint.len, prompt->len);
+            const double model_views_t0 = now_sec();
+            metal_graph_prefill_trace_phase("session-sync", "model_views", "begin",
+                                            (uint32_t)s->checkpoint.len,
+                                            (uint32_t)suffix,
+                                            prompt->len,
+                                            model_views_t0);
             (void)metal_graph_prepare_prefill_model_views();
+            metal_graph_prefill_trace_phase("session-sync", "model_views", "end",
+                                            (uint32_t)s->checkpoint.len,
+                                            (uint32_t)suffix,
+                                            prompt->len,
+                                            model_views_t0);
             ds4_sync_progress progress = {
                 .session = s,
                 .prompt = prompt,
@@ -28887,6 +29711,12 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
             };
             ds4_session_progress_fn progress_fn =
                 s->progress ? ds4_session_note_prefill_progress : NULL;
+            const double resume_prefill_t0 = now_sec();
+            metal_graph_prefill_trace_phase("session-sync", "resume_prefill_call", "begin",
+                                            (uint32_t)s->checkpoint.len,
+                                            (uint32_t)suffix,
+                                            prompt->len,
+                                            0.0);
             bool ok = metal_graph_prefill_chunked_range(&s->graph,
                                                         &e->model,
                                                         &e->weights,
@@ -28900,6 +29730,11 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                                                         s->display_progress,
                                                         s->display_progress_ud,
                                                         NULL);
+            metal_graph_prefill_trace_phase("session-sync", "resume_prefill_call", "end",
+                                            (uint32_t)s->checkpoint.len,
+                                            (uint32_t)suffix,
+                                            prompt->len,
+                                            resume_prefill_t0);
             if (!ok) {
                 /* Chunked resume-after-generation can fail inside the slot-bank
                  * MoE prefill scheduler (pre-existing bug, only on the resume
@@ -28961,6 +29796,7 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                 return 1;
             }
             token_vec_push(&s->checkpoint, prompt->v[i]);
+            if (s->progress) s->progress(s->progress_ud, "prefill_chunk", i + 1, prompt->len);
         }
         return 0;
     }
@@ -28973,7 +29809,21 @@ full_reprefill: ;
                                              prompt->len,
                                              prompt->len,
                                              metal_graph_resume_prefill_min_tokens());
+    if (s->display_progress)
+        s->display_progress(s->display_progress_ud, "prefill_model_views",
+                            0, prompt->len);
+    const double model_views_t0 = now_sec();
+    metal_graph_prefill_trace_phase("session-sync", "model_views", "begin",
+                                    0,
+                                    (uint32_t)prompt->len,
+                                    prompt->len,
+                                    model_views_t0);
     (void)metal_graph_prepare_prefill_model_views();
+    metal_graph_prefill_trace_phase("session-sync", "model_views", "end",
+                                    0,
+                                    (uint32_t)prompt->len,
+                                    prompt->len,
+                                    model_views_t0);
     if (effective_prefill_cap < (uint32_t)prompt->len) {
         ds4_sync_progress progress = {
             .session = s,
@@ -28983,14 +29833,36 @@ full_reprefill: ;
         };
         ds4_session_progress_fn progress_fn =
             s->progress ? ds4_session_note_prefill_progress : NULL;
+        const double full_chunked_t0 = now_sec();
+        metal_graph_prefill_trace_phase("session-sync", "full_chunked_prefill_call", "begin",
+                                        0,
+                                        (uint32_t)prompt->len,
+                                        prompt->len,
+                                        0.0);
         ok = metal_graph_prefill_chunked(&s->graph, &e->model, &e->weights,
                                          prompt, prompt->len, s->logits, false,
                                          progress_fn, progress_fn ? &progress : NULL,
                                          s->display_progress, s->display_progress_ud);
+        metal_graph_prefill_trace_phase("session-sync", "full_chunked_prefill_call", "end",
+                                        0,
+                                        (uint32_t)prompt->len,
+                                        prompt->len,
+                                        full_chunked_t0);
     } else {
+        const double raw_swa_t0 = now_sec();
+        metal_graph_prefill_trace_phase("session-sync", "raw_swa_prefill_call", "begin",
+                                        0,
+                                        (uint32_t)prompt->len,
+                                        prompt->len,
+                                        0.0);
         ok = metal_graph_prefill_raw_swa(&s->graph, &e->model, &e->weights,
                                          prompt, prompt->len, s->logits, false,
                                          s->display_progress, s->display_progress_ud);
+        metal_graph_prefill_trace_phase("session-sync", "raw_swa_prefill_call", "end",
+                                        0,
+                                        (uint32_t)prompt->len,
+                                        prompt->len,
+                                        raw_swa_t0);
     }
     if (!ok) {
         snprintf(err, errlen, "%s prefill failed", backend_name);

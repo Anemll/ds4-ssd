@@ -8,9 +8,13 @@
 #import <objc/message.h>
 #import <objc/runtime.h>
 #include <math.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 struct ds4_ane_mlp_int8w_ctx {
     int H, I, B;
@@ -63,9 +67,169 @@ static bool ane_int8w_stats_enabled(void) {
     return (env && env[0] && atoi(env) != 0) || ane_int8w_debug_enabled();
 }
 
+static bool ane_prefill_verbose_trace_enabled(void) {
+    const char *a = getenv("DS4_SESSION_SYNC_TRACE_VERBOSE");
+    const char *b = getenv("DS4_PREFILL_VERBOSE_TRACE");
+    const char *c = getenv("DS4_PREFILL_PHASE_TRACE");
+    return (a && a[0] && atoi(a) != 0) ||
+           (b && b[0] && atoi(b) != 0) ||
+           (c && c[0] && atoi(c) != 0);
+}
+
+static double ane_now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
+}
+
+static const char *ane_mlp_mode_name(int mode) {
+    switch (mode) {
+        case 0: return "int8w";
+        case 1: return "fp16w";
+        case 2: return "i8w-fp16x";
+        case 3: return "i8w-i8x";
+        case 4: return "i8w-i8x-fused";
+        case 5: return "i8w-i8x-gateup-fused";
+        case 6: return "i8w-i8x-tiled-fused";
+        case 7: return "i8w-i8x-tiled-fused-i8out";
+        case 8: return "fp16w-fused-conv";
+        case 9: return "fp16w-constexpr";
+        case 10: return "fp16w-linear-constexpr";
+        case 11: return "chunk-iosurface";
+        case 12: return "i8w-linear-constexpr";
+        case 13: return "i8w-i8x-tiled-fused-routed";
+        default: return "unknown";
+    }
+}
+
+static void ane_prefill_trace_emit(const char *line, size_t len) {
+    if (!line || len == 0) return;
+    (void)fwrite(line, 1, len, stderr);
+    fflush(stderr);
+
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static int fd = -2;
+    pthread_mutex_lock(&mu);
+    if (fd == -2) {
+        const char *path = getenv("DS4_PREFILL_TRACE_LOG");
+        fd = (path && path[0]) ?
+            open(path, O_WRONLY | O_CREAT | O_APPEND, 0644) : -1;
+    }
+    if (fd >= 0) {
+        (void)write(fd, line, len);
+    }
+    pthread_mutex_unlock(&mu);
+}
+
+static void ane_prefill_trace(const char *label,
+                              const char *stage,
+                              const char *edge,
+                              int         mode,
+                              int         H,
+                              int         I,
+                              int         B,
+                              double      t0_ms) {
+    if (!ane_prefill_verbose_trace_enabled()) return;
+    const double now = ane_now_ms();
+    char line[640];
+    const int n = snprintf(
+            line,
+            sizeof(line),
+            "ds4: prefill trace backend=ANE-inmemory label=%s mode=%s stage=%s %s H=%d I=%d B=%d elapsed=%.3f ms\n",
+            label && label[0] ? label : "core",
+            mode >= 0 ? ane_mlp_mode_name(mode) : "helper",
+            stage && stage[0] ? stage : "unknown",
+            edge && edge[0] ? edge : "mark",
+            H,
+            I,
+            B,
+            t0_ms > 0.0 ? now - t0_ms : 0.0);
+    if (n > 0) ane_prefill_trace_emit(line, (size_t)n < sizeof(line) ? (size_t)n : strlen(line));
+}
+
 static bool ane_tmp_cleanup_debug_enabled(void) {
     const char *env = getenv("DS4_ANE_TMP_CLEANUP_DEBUG");
     return env && env[0] && atoi(env) != 0;
+}
+
+static NSString *ane_tmp_root_dir(void) {
+    static dispatch_once_t once;
+    static NSString *root = nil;
+    dispatch_once(&once, ^{
+        const char *override = getenv("DS4_ANE_TMP_ROOT");
+        if (override && override[0]) {
+            root = [[NSString stringWithUTF8String:override] stringByStandardizingPath];
+            root = [root copy];
+        } else {
+            NSString *base = NSTemporaryDirectory();
+            if (!base.length) base = @"/tmp";
+            root = [[base stringByAppendingPathComponent:@"ds4-ane"] copy];
+        }
+    });
+    return root;
+}
+
+typedef struct ane_tmp_env_guard {
+    char *old_tmpdir;
+    bool had_old_tmpdir;
+    bool active;
+} ane_tmp_env_guard;
+
+static pthread_mutex_t g_ane_tmp_env_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static bool ane_tmp_env_push(ane_tmp_env_guard *guard) {
+    if (!guard) return false;
+    memset(guard, 0, sizeof(*guard));
+    if (pthread_mutex_lock(&g_ane_tmp_env_mutex) != 0) return false;
+
+    @autoreleasepool {
+        NSString *root = ane_tmp_root_dir();
+        NSError *err = nil;
+        if (![[NSFileManager defaultManager] createDirectoryAtPath:root
+                                       withIntermediateDirectories:YES
+                                                        attributes:nil
+                                                             error:&err]) {
+            if (ane_tmp_cleanup_debug_enabled()) {
+                fprintf(stderr, "ds4: ANE tmp root create failed %s: %s\n",
+                        [root UTF8String],
+                        err ? [[err description] UTF8String] : "unknown");
+            }
+            pthread_mutex_unlock(&g_ane_tmp_env_mutex);
+            return false;
+        }
+
+        const char *old_tmpdir = getenv("TMPDIR");
+        guard->had_old_tmpdir = old_tmpdir != NULL;
+        guard->old_tmpdir = old_tmpdir ? strdup(old_tmpdir) : NULL;
+        if (old_tmpdir && !guard->old_tmpdir) {
+            pthread_mutex_unlock(&g_ane_tmp_env_mutex);
+            return false;
+        }
+
+        NSString *root_with_slash = [root hasSuffix:@"/"] ? root : [root stringByAppendingString:@"/"];
+        if (setenv("TMPDIR", [root_with_slash fileSystemRepresentation], 1) != 0) {
+            free(guard->old_tmpdir);
+            guard->old_tmpdir = NULL;
+            pthread_mutex_unlock(&g_ane_tmp_env_mutex);
+            return false;
+        }
+        guard->active = true;
+        return true;
+    }
+}
+
+static void ane_tmp_env_pop(ane_tmp_env_guard *guard) {
+    if (!guard || !guard->active) return;
+    if (guard->had_old_tmpdir) {
+        if (guard->old_tmpdir) setenv("TMPDIR", guard->old_tmpdir, 1);
+    } else {
+        unsetenv("TMPDIR");
+    }
+    free(guard->old_tmpdir);
+    guard->old_tmpdir = NULL;
+    guard->had_old_tmpdir = false;
+    guard->active = false;
+    pthread_mutex_unlock(&g_ane_tmp_env_mutex);
 }
 
 static double ane_tmp_cleanup_age_sec(void) {
@@ -76,24 +240,24 @@ static double ane_tmp_cleanup_age_sec(void) {
     return (double)age;
 }
 
-static bool ane_tmp_cleanup_candidate(NSString *name) {
-    if (!name.length) return false;
-    if ([name hasPrefix:@"ds4-ane-"]) return true;
-    /* Old _ANEInMemoryModel temp directories are named by the private model
-     * hexStringIdentifier.  This middle hash is stable across the DS4 ANE MIL
-     * descriptors observed in the runtime and benchmark artifacts. */
-    return [name containsString:@"_DF3F619804A92FDB4057192DC43DD748EA778ADC52BC498CE80524C014B81119_"];
-}
-
 static void ane_cleanup_stale_tmp_dirs_once(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
+        const char *enabled = getenv("DS4_ANE_TMP_CLEANUP");
+        if (enabled && enabled[0] && atoi(enabled) == 0) return;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         @autoreleasepool {
-            const char *enabled = getenv("DS4_ANE_TMP_CLEANUP");
-            if (enabled && enabled[0] && atoi(enabled) == 0) return;
-
             NSFileManager *fm = [NSFileManager defaultManager];
-            NSString *tmp = NSTemporaryDirectory();
+            NSString *tmp = ane_tmp_root_dir();
+            NSError *mkdir_err = nil;
+            if (![fm createDirectoryAtPath:tmp withIntermediateDirectories:YES attributes:nil error:&mkdir_err]) {
+                if (ane_tmp_cleanup_debug_enabled()) {
+                    fprintf(stderr, "ds4: ANE tmp cleanup mkdir failed %s: %s\n",
+                            [tmp UTF8String],
+                            mkdir_err ? [[mkdir_err description] UTF8String] : "unknown");
+                }
+                return;
+            }
             NSError *err = nil;
             NSArray *names = [fm contentsOfDirectoryAtPath:tmp error:&err];
             if (!names) {
@@ -110,10 +274,9 @@ static void ane_cleanup_stale_tmp_dirs_once(void) {
             NSUInteger skipped_recent = 0;
             NSUInteger failed = 0;
             for (NSString *name in names) {
-                if (!ane_tmp_cleanup_candidate(name)) continue;
                 NSString *path = [tmp stringByAppendingPathComponent:name];
                 NSDictionary *attrs = [fm attributesOfItemAtPath:path error:nil];
-                if (![attrs[NSFileType] isEqualToString:NSFileTypeDirectory]) continue;
+                if (!attrs) continue;
                 NSDate *mtime = attrs[NSFileModificationDate];
                 if (mtime && [mtime compare:cutoff] == NSOrderedDescending) {
                     skipped_recent++;
@@ -138,6 +301,7 @@ static void ane_cleanup_stale_tmp_dirs_once(void) {
                         (unsigned long)skipped_recent, age_sec, [tmp UTF8String]);
             }
         }
+        });
     });
 }
 
@@ -1137,42 +1301,76 @@ static bool compile_and_load_mil(NSString *mil,
                                  void **model_r,
                                  void **tmpDir_r) {
     const bool dbg = ane_int8w_debug_enabled();
+    const double total_t0 = ane_now_ms();
+    ane_prefill_trace(label, "helper", "begin", -1, 0, 0, 0, 0.0);
     ane_cleanup_stale_tmp_dirs_once();
+    ane_tmp_env_guard tmp_guard = {0};
+    if (!ane_tmp_env_push(&tmp_guard)) {
+        if (dbg) fprintf(stderr, "ds4: ANE %s temp root setup failed\n", label);
+        ane_prefill_trace(label, "tmp_env", "failed", -1, 0, 0, 0, total_t0);
+        return false;
+    }
+
+    bool ok = false;
+    NSString *td = nil;
+    NSFileManager *fm = [NSFileManager defaultManager];
     NSError *e = nil;
+    id desc = nil;
+    id mdl = nil;
+    id hx = nil;
     NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
-    id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+    const double desc_t0 = ane_now_ms();
+    ane_prefill_trace(label, "descriptor", "begin", -1, 0, 0, 0, 0.0);
+    desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
         g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
     if (!desc) {
         if (dbg) fprintf(stderr, "ds4: ANE %s descriptor create failed\n", label);
-        return false;
+        ane_prefill_trace(label, "descriptor", "failed", -1, 0, 0, 0, desc_t0);
+        goto done;
     }
-    id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
+    ane_prefill_trace(label, "descriptor", "end", -1, 0, 0, 0, desc_t0);
+    const double model_t0 = ane_now_ms();
+    ane_prefill_trace(label, "inMemoryModel", "begin", -1, 0, 0, 0, 0.0);
+    mdl = ((id(*)(Class,SEL,id))objc_msgSend)(g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
     if (!mdl) {
         if (dbg) fprintf(stderr, "ds4: ANE %s inMemoryModel create failed\n", label);
-        return false;
+        ane_prefill_trace(label, "inMemoryModel", "failed", -1, 0, 0, 0, model_t0);
+        goto done;
     }
-    id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
-    NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
-    NSFileManager *fm = [NSFileManager defaultManager];
+    ane_prefill_trace(label, "inMemoryModel", "end", -1, 0, 0, 0, model_t0);
+    hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
+    td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
     [fm createDirectoryAtPath:td withIntermediateDirectories:YES attributes:nil error:nil];
     [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
+    const double compile_t0 = ane_now_ms();
+    ane_prefill_trace(label, "compileWithQoS", "begin", -1, 0, 0, 0, 0.0);
     if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
             mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
         if (dbg) fprintf(stderr, "ds4: ANE %s compile failed: %s\n",
                          label, e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
-        [fm removeItemAtPath:td error:nil];
-        return false;
+        ane_prefill_trace(label, "compileWithQoS", "failed", -1, 0, 0, 0, compile_t0);
+        goto done;
     }
+    ane_prefill_trace(label, "compileWithQoS", "end", -1, 0, 0, 0, compile_t0);
+    const double load_t0 = ane_now_ms();
+    ane_prefill_trace(label, "loadWithQoS", "begin", -1, 0, 0, 0, 0.0);
     if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
             mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
         if (dbg) fprintf(stderr, "ds4: ANE %s load failed: %s\n",
                          label, e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
-        [fm removeItemAtPath:td error:nil];
-        return false;
+        ane_prefill_trace(label, "loadWithQoS", "failed", -1, 0, 0, 0, load_t0);
+        goto done;
     }
+    ane_prefill_trace(label, "loadWithQoS", "end", -1, 0, 0, 0, load_t0);
     if (model_r) *model_r = (void *)CFBridgingRetain(mdl);
     if (tmpDir_r) *tmpDir_r = (void *)CFBridgingRetain([td copy]);
-    return true;
+    ane_prefill_trace(label, "helper", "end", -1, 0, 0, 0, total_t0);
+    ok = true;
+
+done:
+    if (!ok && td) [fm removeItemAtPath:td error:nil];
+    ane_tmp_env_pop(&tmp_guard);
+    return ok;
 }
 
 static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, float w_scale, float x_scale, float mid_scale, int mode) {
@@ -1183,12 +1381,19 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
     if (mode == 5 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 6 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
     if (mode == 13 && (!(w_scale > 0.0f) || !(x_scale > 0.0f) || !(mid_scale > 0.0f))) return NULL;
+    const double create_t0 = ane_now_ms();
+    ane_prefill_trace("create_common", "create", "begin", mode, H, I, B, 0.0);
+    const double cleanup_t0 = ane_now_ms();
     ane_cleanup_stale_tmp_dirs_once();
+    ane_prefill_trace("create_common", "tmp_cleanup", "end", mode, H, I, B, cleanup_t0);
+    const double resolve_t0 = ane_now_ms();
     resolve_classes();
+    ane_prefill_trace("create_common", "resolve_classes", "end", mode, H, I, B, resolve_t0);
     const bool dbg = ane_int8w_debug_enabled();
     if (!g_DescCls || !g_ModelCls || !g_ReqCls || !g_IOCls) {
         if (dbg) fprintf(stderr, "ds4: ANE int8w missing private classes desc=%p model=%p req=%p io=%p\n",
                          g_DescCls, g_ModelCls, g_ReqCls, g_IOCls);
+        ane_prefill_trace("create_common", "create", "missing-classes", mode, H, I, B, create_t0);
         return NULL;
     }
     @autoreleasepool {
@@ -1281,6 +1486,8 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         }
 
         NSError *e = nil;
+        const double mil_t0 = ane_now_ms();
+        ane_prefill_trace("create_common", "mil-generate", "begin", mode, H, I, B, 0.0);
         NSString *mil = mode == 1 ? gen_mil_fp16w(H, I, B) :
             (mode == 4 ? gen_mil_i8w_i8x_fused(H, I, B, w_scale, x_scale, mid_scale) :
              (mode == 6 ? gen_mil_i8w_i8x_tiled_fused(H, I, B, w_scale, x_scale, mid_scale) :
@@ -1288,50 +1495,82 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
                (mode == 8 ? gen_mil_fp16w_fused_conv(H, I, B) :
                 (mode == 13 ? gen_mil_i8w_i8x_tiled_fused_routed(H, I, B, w_scale, x_scale, mid_scale) :
                           gen_mil_int8w(H, I, B, w_scale, x_scale))))));
+        ane_prefill_trace("create_common", "mil-generate", "end", mode, H, I, B, mil_t0);
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
-        if (dbg) fprintf(stderr, "ds4: ANE %s create H=%d I=%d B=%d w_scale=%g x_scale=%g mid_scale=%g\n",
-                         mode == 1 ? "fp16w" :
-                            (mode == 4 ? "i8w-i8x-fused" :
-                             (mode == 6 ? "i8w-i8x-tiled-fused" :
-                              (mode == 7 ? "i8w-i8x-tiled-fused-i8out" :
-                               (mode == 8 ? "fp16w-fused-conv" :
-                                (mode == 13 ? "i8w-i8x-tiled-fused-routed" : "int8w"))))),
-                         H, I, B, w_scale, x_scale, mid_scale);
-        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
-            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
-        if (!desc) {
-            if (dbg) fprintf(stderr, "ds4: ANE descriptor create failed\n");
-            return NULL;
-        }
+	        if (dbg) fprintf(stderr, "ds4: ANE %s create H=%d I=%d B=%d w_scale=%g x_scale=%g mid_scale=%g\n",
+	                         mode == 1 ? "fp16w" :
+	                            (mode == 4 ? "i8w-i8x-fused" :
+	                             (mode == 6 ? "i8w-i8x-tiled-fused" :
+	                              (mode == 7 ? "i8w-i8x-tiled-fused-i8out" :
+	                               (mode == 8 ? "fp16w-fused-conv" :
+	                                (mode == 13 ? "i8w-i8x-tiled-fused-routed" : "int8w"))))),
+	                         H, I, B, w_scale, x_scale, mid_scale);
+	        ane_tmp_env_guard tmp_guard = {0};
+	        if (!ane_tmp_env_push(&tmp_guard)) {
+	            if (dbg) fprintf(stderr, "ds4: ANE temp root setup failed\n");
+	            ane_prefill_trace("create_common", "tmp_env", "failed", mode, H, I, B, create_t0);
+	            return NULL;
+	        }
+	        const double desc_t0 = ane_now_ms();
+	        ane_prefill_trace("create_common", "descriptor", "begin", mode, H, I, B, 0.0);
+	        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+	            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:), milData, @{}, nil);
+	        if (!desc) {
+	            if (dbg) fprintf(stderr, "ds4: ANE descriptor create failed\n");
+	            ane_prefill_trace("create_common", "descriptor", "failed", mode, H, I, B, desc_t0);
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+        ane_prefill_trace("create_common", "descriptor", "end", mode, H, I, B, desc_t0);
+        const double model_t0 = ane_now_ms();
+        ane_prefill_trace("create_common", "inMemoryModel", "begin", mode, H, I, B, 0.0);
         id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
-        if (!mdl) {
-            if (dbg) fprintf(stderr, "ds4: ANE inMemoryModel create failed\n");
-            return NULL;
-        }
+	        if (!mdl) {
+	            if (dbg) fprintf(stderr, "ds4: ANE inMemoryModel create failed\n");
+	            ane_prefill_trace("create_common", "inMemoryModel", "failed", mode, H, I, B, model_t0);
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+        ane_prefill_trace("create_common", "inMemoryModel", "end", mode, H, I, B, model_t0);
         id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
         NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
         NSFileManager *fm = [NSFileManager defaultManager];
         [fm createDirectoryAtPath:td withIntermediateDirectories:YES attributes:nil error:nil];
         [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
+        const double compile_t0 = ane_now_ms();
+        ane_prefill_trace("create_common", "compileWithQoS", "begin", mode, H, I, B, 0.0);
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE compile failed: %s\n",
-                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE compile failed: %s\n",
+	                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+	            ane_prefill_trace("create_common", "compileWithQoS", "failed", mode, H, I, B, compile_t0);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+        ane_prefill_trace("create_common", "compileWithQoS", "end", mode, H, I, B, compile_t0);
         if (dbg) fprintf(stderr, "ds4: ANE compile ok\n");
+        const double load_t0 = ane_now_ms();
+        ane_prefill_trace("create_common", "loadWithQoS", "begin", mode, H, I, B, 0.0);
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE load failed: %s\n",
-                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE load failed: %s\n",
+	                             e.localizedDescription ? e.localizedDescription.UTF8String : "unknown");
+	            ane_prefill_trace("create_common", "loadWithQoS", "failed", mode, H, I, B, load_t0);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+        ane_prefill_trace("create_common", "loadWithQoS", "end", mode, H, I, B, load_t0);
         if (dbg) fprintf(stderr, "ds4: ANE int8w load ok\n");
 
-        ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
-        if (!ctx) return NULL;
+	        ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
+	        if (!ctx) {
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = mode; ctx->w_scale = w_scale; ctx->x_scale = x_scale; ctx->mid_scale = mid_scale;
         /* fp16 weights for mode 1 (legacy split path uses other branch above) and
          * mode 8 (fused conv); int8 weights for all other single-model modes. */
@@ -1353,11 +1592,12 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
         if (!ctx->io_gate || !ctx->io_up || !ctx->io_down || !ctx->io_x ||
             (mode == 13 && !ctx->io_route) || !ctx->io_out) {
             if (dbg) fprintf(stderr, "ds4: ANE IOSurface allocation failed\n");
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id w_g = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_gate);
         id w_u = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_up);
         id w_d = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_down);
@@ -1385,15 +1625,18 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_create_common(int H, int I, int B, flo
             req_inputs, req_indices, @[w_o], @[@0], nil, nil, @0);
         if (!req) {
             if (dbg) fprintf(stderr, "ds4: ANE request create failed\n");
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
-        ctx->model_r = (void *)CFBridgingRetain(mdl);
-        ctx->request_r = (void *)CFBridgingRetain(req);
-        ctx->tmpDir_r = (void *)CFBridgingRetain([td copy]);
-        return ctx;
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        ctx->model_r = (void *)CFBridgingRetain(mdl);
+	        ctx->request_r = (void *)CFBridgingRetain(req);
+	        ctx->tmpDir_r = (void *)CFBridgingRetain([td copy]);
+	        ane_prefill_trace("create_common", "create", "end", mode, H, I, B, create_t0);
+	        ane_tmp_env_pop(&tmp_guard);
+	        return ctx;
     }
 }
 
@@ -1474,55 +1717,67 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
                                                              blob_path_in_mil, off_a, off_b);
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         NSError *e = nil;
-        NSDictionary *weights = @{
-            blob_path_in_mil: @{ @"offset": @(0), @"data": blob }
-        };
-        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
-            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
-            milData, weights, nil);
-        if (!desc) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr descriptor failed\n");
-            return NULL;
-        }
+	        NSDictionary *weights = @{
+	            blob_path_in_mil: @{ @"offset": @(0), @"data": blob }
+	        };
+	        ane_tmp_env_guard tmp_guard = {0};
+	        if (!ane_tmp_env_push(&tmp_guard)) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr temp root setup failed\n");
+	            return NULL;
+	        }
+	        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+	            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
+	            milData, weights, nil);
+	        if (!desc) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr descriptor failed\n");
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
             g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
-        if (!mdl) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr inMemoryModel failed\n");
-            return NULL;
-        }
+	        if (!mdl) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr inMemoryModel failed\n");
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
         NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
         NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
-        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES
-                            attributes:nil error:nil]) {
-            return NULL;
-        }
+	        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES
+	                            attributes:nil error:nil]) {
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
-        if (![blob writeToFile:blob_path atomically:YES]) {
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	        if (![blob writeToFile:blob_path atomically:YES]) {
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr compile failed: %s\n",
-                             e ? [[e description] UTF8String] : "unknown");
-            if (!dbg) [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr compile failed: %s\n",
+	                             e ? [[e description] UTF8String] : "unknown");
+	            if (!dbg) [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr load failed: %s\n",
-                             e ? [[e description] UTF8String] : "unknown");
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w-linear constexpr load failed: %s\n",
+	                             e ? [[e description] UTF8String] : "unknown");
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
-        if (!ctx) {
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	        if (!ctx) {
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 10;
         ctx->w_scale = 1.0f; ctx->x_scale = 1.0f; ctx->mid_scale = 1.0f;
         ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * sizeof(uint16_t);
@@ -1530,26 +1785,29 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_linear_constexpr_create(int H, int I, i
         ctx->io_x   = make_surface_typed(ctx->x_bytes, 2u);
         ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
         if (!ctx->io_x || !ctx->io_out) {
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
         id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
         id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
             g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
             @[w_x], @[@0], @[w_o], @[@0], nil, nil, @0);
         if (!req) {
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
-        ctx->model_r   = (void *)CFBridgingRetain(mdl);
-        ctx->request_r = (void *)CFBridgingRetain(req);
-        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
-        return ctx;
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        ctx->model_r   = (void *)CFBridgingRetain(mdl);
+	        ctx->request_r = (void *)CFBridgingRetain(req);
+	        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
+	        ane_tmp_env_pop(&tmp_guard);
+	        return ctx;
     }
 }
 
@@ -1610,46 +1868,64 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create_common(i
             input_i8, x_scale);
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         NSError *e = nil;
-        NSDictionary *weights = @{
-            blob_path_in_mil: @{ @"offset": @(0), @"data": blob }
-        };
-        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
-            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
-            milData, weights, nil);
-        if (!desc) return NULL;
-        id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
-            g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
-        if (!mdl) return NULL;
-        id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
-        NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
-        NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
-        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES attributes:nil error:nil]) return NULL;
-        NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
-        if (![blob writeToFile:blob_path atomically:YES]) {
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	        NSDictionary *weights = @{
+	            blob_path_in_mil: @{ @"offset": @(0), @"data": blob }
+	        };
+	        ane_tmp_env_guard tmp_guard = {0};
+	        if (!ane_tmp_env_push(&tmp_guard)) {
+	            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr temp root setup failed\n");
+	            return NULL;
+	        }
+	        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+	            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
+	            milData, weights, nil);
+	        if (!desc) {
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
+	            g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
+	        if (!mdl) {
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
+	        NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
+	        NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
+	        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES attributes:nil error:nil]) {
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
+	        if (![blob writeToFile:blob_path atomically:YES]) {
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr compile failed: %s\n  (debug: keeping tmpdir %s)\n",
-                             e ? [[e description] UTF8String] : "unknown", [td UTF8String]);
-            if (!dbg) [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr compile failed: %s\n  (debug: keeping tmpdir %s)\n",
+	                             e ? [[e description] UTF8String] : "unknown", [td UTF8String]);
+	            if (!dbg) [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr load failed: %s\n",
-                             e ? [[e description] UTF8String] : "unknown");
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE i8w-linear constexpr load failed: %s\n",
+	                             e ? [[e description] UTF8String] : "unknown");
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
-        if (!ctx) {
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	        if (!ctx) {
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = input_i8 ? 12 : 11;
         ctx->w_scale = 1.0f; ctx->x_scale = input_i8 ? x_scale : 1.0f; ctx->mid_scale = 1.0f;
         ctx->x_bytes  = (NSUInteger)B * (NSUInteger)H * (input_i8 ? sizeof(int8_t) : sizeof(uint16_t));
@@ -1657,26 +1933,29 @@ static ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_int8w_linear_constexpr_create_common(i
         ctx->io_x   = make_surface_typed(ctx->x_bytes, input_i8 ? 1u : 2u);
         ctx->io_out = make_surface_typed(ctx->out_bytes, 2u);
         if (!ctx->io_x || !ctx->io_out) {
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_x);
         id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls, @selector(objectWithIOSurface:), ctx->io_out);
         id req = ((id(*)(Class,SEL,id,id,id,id,id,id,id))objc_msgSend)(
             g_ReqCls, @selector(requestWithInputs:inputIndices:outputs:outputIndices:weightsBuffer:perfStats:procedureIndex:),
             @[w_x], @[@0], @[w_o], @[@0], nil, nil, @0);
         if (!req) {
-            ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
-        ctx->model_r   = (void *)CFBridgingRetain(mdl);
-        ctx->request_r = (void *)CFBridgingRetain(req);
-        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
-        return ctx;
+	            ds4_ane_mlp_int8w_destroy(ctx);
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        ctx->model_r   = (void *)CFBridgingRetain(mdl);
+	        ctx->request_r = (void *)CFBridgingRetain(req);
+	        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
+	        ane_tmp_env_pop(&tmp_guard);
+	        return ctx;
     }
 }
 
@@ -1878,65 +2157,77 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
         NSString *mil = gen_mil_fp16w_constexpr_conv(H, I, B, blob_path_in_mil, off_g, off_u, off_d);
         NSData *milData = [[mil dataUsingEncoding:NSUTF8StringEncoding] copy];
         NSError *e = nil;
-        NSDictionary *weights = @{
-            blob_path_in_mil: @{
-                @"offset": @(0),
-                @"data": blob,
-            }
-        };
-        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
-            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
-            milData, weights, nil);
-        if (!desc) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr descriptor failed\n");
-            return NULL;
-        }
+	        NSDictionary *weights = @{
+	            blob_path_in_mil: @{
+	                @"offset": @(0),
+	                @"data": blob,
+	            }
+	        };
+	        ane_tmp_env_guard tmp_guard = {0};
+	        if (!ane_tmp_env_push(&tmp_guard)) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr temp root setup failed\n");
+	            return NULL;
+	        }
+	        id desc = ((id(*)(Class,SEL,id,id,id))objc_msgSend)(
+	            g_DescCls, @selector(modelWithMILText:weights:optionsPlist:),
+	            milData, weights, nil);
+	        if (!desc) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr descriptor failed\n");
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id mdl = ((id(*)(Class,SEL,id))objc_msgSend)(
             g_ModelCls, @selector(inMemoryModelWithDescriptor:), desc);
-        if (!mdl) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr inMemoryModel failed\n");
-            return NULL;
-        }
+	        if (!mdl) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr inMemoryModel failed\n");
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id hx = ((id(*)(id,SEL))objc_msgSend)(mdl, @selector(hexStringIdentifier));
         NSString *td = [NSTemporaryDirectory() stringByAppendingPathComponent:hx];
         NSString *weights_dir = [td stringByAppendingPathComponent:@"weights"];
-        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES
-                            attributes:nil error:nil]) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr mkdir %s failed\n",
-                             [weights_dir UTF8String]);
-            return NULL;
-        }
+	        if (![fm createDirectoryAtPath:weights_dir withIntermediateDirectories:YES
+	                            attributes:nil error:nil]) {
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr mkdir %s failed\n",
+	                             [weights_dir UTF8String]);
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         NSString *blob_path = [weights_dir stringByAppendingPathComponent:@"weight.bin"];
         if (![blob writeToFile:blob_path atomically:YES]) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr blob writeToFile failed: %s\n",
-                             [blob_path UTF8String]);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr blob writeToFile failed: %s\n",
+	                             [blob_path UTF8String]);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         [milData writeToFile:[td stringByAppendingPathComponent:@"model.mil"] atomically:YES];
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(compileWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr compile failed: %s\n  (debug: keeping tmpdir %s for inspection)\n",
-                             e ? [[e description] UTF8String] : "unknown",
-                             [td UTF8String]);
-            if (!dbg) [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr compile failed: %s\n  (debug: keeping tmpdir %s for inspection)\n",
+	                             e ? [[e description] UTF8String] : "unknown",
+	                             [td UTF8String]);
+	            if (!dbg) [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         if (!((BOOL(*)(id,SEL,unsigned int,id,NSError**))objc_msgSend)(
                 mdl, @selector(loadWithQoS:options:error:), 21, @{}, &e)) {
-            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr load failed: %s\n",
-                             e ? [[e description] UTF8String] : "unknown");
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr load failed: %s\n",
+	                             e ? [[e description] UTF8String] : "unknown");
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
 
         ds4_ane_mlp_int8w_ctx *ctx = (ds4_ane_mlp_int8w_ctx *)calloc(1, sizeof(*ctx));
         if (!ctx) {
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
-                mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+	                mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         ctx->H = H; ctx->I = I; ctx->B = B; ctx->mode = 9;
         ctx->w_scale = 1.0f; ctx->x_scale = 1.0f; ctx->mid_scale = 1.0f;
         /* Only X input + Y output surfaces — weights live in the model. */
@@ -1947,11 +2238,12 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
         if (!ctx->io_x || !ctx->io_out) {
             if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr IOSurface alloc failed\n");
             ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
-                mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+	                mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
         id w_x = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls,
             @selector(objectWithIOSurface:), ctx->io_x);
         id w_o = ((id(*)(Class,SEL,IOSurfaceRef))objc_msgSend)(g_IOCls,
@@ -1962,15 +2254,17 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_fp16w_constexpr_create(int H, int I, int B,
         if (!req) {
             if (dbg) fprintf(stderr, "ds4: ANE fp16w constexpr request create failed\n");
             ds4_ane_mlp_int8w_destroy(ctx);
-            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
-                mdl, @selector(unloadWithQoS:error:), 21, &e);
-            [fm removeItemAtPath:td error:nil];
-            return NULL;
-        }
-        ctx->model_r   = (void *)CFBridgingRetain(mdl);
-        ctx->request_r = (void *)CFBridgingRetain(req);
-        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
-        return ctx;
+	            ((BOOL(*)(id,SEL,unsigned int,NSError**))objc_msgSend)(
+	                mdl, @selector(unloadWithQoS:error:), 21, &e);
+	            [fm removeItemAtPath:td error:nil];
+	            ane_tmp_env_pop(&tmp_guard);
+	            return NULL;
+	        }
+	        ctx->model_r   = (void *)CFBridgingRetain(mdl);
+	        ctx->request_r = (void *)CFBridgingRetain(req);
+	        ctx->tmpDir_r  = (void *)CFBridgingRetain([td copy]);
+	        ane_tmp_env_pop(&tmp_guard);
+	        return ctx;
     }
 }
 

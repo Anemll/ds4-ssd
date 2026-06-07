@@ -924,6 +924,27 @@ int ds4_gpu_routed_moe_one_banked_tensor_slotwise_baked(
         float                   clamp,
         const ds4_gpu_tensor *x);
 
+int ds4_gpu_routed_moe_one_slots6_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_slots[6],
+        ds4_gpu_tensor       *up_slots[6],
+        ds4_gpu_tensor       *down_slots[6],
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
 int ds4_gpu_moe_sum_experts_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *experts,
