@@ -30,7 +30,9 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
+int ds4_gpu_tensor_touch_pages(ds4_gpu_tensor *tensor, uint64_t page_bytes);
 int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count);
+int ds4_gpu_tensor_did_modify(ds4_gpu_tensor *tensor, uint64_t offset, uint64_t bytes);
 int ds4_gpu_tensor_write(ds4_gpu_tensor *tensor, uint64_t offset, const void *data, uint64_t bytes);
 int ds4_gpu_tensor_read(const ds4_gpu_tensor *tensor, uint64_t offset, void *data, uint64_t bytes);
 int ds4_gpu_tensor_copy(ds4_gpu_tensor *dst, uint64_t dst_offset,
@@ -98,6 +100,10 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
                                           uint64_t    offset,
                                           uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
+int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity);
+int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor);
+int ds4_gpu_flash_slot_bank_residency_commit(void);
+void ds4_gpu_flash_slot_bank_residency_clear(void);
 int ds4_gpu_cache_model_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, const char *label);
 int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint64_t offset, uint64_t bytes, uint64_t in_dim, uint64_t out_dim, const char *label);
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);
@@ -777,7 +783,11 @@ int ds4_gpu_router_select_tensor(
         uint64_t                bias_offset,
         uint64_t                hash_offset,
         uint32_t                hash_rows,
+        uint32_t                hash_width,
         uint32_t                token,
+        uint32_t                n_expert,
+        uint32_t                n_expert_used,
+        float                   expert_weight_scale,
         uint32_t                n_expert_groups,
         uint32_t                n_group_used,
         bool                    has_bias,
@@ -793,12 +803,16 @@ int ds4_gpu_router_select_batch_tensor(
         uint64_t                bias_offset,
         uint64_t                hash_offset,
         uint32_t                hash_rows,
+        uint32_t                hash_width,
         uint32_t                n_expert_groups,
         uint32_t                n_group_used,
         bool                    has_bias,
         bool                    hash_mode,
         const ds4_gpu_tensor *logits,
         const ds4_gpu_tensor *tokens,
+        uint32_t                n_expert,
+        uint32_t                n_expert_used,
+        float                   expert_weight_scale,
         uint32_t                n_tokens);
 
 int ds4_gpu_routed_moe_one_tensor(
@@ -823,6 +837,7 @@ int ds4_gpu_routed_moe_one_tensor(
         uint32_t                out_dim,
         const ds4_gpu_tensor *selected,
         const ds4_gpu_tensor *weights,
+        uint32_t                n_total_expert,
         uint32_t                n_expert,
         float                   clamp,
         const ds4_gpu_tensor *x);
@@ -840,8 +855,10 @@ int ds4_gpu_routed_moe_one_banked_tensor(
         uint32_t                gate_type,
         uint32_t                down_type,
         uint64_t                gate_expert_bytes,
+        uint64_t                gate_slot_stride,
         uint64_t                gate_row_bytes,
         uint64_t                down_expert_bytes,
+        uint64_t                down_slot_stride,
         uint64_t                down_row_bytes,
         uint32_t                expert_in_dim,
         uint32_t                expert_mid_dim,
@@ -851,6 +868,90 @@ int ds4_gpu_routed_moe_one_banked_tensor(
         uint32_t                n_expert,
         float                   clamp,
         const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_banked_tensor_slotwise(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                n_slots,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_slot_stride,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_slot_stride,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_banked_tensor_slotwise_baked(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                n_slots,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_slot_stride,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_slot_stride,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        uint32_t                layer_index,
+        const int32_t          *slot_ids,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_slots6_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_slots[6],
+        ds4_gpu_tensor       *up_slots[6],
+        ds4_gpu_tensor       *down_slots[6],
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_moe_sum_experts_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *experts,
+        uint32_t                out_dim,
+        uint32_t                n_expert);
+
+void ds4_gpu_flash_moe_icb_invalidate_slot(uint32_t layer_index, int32_t slot);
 
 int ds4_gpu_gather_rows_f32_tensor(
         ds4_gpu_tensor       *out,
@@ -942,7 +1043,11 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
         ds4_gpu_tensor          *out,
         bool                    *mid_is_f16);
 
-int ds4_gpu_ane_prefill_precompile_from_env(void);
+int ds4_gpu_ane_prefill_precompile_from_env(uint32_t expert_in_dim,
+                                            uint32_t expert_mid_dim,
+                                            uint32_t out_dim,
+                                            uint32_t gate_type,
+                                            uint32_t down_type);
 
 /* Synchronous direct-eval probe kept for ad-hoc value checks. The routed
  * overlap experiment uses ds4_gpu_ane_direct_eval_one_expert_start below. */
@@ -1022,6 +1127,7 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
 /* GPU dedup for Flash-MoE prefill (histogram of router top-k over n_pairs) */
 int ds4_gpu_flash_moe_dedup_histogram(const ds4_gpu_tensor *selected,
                                       ds4_gpu_tensor       *counts256,
+                                      uint32_t              n_expert,
                                       uint32_t              n_pairs);
 
 int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
@@ -1029,6 +1135,7 @@ int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
                                     ds4_gpu_tensor       *offsets,
                                     ds4_gpu_tensor       *out_tokens,
                                     ds4_gpu_tensor       *out_weights,
+                                    uint32_t              n_expert,
                                     uint32_t              n_pairs,
                                     uint32_t              expert_used);
 
@@ -1071,6 +1178,7 @@ int ds4_gpu_routed_moe_batch_tensor(
         uint32_t                out_dim,
         const ds4_gpu_tensor *selected,
         const ds4_gpu_tensor *weights,
+        uint32_t                n_total_expert,
         uint32_t                n_expert,
         float                   clamp,
         const ds4_gpu_tensor *x,

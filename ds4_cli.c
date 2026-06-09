@@ -100,6 +100,13 @@ static void usage(FILE *fp) {
         "  --moe-slot-bank N\n"
         "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
         "      Higher caches more experts; lower uses less RAM.\n"
+        "  --ssd-cache BYTES|auto\n"
+        "      Size the Flash-MoE slot bank from a cache budget such as 25GB.\n"
+        "      auto uses available memory minus dense weights and context buffers,\n"
+        "      then assigns 85%% of the remainder to the slot bank.\n"
+        "  --moe-expert-topk N\n"
+        "      Experimental: route/stream only N experts per token instead of\n"
+        "      the model default. Applies to both prefill and decode.\n"
         "  -c, --ctx N\n"
         "      Context size allocated for the session. Default: 32768\n"
         "  --metal\n"
@@ -314,7 +321,10 @@ typedef struct {
 static void cli_prefill_progress_cb(void *ud, const char *event, int current, int total) {
     (void)total;
     cli_prefill_progress *p = ud;
-    if (!p || !event || strcmp(event, "prefill_chunk") || p->input_tokens <= 0) return;
+    if (!p || !event || p->input_tokens <= 0) return;
+    if (strcmp(event, "prefill_chunk") &&
+        strcmp(event, "prefill_display") &&
+        strcmp(event, "prefill_display_ane")) return;
 
     int processed = current - p->base_tokens;
     if (processed < 0) processed = 0;
@@ -524,13 +534,16 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     };
 
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(session, prompt, err, sizeof(err)) != 0) {
         ds4_session_set_progress(session, NULL, NULL);
+        ds4_session_set_display_progress(session, NULL, NULL);
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         ds4_session_free(session);
         return 1;
     }
     ds4_session_set_progress(session, NULL, NULL);
+    ds4_session_set_display_progress(session, NULL, NULL);
     const double t_prefill1 = cli_now_sec();
 
     int max_tokens = cfg->gen.n_predict;
@@ -692,13 +705,16 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
         .use_color = ds4_log_is_tty(stderr),
     };
     ds4_session_set_progress(session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(session, prompt, err, sizeof(err)) != 0) {
         ds4_session_set_progress(session, NULL, NULL);
+        ds4_session_set_display_progress(session, NULL, NULL);
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         ds4_session_free(session);
         return 1;
     }
     ds4_session_set_progress(session, NULL, NULL);
+    ds4_session_set_display_progress(session, NULL, NULL);
 
     FILE *fp = fopen(cfg->gen.dump_logprobs_path, "wb");
     if (!fp) {
@@ -987,13 +1003,16 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
         .use_color = ds4_log_is_tty(stderr),
     };
     ds4_session_set_progress(chat->session, cli_prefill_progress_cb, &progress);
+    ds4_session_set_display_progress(chat->session, cli_prefill_progress_cb, &progress);
     if (ds4_session_sync(chat->session, &chat->transcript, err, sizeof(err)) != 0) {
         ds4_session_set_progress(chat->session, NULL, NULL);
+        ds4_session_set_display_progress(chat->session, NULL, NULL);
         chat->transcript.len = rollback_len;
         fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
         return 1;
     }
     ds4_session_set_progress(chat->session, NULL, NULL);
+    ds4_session_set_display_progress(chat->session, NULL, NULL);
     const double t_prefill1 = cli_now_sec();
 
     token_printer printer = {
@@ -1300,6 +1319,17 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--ssd-cache")) {
+            c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-expert-topk")) {
+            int topk = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (topk < 1) topk = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", topk);
+            if (setenv("DS4_MOE_EXPERT_TOPK", buf, 1) != 0) {
+                fprintf(stderr, "ds4: setenv DS4_MOE_EXPERT_TOPK: %s\n", strerror(errno));
+                exit(2);
+            }
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
             c.gen.n_predict = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
@@ -1397,6 +1427,7 @@ static cli_config parse_options(int argc, char **argv) {
     if (c.engine.directional_steering_file && !directional_steering_scale_set) {
         c.engine.directional_steering_ffn = 1.0f;
     }
+    c.engine.ctx_size = c.gen.ctx_size;
     ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4");
     if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
         fprintf(stderr, "ds4: --moe-sidecar requires --moe-mode slot-bank\n");
@@ -1431,6 +1462,7 @@ int main(int argc, char **argv) {
         return rc;
     }
     if (!cfg.inspect) {
+        ds4_model_shape_select_for_path(cfg.engine.model_path);
         log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
         cli_warn_think_max_downgraded(&cfg.gen, "--think-max");
     }

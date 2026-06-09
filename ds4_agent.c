@@ -65,6 +65,7 @@ typedef struct {
     const char *resume_sha;
     int moe_prefetch_temporal;
     int moe_prefetch_topk;
+    int moe_expert_topk;
     bool resident_ane_prefill;
     bool resident_ane_shared_expert;
     bool resident_ane_oproj;
@@ -78,6 +79,7 @@ typedef enum {
     AGENT_WORKER_PREFILL,
     AGENT_WORKER_GENERATING,
     AGENT_WORKER_COMPACTING,
+    AGENT_WORKER_TOOL,
     AGENT_WORKER_SAVING,
     AGENT_WORKER_ERROR,
     AGENT_WORKER_STOPPED,
@@ -91,8 +93,18 @@ typedef struct {
     double gen_tps;
     double prefill_tps;
     double last_completed_s;
+    double prefill_phase_t0;
     int ctx_used;
     int ctx_size;
+    char prefill_label[64];
+    bool prefill_ane;
+    char tool_name[64];
+    int tool_done;
+    int tool_total;
+    bool tool_running;
+    double tool_elapsed_s;
+    size_t tool_bytes;
+    int tool_lines;
     char error[256];
 } agent_status;
 
@@ -459,6 +471,12 @@ static void usage(FILE *fp) {
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 32\n"
         "                         Higher caches more experts; lower uses less RAM.\n"
+        "  --ssd-cache BYTES|auto\n"
+        "                         Size the Flash-MoE slot bank from a cache budget\n"
+        "                         such as 25GB. auto uses available memory minus\n"
+        "                         dense weights and context buffers, then 85%%.\n"
+        "  --moe-expert-topk N    Experimental routed expert fanout override.\n"
+        "                         Applies to both prefill and decode.\n"
         "  --moe-prefetch-temporal\n"
         "                         Enable decode temporal prefetch for sidecar MoE.\n"
         "  --no-moe-prefetch-temporal\n"
@@ -623,6 +641,7 @@ static agent_config parse_options(int argc, char **argv) {
         },
         .moe_prefetch_temporal = -1,
         .moe_prefetch_topk = -1,
+        .moe_expert_topk = -1,
     };
 
     bool steering_scale_set = false;
@@ -655,6 +674,18 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--ssd-cache")) {
+            c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--moe-expert-topk")) {
+            int topk = parse_int(need_arg(&i, argc, argv, arg), arg);
+            if (topk < 1) topk = 1;
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%d", topk);
+            if (setenv("DS4_MOE_EXPERT_TOPK", buf, 1) != 0) {
+                perror("ds4-agent: setenv DS4_MOE_EXPERT_TOPK");
+                exit(2);
+            }
+            c.moe_expert_topk = topk;
         } else if (!strcmp(arg, "--moe-prefetch-temporal")) {
             if (setenv("DS4_FLASH_MOE_DECODE_PREFETCH", "1", 1) != 0) {
                 perror("ds4-agent: setenv DS4_FLASH_MOE_DECODE_PREFETCH");
@@ -781,6 +812,8 @@ static agent_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !steering_scale_set)
         c.engine.directional_steering_ffn = 1.0f;
+    agent_setenv_default_or_die("DS4_METAL_RESUME_PREFILL_MIN", "256");
+    c.engine.ctx_size = c.gen.ctx_size;
     ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4-agent");
     if (c.resident_ane_prefill &&
         (c.engine.moe_mode != DS4_MOE_MODE_OFF || c.engine.moe_sidecar_path)) {
@@ -992,15 +1025,78 @@ static void agent_set_status(agent_worker *w, agent_worker_state state) {
     pthread_mutex_unlock(&w->mu);
 }
 
+static void agent_status_set_prefill_label(agent_status *st, const char *label) {
+    if (!st) return;
+    char next[sizeof(st->prefill_label)];
+    snprintf(next, sizeof(next), "%s", label && label[0] ? label : "prefill");
+    if (strcmp(st->prefill_label, next)) {
+        snprintf(st->prefill_label, sizeof(st->prefill_label), "%s", next);
+        st->prefill_phase_t0 = now_sec();
+    }
+}
+
+static void agent_status_set_prefill_phase(agent_status *st, const char *phase) {
+    if (!st) return;
+    const char *cur = st->prefill_label;
+    const char *base = "prefill";
+    if (strstr(cur, "sync tool result")) base = "sync tool result";
+    else if (strstr(cur, "sync compacted")) base = "sync compacted";
+    else if (strstr(cur, "compact prompt")) base = "compact prompt";
+    else if (strstr(cur, "sync system")) base = "sync system";
+    if (phase && phase[0]) {
+        char next[sizeof(st->prefill_label)];
+        snprintf(next, sizeof(next), "%s %s", base, phase);
+        if (strcmp(st->prefill_label, next)) {
+            snprintf(st->prefill_label, sizeof(st->prefill_label), "%s", next);
+            st->prefill_phase_t0 = now_sec();
+        }
+    } else {
+        agent_status_set_prefill_label(st, base);
+    }
+}
+
 static void agent_set_turn_completed(agent_worker *w) {
     const double done = now_sec();
     pthread_mutex_lock(&w->mu);
     w->status.state = AGENT_WORKER_IDLE;
+    w->status.prefill_label[0] = '\0';
+    w->status.prefill_ane = false;
+    w->status.prefill_phase_t0 = 0.0;
+    w->status.tool_name[0] = '\0';
+    w->status.tool_done = 0;
+    w->status.tool_total = 0;
+    w->status.tool_running = false;
+    w->status.tool_elapsed_s = 0.0;
+    w->status.tool_bytes = 0;
+    w->status.tool_lines = 0;
     if (w->turn_t0 > 0.0 && done >= w->turn_t0)
         w->status.last_completed_s = done - w->turn_t0;
     else
         w->status.last_completed_s = 0.0;
     w->turn_t0 = 0.0;
+    agent_wake_locked(w);
+    pthread_mutex_unlock(&w->mu);
+}
+
+static void agent_set_tool_status(agent_worker *w,
+                                  const char   *name,
+                                  int           done,
+                                  int           total,
+                                  bool          running,
+                                  double        elapsed_s,
+                                  size_t        bytes,
+                                  int           lines) {
+    if (!w) return;
+    pthread_mutex_lock(&w->mu);
+    w->status.state = AGENT_WORKER_TOOL;
+    snprintf(w->status.tool_name, sizeof(w->status.tool_name),
+             "%s", name && name[0] ? name : "tool");
+    w->status.tool_done = done < 0 ? 0 : done;
+    w->status.tool_total = total < 0 ? 0 : total;
+    w->status.tool_running = running;
+    w->status.tool_elapsed_s = elapsed_s < 0.0 ? 0.0 : elapsed_s;
+    w->status.tool_bytes = bytes;
+    w->status.tool_lines = lines < 0 ? 0 : lines;
     agent_wake_locked(w);
     pthread_mutex_unlock(&w->mu);
 }
@@ -3199,13 +3295,43 @@ static void worker_progress_cb(void *ud, const char *event, int current, int tot
     (void)total;
     agent_worker *w = ud;
     if (!w || !event) return;
-    if (strcmp(event, "prefill_chunk") && strcmp(event, "prefill_display")) return;
+    const char *phase = NULL;
+    bool prefill_event = false;
+    bool ane_prefill = false;
+    if (!strcmp(event, "prefill_chunk") || !strcmp(event, "prefill_display")) {
+        prefill_event = true;
+    } else if (!strcmp(event, "prefill_display_ane")) {
+        prefill_event = true;
+        ane_prefill = true;
+    } else if (!strcmp(event, "prefill_setup")) {
+        prefill_event = true;
+        phase = "setup";
+    } else if (!strcmp(event, "prefill_upload")) {
+        prefill_event = true;
+        phase = "upload";
+    } else if (!strcmp(event, "prefill_warmup")) {
+        prefill_event = true;
+        phase = "warmup";
+    } else if (!strcmp(event, "prefill_ane_compile")) {
+        prefill_event = true;
+        phase = "ANE compile";
+        ane_prefill = true;
+    } else if (!strcmp(event, "prefill_ctx_grow")) {
+        prefill_event = true;
+        phase = "ctx grow";
+    } else if (!strcmp(event, "prefill_model_views")) {
+        prefill_event = true;
+        phase = "model views";
+    }
+    if (!prefill_event) return;
     pthread_mutex_lock(&w->mu);
     int done = current - w->progress_base;
     if (done < 0) done = 0;
     if (done > w->status.prefill_total) done = w->status.prefill_total;
     const bool advanced = done != w->prefill_last_processed;
     w->status.prefill_done = done;
+    w->status.prefill_ane = ane_prefill;
+    agent_status_set_prefill_phase(&w->status, phase);
 
     /* Compute and display prefill t/s on stderr (like CLI does). */
     const double now = now_sec();
@@ -3224,16 +3350,18 @@ static void worker_progress_cb(void *ud, const char *event, int current, int tot
             int input_tokens = w->status.prefill_total;
             double pct = input_tokens > 0 ? 100.0 * (double)done / (double)input_tokens : 100.0;
             if (pct > 100.0) pct = 100.0;
+            const char *label = w->status.prefill_label[0] ?
+                                w->status.prefill_label : "prefill";
 
             if (isatty(STDERR_FILENO)) {
                 fputc('\r', stderr);
-                fprintf(stderr, "\x1b[90mprefill %d/%d (%.1f%%) batch=%.1f t/s avg=%.1f t/s\x1b[0m",
-                        done, input_tokens, pct, batch_tps, avg_tps);
+                fprintf(stderr, "\x1b[90m%s %d/%d (%.1f%%) batch=%.1f t/s avg=%.1f t/s\x1b[0m",
+                        label, done, input_tokens, pct, batch_tps, avg_tps);
                 fputs("\x1b[K", stderr);
                 if (input_tokens == 0 || done >= input_tokens) fputc('\n', stderr);
             } else {
-                fprintf(stderr, "prefill %d/%d (%.1f%%) batch=%.1f t/s avg=%.1f t/s\n",
-                        done, input_tokens, pct, batch_tps, avg_tps);
+                fprintf(stderr, "%s %d/%d (%.1f%%) batch=%.1f t/s avg=%.1f t/s\n",
+                        label, done, input_tokens, pct, batch_tps, avg_tps);
             }
             fflush(stderr);
         }
@@ -3594,6 +3722,7 @@ static void agent_publish_system_status(agent_worker *w, const char *msg) {
  * longest common prefix it can retain. */
 static int agent_worker_sync_tokens(agent_worker *w, const ds4_tokens *tokens,
                                     bool publish_progress,
+                                    const char *label,
                                     char *err, size_t err_len) {
     int old_pos = ds4_session_pos(w->session);
     int common = ds4_session_common_prefix(w->session, tokens);
@@ -3610,6 +3739,8 @@ static int agent_worker_sync_tokens(agent_worker *w, const ds4_tokens *tokens,
         w->status.generated = 0;
         w->status.gen_tps = 0.0;
         w->status.prefill_tps = 0.0;
+        w->status.prefill_ane = false;
+        agent_status_set_prefill_label(&w->status, label);
         agent_worker_prefill_timing_reset(w, suffix > 0 ? now_sec() : 0.0);
         agent_wake_locked(w);
         pthread_mutex_unlock(&w->mu);
@@ -3658,7 +3789,8 @@ static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t e
             agent_publish_system_status(w, "Updating system prompt cache...");
         ds4_tokens_free(&w->transcript);
         ds4_tokens_copy(&w->transcript, &sys);
-        if (agent_worker_sync_tokens(w, &w->transcript, true, err, err_len) != 0) {
+        if (agent_worker_sync_tokens(w, &w->transcript, true,
+                                     "sync system", err, err_len) != 0) {
             free(text);
             ds4_tokens_free(&sys);
             return false;
@@ -3699,6 +3831,7 @@ static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t e
     w->status.generated = 0;
     w->status.gen_tps = 0.0;
     w->status.prefill_tps = 0.0;
+    w->status.prefill_ane = false;
     w->status.last_completed_s = 0.0;
     w->turn_t0 = 0.0;
     agent_worker_prefill_timing_reset(w, 0.0);
@@ -3737,7 +3870,8 @@ static bool agent_worker_save_session_now(agent_worker *w, char sha_out[41],
         return false;
     }
 
-    if (agent_worker_sync_tokens(w, &w->transcript, false, err, err_len) != 0)
+    if (agent_worker_sync_tokens(w, &w->transcript, false,
+                                 NULL, err, err_len) != 0)
         return false;
     if (!agent_mkdir_p(w->cache_dir)) {
         snprintf(err, err_len, "failed to create %s", w->cache_dir);
@@ -5793,6 +5927,23 @@ static int agent_bash_display_lines(const agent_bash_job *job) {
     return job->newline_count + (job->last_byte != '\n');
 }
 
+static void agent_set_bash_tool_status(agent_worker *w,
+                                       const char   *name,
+                                       int           done,
+                                       int           total,
+                                       agent_bash_job *job,
+                                       bool          running) {
+    const double elapsed = job ? now_sec() - job->start_time : 0.0;
+    agent_set_tool_status(w,
+                          name,
+                          done,
+                          total,
+                          running,
+                          elapsed,
+                          job ? job->bytes : 0,
+                          agent_bash_display_lines(job));
+}
+
 static void agent_bash_note_output(agent_bash_job *job, const char *s, size_t n) {
     for (size_t i = 0; i < n; i++) {
         if (s[i] == '\n') job->newline_count++;
@@ -6184,11 +6335,13 @@ static void agent_bash_refresh_for(agent_worker *w, agent_bash_job *job,
     while (job->running && now_sec() - start < refresh_sec) {
         if (worker_should_interrupt(w)) break;
         agent_bash_poll(job);
+        agent_set_bash_tool_status(w, "bash", 0, 1, job, job->running);
         if (!job->running) break;
         struct pollfd pfd = {.fd = job->pipe_fd, .events = POLLIN};
         poll(&pfd, 1, 100);
     }
     agent_bash_poll(job);
+    agent_set_bash_tool_status(w, "bash", 1, 1, job, job->running);
 }
 
 /* Common implementation for bash, bash_status, and bash_stop. */
@@ -6297,10 +6450,14 @@ static char *agent_execute_tool_call(agent_worker *w, const agent_tool_call *cal
 static char *agent_execute_tool_calls(agent_worker *w, const agent_tool_calls *calls) {
     agent_buf all = {0};
     for (int i = 0; i < calls->len; i++) {
+        const char *name = calls->v[i].name ? calls->v[i].name : "unknown";
+        double t0 = now_sec();
+        agent_set_tool_status(w, name, i, calls->len, true, 0.0, 0, 0);
         char *res = agent_execute_tool_call(w, &calls->v[i]);
         char hdr[128];
-        snprintf(hdr, sizeof(hdr), "Tool result %d (%s):\n", i + 1,
-                 calls->v[i].name ? calls->v[i].name : "unknown");
+        agent_set_tool_status(w, name, i + 1, calls->len, false,
+                              now_sec() - t0, 0, 0);
+        snprintf(hdr, sizeof(hdr), "Tool result %d (%s):\n", i + 1, name);
         agent_buf_puts(&all, hdr);
         agent_buf_puts(&all, res);
         if (res[0] && res[strlen(res) - 1] != '\n') agent_buf_puts(&all, "\n");
@@ -6454,6 +6611,8 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
     w->status.generated = 0;
     w->status.gen_tps = 0.0;
     w->status.prefill_tps = 0.0;
+    w->status.prefill_ane = false;
+    agent_status_set_prefill_label(&w->status, "compact prompt");
     agent_worker_prefill_timing_reset(w, suffix > 0 ? now_sec() : 0.0);
     agent_wake_locked(w);
     pthread_mutex_unlock(&w->mu);
@@ -6570,7 +6729,8 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
     ds4_tokens_copy(&old_transcript, &w->transcript);
     ds4_tokens_free(&w->transcript);
     w->transcript = compacted;
-    if (agent_worker_sync_tokens(w, &w->transcript, true, err, err_len) != 0) {
+    if (agent_worker_sync_tokens(w, &w->transcript, true,
+                                 "sync compacted", err, err_len) != 0) {
         ds4_session_invalidate(w->session);
         ds4_tokens_free(&w->transcript);
         w->transcript = old_transcript;
@@ -6668,6 +6828,9 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         w->status.generated = 0;
         w->status.gen_tps = 0.0;
         w->status.prefill_tps = 0.0;
+        w->status.prefill_ane = false;
+        agent_status_set_prefill_label(&w->status,
+                                       tool_round > 0 ? "sync tool result" : "prefill");
         agent_worker_prefill_timing_reset(w, suffix > 0 ? now_sec() : 0.0);
         agent_wake_locked(w);
         pthread_mutex_unlock(&w->mu);
@@ -6974,7 +7137,9 @@ static bool worker_submit(agent_worker *w, const char *text) {
         w->status.generated = 0;
         w->status.gen_tps = 0.0;
         w->status.prefill_tps = 0.0;
+        w->status.prefill_ane = false;
         w->status.last_completed_s = 0.0;
+        agent_status_set_prefill_label(&w->status, "starting");
         w->turn_t0 = now_sec();
         agent_worker_prefill_timing_reset(w, 0.0);
         pthread_cond_signal(&w->cond);
@@ -7097,6 +7262,7 @@ static void agent_format_ctx_size(int ctx_size, char *buf, size_t len);
 #define AGENT_STATUS_STYLE_START "\x1b[48;5;238;38;5;252m"
 #define AGENT_STATUS_STYLE_END "\x1b[0m"
 #define AGENT_STATUS_BAR_FILL "\x1b[48;5;238;38;5;201;1m"
+#define AGENT_STATUS_BAR_FILL_ANE "\x1b[48;5;238;38;5;196;1m"
 #define AGENT_QUEUE_STYLE "\x1b[38;5;87;1m"
 #define AGENT_STATUS_REDRAW_INTERVAL_SEC 0.20
 #define AGENT_PROGRESS_BAR_WIDTH 32
@@ -7118,7 +7284,7 @@ static void build_prompt_text(const agent_status *st, char *buf, size_t len) {
 }
 
 static void agent_progress_bar(int done, int total, char *buf, size_t len,
-                               bool color) {
+                               bool color, bool ane_prefill) {
     if (len == 0) return;
     if (total <= 0) total = 1;
     if (done < 0) done = 0;
@@ -7129,7 +7295,11 @@ static void agent_progress_bar(int done, int total, char *buf, size_t len,
     if (color && filled == 0 && done < total) filled = 1;
     size_t pos = 0;
     agent_progress_append(buf, len, &pos, "[");
-    if (color) agent_progress_append(buf, len, &pos, AGENT_STATUS_BAR_FILL);
+    if (color) {
+        agent_progress_append(buf, len, &pos,
+                              ane_prefill ? AGENT_STATUS_BAR_FILL_ANE
+                                           : AGENT_STATUS_BAR_FILL);
+    }
     for (int i = 0; i < AGENT_PROGRESS_BAR_WIDTH && pos + 1 < len; i++) {
         if (color && i == filled) {
             agent_progress_append(buf, len, &pos, AGENT_STATUS_STYLE_START);
@@ -7156,6 +7326,18 @@ static void agent_format_elapsed(double seconds, char *buf, size_t len) {
     }
 }
 
+static void agent_format_bytes(size_t bytes, char *buf, size_t len) {
+    const double kib = 1024.0;
+    const double mib = kib * 1024.0;
+    if ((double)bytes >= mib) {
+        snprintf(buf, len, "%.1fMiB", (double)bytes / mib);
+    } else if ((double)bytes >= kib) {
+        snprintf(buf, len, "%.1fKiB", (double)bytes / kib);
+    } else {
+        snprintf(buf, len, "%zuB", bytes);
+    }
+}
+
 /* Build the one-line footer shown below the prompt.  It is intentionally compact
  * because linenoise redraws it on every progress update. */
 static void build_status_text(const agent_status *st, char *buf, size_t len) {
@@ -7170,12 +7352,26 @@ static void build_status_text(const agent_status *st, char *buf, size_t len) {
         if (done > total) done = total;
         double pct = total > 0 ? 100.0 * (double)done / (double)total : 100.0;
         char bar[AGENT_PROGRESS_BAR_MAX_BYTES];
-        agent_progress_bar(done, total > 0 ? total : 1, bar, sizeof(bar), stdout_is_tty());
+        const char *label = st->prefill_label[0] ? st->prefill_label : "prefill";
+        char phase_elapsed[48] = "";
+        if (st->prefill_phase_t0 > 0.0) {
+            char elapsed[32];
+            agent_format_elapsed(now_sec() - st->prefill_phase_t0,
+                                 elapsed,
+                                 sizeof(elapsed));
+            snprintf(phase_elapsed, sizeof(phase_elapsed), " %s", elapsed);
+        }
+        agent_progress_bar(done, total > 0 ? total : 1, bar, sizeof(bar),
+                           stdout_is_tty(), st->prefill_ane);
         if (total > 0) {
-            snprintf(buf, len, "ctx %s/%s | prefill %s %d/%d %.1f%% %.1f t/s",
-                     used, total_ctx, bar, done, total, pct, st->prefill_tps);
+            snprintf(buf, len, "ctx %s/%s | %s %s %d/%d %.1f%% %.1f t/s%s",
+                     used, total_ctx, label, bar, done, total, pct,
+                     st->prefill_tps, phase_elapsed);
+        } else if (!strcmp(label, "starting")) {
+            snprintf(buf, len, "ctx %s/%s | starting", used, total_ctx);
         } else {
-            snprintf(buf, len, "ctx %s/%s | prefill cached", used, total_ctx);
+            snprintf(buf, len, "ctx %s/%s | %s cached%s",
+                     used, total_ctx, label, phase_elapsed);
         }
         break;
     }
@@ -7187,6 +7383,28 @@ static void build_status_text(const agent_status *st, char *buf, size_t len) {
         snprintf(buf, len, "ctx %s/%s | COMPACTING summary %d tokens %.1f t/s",
                  used, total_ctx, st->generated, st->gen_tps);
         break;
+    case AGENT_WORKER_TOOL: {
+        char elapsed[48];
+        agent_format_elapsed(st->tool_elapsed_s, elapsed, sizeof(elapsed));
+        const char *name = st->tool_name[0] ? st->tool_name : "tool";
+        const char *phase = st->tool_running ? "running" : "done";
+        int total = st->tool_total;
+        int current = st->tool_running ? st->tool_done + 1 : st->tool_done;
+        if (total <= 0) total = 1;
+        if (current < 0) current = 0;
+        if (current > total) current = total;
+        if (st->tool_bytes || st->tool_lines) {
+            char bytes[32];
+            agent_format_bytes(st->tool_bytes, bytes, sizeof(bytes));
+            snprintf(buf, len, "ctx %s/%s | tool %s %d/%d %s %s %s %d lines",
+                     used, total_ctx, name, current, total, phase, elapsed,
+                     bytes, st->tool_lines);
+        } else {
+            snprintf(buf, len, "ctx %s/%s | tool %s %d/%d %s %s",
+                     used, total_ctx, name, current, total, phase, elapsed);
+        }
+        break;
+    }
     case AGENT_WORKER_SAVING:
         snprintf(buf, len, "ctx %s/%s | saving session", used, total_ctx);
         break;
@@ -8344,9 +8562,14 @@ static void agent_print_resume_hint(agent_worker *w) {
         free(mtp);
     }
     if (cfg->engine.moe_mode != DS4_MOE_MODE_OFF) {
-        printf(" --moe-mode %s --moe-slot-bank %d",
-               agent_moe_mode_name(cfg->engine.moe_mode),
-               cfg->engine.moe_slot_bank);
+        printf(" --moe-mode %s", agent_moe_mode_name(cfg->engine.moe_mode));
+        if (cfg->engine.ssd_cache && cfg->engine.ssd_cache[0]) {
+            char *ssd_cache = agent_shell_quote(cfg->engine.ssd_cache);
+            printf(" --ssd-cache %s", ssd_cache);
+            free(ssd_cache);
+        } else {
+            printf(" --moe-slot-bank %d", cfg->engine.moe_slot_bank);
+        }
     }
     if (cfg->engine.moe_sidecar_path && cfg->engine.moe_sidecar_path[0]) {
         char *sidecar = agent_shell_quote(cfg->engine.moe_sidecar_path);
@@ -8360,6 +8583,9 @@ static void agent_print_resume_hint(agent_worker *w) {
     }
     if (cfg->moe_prefetch_topk >= 0) {
         printf(" --moe-prefetch-topk %d", cfg->moe_prefetch_topk);
+    }
+    if (cfg->moe_expert_topk >= 0) {
+        printf(" --moe-expert-topk %d", cfg->moe_expert_topk);
     }
     if (cfg->engine.directional_steering_file &&
         cfg->engine.directional_steering_file[0])
@@ -8883,6 +9109,7 @@ int main(int argc, char **argv) {
     agent_config cfg = parse_options(argc, argv);
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
+    ds4_model_shape_select_for_path(cfg.engine.model_path);
     log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
 
     ds4_engine *engine = NULL;

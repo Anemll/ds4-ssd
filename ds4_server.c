@@ -11791,6 +11791,10 @@ static void usage(FILE *fp) {
         "  --moe-slot-bank N\n"
         "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
         "      Higher caches more experts; lower uses less RAM.\n"
+        "  --ssd-cache BYTES|auto\n"
+        "      Size the Flash-MoE slot bank from a cache budget such as 25GB.\n"
+        "      auto uses available memory minus dense weights and context buffers,\n"
+        "      then assigns 85%% of the remainder to the slot bank.\n"
         "  -c, --ctx N\n"
         "      Context size allocated at startup. Default: 32768\n"
         "  -n, --tokens N\n"
@@ -11937,6 +11941,8 @@ static server_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--ssd-cache")) {
+            c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.ctx_size = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -12020,6 +12026,7 @@ static server_config parse_options(int argc, char **argv) {
     if (c.engine.directional_steering_file && !directional_steering_scale_set) {
         c.engine.directional_steering_ffn = 1.0f;
     }
+    c.engine.ctx_size = c.ctx_size;
     if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
         server_log(DS4_LOG_DEFAULT, "ds4-server: --moe-sidecar requires --moe-mode slot-bank");
         exit(2);
@@ -12047,6 +12054,7 @@ int main(int argc, char **argv) {
 
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
+    ds4_model_shape_select_for_path(cfg.engine.model_path);
     log_context_memory(cfg.engine.backend, cfg.ctx_size);
 
     ds4_engine *engine = NULL;

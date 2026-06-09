@@ -225,7 +225,7 @@ kernel void kernel_dsv4_indexer_score_one_direct(
 
 // Decode router post-processing for one token. The selected expert ids are
 // already known; this gathers their probabilities, normalizes by the selected
-// sum, clamps the denominator like the reference path, and applies DS4's 1.5
+// sum, clamps the denominator like the reference path, and applies DS4 Flash's 1.5
 // expert-weight scale in one tiny dispatch.
 kernel void kernel_dsv4_router_weights_one(
         device const char *probs,

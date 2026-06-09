@@ -1377,6 +1377,28 @@ extern "C" void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor) {
     return tensor->ptr;
 }
 
+extern "C" int ds4_gpu_tensor_touch_pages(ds4_gpu_tensor *tensor, uint64_t page_bytes) {
+    (void)page_bytes;
+    return tensor != NULL;
+}
+
+extern "C" int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity) {
+    (void)initial_capacity;
+    return 1;
+}
+
+extern "C" int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor) {
+    (void)tensor;
+    return 1;
+}
+
+extern "C" int ds4_gpu_flash_slot_bank_residency_commit(void) {
+    return 1;
+}
+
+extern "C" void ds4_gpu_flash_slot_bank_residency_clear(void) {
+}
+
 extern "C" int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count) {
     if (!tensor || count > tensor->bytes / sizeof(float)) return 0;
     if (count == 0) return 1;

@@ -77,6 +77,8 @@ typedef struct {
     const char *moe_sidecar_path;
     ds4_moe_mode moe_mode;
     int moe_slot_bank;
+    const char *ssd_cache;
+    int ctx_size;
     bool warm_weights;
     bool quality;
     bool no_int8;
@@ -112,6 +114,7 @@ const char *ds4_think_mode_name(ds4_think_mode mode);
 const char *ds4_think_max_prefix(void);
 uint32_t ds4_think_max_min_context(void);
 ds4_think_mode ds4_think_mode_for_context(ds4_think_mode mode, int ctx_size);
+bool ds4_model_shape_select_for_path(const char *model_path);
 ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size);
 bool ds4_log_is_tty(FILE *fp);
 void ds4_log(FILE *fp, ds4_log_type type, const char *fmt, ...);
