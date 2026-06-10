@@ -89,6 +89,18 @@ The slot bank is the cap on resident routed-expert slots, so a larger value
 trades RAM for fewer SSD reads. `--moe-slot-bank 64 --ctx 32768` is a
 high-memory setting, not the safest default.
 
+For cache-budget comparisons, especially against upstream SSD-streaming runs,
+use `--ssd-cache` instead of manually choosing a slot count. Explicit sizes set
+the target routed-expert slot-bank budget, while `auto` sizes the slot bank from
+currently available memory after dense weights and context buffers are
+estimated:
+
+```sh
+./ds4 -m "$DS4_SIDECAR_DIR" --ssd-cache 32G --ctx 32768 -p "Hello"
+./ds4 -m "$DS4_SIDECAR_DIR" --ssd-cache 64G --ctx 32768 -p "Hello"
+./ds4 -m "$DS4_SIDECAR_DIR" --ssd-cache auto --ctx 32768 -p "Hello"
+```
+
 Run the committed sidecar smoke:
 
 ```sh
