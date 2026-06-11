@@ -202,3 +202,26 @@ arrangement. So native consumption needs a one-time repack; everything else is s
   4 for Q2_K/IQ2_XXS) — understand what it scales before picking MXFP4's value.
 - `_counted` transpose-i8 variants exist only for iq2_xxs/q2_k today; decide whether the
   dedup path needs the mxfp4 `_counted` twin in Phase 2.
+
+## Dense precision audit vs the original HF model (2026-06-11)
+
+HF original (`/Volumes/TB36/Models/DS/DeepSeek-V4-Flash`) is natively FP8:
+F8_E4M3 weights + F8_E8M0 scales on 128x128 tiles. Three-way comparison
+(relRMS / max-abs) on representative tensors:
+
+| tensor | HF -> native GGUF | native -> converted | total |
+|---|---|---|---|
+| L0 wq_a / wq_b / wkv / wo_b | 0 / 0 (bit-exact) | 5.5e-3 / ~6e-4 | 5.5e-3 |
+| L0 shared experts w1 / w2 | 0 / 0 | 5.5e-3 / ~7e-4 | 5.5e-3 |
+| L20 wq_b (mid-network) | 0 / 0 | 5.5e-3 / 8.9e-4 | 5.5e-3 |
+| embed (BF16 -> F16) | 0 / 0 | 1.3e-9 | 1.3e-9 |
+| head (BF16 -> Q8_0) | 0 / 0 | 5.4e-3 / 1.6e-2 | 5.4e-3 |
+
+- The native GGUF dense is a bit-exact repack of the HF FP8 weights (the
+  128x128 tile scale broadcasts losslessly onto row-128 segments).
+- The only loss in the whole chain is the converter's FP8->Q8_0 re-encode:
+  ~0.55% relRMS, matching Q8_0 roundoff theory, and well below the FP8
+  grid's own ~2-3% representation step relative to the pre-FP8 master
+  weights. Embeddings are exact (BF16->F16).
+- A zero-loss alternative exists (store dense as F16, ~16 GB vs 8.8 GB),
+  but Q8_0 is what the optimized W8A8 NAX dense path consumes.
