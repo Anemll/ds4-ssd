@@ -3490,3 +3490,25 @@ Startup logging fix:
   and the generic `DS4_FLASH_MOE_ANE_INT8_QSCALE` is still honored when set.
 - The generic startup `w_qscale=512` line was stale/misleading for Q4 and was
   the source of false qscale suspicion after the actual decode bug was fixed.
+
+## High-slot cliff: quant-type independence A/B (2026-06-11, MXFP4 branch)
+
+`--ssd-cache auto` (M5 Max 128GB, ctx 4096, n=256, temp 0, same essay prompt,
+sequential runs with cooldown):
+
+| package | slots | bank | prefill | decode |
+|---|---|---|---|---|
+| MXFP4-native (12.75 MiB records) | 131 | 70.1 GB | 4.92 t/s | **0.11 t/s** |
+| Q4K chat-v2 (13.5 MiB records)   | 138 | 78.2 GB | 5.22 t/s | **0.09 t/s** |
+
+Reference: both packages decode ~10 t/s at slot-bank 48 (25-26 GB bank) with
+the same prompt class. The collapse is ~100x and hits both quant types
+equally, so the cliff is independent of expert quant format, record size, and
+the dequant kernel path (MXFP4 uses the new mul_mv_id_mxfp4 kernel, Q4K the
+long-standing q4_K one). This kills any theory tied to a specific dequant
+kernel or block layout; consistent with the earlier localization to the
+banked decode path / decode temporal prefetch.
+
+Practical guidance until the cliff is fixed: cap slot banks well below the
+cliff (48 slots measured healthy) rather than using --ssd-cache auto on
+128GB machines.
