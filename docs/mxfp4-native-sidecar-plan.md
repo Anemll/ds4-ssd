@@ -14,7 +14,11 @@
 > original FP8 export is preserved as `dense/model-dense-fp8-native.gguf`),
 > so the package runs plainly: `./ds4 -m <pkg> --moe-mode slot-bank ...`.
 > ANE i8i8 confirmed optimal vs GPU mul_mm_id A/B (315.9 vs 307.9 t/s 16k).
-> Remaining: MPP 4.1 scaffolding items below (macOS 27 native scale-plane).
+> Phase 3 validation complete: 16k smoke, ANE-vs-GPU backend A/B, graded QA
+> (2/2 = Q4K), and the 2-turn resume-after-decode repro (clean cross-turn
+> context, no bank-replay corruption). Bonus: high-slot decode cliff
+> root-caused (page-cache squeeze) and fixed via DS4_SSD_CACHE_AUTO_PCT
+> (default 20). Remaining: MPP 4.1 scaffolding items below (macOS 27).
 
 Branch: `MXFP4` (cut from `codex/stable-slot-replay-experiment`).
 Target sidecar: `/Users/anemll/Models/DSv4-Flash-MXFP4-native-flash`
