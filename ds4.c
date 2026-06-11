@@ -3464,16 +3464,32 @@ static bool ds4_flash_moe_ssd_cache_budget(
             return false;
         }
         const uint64_t remaining = available - dense_bytes - kv_bytes;
-        *budget_out = (remaining / 100u) * 85u + (remaining % 100u) * 85u / 100u;
+        /* A wired slot bank competes with the OS file cache that serves
+         * decode-miss preads of the sidecar at RAM speed. When the sidecar is
+         * larger than RAM, oversizing the bank evicts that cache and decode
+         * collapses to true SSD reads (measured ~40x slower at 85% on a
+         * 128 GiB M5 Max; see docs/flash-moe-stable-slot-progress.md). Keep a
+         * conservative default and let DS4_SSD_CACHE_AUTO_PCT override. */
+        uint32_t pct = 40u;
+        const char *pct_env = getenv("DS4_SSD_CACHE_AUTO_PCT");
+        if (pct_env && pct_env[0]) {
+            char *end = NULL;
+            errno = 0;
+            long v = strtol(pct_env, &end, 10);
+            if (errno == 0 && end != pct_env && v >= 1 && v <= 100) pct = (uint32_t)v;
+        }
+        *budget_out = (remaining / 100u) * pct + (remaining % 100u) * pct / 100u;
         *auto_out = true;
         fprintf(stderr,
                 "ds4: --ssd-cache auto: available=%.2f GiB dense=%.2f GiB "
-                "context=%.2f GiB remaining=%.2f GiB budget=%.2f GiB (85%%)\n",
+                "context=%.2f GiB remaining=%.2f GiB budget=%.2f GiB (%u%%, "
+                "DS4_SSD_CACHE_AUTO_PCT to override)\n",
                 (double)available / 1073741824.0,
                 (double)dense_bytes / 1073741824.0,
                 (double)kv_bytes / 1073741824.0,
                 (double)remaining / 1073741824.0,
-                (double)*budget_out / 1073741824.0);
+                (double)*budget_out / 1073741824.0,
+                pct);
         return true;
     }
 

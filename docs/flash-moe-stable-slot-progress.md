@@ -3512,3 +3512,36 @@ banked decode path / decode temporal prefetch.
 Practical guidance until the cliff is fixed: cap slot banks well below the
 cliff (48 slots measured healthy) rather than using --ssd-cache auto on
 128GB machines.
+
+## Cliff root cause in the cold-decode regime: page-cache squeeze (2026-06-11)
+
+Short-prompt (25-token) cold-decode repro at slot131 (70 GiB bank, MXFP4
+package, n=32): baseline 0.21 t/s; DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0 gives
+0.22; REALLOC_SLOT_BANK_AFTER_PREFILL=1 gives 0.21. Neither known mitigation
+moves it — this regime is NOT prefill-write poisoning.
+
+iostat during decode is decisive:
+- slot48 (26 GiB bank): decode 8.44 t/s with the disk essentially idle —
+  decode-miss preads (~2.7 GB/token) are served by the macOS file cache at
+  RAM speed. The file cache, not the slot bank, is the effective MoE cache.
+- slot131 (70 GiB bank): decode 0.22 t/s with sustained 280-400 MB/s of true
+  disk reads for the whole run — the wired bank evicted the file cache, so
+  every miss is a real SSD read.
+
+So in this regime the "cliff" is the wired slot bank squeezing out the OS
+file cache that was invisibly serving misses. It is quant-independent
+(reproduced on Q4K and MXFP4) and insensitive to install-path flags because
+the IO volume itself is the cost.
+
+Fix landed on the MXFP4 branch: --ssd-cache auto now budgets
+DS4_SSD_CACHE_AUTO_PCT% (default 40, was 85) of remaining memory.
+Validation, same command/prompt: auto now resolves 62 slots / 33 GiB and
+decodes at 6.52 t/s vs 0.21 before (~30x). slot48 remains slightly faster
+(8.44) — the bank/cache tradeoff curve peaks below 40% on a 128 GiB M5 Max
+with a 145 GiB sidecar.
+
+Note for the original slot225/long-prompt investigation: the realloc-recovery
+evidence there (0.30 -> 2.60) may still indicate an additional kernel- or
+placement-side component in the warmed-bank regime, but a large share of
+"high-slot decode collapse" is explained by cache squeeze, which also
+explains why teardown/recreate (which momentarily frees 60+ GiB) helps.
