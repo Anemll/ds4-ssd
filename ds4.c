@@ -400,11 +400,22 @@ typedef struct {
     uint16_t qs[QK_K / 8];
 } block_iq2_xxs;
 
+/* MXFP4 (OCP microscaling, ggml GGML_TYPE_MXFP4): 32 FP4 E2M1 values sharing
+ * one E8M0 scale byte (value = 2^(e - 127)).  qs[j] low nibble = element j,
+ * high nibble = element j + 16. */
+#define QK_MXFP4 32
+
+typedef struct {
+    uint8_t e;
+    uint8_t qs[QK_MXFP4 / 2];
+} block_mxfp4;
+
 #define DS4_STATIC_ASSERT(name, cond) typedef char name[(cond) ? 1 : -1]
 DS4_STATIC_ASSERT(ds4_block_q2_k_size, sizeof(block_q2_K) == 84);
 DS4_STATIC_ASSERT(ds4_block_q4_k_size, sizeof(block_q4_K) == 144);
 DS4_STATIC_ASSERT(ds4_block_q8_k_size, sizeof(block_q8_K) == 292);
 DS4_STATIC_ASSERT(ds4_block_iq2_xxs_size, sizeof(block_iq2_xxs) == 66);
+DS4_STATIC_ASSERT(ds4_block_mxfp4_size, sizeof(block_mxfp4) == 17);
 
 typedef struct {
     uint32_t ctx_size;
@@ -1233,6 +1244,7 @@ static const gguf_type_info gguf_types[] = {
     [28] = {"f64",      1,   8},
     [29] = {"iq1_m",  256,  56},
     [30] = {"bf16",     1,   2},
+    [39] = {"mxfp4",   32,  17},
 };
 
 enum {
@@ -1243,6 +1255,7 @@ enum {
     DS4_TENSOR_Q4_K     = 12,
     DS4_TENSOR_IQ2_XXS  = 16,
     DS4_TENSOR_I32      = 26,
+    DS4_TENSOR_MXFP4    = 39,
 };
 
 typedef struct {
@@ -2780,7 +2793,8 @@ static void tensor_expect_plain_layout(
 static bool tensor_is_routed_expert_type(uint32_t type) {
     return type == DS4_TENSOR_IQ2_XXS ||
            type == DS4_TENSOR_Q2_K ||
-           type == DS4_TENSOR_Q4_K;
+           type == DS4_TENSOR_Q4_K ||
+           type == DS4_TENSOR_MXFP4;
 }
 
 static DS4_MAYBE_UNUSED uint64_t routed_expert_block_bytes(uint32_t type) {
@@ -2788,14 +2802,20 @@ static DS4_MAYBE_UNUSED uint64_t routed_expert_block_bytes(uint32_t type) {
     case DS4_TENSOR_IQ2_XXS: return sizeof(block_iq2_xxs);
     case DS4_TENSOR_Q2_K:    return sizeof(block_q2_K);
     case DS4_TENSOR_Q4_K:    return sizeof(block_q4_K);
+    case DS4_TENSOR_MXFP4:   return sizeof(block_mxfp4);
     default:                 ds4_die("unsupported routed expert tensor type");
     }
     return 0;
 }
 
+static DS4_MAYBE_UNUSED uint64_t routed_expert_block_elems(uint32_t type) {
+    return type == DS4_TENSOR_MXFP4 ? QK_MXFP4 : QK_K;
+}
+
 static DS4_MAYBE_UNUSED uint64_t routed_expert_row_bytes_for_type(uint32_t type, uint64_t width) {
-    if ((width % QK_K) != 0) ds4_die("routed expert row is not QK_K aligned");
-    return (width / QK_K) * routed_expert_block_bytes(type);
+    const uint64_t elems = routed_expert_block_elems(type);
+    if ((width % elems) != 0) ds4_die("routed expert row is not block aligned");
+    return (width / elems) * routed_expert_block_bytes(type);
 }
 
 static DS4_MAYBE_UNUSED uint64_t routed_expert_row_bytes(const ds4_tensor *t) {
@@ -2996,6 +3016,7 @@ static uint32_t flash_moe_quant_type_id(const char *quant) {
     if (!strcmp(quant, "IQ2_XXS")) return DS4_TENSOR_IQ2_XXS;
     if (!strcmp(quant, "Q2_K")) return DS4_TENSOR_Q2_K;
     if (!strcmp(quant, "Q4_K")) return DS4_TENSOR_Q4_K;
+    if (!strcmp(quant, "MXFP4")) return DS4_TENSOR_MXFP4;
     fprintf(stderr, "ds4: Flash-MoE sidecar has unsupported routed quant type: %s\n", quant);
     return UINT32_MAX;
 }
@@ -11283,7 +11304,8 @@ static bool metal_graph_alloc(
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
 static int get_prefill_dedup_prefetch(void);
 static int get_prefill_slot_cache_topk(uint32_t slot_bank);
-static void metal_graph_log_prefill_compute_once(uint32_t slot_bank);
+static void metal_graph_log_prefill_compute_once(uint32_t slot_bank,
+                                                 const ds4_layer_weights *layer);
 static bool flash_moe_mixed_slot_bank_enabled(void);
 static bool flash_moe_layer_slot_slab_enabled(void);
 static bool flash_moe_slot_bank_residency_enabled(void);
@@ -11788,7 +11810,8 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
 
 static bool metal_graph_enable_flash_moe(
         ds4_gpu_graph                *g,
-        const ds4_flash_moe_sidecar  *sidecar) {
+        const ds4_flash_moe_sidecar  *sidecar,
+        const ds4_layer_weights      *layer) {
     if (!g || !sidecar) return true;
     const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
     if (sidecar->slot_bank < active_expert_used || sidecar->slot_bank > DS4_N_EXPERT) return false;
@@ -11934,7 +11957,7 @@ static bool metal_graph_enable_flash_moe(
 
     /* Resolved prefill compute path (routed/dense + precision), printed right
      * here alongside the slot-bank line so it shows at startup. */
-    metal_graph_log_prefill_compute_once(g->flash_slot_bank);
+    metal_graph_log_prefill_compute_once(g->flash_slot_bank, layer);
 
     /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
     {
@@ -12801,8 +12824,12 @@ static bool flash_moe_slotwise_decode_enabled(void) {
 static bool flash_moe_baked_slot_decode_enabled(void) {
     static int enabled = -1;
     if (enabled < 0) {
-        enabled = (env_flag_enabled("DS4_FLASH_MOE_STABLE_REPLAY") ||
-                   env_flag_enabled("DS4_FLASH_MOE_BAKED_SLOT_DECODE")) ? 1 : 0;
+        const char *explicit_baked = getenv("DS4_FLASH_MOE_BAKED_SLOT_DECODE");
+        if (explicit_baked && explicit_baked[0]) {
+            enabled = atoi(explicit_baked) != 0 ? 1 : 0;
+        } else {
+            enabled = env_flag_enabled("DS4_FLASH_MOE_STABLE_REPLAY") ? 1 : 0;
+        }
     }
     return enabled != 0;
 }
@@ -16011,6 +16038,7 @@ static void metal_graph_prefill_trace_ane_decision(
         uint32_t    n_tokens,
         int         prompt_len,
         bool        flash_ane_env,
+        bool        flash_ane_executable,
         bool        resident_ane_env,
         bool        token_backend_ane,
         int         result,
@@ -16021,18 +16049,58 @@ static void metal_graph_prefill_trace_ane_decision(
     const int n = snprintf(
             line,
             sizeof(line),
-            "ds4: prefill trace scope=%s phase=ANE-precompile %s start=%u n_tokens=%u prompt=%d flash_ane=%s resident_ane=%s token_backend_ane=%s result=%d elapsed=%.3f ms\n",
+            "ds4: prefill trace scope=%s phase=ANE-precompile %s start=%u n_tokens=%u prompt=%d flash_ane=%s flash_ane_executable=%s resident_ane=%s token_backend_ane=%s result=%d elapsed=%.3f ms\n",
             scope && scope[0] ? scope : "prefill",
             edge && edge[0] ? edge : "mark",
             start,
             n_tokens,
             prompt_len,
             flash_ane_env ? "on" : "off",
+            flash_ane_executable ? "on" : "off",
             resident_ane_env ? "on" : "off",
             token_backend_ane ? "on" : "off",
             result,
             t0 > 0.0 ? (now - t0) * 1000.0 : 0.0);
     if (n > 0) metal_graph_prefill_trace_emit(line, (size_t)n < sizeof(line) ? (size_t)n : strlen(line));
+}
+
+static bool flash_moe_ane_prefill_tensor_types_supported(
+        const ds4_layer_weights *layer) {
+    if (!layer || !layer->ffn_gate_exps || !layer->ffn_up_exps ||
+        !layer->ffn_down_exps) {
+        return false;
+    }
+    const bool iq2_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_IQ2_XXS &&
+        layer->ffn_up_exps->type == DS4_TENSOR_IQ2_XXS &&
+        (layer->ffn_down_exps->type == DS4_TENSOR_Q2_K ||
+         layer->ffn_down_exps->type == DS4_TENSOR_IQ2_XXS);
+    const bool q4_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_Q4_K &&
+        layer->ffn_up_exps->type == DS4_TENSOR_Q4_K &&
+        layer->ffn_down_exps->type == DS4_TENSOR_Q4_K;
+    return iq2_path || q4_path;
+}
+
+static const char *flash_moe_ane_prefill_unsupported_reason(
+        const ds4_layer_weights *layer,
+        char                    *buf,
+        size_t                   buf_sz) {
+    if (!buf || buf_sz == 0) return "unknown";
+    if (!layer || !layer->ffn_gate_exps || !layer->ffn_up_exps ||
+        !layer->ffn_down_exps) {
+        snprintf(buf, buf_sz, "missing routed expert tensors");
+        return buf;
+    }
+    snprintf(buf,
+             buf_sz,
+             "unsupported expert types gate=%s up=%s down=%s "
+             "(Flash ANE prefill supports IQ2_XXS/IQ2_XXS/(Q2_K|IQ2_XXS) "
+             "and Q4_K/Q4_K/Q4_K)",
+             tensor_type_name(layer->ffn_gate_exps->type),
+             tensor_type_name(layer->ffn_up_exps->type),
+             tensor_type_name(layer->ffn_down_exps->type));
+    return buf;
 }
 
 /* Single eviction policy shared by every slot-acquisition path over the one
@@ -18236,7 +18304,23 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL fill batch_routed_out il=%u n_tokens=%u\n", il, n_tokens);
     }
 
-    const bool try_ane_prefill = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool ane_prefill_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool ane_prefill_supported =
+        flash_moe_ane_prefill_tensor_types_supported(layer);
+    const bool try_ane_prefill = ane_prefill_requested && ane_prefill_supported;
+    if (ane_prefill_requested && !ane_prefill_supported && backend_logs) {
+        static bool warned_unsupported_flash_ane = false;
+        if (!warned_unsupported_flash_ane) {
+            char reason[256];
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE prefill requested but disabled: %s; "
+                    "actual Flash-MoE ANE eval calls=0, using GPU/MPP fallback\n",
+                    flash_moe_ane_prefill_unsupported_reason(layer,
+                                                             reason,
+                                                             sizeof(reason)));
+            warned_unsupported_flash_ane = true;
+        }
+    }
     const bool try_mpp_int8_prefill = flash_moe_mpp_int8_prefill_enabled();
     const bool hybrid_prefill =
         try_ane_prefill && try_mpp_int8_prefill && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
@@ -18859,6 +18943,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         bool deferred_ane = false;
         if (ok) {
             bool ane_ok = false;
+            bool attempted_ane = false;
             bool used_ane = false;
             bool used_mpp = false;
             if (try_pipelined_ane_for_group) {
@@ -18873,6 +18958,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                     commands_open = ok;
                 }
                 if (ok) {
+                    attempted_ane = true;
                     active_ane_job =
                         ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(gate_b,
                                                                                 up_b,
@@ -18919,6 +19005,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                     DS4_FINISH_ANE_SLOT(active_ane_job, active_ane_tokens, active_ane_refs);
                 }
                 if (ok && !active_ane_job) {
+                    attempted_ane = true;
                     active_ane_job =
                         ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor(gate_b,
                                                                                 up_b,
@@ -18950,6 +19037,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 try_ane_for_group && (!concurrent_prefill || !gpu_compacted);
             if (!deferred_ane && allow_sync_ane) {
                 const bool ane_debug = env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG");
+                attempted_ane = true;
                 if (ane_debug) {
                     fprintf(stderr,
                             "ds4: ANE prefill try layer=%u unique_idx=%u/%u expert=%d refs=%u bank=%d\n",
@@ -19010,7 +19098,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 used_mpp = ane_ok;
             }
             if (!deferred_ane && !ane_ok) {
-                if (try_ane_prefill && env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG")) {
+                if (attempted_ane && env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG")) {
                     fprintf(stderr, "ds4: ANE prefill falling back to fp32 GPU layer=%u expert=%d refs=%u\n",
                             il, expert, refs);
                 }
@@ -24587,13 +24675,17 @@ static bool metal_graph_prefill_layer_major(
                                     0, (uint32_t)n_tokens, prompt->len,
                                     warmup_t0);
     const bool flash_ane_env = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool flash_ane_executable =
+        flash_ane_env &&
+        flash_moe_ane_prefill_tensor_types_supported(&weights->layer[0]);
     const bool resident_ane_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
     const bool token_backend_ane = resident_moe_prefill_backend_is_ane((uint32_t)n_tokens);
     const bool should_precompile_ane =
-        flash_ane_env || resident_ane_env || token_backend_ane;
+        flash_ane_executable || resident_ane_env || token_backend_ane;
     metal_graph_prefill_trace_ane_decision("layer-major", "check",
                                            0, (uint32_t)n_tokens, prompt->len,
                                            flash_ane_env,
+                                           flash_ane_executable,
                                            resident_ane_env,
                                            token_backend_ane,
                                            should_precompile_ane ? 1 : 0,
@@ -24609,13 +24701,18 @@ static bool metal_graph_prefill_layer_major(
         const int ane_ok =
             ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
                                                     (uint32_t)DS4_N_FF_EXP,
-                                                    (uint32_t)DS4_N_EMBD);
+                                                    (uint32_t)DS4_N_EMBD,
+                                                    weights->layer[0].ffn_gate_exps ?
+                                                        weights->layer[0].ffn_gate_exps->type : 0u,
+                                                    weights->layer[0].ffn_down_exps ?
+                                                        weights->layer[0].ffn_down_exps->type : 0u);
         metal_graph_prefill_trace_phase("layer-major", "ANE compile", "end",
                                         0, (uint32_t)n_tokens, prompt->len,
                                         ane_t0);
         metal_graph_prefill_trace_ane_decision("layer-major", "end",
                                                0, (uint32_t)n_tokens, prompt->len,
                                                flash_ane_env,
+                                               flash_ane_executable,
                                                resident_ane_env,
                                                token_backend_ane,
                                                ane_ok,
@@ -24624,6 +24721,7 @@ static bool metal_graph_prefill_layer_major(
         metal_graph_prefill_trace_ane_decision("layer-major", "skip",
                                                0, (uint32_t)n_tokens, prompt->len,
                                                flash_ane_env,
+                                               flash_ane_executable,
                                                resident_ane_env,
                                                token_backend_ane,
                                                0,
@@ -24690,7 +24788,7 @@ static bool metal_graph_prefill_layer_major(
 	                                                        (uint32_t)n_tokens,
 	                                                        il + 1,
 	                                                        prompt->len,
-	                                                        should_precompile_ane);
+                                                        should_precompile_ane);
         }
         if (stderr_progress) fputc('\n', stderr);
 
@@ -24981,12 +25079,17 @@ static bool metal_graph_prefill_batch_row_logits(
  */
 /* One-time banner naming the resolved prefill compute path (routed experts +
  * dense projections, with precision), printed like the other startup lines. */
-static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
+static void metal_graph_log_prefill_compute_once(
+        uint32_t slot_bank,
+        const ds4_layer_weights *layer) {
     static bool logged = false;
     if (logged) return;
     logged = true;
 
-    const bool try_ane = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool try_ane_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool try_ane =
+        try_ane_requested &&
+        flash_moe_ane_prefill_tensor_types_supported(layer);
     const bool try_mpp = flash_moe_mpp_int8_prefill_enabled();
     const bool no_int8 = ds4_no_int8_paths_enabled();
     const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
@@ -25006,6 +25109,7 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
 
     const char *routed;
     char resident_routed[192];
+    char unsupported_routed[320];
     if (resident_ane_hybrid) {
         snprintf(resident_routed,
 	             sizeof(resident_routed),
@@ -25023,6 +25127,15 @@ static void metal_graph_log_prefill_compute_once(uint32_t slot_bank) {
         routed = "ANE i8i8 (W8A8) + GPU MPP-int8/NAX (W8A8) hybrid";
     } else if (try_ane) {
         routed = "ANE i8i8 (W8A8)";
+    } else if (try_ane_requested) {
+        char reason[240];
+        snprintf(unsupported_routed,
+                 sizeof(unsupported_routed),
+                 "GPU/MPP fallback (Flash-MoE ANE requested but %s)",
+                 flash_moe_ane_prefill_unsupported_reason(layer,
+                                                          reason,
+                                                          sizeof(reason)));
+        routed = unsupported_routed;
     } else if (try_mpp && no_int8) {
         routed = "NAX-half (no int8; GPU fallback for unsafe chunks)";
     } else if (try_mpp) {
@@ -25156,13 +25269,17 @@ static bool metal_graph_prefill_chunked_range(
     metal_graph_prefill_trace_phase("chunked", "warmup", "end",
                                     start, first_chunk, prompt->len, warmup_t0);
     const bool flash_ane_env = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
+    const bool flash_ane_executable =
+        flash_ane_env &&
+        flash_moe_ane_prefill_tensor_types_supported(&weights->layer[0]);
     const bool resident_ane_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
     const bool token_backend_ane = resident_moe_prefill_backend_is_ane(first_chunk);
     const bool should_precompile_ane =
-        flash_ane_env || resident_ane_env || token_backend_ane;
+        flash_ane_executable || resident_ane_env || token_backend_ane;
     metal_graph_prefill_trace_ane_decision("chunked", "check",
                                            start, first_chunk, prompt->len,
                                            flash_ane_env,
+                                           flash_ane_executable,
                                            resident_ane_env,
                                            token_backend_ane,
                                            should_precompile_ane ? 1 : 0,
@@ -25177,12 +25294,17 @@ static bool metal_graph_prefill_chunked_range(
         const int ane_ok =
             ds4_gpu_ane_prefill_precompile_from_env((uint32_t)DS4_N_EMBD,
                                                     (uint32_t)DS4_N_FF_EXP,
-                                                    (uint32_t)DS4_N_EMBD);
+                                                    (uint32_t)DS4_N_EMBD,
+                                                    weights->layer[0].ffn_gate_exps ?
+                                                        weights->layer[0].ffn_gate_exps->type : 0u,
+                                                    weights->layer[0].ffn_down_exps ?
+                                                        weights->layer[0].ffn_down_exps->type : 0u);
         metal_graph_prefill_trace_phase("chunked", "ANE compile", "end",
                                         start, first_chunk, prompt->len, ane_t0);
         metal_graph_prefill_trace_ane_decision("chunked", "end",
                                                start, first_chunk, prompt->len,
                                                flash_ane_env,
+                                               flash_ane_executable,
                                                resident_ane_env,
                                                token_backend_ane,
                                                ane_ok,
@@ -25191,6 +25313,7 @@ static bool metal_graph_prefill_chunked_range(
         metal_graph_prefill_trace_ane_decision("chunked", "skip",
                                                start, first_chunk, prompt->len,
                                                flash_ane_env,
+                                               flash_ane_executable,
                                                resident_ane_env,
                                                token_backend_ane,
                                                0,
@@ -25243,7 +25366,7 @@ static bool metal_graph_prefill_chunked_range(
         const uint32_t chunk = remaining < local_cap ? remaining : local_cap;
         last_chunk_tokens = chunk;
         const bool chunk_uses_ane =
-            flash_ane_env ||
+            flash_ane_executable ||
             resident_ane_env ||
             resident_moe_prefill_backend_is_ane(chunk);
 
@@ -29322,8 +29445,33 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 	                                             &_pf_x_scale,
 	                                             &_pf_mid_qscale,
 	                                             &_pf_mid_scale);
+	                const ds4_layer_weights *_pf_layer0 = &e->weights.layer[0];
+	                if (_pf_prefer_ane_scales &&
+	                    _pf_flash_ane &&
+	                    _pf_layer0->ffn_gate_exps &&
+	                    _pf_layer0->ffn_up_exps &&
+	                    _pf_layer0->ffn_down_exps &&
+	                    _pf_layer0->ffn_gate_exps->type == DS4_TENSOR_Q4_K &&
+	                    _pf_layer0->ffn_up_exps->type == DS4_TENSOR_Q4_K &&
+	                    _pf_layer0->ffn_down_exps->type == DS4_TENSOR_Q4_K) {
+	                    const char *_q4_env = getenv("DS4_FLASH_MOE_ANE_Q4_INT8_QSCALE");
+	                    if (!_q4_env || !_q4_env[0]) {
+	                        _q4_env = getenv("DS4_FLASH_MOE_ANE_Q4_W_QSCALE");
+	                    }
+	                    if (_q4_env && _q4_env[0]) {
+	                        char *_q4_end = NULL;
+	                        const float _q4_parsed = strtof(_q4_env, &_q4_end);
+	                        if (_q4_end != _q4_env && _q4_parsed > 0.0f && isfinite(_q4_parsed)) {
+	                            _pf_w_qscale = _q4_parsed;
+	                            _pf_w_scale = 1.0f / _q4_parsed;
+	                        }
+	                    } else if (!getenv("DS4_FLASH_MOE_ANE_INT8_QSCALE")) {
+	                        _pf_w_qscale = 320.0f;
+	                        _pf_w_scale = 1.0f / 320.0f;
+	                    }
+	                }
 	                fprintf(stderr,
-	                        "ds4: prefill quant scales (%s): "
+                        "ds4: prefill quant scales (%s): "
 	                        "w_qscale=%.6g x_qscale=%.6g mid_qscale=%.6g "
 	                        "w_scale=%.6g x_scale=%.6g mid_scale=%.6g\n",
 	                        _pf_prefer_ane_scales ? "ANE env first" : "MPP/NAX env first",
@@ -29496,7 +29644,8 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         e->model.size;
     s->graph.quality = e->quality;
 #ifndef DS4_NO_GPU
-    if (e->flash_moe && !metal_graph_enable_flash_moe(&s->graph, e->flash_moe)) {
+    if (e->flash_moe &&
+        !metal_graph_enable_flash_moe(&s->graph, e->flash_moe, &e->weights.layer[0])) {
         fprintf(stderr, "ds4: failed to allocate Flash-MoE slot banks\n");
         metal_graph_free(&s->graph);
         free(s);

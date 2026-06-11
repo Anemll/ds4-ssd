@@ -1045,7 +1045,9 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_finish_tensor(
 
 int ds4_gpu_ane_prefill_precompile_from_env(uint32_t expert_in_dim,
                                             uint32_t expert_mid_dim,
-                                            uint32_t out_dim);
+                                            uint32_t out_dim,
+                                            uint32_t gate_type,
+                                            uint32_t down_type);
 
 /* Synchronous direct-eval probe kept for ad-hoc value checks. The routed
  * overlap experiment uses ds4_gpu_ane_direct_eval_one_expert_start below. */

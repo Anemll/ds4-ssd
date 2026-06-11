@@ -3169,3 +3169,324 @@ make: pass
 git diff --check -- ds4.c ds4_cli.c ds4_agent.c: pass
 DS4_FLASH_MOE_ANE_PREFILL=1 ./ds4 ... -p hi -n 1: pass
 ```
+
+### 2026-06-07: Q4 60GB Mode Sweep and ANE Prefill Trace
+
+Request: benchmark Q4 Flash model decode modes and check whether ANE is engaged
+for prefill.
+
+Model and prompt:
+
+```bash
+./ds4 \
+  -m "$HOME/Models/DSv4-Flash-Q4KExperts-chat-v2-flash" \
+  --ssd-cache 60GB \
+  --ctx 132768 \
+  --temp 0 \
+  --nothink \
+  -p "craete game of spsce invaders in PyGame, keep files and compile in /tmp/tmp_q4A compile, test, iterate"
+```
+
+Common decode env for the sweep:
+
+```bash
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=0
+DS4_FLASH_MOE_XLAYER_PREFETCH=0
+```
+
+Short correctness smoke (`-n 16`):
+
+```text
+output dir: /tmp/ds4_q4_modes_20260607_182958
+all five modes hash: d1cdb208c0c81258586c36afed56a3e144fef3d68adbffe1429b2fb8664b63e5
+
+grouped:            prefill 8.80 t/s, generation 1.83 t/s
+stable_slot label:  prefill 9.14 t/s, generation 3.24 t/s
+slotwise:           prefill 9.82 t/s, generation 3.54 t/s
+per_expert_buffers: prefill 3.14 t/s, generation 0.27 t/s
+baked_slot:         prefill 8.59 t/s, generation 3.47 t/s
+```
+
+Important caveat from that smoke:
+
+- `--ssd-cache 60GB` resolves the Q4 slot bank to `slots=105`, `gpu-bank=59.52 GiB`.
+- `DS4_FLASH_MOE_PER_EXPERT_BUFFERS=1` currently switches to full-resident
+  semantic expert buffers: `slots=256`, `gpu-bank=145.12 GiB`. On the 128 GiB
+  M5 Max this is not a valid apples-to-apples 60GB cache comparison and should
+  be treated as over-commit/thrash, not a route-wise architecture result.
+
+Longer baseline sweep (`-n 100`, before separating stable/non-baked from baked):
+
+```text
+output dir: /tmp/ds4_q4_modes_n100_20260607_183422
+hash: 17e8aac33a15e9d069c56796e868c3397793153432ee8032f3a38bc1793abbf3
+
+grouped:      prefill 9.74 t/s, generation 7.71 t/s
+stable label: prefill 8.73 t/s, generation 7.16 t/s
+slotwise:     prefill 8.76 t/s, generation 7.64 t/s
+baked_slot:   prefill 8.80 t/s, generation 7.54 t/s
+grouped_last: prefill 8.45 t/s, generation 7.67 t/s
+```
+
+Flag-separation fix:
+
+- Found that `flash_moe_baked_slot_decode_enabled()` auto-enabled baked-slot
+  whenever `DS4_FLASH_MOE_STABLE_REPLAY=1`; an explicit
+  `DS4_FLASH_MOE_BAKED_SLOT_DECODE=0` did not override it.
+- Patched this so an explicit baked env wins, while the default behavior is
+  unchanged: if `DS4_FLASH_MOE_BAKED_SLOT_DECODE` is absent,
+  `DS4_FLASH_MOE_STABLE_REPLAY=1` still implies baked-slot decode.
+
+Fixed stable-vs-baked speed rerun (`-n 100`):
+
+```text
+output dir: /tmp/ds4_q4_stable_baked_n100_20260607_183939
+hash: 17e8aac33a15e9d069c56796e868c3397793153432ee8032f3a38bc1793abbf3
+
+stable_non_baked:
+  env: DS4_FLASH_MOE_STABLE_REPLAY=1 DS4_FLASH_MOE_BAKED_SLOT_DECODE=0
+  prefill 10.35 t/s, generation 7.78 t/s
+
+baked_slot:
+  env: DS4_FLASH_MOE_STABLE_REPLAY=1 DS4_FLASH_MOE_BAKED_SLOT_DECODE=1
+  prefill 8.21 t/s, generation 7.68 t/s
+```
+
+Interpretation:
+
+- For this Q4 model at 60GB cache / 105 slots, grouped, slotwise,
+  stable-non-baked, and baked-slot are clustered around ~7.6-7.8 t/s for the
+  100-token prompt.
+- The earlier `-n 16` low grouped number was short-run/cold-start noise.
+- Full per-expert semantic buffers need either a smaller model, a bigger memory
+  machine, or a cache-budgeted per-expert implementation before speed numbers
+  are meaningful.
+
+Original ANE prefill trace:
+
+```text
+trace dir: /tmp/ds4_q4_ane_trace_20260607_183314
+normal env:
+  prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = fp16-NAX
+  ANE-precompile check: flash_ane=on resident_ane=off token_backend_ane=off result=1
+  compileWithQoS: 274.622 ms
+  loadWithQoS: 16.053 ms
+  ANE create total: 292.170 ms
+  prefill call: 3696.971 ms
+
+negative control:
+  trace dir: /tmp/ds4_q4_ane_off_check_20260607_184124
+  env: DS4_FLASH_MOE_ANE_PREFILL=0 DS4_RESIDENT_MOE_ANE_HYBRID=0
+  prefill compute: routed experts = GPU fp32 | dense proj = fp16-NAX
+  ANE-precompile check: flash_ane=off resident_ane=off token_backend_ane=off result=0
+```
+
+Corrected conclusion after checking actual ANE graph execution:
+
+- The original trace only proved ANE precompile/load. It did **not** prove
+  routed-MoE prefill used ANE evaluation.
+- Q4 Flash routed experts are `Q4_K/Q4_K/Q4_K`. The current Flash-MoE ANE
+  prefill entry supports `gate/up=IQ2_XXS` and `down=Q2_K/IQ2_XXS`, so Q4
+  cannot execute that ANE path today.
+- This explains the external monitor observation: mactop showed GPU 100% and
+  ANE 0% during Q4 prefill because the actual graph ran on GPU.
+
+Fixes added:
+
+- Startup compute banner now separates requested ANE from executable ANE and
+  prints the unsupported expert types.
+- `ANE-precompile` trace now includes `flash_ane_executable=on/off`.
+- Q4 unsupported Flash ANE no longer precompiles an unused ANE graph, no longer
+  uses the red ANE prefill progress color, and no longer attempts/falls back per
+  expert.
+- Metal ANE stats now include `attempts`, `ane_evaluate_calls`, and bounded
+  early-reject reason counters/logs.
+- The debug fallback line now prints only after an actual ANE submission attempt,
+  not merely because ANE was requested or theoretically possible.
+
+Validation:
+
+```text
+Q4 unsupported path:
+  dir: /tmp/ds4_q4_ane_final_20260607_203200
+  banner: routed experts = GPU/MPP fallback
+  trace: flash_ane=on flash_ane_executable=off result=0
+  message: actual Flash-MoE ANE eval calls=0
+  counts: ANE tensor enter=0, eval_ok=0, fallback=0
+  prefill: 9.12 t/s
+
+IQ2 default tiny-prompt policy:
+  dir: /tmp/ds4_iq2_default_stats_final_20260607_203353
+  trace: flash_ane=on flash_ane_executable=on result=1
+  counts: ANE tensor enter=0, eval_ok=0, fallback=0
+  stats: attempts=0 calls=0 compile_attempts=1 eval_calls=0
+    ane_evaluate_calls=0
+  note: default hybrid/concurrent policy did not submit ANE for this tiny prompt.
+
+IQ2 forced sync ANE control:
+  dir: /tmp/ds4_iq2_ane_forced_sync_20260607_203028
+  env overrides: DS4_FLASH_MOE_HYBRID_PREFILL=0,
+    DS4_FLASH_MOE_CONCURRENT_PREFILL=0,
+    DS4_FLASH_MOE_HYBRID_CONCURRENT_PREFILL=0,
+    DS4_FLASH_MOE_OVERLAP_PREFILL=0,
+    DS4_FLASH_MOE_ANE_PIPELINE_PREFILL=0
+  counts: ANE tensor enter=2277, eval_ok=2277, fallback=0
+  stats: attempts=2277 calls=2277 ok=2277 ane_evaluate_calls=2277
+  prefill: 2.39 t/s for the tiny prompt (slow because every 1-3 ref group pays
+    a full sync ANE call; this is only a path-validity control).
+```
+
+### 2026-06-07 Q4 Flash-MoE ANE Prefill Fix
+
+Correction to the previous conclusion:
+
+- Q4 was unsupported because the Flash-MoE ANE prefill staging layer only had
+  IQ2_XXS and Q2_K dequant/transpose pack kernels.
+- The ANE MLP itself already consumes dense i8/f16 staged weights; the missing
+  piece was Q4_K raw expert -> staged ANE weight buffers.
+
+Implementation:
+
+- Added Q4_K pack kernels:
+  - `kernel_dsv4_mpp_dequant_q4_k_transpose_i8`
+  - `kernel_dsv4_ane_dequant_q4_k_transpose_f16`
+- Wired Q4 pipelines into `ds4_gpu_ensure_mpp_int8_prefill_pipelines()`.
+- Added typed dequant dispatch helpers so ANE prefill can pack IQ2_XXS, Q2_K,
+  or Q4_K without accidentally using the IQ2/Q2 path.
+- Enabled the Flash ANE eligibility helper for `Q4_K/Q4_K/Q4_K`.
+- Left the fused GUD dequant fast path IQ2+Q2-only; Q4 currently uses three
+  separate pack dispatches.
+
+Validation:
+
+```text
+Q4 forced-sync ANE smoke:
+  dir: /tmp/ds4_q4_ane_forced_sync_20260607_212045
+  model: ~/Models/DSv4-Flash-Q4KExperts-chat-v2-flash
+  env: disabled hybrid/concurrent/overlap/pipeline prefill
+  stats: attempts=651 calls=651 ok=651 ane_evaluate_calls=651
+  rejects: all zero
+  prefill: 5.78 t/s on a tiny 21-token prompt
+
+Q4 default/profile long prompt:
+  dir: /tmp/ds4_q4_ane_default_long_20260607_212306
+  prompt: 2211 tokens
+  banner: routed experts = ANE i8i8 (W8A8)
+  trace: flash_ane=on flash_ane_executable=on result=1
+  stats: attempts=404 calls=404 ok=404 eval_calls=2184 ane_evaluate_calls=2184
+  rejects: all zero
+  prefill: 348.99 t/s
+
+Q4 GPU fallback control:
+  dir: /tmp/ds4_q4_gpu_default_long_20260607_212329
+  env: DS4_FLASH_MOE_ANE_PREFILL=0
+  banner: routed experts = GPU fp32
+  prefill: 227.93 t/s
+
+Q4 screenshot-like cache/context:
+  dir: /tmp/ds4_q4_ane_60gb_ctx132k_20260607_212511
+  args: --ssd-cache 60GB --ctx 132768
+  allocation: slots=105 gpu-bank=59.5GB Dense=8.2GB Context=7.1GB Total=74.8GB
+  stats: attempts=400 calls=400 ok=400 eval_calls=2182 ane_evaluate_calls=2182
+  rejects: all zero
+  prefill: 335.93 t/s
+  generation: 0.56 t/s (large-slot decode cliff remains separate from ANE prefill)
+
+Q4 short generation A/B:
+  dir: /tmp/ds4_q4_ane_ab_20260607_212122
+  n=50, temp=0
+  GPU hash: 12e7fd35d0787bab247cce6477aed03c8ff25338ab0f7b65d9e50c7ceb6a9451
+  ANE hash: d137f5114acfa680a0f20813d23a69f362627d98054922a0f81a634bbc1d4d43
+  cmp=1
+  note: both outputs were coherent Space Invaders code preambles; divergence
+    appeared around imports (`sys` vs `math`) and is consistent with W8A8 ANE
+    numeric drift versus exact GPU Q4 prefill, not an immediate packing failure.
+
+IQ2 forced-sync regression:
+  dir: /tmp/ds4_iq2_ane_regress_20260607_212358
+  stats: attempts=2312 calls=2312 ok=2312 ane_evaluate_calls=2312
+  rejects: all zero
+```
+
+Remaining follow-up:
+
+- Add a fused Q4 gate/up/down pack dispatch if Q4 ANE dequant overhead shows up
+  in long prefill profiles.
+- If deterministic parity is required, compare logits or staged dequant buffers
+  against the exact Q4 GPU path; token hashes are expected to drift with W8A8
+  prefill.
+
+### 2026-06-07 Q4 ANE Corruption Fix And Scale Sweep
+
+The first Q4 ANE implementation produced corrupted text (`}<?_...`-style
+output) across every tested weight qscale, which ruled out "just choose a better
+scale" as the primary failure. The actual bug was in the Q4_K scale/min helper
+used by the new staging kernels: it did not match the existing release-path
+`get_scale_min_k4_just2()` indexing for the upper scale groups. The helper now
+uses the same `j + k` / `j + 4 + k` / high-bit reconstruction as the existing
+Q4 decode kernel.
+
+Pre-fix qscale sweep:
+
+```text
+dir: /tmp/ds4_q4_wq_sweep_20260607_231442
+model: ~/Models/DSv4-Flash-Q4KExperts-chat-v2-flash
+qscales: 512,384,256,192,128,96,64,48,32
+result: every ANE run produced corrupted/non-code output
+conclusion: corruption was Q4_K dequant indexing, not qscale saturation
+```
+
+Post-fix focused check:
+
+```text
+dir: /tmp/ds4_q4_wq_fixcheck_20260607_231842
+qscales: 512,256,128
+result: all produced coherent PyGame code preambles
+```
+
+Post-fix qscale sweep:
+
+```text
+dir: /tmp/ds4_q4_wq_postsweep_20260607_232056
+qscales: 768,640,512,384,320,256,192,160,128,96,64
+best single-prompt text similarity to GPU fallback: 320
+note: text similarity is noisy after the first greedy divergence; use it only as
+  a smoke signal, not a numeric-quality metric.
+```
+
+Corrected true-GPU / Q4 ANE control:
+
+```text
+dir: /tmp/ds4_q4_ane_truegpu_20260607_233953
+GPU control env:
+  DS4_FLASH_MOE_ANE_PREFILL=0
+  DS4_RESIDENT_MOE_ANE_HYBRID=0
+  DS4_RESIDENT_MOE_PREFILL_BY_TOKENS=16384:mulmm
+GPU row: routed experts = GPU fp32, prefill 206.09 t/s
+Q4 ANE default row: routed experts = ANE i8i8, compiled w_scale=0.003125
+  (w_qscale=320), prefill 221.64 t/s, attempts=996 calls=996 ok=996
+Explicit qscales 256/320/384/512: all coherent; no control-character garbage.
+```
+
+Longer default-Q4 ANE smoke:
+
+```text
+dir: /tmp/ds4_q4_ane_default500_20260607_234543
+n=500, temp=0
+compiled scale: w_scale=0.003125 (w_qscale=320)
+stats: attempts=871 calls=871 ok=871 eval_calls=1310 ane_evaluate_calls=1310
+rejects: all zero
+output: coherent Space Invaders/PyGame class code, bad_ctrl=0
+prefill: 218.40 t/s
+generation: 8.58 t/s
+```
+
+Startup logging fix:
+
+- Q4/Q4/Q4 Flash ANE prefill now reports the same Q4-specific default in the
+  `prefill quant scales` line that the ANE compile path uses.
+- Default Q4 routed-expert weight scale is `w_qscale=320`; explicit
+  `DS4_FLASH_MOE_ANE_Q4_INT8_QSCALE` / `DS4_FLASH_MOE_ANE_Q4_W_QSCALE` wins,
+  and the generic `DS4_FLASH_MOE_ANE_INT8_QSCALE` is still honored when set.
+- The generic startup `w_qscale=512` line was stale/misleading for Q4 and was
+  the source of false qscale suspicion after the actual decode bug was fixed.
