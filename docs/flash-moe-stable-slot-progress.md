@@ -3561,3 +3561,18 @@ Monotone: in the cold-decode regime every GiB wired into the bank costs more
 decode while keeping a slot-bank-32-class bank for prefill streaming.
 DS4_FLASH_MOE_EXPERT_MMAP=1 at 20%: 9.76 t/s — no measurable benefit (reads
 remain pread); left off.
+
+Warm-bank check on M5 Max 128GB (MXFP4 package, slot131, 16k prefill, n=32):
+baseline decode 0.15 t/s; REALLOC_SLOT_BANK_AFTER_PREFILL=1 also 0.15 t/s —
+the realloc recovery does NOT reproduce here, and a warmed bank (~51%
+expert coverage) decodes no better than a cold one. Prefill stays healthy
+(318-320 t/s) in both runs.
+
+Working model, two distinct cliffs by machine class:
+- memory-rich machines (e.g. 512GB-class, --ssd-cache 64GB): the bank cannot
+  squeeze the file cache; the observed cliff there responds to
+  realloc-after-prefill, i.e. prefill-write/page-placement of the wired bank.
+- RAM-limited machines (128GB vs a 145GB sidecar): page-cache squeeze + decode
+  miss IO dominates everything; install-path, realloc, and bank warmth are all
+  irrelevant because ~50%+ of misses go to true SSD reads either way. The only
+  effective lever is keeping the bank small (DS4_SSD_CACHE_AUTO_PCT default 20).
