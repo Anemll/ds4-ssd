@@ -10,7 +10,10 @@
 > `fp4_samples/convert_native_dense_to_ds4.py` rebuilds it into the chat-v2
 > schema → `dense/model-dense-ds4.gguf`. Fully-native package measured BEST of
 > all configs: 16k prefill 315.9 t/s, decode 4.59 t/s (vs Q4K 312.9/4.47).
-> Run: `-m <pkg>/dense/model-dense-ds4.gguf --moe-sidecar <pkg>`.
+> The converted GGUF now sits at the canonical `dense/model-dense.gguf` (the
+> original FP8 export is preserved as `dense/model-dense-fp8-native.gguf`),
+> so the package runs plainly: `./ds4 -m <pkg> --moe-mode slot-bank ...`.
+> ANE i8i8 confirmed optimal vs GPU mul_mm_id A/B (315.9 vs 307.9 t/s 16k).
 > Remaining: MPP 4.1 scaffolding items below (macOS 27 native scale-plane).
 
 Branch: `MXFP4` (cut from `codex/stable-slot-replay-experiment`).
