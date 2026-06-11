@@ -1,5 +1,15 @@
 # Native MXFP4 sidecar decoding — implementation plan
 
+> **Status (2026-06-11):** Phases 0–2 implemented and validated on branch `MXFP4`
+> (commits 33d951a, +ANE follow-up). MXFP4 experts decode correctly on the
+> baseline mul_mm/mul_mv path AND the ANE i8i8 (W8A8) prefill backend.
+> Measured vs Q4K (slot-bank 48, M5 Max): 16k prefill 313.0 vs 312.9 t/s
+> (parity), decode 4.56 vs 4.47 t/s, identical short-prompt outputs.
+> The native package's own dense GGUF (FP8 type-42 tensors, attn_kv_latent
+> schema) is NOT yet loadable — use the chat-v2 dense GGUF with
+> `--moe-sidecar <MXFP4 dir>`. Remaining: FP8 dense port, MPP 4.1 scaffolding
+> items below.
+
 Branch: `MXFP4` (cut from `codex/stable-slot-replay-experiment`).
 Target sidecar: `/Users/anemll/Models/DSv4-Flash-MXFP4-native-flash`
 (manifest source: `/Volumes/TB36/Models/DS/DSv4-Flash-MXFP4-native-flash/manifest.json`).
