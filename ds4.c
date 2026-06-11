@@ -3469,8 +3469,11 @@ static bool ds4_flash_moe_ssd_cache_budget(
          * larger than RAM, oversizing the bank evicts that cache and decode
          * collapses to true SSD reads (measured ~40x slower at 85% on a
          * 128 GiB M5 Max; see docs/flash-moe-stable-slot-progress.md). Keep a
-         * conservative default and let DS4_SSD_CACHE_AUTO_PCT override. */
-        uint32_t pct = 40u;
+         * conservative default and let DS4_SSD_CACHE_AUTO_PCT override.
+         * Sweep on M5 Max 128GB / 145GB sidecar (cold decode t/s):
+         * 10%:10.5  20%:10.0  30%:9.2  40%:6.5  85%:0.21 — smaller is better
+         * in the cold-decode regime; 20% stays near peak with bank headroom. */
+        uint32_t pct = 20u;
         const char *pct_env = getenv("DS4_SSD_CACHE_AUTO_PCT");
         if (pct_env && pct_env[0]) {
             char *end = NULL;

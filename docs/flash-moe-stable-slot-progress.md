@@ -3545,3 +3545,19 @@ evidence there (0.30 -> 2.60) may still indicate an additional kernel- or
 placement-side component in the warmed-bank regime, but a large share of
 "high-slot decode collapse" is explained by cache squeeze, which also
 explains why teardown/recreate (which momentarily frees 60+ GiB) helps.
+
+Auto-pct sweep (same short-prompt cold-decode repro, MXFP4 package, n=32):
+
+| auto pct | slots | bank | decode t/s |
+|---|---|---|---|
+| 10% | 15 | 8 GiB | 10.53 |
+| 20% | 30 | 16 GiB | 9.99 |
+| 30% | 45 | 24 GiB | 9.17 |
+| 40% | 62 | 33 GiB | 6.52 |
+| 85% | 131 | 70 GiB | 0.21 |
+
+Monotone: in the cold-decode regime every GiB wired into the bank costs more
+(file-cache loss) than it gains (slot hits). Default set to 20% — near-peak
+decode while keeping a slot-bank-32-class bank for prefill streaming.
+DS4_FLASH_MOE_EXPERT_MMAP=1 at 20%: 9.76 t/s — no measurable benefit (reads
+remain pread); left off.
