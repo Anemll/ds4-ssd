@@ -778,12 +778,21 @@ static uint64_t ds4_gpu_system_memory_bytes(void) {
     return len == sizeof(bytes) ? bytes : 0;
 }
 
+uint64_t ds4_gpu_recommended_working_set_bytes(void) {
+    if (!g_device) return 0;
+    return (uint64_t)[g_device recommendedMaxWorkingSetSize];
+}
+
 static void ds4_gpu_print_device_summary(void) {
     const char *name = g_device.name ? [g_device.name UTF8String] : "unknown Metal device";
     uint64_t mem = ds4_gpu_system_memory_bytes();
+    const uint64_t wset = ds4_gpu_recommended_working_set_bytes();
     if (mem) {
         double gib = (double)mem / 1024.0 / 1024.0 / 1024.0;
-        fprintf(stderr, "ds4: Metal device %s, %.2f GiB RAM\n", name, gib);
+        fprintf(stderr,
+                "ds4: Metal device %s, %.2f GiB RAM, GPU working-set budget %.2f GiB "
+                "(raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)\n",
+                name, gib, (double)wset / 1073741824.0);
     } else {
         fprintf(stderr, "ds4: Metal device %s\n", name);
     }

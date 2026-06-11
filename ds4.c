@@ -11816,11 +11816,25 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
         } else {
             fprintf(stderr,
                     "ds4: warning: very large Flash-MoE slot bank can collapse decode throughput "
-                    "(slots=%u, gpu-bank=%.2f GiB). On 96 GiB M3 Ultra, 128 slots can work "
-                    "with current tuning; if decode tanks, compare --moe-slot-bank 64/96 and "
-                    "remove profiling/no-residency test flags.\n",
+                    "(slots=%u, gpu-bank=%.2f GiB). The wired bank competes with the OS file "
+                    "cache that serves decode-miss reads of the sidecar; when the sidecar is "
+                    "larger than RAM, smaller banks decode faster. Compare --moe-slot-bank "
+                    "32/48/64 or use --ssd-cache auto.\n",
                     g->flash_slot_bank,
                     (double)warn_bank_bytes / 1073741824.0);
+        }
+    }
+
+    {
+        const uint64_t wset = ds4_gpu_recommended_working_set_bytes();
+        if (wset != 0 && warn_bank_bytes > wset) {
+            fprintf(stderr,
+                    "ds4: warning: Flash-MoE slot bank %.2f GiB exceeds the GPU working-set "
+                    "budget %.2f GiB; Metal residency will thrash. Shrink the bank or raise "
+                    "the limit: sudo sysctl iogpu.wired_limit_mb=%llu\n",
+                    (double)warn_bank_bytes / 1073741824.0,
+                    (double)wset / 1073741824.0,
+                    (unsigned long long)((warn_bank_bytes >> 20) + 16384u));
         }
     }
 
