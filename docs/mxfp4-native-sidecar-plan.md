@@ -5,10 +5,13 @@
 > baseline mul_mm/mul_mv path AND the ANE i8i8 (W8A8) prefill backend.
 > Measured vs Q4K (slot-bank 48, M5 Max): 16k prefill 313.0 vs 312.9 t/s
 > (parity), decode 4.56 vs 4.47 t/s, identical short-prompt outputs.
-> The native package's own dense GGUF (FP8 type-42 tensors, attn_kv_latent
-> schema) is NOT yet loadable — use the chat-v2 dense GGUF with
-> `--moe-sidecar <MXFP4 dir>`. Remaining: FP8 dense port, MPP 4.1 scaffolding
-> items below.
+> The native package's own dense GGUF (block-128 FP8 type-42 = {e8m0 scale;
+> e4m3fn qs[128]}, attn_kv_latent schema) is handled by an offline converter:
+> `fp4_samples/convert_native_dense_to_ds4.py` rebuilds it into the chat-v2
+> schema → `dense/model-dense-ds4.gguf`. Fully-native package measured BEST of
+> all configs: 16k prefill 315.9 t/s, decode 4.59 t/s (vs Q4K 312.9/4.47).
+> Run: `-m <pkg>/dense/model-dense-ds4.gguf --moe-sidecar <pkg>`.
+> Remaining: MPP 4.1 scaffolding items below (macOS 27 native scale-plane).
 
 Branch: `MXFP4` (cut from `codex/stable-slot-replay-experiment`).
 Target sidecar: `/Users/anemll/Models/DSv4-Flash-MXFP4-native-flash`
