@@ -225,3 +225,19 @@ F8_E4M3 weights + F8_E8M0 scales on 128x128 tiles. Three-way comparison
   weights. Embeddings are exact (BF16->F16).
 - A zero-loss alternative exists (store dense as F16, ~16 GB vs 8.8 GB),
   but Q8_0 is what the optimized W8A8 NAX dense path consumes.
+
+### HF dtype census + expert verification
+
+The HF original is NOT uniformly FP8 — four tiers:
+1. FP8 (E4M3, E8M0 128x128 scales): attention projections, indexer wq_b,
+   shared experts, MTP projections.
+2. Native MXFP4 (E2M1 packed 2/byte declared "I8", E8M0 block-32 scales):
+   ALL routed experts — the model is FP4-native in the experts, exactly the
+   sidecar format. Verified bit-exact: HF expert0 w1 == sidecar layer0 gate
+   values (HF packs nibbles sequential-pair; ggml split-half; values equal).
+3. BF16: embeddings, LM head, norms, router gate, compressor/indexer mats.
+4. F32: hyper-connection params, attn sinks, router bias, APE tables.
+
+End-to-end: every FP4/FP8 byte in the running package is bit-exact with the
+HF release; total pipeline loss is only the dense Q8_0 re-encode (0.55%
+relRMS) and exact BF16->F16 conversions.
