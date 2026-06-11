@@ -16079,7 +16079,11 @@ static bool flash_moe_ane_prefill_tensor_types_supported(
         layer->ffn_gate_exps->type == DS4_TENSOR_Q4_K &&
         layer->ffn_up_exps->type == DS4_TENSOR_Q4_K &&
         layer->ffn_down_exps->type == DS4_TENSOR_Q4_K;
-    return iq2_path || q4_path;
+    const bool mxfp4_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_MXFP4 &&
+        layer->ffn_up_exps->type == DS4_TENSOR_MXFP4 &&
+        layer->ffn_down_exps->type == DS4_TENSOR_MXFP4;
+    return iq2_path || q4_path || mxfp4_path;
 }
 
 static const char *flash_moe_ane_prefill_unsupported_reason(
@@ -16095,8 +16099,8 @@ static const char *flash_moe_ane_prefill_unsupported_reason(
     snprintf(buf,
              buf_sz,
              "unsupported expert types gate=%s up=%s down=%s "
-             "(Flash ANE prefill supports IQ2_XXS/IQ2_XXS/(Q2_K|IQ2_XXS) "
-             "and Q4_K/Q4_K/Q4_K)",
+             "(Flash ANE prefill supports IQ2_XXS/IQ2_XXS/(Q2_K|IQ2_XXS), "
+             "Q4_K/Q4_K/Q4_K and MXFP4/MXFP4/MXFP4)",
              tensor_type_name(layer->ffn_gate_exps->type),
              tensor_type_name(layer->ffn_up_exps->type),
              tensor_type_name(layer->ffn_down_exps->type));

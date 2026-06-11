@@ -239,6 +239,31 @@ kernel void kernel_dsv4_mpp_dequant_q4_k_transpose_i8(
     }
 }
 
+kernel void kernel_dsv4_mpp_dequant_mxfp4_transpose_i8(
+        device const block_mxfp4 *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_MXFP4;
+    const uint segs_per_row = blocks_per_row * 2u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 2u;
+    const uint il = seg & 1u;
+    device const block_mxfp4 *blk = src + r * blocks_per_row + b;
+    const float d = ds4_e8m0_to_float(blk->e);
+    const ushort shift = il ? 4u : 0u;
+    const uint col0 = b * QK_MXFP4 + il * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        const float v = d * ds4_kvalues_mxfp4[(blk->qs[j] >> shift) & 0x0Fu];
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+}
+
 kernel void kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8_counted(
         device const block_iq2_xxs *src [[buffer(0)]],
         device char *dst [[buffer(1)]],
@@ -508,6 +533,29 @@ kernel void kernel_dsv4_ane_dequant_q4_k_transpose_f16(
     const uint col0 = b * QK_K + il0 * 16u;
     for (uint j = 0; j < 16u; j++) {
         dst[(col0 + j) * q_rows + r] = half(dl * float(q[j] & mask) - ml);
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_mxfp4_transpose_f16(
+        device const block_mxfp4 *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_MXFP4;
+    const uint segs_per_row = blocks_per_row * 2u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 2u;
+    const uint il = seg & 1u;
+    device const block_mxfp4 *blk = src + r * blocks_per_row + b;
+    const float d = ds4_e8m0_to_float(blk->e);
+    const ushort shift = il ? 4u : 0u;
+    const uint col0 = b * QK_MXFP4 + il * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        dst[(col0 + j) * q_rows + r] = half(d * ds4_kvalues_mxfp4[(blk->qs[j] >> shift) & 0x0Fu]);
     }
 }
 

@@ -161,6 +161,7 @@ static id<MTLComputePipelineState> g_mpp_scale_i32_f32_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_iq2_xxs_i8_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_q2_k_i8_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_q4_k_i8_pipeline;
+static id<MTLComputePipelineState> g_mpp_dequant_mxfp4_i8_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_iq2_xxs_i8_counted_pipeline;
 static id<MTLComputePipelineState> g_mpp_dequant_q2_k_i8_counted_pipeline;
 /* Fused gate+up+down dequant in one dispatch; see metal/moe.metal. */
@@ -204,6 +205,7 @@ static NSMutableDictionary<NSNumber *, NSArray *> *g_i8_attn_wcache;
 static id<MTLComputePipelineState> g_ane_dequant_iq2_xxs_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_q2_k_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_dequant_q4_k_f16_pipeline;
+static id<MTLComputePipelineState> g_ane_dequant_mxfp4_f16_pipeline;
 static id<MTLComputePipelineState> g_ane_output_pack_f16_f32_pipeline;
 static id<MTLComputePipelineState> g_rope_tail_batch_pipeline;
 static id<MTLComputePipelineState> g_dsv4_fp8_kv_quantize_pipeline;
@@ -6158,6 +6160,7 @@ void ds4_gpu_cleanup(void) {
         g_mpp_dequant_iq2_xxs_i8_pipeline = nil;
         g_mpp_dequant_q2_k_i8_pipeline = nil;
         g_mpp_dequant_q4_k_i8_pipeline = nil;
+        g_mpp_dequant_mxfp4_i8_pipeline = nil;
         g_mpp_dequant_iq2_xxs_i8_counted_pipeline = nil;
         g_mpp_dequant_q2_k_i8_counted_pipeline = nil;
         g_mpp_dequant_gud_i8_pipeline = nil;
@@ -6180,6 +6183,7 @@ void ds4_gpu_cleanup(void) {
         g_ane_dequant_iq2_xxs_f16_pipeline = nil;
         g_ane_dequant_q2_k_f16_pipeline = nil;
         g_ane_dequant_q4_k_f16_pipeline = nil;
+        g_ane_dequant_mxfp4_f16_pipeline = nil;
         g_ane_output_pack_f16_f32_pipeline = nil;
         g_rope_tail_batch_pipeline = nil;
         g_dsv4_fp8_kv_quantize_pipeline = nil;
@@ -23645,11 +23649,19 @@ static int ds4_gpu_ane_prefill_raw_types_supported(uint32_t gate_type,
         down_type == DS4_METAL_TENSOR_Q4_K) {
         return 1;
     }
+    if (gate_type == DS4_METAL_TENSOR_MXFP4 &&
+        down_type == DS4_METAL_TENSOR_MXFP4) {
+        return 1;
+    }
     return 0;
 }
 
 static uint64_t ds4_gpu_ane_prefill_row_bytes_for_type(uint32_t type,
                                                        uint32_t cols) {
+    if (type == DS4_METAL_TENSOR_MXFP4) {
+        if (cols == 0 || (cols % 32u) != 0) return 0;
+        return (uint64_t)(cols / 32u) * 17u;
+    }
     if (cols == 0 || (cols % 256u) != 0) return 0;
     switch (type) {
     case DS4_METAL_TENSOR_IQ2_XXS:
@@ -26159,12 +26171,14 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         g_mpp_dequant_iq2_xxs_i8_pipeline &&
         g_mpp_dequant_q2_k_i8_pipeline &&
         g_mpp_dequant_q4_k_i8_pipeline &&
+        g_mpp_dequant_mxfp4_i8_pipeline &&
         g_mpp_dequant_iq2_xxs_i8_counted_pipeline &&
         g_mpp_dequant_q2_k_i8_counted_pipeline &&
         g_mpp_dequant_gud_i8_pipeline &&
         g_ane_dequant_iq2_xxs_f16_pipeline &&
         g_ane_dequant_q2_k_f16_pipeline &&
         g_ane_dequant_q4_k_f16_pipeline &&
+        g_ane_dequant_mxfp4_f16_pipeline &&
         g_ane_output_pack_f16_f32_pipeline) {
         return 1;
     }
@@ -26175,6 +26189,8 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         ds4_gpu_get_pipeline("kernel_dsv4_mpp_dequant_q2_k_transpose_i8");
     g_mpp_dequant_q4_k_i8_pipeline =
         ds4_gpu_get_pipeline("kernel_dsv4_mpp_dequant_q4_k_transpose_i8");
+    g_mpp_dequant_mxfp4_i8_pipeline =
+        ds4_gpu_get_pipeline("kernel_dsv4_mpp_dequant_mxfp4_transpose_i8");
     g_mpp_dequant_iq2_xxs_i8_counted_pipeline =
         ds4_gpu_get_pipeline("kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8_counted");
     g_mpp_dequant_q2_k_i8_counted_pipeline =
@@ -26187,13 +26203,17 @@ static int ds4_gpu_ensure_mpp_int8_prefill_pipelines(void) {
         ds4_gpu_get_pipeline("kernel_dsv4_ane_dequant_q2_k_transpose_f16");
     g_ane_dequant_q4_k_f16_pipeline =
         ds4_gpu_get_pipeline("kernel_dsv4_ane_dequant_q4_k_transpose_f16");
+    g_ane_dequant_mxfp4_f16_pipeline =
+        ds4_gpu_get_pipeline("kernel_dsv4_ane_dequant_mxfp4_transpose_f16");
     if (!g_mpp_dequant_iq2_xxs_i8_pipeline || !g_mpp_dequant_q2_k_i8_pipeline ||
         !g_mpp_dequant_q4_k_i8_pipeline ||
+        !g_mpp_dequant_mxfp4_i8_pipeline ||
         !g_mpp_dequant_iq2_xxs_i8_counted_pipeline ||
         !g_mpp_dequant_q2_k_i8_counted_pipeline ||
         !g_mpp_dequant_gud_i8_pipeline ||
         !g_ane_dequant_iq2_xxs_f16_pipeline || !g_ane_dequant_q2_k_f16_pipeline ||
-        !g_ane_dequant_q4_k_f16_pipeline) {
+        !g_ane_dequant_q4_k_f16_pipeline ||
+        !g_ane_dequant_mxfp4_f16_pipeline) {
         return 0;
     }
 
@@ -26417,6 +26437,34 @@ static int ds4_gpu_encode_mpp_dequant_q4_k_i8(
     return 1;
 }
 
+static int ds4_gpu_encode_mpp_dequant_mxfp4_i8(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        uint32_t             q_rows,
+        uint32_t             q_cols,
+        float                qscale) {
+    if (!cb || !src || !dst || q_rows == 0 || q_cols == 0 || (q_cols % 32u) != 0) return 0;
+    const uint32_t total = q_rows * (q_cols / 32u) * 2u;
+    NSUInteger nth = g_mpp_dequant_mxfp4_i8_pipeline.maxTotalThreadsPerThreadgroup;
+    if (nth > 256u) nth = 256u;
+    if (nth == 0) nth = 1u;
+
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mpp_dequant_mxfp4_i8_pipeline];
+    [enc setBuffer:src offset:src_off atIndex:0];
+    [enc setBuffer:dst offset:0 atIndex:1];
+    [enc setBytes:&q_rows length:sizeof(q_rows) atIndex:2];
+    [enc setBytes:&q_cols length:sizeof(q_cols) atIndex:3];
+    [enc setBytes:&total length:sizeof(total) atIndex:4];
+    [enc setBytes:&qscale length:sizeof(qscale) atIndex:5];
+    [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)total + nth - 1u) / nth, 1, 1)
+         threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
 static int ds4_gpu_encode_mpp_dequant_i8_for_type(
         uint32_t             type,
         id<MTLCommandBuffer> cb,
@@ -26436,6 +26484,9 @@ static int ds4_gpu_encode_mpp_dequant_i8_for_type(
     case DS4_METAL_TENSOR_Q4_K:
         return ds4_gpu_encode_mpp_dequant_q4_k_i8(cb, src, src_off, dst,
                                                   q_rows, q_cols, qscale);
+    case DS4_METAL_TENSOR_MXFP4:
+        return ds4_gpu_encode_mpp_dequant_mxfp4_i8(cb, src, src_off, dst,
+                                                   q_rows, q_cols, qscale);
     default:
         return 0;
     }
@@ -26937,6 +26988,32 @@ static int ds4_gpu_encode_ane_dequant_q4_k_f16(
     return 1;
 }
 
+static int ds4_gpu_encode_ane_dequant_mxfp4_f16(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        uint32_t             q_rows,
+        uint32_t             q_cols) {
+    if (!cb || !src || !dst || q_rows == 0 || q_cols == 0 || (q_cols % 32u) != 0) return 0;
+    const uint32_t total = q_rows * (q_cols / 32u) * 2u;
+    NSUInteger nth = g_ane_dequant_mxfp4_f16_pipeline.maxTotalThreadsPerThreadgroup;
+    if (nth > 256u) nth = 256u;
+    if (nth == 0) nth = 1u;
+
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_ane_dequant_mxfp4_f16_pipeline];
+    [enc setBuffer:src offset:src_off atIndex:0];
+    [enc setBuffer:dst offset:0 atIndex:1];
+    [enc setBytes:&q_rows length:sizeof(q_rows) atIndex:2];
+    [enc setBytes:&q_cols length:sizeof(q_cols) atIndex:3];
+    [enc setBytes:&total length:sizeof(total) atIndex:4];
+    [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)total + nth - 1u) / nth, 1, 1)
+         threadsPerThreadgroup:MTLSizeMake(nth, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
 static int ds4_gpu_encode_ane_dequant_f16_for_type(
         uint32_t             type,
         id<MTLCommandBuffer> cb,
@@ -26955,6 +27032,9 @@ static int ds4_gpu_encode_ane_dequant_f16_for_type(
     case DS4_METAL_TENSOR_Q4_K:
         return ds4_gpu_encode_ane_dequant_q4_k_f16(cb, src, src_off, dst,
                                                    q_rows, q_cols);
+    case DS4_METAL_TENSOR_MXFP4:
+        return ds4_gpu_encode_ane_dequant_mxfp4_f16(cb, src, src_off, dst,
+                                                    q_rows, q_cols);
     default:
         return 0;
     }
