@@ -1,0 +1,60 @@
+=== NAX half tile=32 ===
+ds4-bench: context buffers 2136.29 MiB (ctx=16640, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=4162)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 8.031s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 4.051 ms, residency requested in 890.837 ms, warmup 3.910 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.7 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident MoE kernel log: tokens=16384 route=forced/resident-MPP-NAX-half use_mm_id=1 mpp_shape=1 mpp_requested=1 mpp_forced=1 mpp_should_run=1 mpp_min_tokens=64 mpp_bridge=pairrow mpp_mode=half mpp_half_requested=1 mpp_fused_dequant=1 mpp_full_fused=0 mpp_fused_gate_up=0 gate_type=IQ2_XXS down_type=Q2_K experts=6 map_kernel=kernel_mul_mm_id_map0_ne20_6 gate_kernel=kernel_mul_mm_id_iq2_xxs_f32 up_kernel=kernel_mul_mm_id_iq2_xxs_f32 down_kernel=kernel_mul_mm_id_q2_K_f32 mpp_tile_m=64 mpp_tile_n=32 mpp_tile_k=0 mpp_threads=128 gate_tile=32 down_tile=32 mid=f32 activation=GPU_swiglu_weight sum=GPU_sum_experts dense_proj=fp16-NAX dense_i8_min=4096 mpp_kernels="half: dequant_iq2/q2k_f16 + h_h_f gate/up/down + GPU swiglu"
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: prefill full: 16384 tokens in 36537.1 ms (448.4 t/s)
+16384,16384,448.42,1,5.06,249505164
+cooldown 45s
+=== NAX half tile=64 ===
+ds4-bench: context buffers 2136.29 MiB (ctx=16640, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=4162)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 7.955s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 2.873 ms, residency requested in 891.850 ms, warmup 3.893 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.4 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident MoE kernel log: tokens=16384 route=forced/resident-MPP-NAX-half use_mm_id=1 mpp_shape=1 mpp_requested=1 mpp_forced=1 mpp_should_run=1 mpp_min_tokens=64 mpp_bridge=pairrow mpp_mode=half mpp_half_requested=1 mpp_fused_dequant=1 mpp_full_fused=0 mpp_fused_gate_up=0 gate_type=IQ2_XXS down_type=Q2_K experts=6 map_kernel=kernel_mul_mm_id_map0_ne20_6 gate_kernel=kernel_mul_mm_id_iq2_xxs_f32 up_kernel=kernel_mul_mm_id_iq2_xxs_f32 down_kernel=kernel_mul_mm_id_q2_K_f32 mpp_tile_m=64 mpp_tile_n=64 mpp_tile_k=0 mpp_threads=128 gate_tile=32 down_tile=32 mid=f32 activation=GPU_swiglu_weight sum=GPU_sum_experts dense_proj=fp16-NAX dense_i8_min=4096 mpp_kernels="half: dequant_iq2/q2k_f16 + h_h_f gate/up/down + GPU swiglu"
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: prefill full: 16384 tokens in 36229.0 ms (452.2 t/s)
+16384,16384,452.23,1,21.27,249505164
+cooldown 45s
+=== NAX half tile=128 ===
+ds4-bench: context buffers 2136.29 MiB (ctx=16640, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=4162)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 8.099s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 3.014 ms, residency requested in 899.139 ms, warmup 4.489 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.7 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident MoE kernel log: tokens=16384 route=forced/resident-MPP-NAX-half use_mm_id=1 mpp_shape=1 mpp_requested=1 mpp_forced=1 mpp_should_run=1 mpp_min_tokens=64 mpp_bridge=pairrow mpp_mode=half mpp_half_requested=1 mpp_fused_dequant=1 mpp_full_fused=0 mpp_fused_gate_up=0 gate_type=IQ2_XXS down_type=Q2_K experts=6 map_kernel=kernel_mul_mm_id_map0_ne20_6 gate_kernel=kernel_mul_mm_id_iq2_xxs_f32 up_kernel=kernel_mul_mm_id_iq2_xxs_f32 down_kernel=kernel_mul_mm_id_q2_K_f32 mpp_tile_m=64 mpp_tile_n=128 mpp_tile_k=0 mpp_threads=128 gate_tile=32 down_tile=32 mid=f32 activation=GPU_swiglu_weight sum=GPU_sum_experts dense_proj=fp16-NAX dense_i8_min=4096 mpp_kernels="half: dequant_iq2/q2k_f16 + h_h_f gate/up/down + GPU swiglu"
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: prefill full: 16384 tokens in 36617.2 ms (447.4 t/s)
+16384,16384,447.44,1,20.48,249505164
+cooldown 45s
+=== NAX half tile=256 ===
+ds4-bench: context buffers 2136.29 MiB (ctx=16640, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=4162)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 7.967s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 2.581 ms, residency requested in 888.512 ms, warmup 3.588 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.8 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident MoE kernel log: tokens=16384 route=forced/resident-MPP-NAX-half use_mm_id=1 mpp_shape=1 mpp_requested=1 mpp_forced=1 mpp_should_run=1 mpp_min_tokens=64 mpp_bridge=pairrow mpp_mode=half mpp_half_requested=1 mpp_fused_dequant=1 mpp_full_fused=0 mpp_fused_gate_up=0 gate_type=IQ2_XXS down_type=Q2_K experts=6 map_kernel=kernel_mul_mm_id_map0_ne20_6 gate_kernel=kernel_mul_mm_id_iq2_xxs_f32 up_kernel=kernel_mul_mm_id_iq2_xxs_f32 down_kernel=kernel_mul_mm_id_q2_K_f32 mpp_tile_m=64 mpp_tile_n=256 mpp_tile_k=0 mpp_threads=128 gate_tile=32 down_tile=32 mid=f32 activation=GPU_swiglu_weight sum=GPU_sum_experts dense_proj=fp16-NAX dense_i8_min=4096 mpp_kernels="half: dequant_iq2/q2k_f16 + h_h_f gate/up/down + GPU swiglu"
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: prefill full: 16384 tokens in 36205.0 ms (452.5 t/s)
+16384,16384,452.53,1,20.88,249505164
+wrote moe-batch-bench/profile_runs/nax_half_tile256_sweep_raw16640_20260529_104638.csv

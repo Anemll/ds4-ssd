@@ -1,0 +1,19 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=16384, raw_kv_rows=8704, raw_window=128, effective_chunk=8576; target raw cap for one chunk is 16640, also requires ctx >= that value)
+ds4: context buffers 1618.87 MiB (ctx=20000, backend=metal, prefill_chunk=16384, raw_kv_rows=8704, compressed_kv_rows=5002)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 1.956 ms, residency requested in 8182.076 ms, warmup 3.623 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.4 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: using chunked GPU prefill (16384-token chunks for 17329 prompt tokens)
+ds4: WARNING: prefill chunk 16384 clamped to 8576 by raw-KV cap (raw_cap=8704, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 16512 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 17329 input tokens: 0/17329 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 17329 input tokens: 8576/17329 (49.5%) batch=602.26 t/s avg=600.90 t/s
+processing 17329 input tokens: 17152/17329 (99.0%) batch=548.31 t/s avg=573.40 t/s
+processing 17329 input tokens: 17329/17329 (100.0%) batch=34.46 t/s avg=494.42 t/s
+We

@@ -1,0 +1,62 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=10000, raw_kv_rows=8704, raw_window=128, effective_chunk=8576; target raw cap for one chunk is 10240, also requires ctx >= that value)
+ds4: context buffers 1053.29 MiB (ctx=10000, backend=metal, prefill_chunk=10000, raw_kv_rows=8704, compressed_kv_rows=2502)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 2.214 ms, residency requested in 572.338 ms, warmup 3.823 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.1 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: resident-NAX tile n_tokens=8423 -> sync-bridge=off (sync_max_tokens=7168, src=auto(tile<=max)) -> fast fully-indirect (no readback)
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.514 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.301 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.311 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.301 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.324 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.285 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.306 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.331 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.440 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.304 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.328 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.314 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.289 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.317 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.294 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.308 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.299 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.306 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.328 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.318 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.310 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.322 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.300 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.337 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.314 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.311 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.311 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.312 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.322 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.306 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.323 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.329 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.306 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.314 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.312 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.330 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.306 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.309 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.302 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.305 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.341 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.336 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=8423 indirect=1 encode_wall=0.308 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: metal layer-major prefill total tokens=8423 encode=484.349 ms execute=12867.697 ms read=0.080 ms total=13352.157 ms
+ds4: prefill full: 8423 tokens in 13352.2 ms (630.8 t/s)
+We
+ds4: ----------------------------------------
+ds4: prefill: 630.77 t/s, generation: 10989.01 t/s

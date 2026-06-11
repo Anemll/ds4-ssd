@@ -1,0 +1,6 @@
+variant,prefill_chunk,raw_kv_rows,effective_tokens,tile,threads,prefill_tps,status,log
+default_gpu,16384,16640,16384,128,128,547.6,ok,moe-batch-bench/profile_runs/m5m_nax_tile_sweep_16k_20260529_092904_default_gpu.log
+int8_n32,16384,16640,16384,32,128,562.7,ok,moe-batch-bench/profile_runs/m5m_nax_tile_sweep_16k_20260529_093024_int8_n32.log
+half_n32,16384,16640,16384,32,128,564.5,ok,moe-batch-bench/profile_runs/m5m_nax_tile_sweep_16k_20260529_093024_half_n32.log
+half_n64,16384,16640,16384,64,128,563.2,ok,moe-batch-bench/profile_runs/m5m_nax_tile_sweep_16k_20260529_093024_half_n64.log
+half_n128,16384,16640,16384,128,128,562.0,ok,moe-batch-bench/profile_runs/m5m_nax_tile_sweep_16k_20260529_093024_half_n128.log

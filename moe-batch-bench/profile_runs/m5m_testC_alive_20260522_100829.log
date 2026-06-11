@@ -1,0 +1,23 @@
+=== int8w/i8i8 tiled_fused multi-thread smoke (up to N=16) ===
+    shape H=4096 I=2048  weights+inputs: runtime int8 random (not baked)
+    output dtypes: fp16
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=1  out=fp16  warmup=1  iters=5
+============================================================
+  create ctx[ 0]: 361.1 ms
+  [solo] ctx[ 0]  : 1.693 ms/iter  |  7.61 TFLOP/s
+  [solo] avg      : 1.693 ms/iter  |  7.61 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=8.10 ms  |  per-iter wall=1.621 ms  |  aggregate 7.95 TFLOP/s  |  speedup vs N*solo = 1.04x
+  [conc ] per-thread ms/iter min=1.616 max=1.616 spread=0.0%  vs solo_avg=1.693 (contention=-4.6%)
+
+============================================================
+ SUMMARY  H=4096  I=2048   (random int8 weights, runtime MatMul)
+============================================================
+  out    B    N    solo_ms  solo_TF/s   conc_ms/it  conc_wall_ms   aggregate_TF/s  speedup   stagger_TF/s  contention%
+  ----  ----  ---  -------  ---------  ----------  ------------   --------------  -------   ------------  -----------
+  fp16   256    1    1.693       7.61       1.621          8.10             7.95    1.04x          0.00        -4.6%
+
+  Peak aggregate TFLOP/s by output dtype and batch:
+    out=fp16  B= 256 : 7.95 TFLOP/s  @ N=1
+

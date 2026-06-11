@@ -1,0 +1,108 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.474 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: gpu layer-major prefill layer 0 encode=839.445 ms execute=97.361 ms
+ds4: gpu layer-major prefill layer 1 encode=514.227 ms execute=38.084 ms
+ds4: gpu layer-major prefill layer 2 encode=770.463 ms execute=51.160 ms
+ds4: gpu layer-major prefill layer 3 encode=561.179 ms execute=39.916 ms
+ds4: gpu layer-major prefill layer 4 encode=719.881 ms execute=40.159 ms
+ds4: gpu layer-major prefill layer 5 encode=546.349 ms execute=38.639 ms
+ds4: gpu layer-major prefill layer 6 encode=705.267 ms execute=45.632 ms
+ds4: gpu layer-major prefill layer 7 encode=538.004 ms execute=38.445 ms
+ds4: gpu layer-major prefill layer 8 encode=696.668 ms execute=38.446 ms
+ds4: gpu layer-major prefill layer 9 encode=526.460 ms execute=38.985 ms
+ds4: gpu layer-major prefill layer 10 encode=698.474 ms execute=39.158 ms
+ds4: gpu layer-major prefill layer 11 encode=531.873 ms execute=38.975 ms
+ds4: gpu layer-major prefill layer 12 encode=690.318 ms execute=38.675 ms
+ds4: gpu layer-major prefill layer 13 encode=533.106 ms execute=39.888 ms
+ds4: gpu layer-major prefill layer 14 encode=685.289 ms execute=39.241 ms
+ds4: gpu layer-major prefill layer 15 encode=538.065 ms execute=38.466 ms
+ds4: gpu layer-major prefill layer 16 encode=688.773 ms execute=50.963 ms
+ds4: gpu layer-major prefill layer 17 encode=533.574 ms execute=38.371 ms
+ds4: gpu layer-major prefill layer 18 encode=713.397 ms execute=39.037 ms
+ds4: gpu layer-major prefill layer 19 encode=523.049 ms execute=41.809 ms
+ds4: gpu layer-major prefill layer 20 encode=737.634 ms execute=39.695 ms
+ds4: gpu layer-major prefill layer 21 encode=524.280 ms execute=38.689 ms
+ds4: gpu layer-major prefill layer 22 encode=710.146 ms execute=40.098 ms
+ds4: gpu layer-major prefill layer 23 encode=522.008 ms execute=38.424 ms
+ds4: gpu layer-major prefill layer 24 encode=696.133 ms execute=39.714 ms
+ds4: gpu layer-major prefill layer 25 encode=532.411 ms execute=38.514 ms
+ds4: gpu layer-major prefill layer 26 encode=718.498 ms execute=37.533 ms
+ds4: gpu layer-major prefill layer 27 encode=524.752 ms execute=38.861 ms
+ds4: gpu layer-major prefill layer 28 encode=701.982 ms execute=39.881 ms
+ds4: gpu layer-major prefill layer 29 encode=542.266 ms execute=38.674 ms
+ds4: gpu layer-major prefill layer 30 encode=713.019 ms execute=39.299 ms
+ds4: gpu layer-major prefill layer 31 encode=541.840 ms execute=38.103 ms
+ds4: gpu layer-major prefill layer 32 encode=719.910 ms execute=50.669 ms
+ds4: gpu layer-major prefill layer 33 encode=553.596 ms execute=37.897 ms
+ds4: gpu layer-major prefill layer 34 encode=734.679 ms execute=38.810 ms
+ds4: gpu layer-major prefill layer 35 encode=560.957 ms execute=37.999 ms
+ds4: gpu layer-major prefill layer 36 encode=721.264 ms execute=51.880 ms
+ds4: gpu layer-major prefill layer 37 encode=549.288 ms execute=37.640 ms
+ds4: gpu layer-major prefill layer 38 encode=708.194 ms execute=39.843 ms
+ds4: gpu layer-major prefill layer 39 encode=552.705 ms execute=38.613 ms
+ds4: gpu layer-major prefill layer 40 encode=726.071 ms execute=37.967 ms
+ds4: gpu layer-major prefill layer 41 encode=523.361 ms execute=39.057 ms
+ds4: gpu layer-major prefill layer 42 encode=705.493 ms execute=50.473 ms
+ds4: gpu layer-major prefill total tokens=8423 encode=27126.821 ms execute=1800.938 ms read=0.033 ms total=28928.117 ms
+We need to produce a detailed implementation plan for generating a DFlash dataset for a speculative decoding draft model based on GLM-5.1. The user has provided a problem description and proposed solution, and wants a plan covering model splitting, JAX/PyTorch-XLA code skeleton, data packing, memory profiling, runtime estimates, modifications to Unsloth loading, and testing plan. Also they mention "Below steelman analisys of this approach in 400 words" - likely they want a concise analysis of the approach.
+
+But the user's message is repetitive - they pasted the same document multiple times. The last part says "Below steelman analisys of this approach in 400 words" - so they want a steelman analysis (i.e., a strong, well-reasoned defense/analysis) of the proposed approach in 400 words. However, the preceding text is the same document repeated. So the user is asking for a detailed implementation plan and also a steelman analysis.
+
+Given the context, I need to produce two things: (1) a detailed implementation plan as requested in section 3, and (2) a steelman analysis of the approach in 400 words. The user says "Below steelman analisys of this approach in 400 words" - that might be a heading for the analysis they want me to write. So I should write the analysis after the plan.
+
+But careful: The user's message ends with "Below steelman analisys of this approach in 400 words" - that could be interpreted as "I want you to provide a steelman analysis below" or "the following is a steelman analysis". Since they are asking for a plan, and then say "Below steelman analisys..." it's likely they want me to include that analysis as part of the response.
+
+Thus, I will produce a comprehensive response covering:
+
+1. Detailed implementation plan covering:
+   - Exact model splitting strategy
+   - JAX/PyTorch-XLA code skeleton for layer-wise prefill + expert deduplication + hidden extraction
+   - Data packing logic and GCS streaming
+   - Memory profiling & checkpointing strategy
+   - Estimated runtime/storage for 50K, 100K, 200K sequences
+   - Modifications to Unsloth UD-Q2_K_XL loading for TPU
+   - Testing plan (small-scale smoke test on 1K sequences)
+
+2. Steelman analysis of the approach in 400 words.
+
+I'll structure the answer accordingly. The plan should be detailed, technical, and aligned with the proposed solution. The steelman analysis should argue for the strengths of the approach, addressing potential criticisms.
+
+I'll write in a clear, professional tone.
+**DFlash Dataset Generation Plan for GLM-5.1 Speculative Decoding Draft Model**  
+**Implementation Plan & Steelman Analysis**
+
+---
+
+### 1. Detailed Implementation Plan
+
+#### 1.1 Exact Model Splitting Strategy
+- **Split Point Selection**: Partition GLM-5.1 at layer `N` such that the first half (layers 0–N) and second half (layers N+1–end) each occupy ≤32 GB TPU memory when loaded with Unsloth UD-Q2_K_XL quantization.  
+  - Dense layers: 15 GB total → ~7.5 GB per half.  
+  - MoE experts: 190 GB total → split by expert assignment; each half gets ~95 GB of expert weights, but only active experts per token are loaded.  
+- **TPU Assignment**: TPU #1 handles layers 0–N, TPU #2 handles layers N+1–end. Pipeline parallelism: TPU #1 pre-fills first half, passes hidden states to TPU #2 for second half.  
+- **Expert Deduplication**: On each TPU, only load expert weights for the experts activated by the current token batch. Use a hash table to cache frequently used experts, evicting rarely used ones.
+
+#### 1.2 JAX / PyTorch-XLA Code Skeleton
+- **Layer-Wise Prefill Loop** (JAX with `pmap` for TPU):  
+  ```python
+  def prefill_layer(layer_idx, input_activations, expert_cache):
+      # Load layer weights from disk/RAM only if not cached
+      weights = load_weights(layer_idx) if layer_idx not in cache else cache[layer_idx]
+      # For MoE layers: load only active expert weights
+      if is_moe(layer_idx):
+          active_experts = get_active_experts(input_activations)
+          weights = load_expert_weights(active_experts)
+      # Compute forward pass
+      output = jax.nn.sigmoid(jax.lax.dot_general(input_activations, weights, ...))
+      # Store hidden state if layer_idx in {2, 
+ds4: prefill: 287.29 t/s, generation: 9.39 t/s
+ds4: Flash-MoE slot-bank stats hits=164170 misses=110141 hit-rate=59.8% installed=743451.75 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10119 saved=2163015 (99.5%) reuse=214.76x

@@ -1,0 +1,40 @@
+=== Per-chunk IOSurface probe: H=4096 I=8192 B=256 N_chunks=33 ===
+ctx created OK
+model_r OK
+Created 33 input IOSurfaces + 33 requests
+All 33 evaluates succeeded
+WARNING: outputs[0] and outputs[1] are byte-identical (suspicious)
+WARNING: outputs[1] and outputs[2] are byte-identical (suspicious)
+WARNING: outputs[2] and outputs[3] are byte-identical (suspicious)
+WARNING: outputs[3] and outputs[4] are byte-identical (suspicious)
+WARNING: outputs[4] and outputs[5] are byte-identical (suspicious)
+WARNING: outputs[5] and outputs[6] are byte-identical (suspicious)
+WARNING: outputs[6] and outputs[7] are byte-identical (suspicious)
+WARNING: outputs[7] and outputs[8] are byte-identical (suspicious)
+WARNING: outputs[8] and outputs[9] are byte-identical (suspicious)
+WARNING: outputs[9] and outputs[10] are byte-identical (suspicious)
+WARNING: outputs[10] and outputs[11] are byte-identical (suspicious)
+WARNING: outputs[11] and outputs[12] are byte-identical (suspicious)
+WARNING: outputs[12] and outputs[13] are byte-identical (suspicious)
+WARNING: outputs[13] and outputs[14] are byte-identical (suspicious)
+WARNING: outputs[14] and outputs[15] are byte-identical (suspicious)
+WARNING: outputs[15] and outputs[16] are byte-identical (suspicious)
+WARNING: outputs[16] and outputs[17] are byte-identical (suspicious)
+WARNING: outputs[17] and outputs[18] are byte-identical (suspicious)
+WARNING: outputs[18] and outputs[19] are byte-identical (suspicious)
+WARNING: outputs[19] and outputs[20] are byte-identical (suspicious)
+WARNING: outputs[20] and outputs[21] are byte-identical (suspicious)
+WARNING: outputs[21] and outputs[22] are byte-identical (suspicious)
+WARNING: outputs[22] and outputs[23] are byte-identical (suspicious)
+WARNING: outputs[23] and outputs[24] are byte-identical (suspicious)
+WARNING: outputs[24] and outputs[25] are byte-identical (suspicious)
+WARNING: outputs[25] and outputs[26] are byte-identical (suspicious)
+WARNING: outputs[26] and outputs[27] are byte-identical (suspicious)
+WARNING: outputs[27] and outputs[28] are byte-identical (suspicious)
+WARNING: outputs[28] and outputs[29] are byte-identical (suspicious)
+WARNING: outputs[29] and outputs[30] are byte-identical (suspicious)
+WARNING: outputs[30] and outputs[31] are byte-identical (suspicious)
+WARNING: outputs[31] and outputs[32] are byte-identical (suspicious)
+Output divergence sanity passed
+
+PROBE PASSED: ANE accepts 33 requests on one compiled model with distinct input IOSurfaces.

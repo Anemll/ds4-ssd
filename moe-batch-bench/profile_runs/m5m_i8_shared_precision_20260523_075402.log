@@ -1,0 +1,60 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.329 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: ANE shared-expert init layer=0 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=666.4
+ds4: ANE shared-expert init layer=1 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=172.2
+ds4: ANE shared-expert init layer=2 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=161.5
+ds4: ANE shared-expert init layer=3 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=158.5
+ds4: ANE shared-expert init layer=4 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=161.2
+ds4: ANE shared-expert init layer=5 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.0
+ds4: ANE shared-expert init layer=6 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=155.8
+ds4: ANE shared-expert init layer=7 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=176.0
+ds4: ANE shared-expert init layer=8 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=162.0
+ds4: ANE shared-expert init layer=9 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=153.0
+ds4: ANE shared-expert init layer=10 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=155.3
+ds4: ANE shared-expert init layer=11 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=155.9
+ds4: ANE shared-expert init layer=12 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=168.0
+ds4: ANE shared-expert init layer=13 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.5
+ds4: ANE shared-expert init layer=14 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=160.0
+ds4: ANE shared-expert init layer=15 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=151.6
+ds4: ANE shared-expert init layer=16 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=153.5
+ds4: ANE shared-expert init layer=17 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=163.7
+ds4: ANE shared-expert init layer=18 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=157.6
+ds4: ANE shared-expert init layer=19 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=163.0
+ds4: ANE shared-expert init layer=20 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=153.9
+ds4: ANE shared-expert init layer=21 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=171.1
+ds4: ANE shared-expert init layer=22 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.3
+ds4: ANE shared-expert init layer=23 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=154.0
+ds4: ANE shared-expert init layer=24 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=160.2
+ds4: ANE shared-expert init layer=25 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=158.1
+ds4: ANE shared-expert init layer=26 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.8
+ds4: ANE shared-expert init layer=27 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.7
+ds4: ANE shared-expert init layer=28 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=157.7
+ds4: ANE shared-expert init layer=29 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.3
+ds4: ANE shared-expert init layer=30 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=159.1
+ds4: ANE shared-expert init layer=31 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=154.7
+ds4: ANE shared-expert init layer=32 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=155.8
+ds4: ANE shared-expert init layer=33 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=163.4
+ds4: ANE shared-expert init layer=34 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=155.0
+ds4: ANE shared-expert init layer=35 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=152.9
+ds4: ANE shared-expert init layer=36 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=150.2
+ds4: ANE shared-expert init layer=37 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=163.9
+ds4: ANE shared-expert init layer=38 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=158.5
+ds4: ANE shared-expert init layer=39 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=152.7
+ds4: ANE shared-expert init layer=40 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=154.8
+ds4: ANE shared-expert init layer=41 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=165.5
+ds4: ANE shared-expert init layer=42 in=4096 mid=2048 B=256 i8w-i8x-tiled-fused init_ms=170.1
+ds4: ANE shared-expert prewarm: 43/43 layers, 7365.0 ms total (paid before prefill timer)
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=1, banks=4)
+ds4: ANE_SHARED_EXPERT=1 — synchronous ANE shared expert
+We are given a long document that is repeated many times. The user asks for a "steelman analysis" of the approach in 400 words. The document describes a plan to generate a DFlash dataset for training a small draft model using a large teacher model (GLM-5.1 MoE). The approach involves splitting the model across two TPUs, layer-wise inference, expert deduplication, etc.
+
+The user wants a "steelman analysis" - meaning a strong, supportive,
+ds4: prefill: 235.61 t/s, generation: 7.40 t/s
+ds4: Flash-MoE slot-bank stats hits=15389 misses=20908 hit-rate=42.4% installed=141129.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10497 saved=2162637 (99.5%) reuse=207.02x

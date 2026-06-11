@@ -1,0 +1,292 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.686 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=1, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=64 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=128 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=512 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=0 tokens=8423 unique=256 refs=50538 sync=433.432 ms plan=0.894 ms stage/compute=512.266 ms misses=256
+ds4: Flash-MoE hybrid prefill layer=0 ane_groups=153 ane_refs=32119 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=153 gpu_overlap=103 finishes=153 waits=306
+ds4: Flash-MoE overlap plan layer=0 exec_groups=256 planned_ane_groups=153 planned_ane_refs=32119 planned_gpu_groups=103 planned_gpu_refs=18419 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=256 est_gpu=25011.0 est_ane=24944.2 est_idle=0.27% wall=504.206 ms actual_ane_groups=153 actual_ane_refs=32119 actual_gpu_groups=0 actual_gpu_refs=0 finishes=153 waits=306 overlap_gpu_groups=103
+ds4: gpu layer-major prefill layer 0 encode=964.177 ms execute=93.462 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=1 tokens=8423 unique=256 refs=50538 sync=184.952 ms plan=0.338 ms stage/compute=427.744 ms misses=256
+ds4: Flash-MoE hybrid prefill layer=1 ane_groups=153 ane_refs=32179 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=153 gpu_overlap=103 finishes=153 waits=306
+ds4: Flash-MoE overlap plan layer=1 exec_groups=256 planned_ane_groups=153 planned_ane_refs=32179 planned_gpu_groups=103 planned_gpu_refs=18359 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=256 est_gpu=24951.0 est_ane=24951.3 est_idle=0.00% wall=420.337 ms actual_ane_groups=153 actual_ane_refs=32179 actual_gpu_groups=0 actual_gpu_refs=0 finishes=153 waits=306 overlap_gpu_groups=103
+ds4: gpu layer-major prefill layer 1 encode=630.663 ms execute=46.614 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=2 tokens=8423 unique=256 refs=50538 sync=473.022 ms plan=0.403 ms stage/compute=437.379 ms misses=256
+ds4: Flash-MoE hybrid prefill layer=2 ane_groups=152 ane_refs=32249 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=152 gpu_overlap=104 finishes=152 waits=304
+ds4: Flash-MoE overlap plan layer=2 exec_groups=256 planned_ane_groups=152 planned_ane_refs=32249 planned_gpu_groups=104 planned_gpu_refs=18289 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=256 est_gpu=24945.0 est_ane=24795.8 est_idle=0.60% wall=435.912 ms actual_ane_groups=152 actual_ane_refs=32249 actual_gpu_groups=0 actual_gpu_refs=0 finishes=152 waits=304 overlap_gpu_groups=104
+ds4: gpu layer-major prefill layer 2 encode=912.782 ms execute=50.184 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=3 tokens=8423 unique=246 refs=50538 sync=213.921 ms plan=0.311 ms stage/compute=428.594 ms misses=246
+ds4: Flash-MoE hybrid prefill layer=3 ane_groups=119 ane_refs=35392 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=119 gpu_overlap=127 finishes=119 waits=238
+ds4: Flash-MoE overlap plan layer=3 exec_groups=246 planned_ane_groups=119 planned_ane_refs=35392 planned_gpu_groups=127 planned_gpu_refs=15146 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=246 est_gpu=23274.0 est_ane=19542.9 est_idle=16.03% wall=427.302 ms actual_ane_groups=119 actual_ane_refs=35392 actual_gpu_groups=0 actual_gpu_refs=0 finishes=119 waits=238 overlap_gpu_groups=127
+ds4: gpu layer-major prefill layer 3 encode=661.600 ms execute=37.340 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=4 tokens=8423 unique=241 refs=50538 sync=370.380 ms plan=0.402 ms stage/compute=489.121 ms misses=241
+ds4: Flash-MoE hybrid prefill layer=4 ane_groups=105 ane_refs=37037 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=105 gpu_overlap=136 finishes=105 waits=210
+ds4: Flash-MoE overlap plan layer=4 exec_groups=241 planned_ane_groups=105 planned_ane_refs=37037 planned_gpu_groups=136 planned_gpu_refs=13501 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=241 est_gpu=22205.0 est_ane=17307.5 est_idle=22.06% wall=487.742 ms actual_ane_groups=105 actual_ane_refs=37037 actual_gpu_groups=0 actual_gpu_refs=0 finishes=105 waits=210 overlap_gpu_groups=136
+ds4: gpu layer-major prefill layer 4 encode=860.878 ms execute=51.350 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=5 tokens=8423 unique=249 refs=50538 sync=221.379 ms plan=0.459 ms stage/compute=486.177 ms misses=249
+ds4: Flash-MoE hybrid prefill layer=5 ane_groups=114 ane_refs=36260 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=114 gpu_overlap=135 finishes=114 waits=228
+ds4: Flash-MoE overlap plan layer=5 exec_groups=249 planned_ane_groups=114 planned_ane_refs=36260 planned_gpu_groups=135 planned_gpu_refs=14278 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=249 est_gpu=22918.0 est_ane=18732.0 est_idle=18.27% wall=484.163 ms actual_ane_groups=114 actual_ane_refs=36260 actual_gpu_groups=0 actual_gpu_refs=0 finishes=114 waits=228 overlap_gpu_groups=135
+ds4: gpu layer-major prefill layer 5 encode=728.915 ms execute=50.963 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=6 tokens=8423 unique=241 refs=50538 sync=427.469 ms plan=0.412 ms stage/compute=429.153 ms misses=241
+ds4: Flash-MoE hybrid prefill layer=6 ane_groups=104 ane_refs=36916 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=104 gpu_overlap=137 finishes=104 waits=208
+ds4: Flash-MoE overlap plan layer=6 exec_groups=241 planned_ane_groups=104 planned_ane_refs=36916 planned_gpu_groups=137 planned_gpu_refs=13622 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=241 est_gpu=22390.0 est_ane=17140.4 est_idle=23.45% wall=427.864 ms actual_ane_groups=104 actual_ane_refs=36916 actual_gpu_groups=0 actual_gpu_refs=0 finishes=104 waits=208 overlap_gpu_groups=137
+ds4: gpu layer-major prefill layer 6 encode=858.615 ms execute=49.308 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=7 tokens=8423 unique=243 refs=50538 sync=205.271 ms plan=0.387 ms stage/compute=417.179 ms misses=243
+ds4: Flash-MoE hybrid prefill layer=7 ane_groups=104 ane_refs=37107 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=104 gpu_overlap=139 finishes=104 waits=208
+ds4: Flash-MoE overlap plan layer=7 exec_groups=243 planned_ane_groups=104 planned_ane_refs=37107 planned_gpu_groups=139 planned_gpu_refs=13431 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=243 est_gpu=22327.0 est_ane=17127.4 est_idle=23.29% wall=415.758 ms actual_ane_groups=104 actual_ane_refs=37107 actual_gpu_groups=0 actual_gpu_refs=0 finishes=104 waits=208 overlap_gpu_groups=139
+ds4: gpu layer-major prefill layer 7 encode=640.848 ms execute=37.764 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=8 tokens=8423 unique=244 refs=50538 sync=401.480 ms plan=0.374 ms stage/compute=417.232 ms misses=244
+ds4: Flash-MoE hybrid prefill layer=8 ane_groups=103 ane_refs=37508 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=103 gpu_overlap=141 finishes=103 waits=206
+ds4: Flash-MoE overlap plan layer=8 exec_groups=244 planned_ane_groups=103 planned_ane_refs=37508 planned_gpu_groups=141 planned_gpu_refs=13030 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=244 est_gpu=22054.0 est_ane=16961.6 est_idle=23.09% wall=415.874 ms actual_ane_groups=103 actual_ane_refs=37508 actual_gpu_groups=0 actual_gpu_refs=0 finishes=103 waits=206 overlap_gpu_groups=141
+ds4: gpu layer-major prefill layer 8 encode=820.051 ms execute=46.453 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=9 tokens=8423 unique=250 refs=50538 sync=201.449 ms plan=0.342 ms stage/compute=435.970 ms misses=250
+ds4: Flash-MoE hybrid prefill layer=9 ane_groups=116 ane_refs=36159 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=116 gpu_overlap=134 finishes=116 waits=232
+ds4: Flash-MoE overlap plan layer=9 exec_groups=250 planned_ane_groups=116 planned_ane_refs=36159 planned_gpu_groups=134 planned_gpu_refs=14379 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=250 est_gpu=22955.0 est_ane=19065.5 est_idle=16.94% wall=434.675 ms actual_ane_groups=116 actual_ane_refs=36159 actual_gpu_groups=0 actual_gpu_refs=0 finishes=116 waits=232 overlap_gpu_groups=134
+ds4: gpu layer-major prefill layer 9 encode=655.711 ms execute=49.895 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=10 tokens=8423 unique=239 refs=50538 sync=401.480 ms plan=0.365 ms stage/compute=434.676 ms misses=239
+ds4: Flash-MoE hybrid prefill layer=10 ane_groups=107 ane_refs=37013 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=107 gpu_overlap=132 finishes=107 waits=214
+ds4: Flash-MoE overlap plan layer=10 exec_groups=239 planned_ane_groups=107 planned_ane_refs=37013 planned_gpu_groups=132 planned_gpu_refs=13525 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=239 est_gpu=21973.0 est_ane=17612.6 est_idle=19.84% wall=433.237 ms actual_ane_groups=107 actual_ane_refs=37013 actual_gpu_groups=0 actual_gpu_refs=0 finishes=107 waits=214 overlap_gpu_groups=132
+ds4: gpu layer-major prefill layer 10 encode=837.386 ms execute=48.886 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=11 tokens=8423 unique=243 refs=50538 sync=215.371 ms plan=0.361 ms stage/compute=449.811 ms misses=243
+ds4: Flash-MoE hybrid prefill layer=11 ane_groups=105 ane_refs=36968 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=105 gpu_overlap=138 finishes=105 waits=210
+ds4: Flash-MoE overlap plan layer=11 exec_groups=243 planned_ane_groups=105 planned_ane_refs=36968 planned_gpu_groups=138 planned_gpu_refs=13570 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=243 est_gpu=22402.0 est_ane=17308.8 est_idle=22.74% wall=448.520 ms actual_ane_groups=105 actual_ane_refs=36968 actual_gpu_groups=0 actual_gpu_refs=0 finishes=105 waits=210 overlap_gpu_groups=138
+ds4: gpu layer-major prefill layer 11 encode=683.592 ms execute=48.506 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=12 tokens=8423 unique=222 refs=50538 sync=397.584 ms plan=0.347 ms stage/compute=415.685 ms misses=222
+ds4: Flash-MoE hybrid prefill layer=12 ane_groups=86 ane_refs=38690 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=86 gpu_overlap=136 finishes=86 waits=172
+ds4: Flash-MoE overlap plan layer=12 exec_groups=222 planned_ane_groups=86 planned_ane_refs=38690 planned_gpu_groups=136 planned_gpu_refs=11848 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=222 est_gpu=20552.0 est_ane=14267.5 est_idle=30.58% wall=414.349 ms actual_ane_groups=86 actual_ane_refs=38690 actual_gpu_groups=0 actual_gpu_refs=0 finishes=86 waits=172 overlap_gpu_groups=136
+ds4: gpu layer-major prefill layer 12 encode=814.540 ms execute=47.225 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=13 tokens=8423 unique=225 refs=50538 sync=203.245 ms plan=0.345 ms stage/compute=420.378 ms misses=225
+ds4: Flash-MoE hybrid prefill layer=13 ane_groups=78 ane_refs=39821 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=78 gpu_overlap=147 finishes=78 waits=156
+ds4: Flash-MoE overlap plan layer=13 exec_groups=225 planned_ane_groups=78 planned_ane_refs=39821 planned_gpu_groups=147 planned_gpu_refs=10717 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=225 est_gpu=20125.0 est_ane=13004.3 est_idle=35.38% wall=419.101 ms actual_ane_groups=78 actual_ane_refs=39821 actual_gpu_groups=0 actual_gpu_refs=0 finishes=78 waits=156 overlap_gpu_groups=147
+ds4: gpu layer-major prefill layer 13 encode=641.417 ms execute=37.345 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=14 tokens=8423 unique=219 refs=50538 sync=368.871 ms plan=0.381 ms stage/compute=402.246 ms misses=219
+ds4: Flash-MoE hybrid prefill layer=14 ane_groups=77 ane_refs=39860 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=77 gpu_overlap=142 finishes=77 waits=154
+ds4: Flash-MoE overlap plan layer=14 exec_groups=219 planned_ane_groups=77 planned_ane_refs=39860 planned_gpu_groups=142 planned_gpu_refs=10678 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=219 est_gpu=19766.0 est_ane=12823.6 est_idle=35.12% wall=400.863 ms actual_ane_groups=77 actual_ane_refs=39860 actual_gpu_groups=0 actual_gpu_refs=0 finishes=77 waits=154 overlap_gpu_groups=142
+ds4: gpu layer-major prefill layer 14 encode=772.358 ms execute=38.022 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=15 tokens=8423 unique=202 refs=50538 sync=201.743 ms plan=0.355 ms stage/compute=392.352 ms misses=202
+ds4: Flash-MoE hybrid prefill layer=15 ane_groups=67 ane_refs=40712 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=67 gpu_overlap=135 finishes=67 waits=134
+ds4: Flash-MoE overlap plan layer=15 exec_groups=202 planned_ane_groups=67 planned_ane_refs=40712 planned_gpu_groups=135 planned_gpu_refs=9826 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=202 est_gpu=18466.0 est_ane=11222.3 est_idle=39.23% wall=391.111 ms actual_ane_groups=67 actual_ane_refs=40712 actual_gpu_groups=0 actual_gpu_refs=0 finishes=67 waits=134 overlap_gpu_groups=135
+ds4: gpu layer-major prefill layer 15 encode=615.088 ms execute=39.749 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=16 tokens=8423 unique=207 refs=50538 sync=394.251 ms plan=0.322 ms stage/compute=426.820 ms misses=207
+ds4: Flash-MoE hybrid prefill layer=16 ane_groups=70 ane_refs=40805 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=70 gpu_overlap=137 finishes=70 waits=140
+ds4: Flash-MoE overlap plan layer=16 exec_groups=207 planned_ane_groups=70 planned_ane_refs=40805 planned_gpu_groups=137 planned_gpu_refs=9733 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=207 est_gpu=18501.0 est_ane=11713.9 est_idle=36.68% wall=425.466 ms actual_ane_groups=70 actual_ane_refs=40805 actual_gpu_groups=0 actual_gpu_refs=0 finishes=70 waits=140 overlap_gpu_groups=137
+ds4: gpu layer-major prefill layer 16 encode=822.286 ms execute=51.546 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=17 tokens=8423 unique=210 refs=50538 sync=205.586 ms plan=0.365 ms stage/compute=418.664 ms misses=210
+ds4: Flash-MoE hybrid prefill layer=17 ane_groups=72 ane_refs=40829 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=72 gpu_overlap=138 finishes=72 waits=144
+ds4: Flash-MoE overlap plan layer=17 exec_groups=210 planned_ane_groups=72 planned_ane_refs=40829 planned_gpu_groups=138 planned_gpu_refs=9709 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=210 est_gpu=18541.0 est_ane=12018.4 est_idle=35.18% wall=417.315 ms actual_ane_groups=72 actual_ane_refs=40829 actual_gpu_groups=0 actual_gpu_refs=0 finishes=72 waits=144 overlap_gpu_groups=138
+ds4: gpu layer-major prefill layer 17 encode=644.350 ms execute=37.391 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=18 tokens=8423 unique=209 refs=50538 sync=369.577 ms plan=0.381 ms stage/compute=428.513 ms misses=209
+ds4: Flash-MoE hybrid prefill layer=18 ane_groups=69 ane_refs=40800 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=69 gpu_overlap=140 finishes=69 waits=138
+ds4: Flash-MoE overlap plan layer=18 exec_groups=209 planned_ane_groups=69 planned_ane_refs=40800 planned_gpu_groups=140 planned_gpu_refs=9738 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=209 est_gpu=18698.0 est_ane=11551.4 est_idle=38.22% wall=427.245 ms actual_ane_groups=69 actual_ane_refs=40800 actual_gpu_groups=0 actual_gpu_refs=0 finishes=69 waits=138 overlap_gpu_groups=140
+ds4: gpu layer-major prefill layer 18 encode=799.350 ms execute=48.124 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=19 tokens=8423 unique=241 refs=50538 sync=202.530 ms plan=0.314 ms stage/compute=421.087 ms misses=241
+ds4: Flash-MoE hybrid prefill layer=19 ane_groups=117 ane_refs=35761 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=117 gpu_overlap=124 finishes=117 waits=234
+ds4: Flash-MoE overlap plan layer=19 exec_groups=241 planned_ane_groups=117 planned_ane_refs=35761 planned_gpu_groups=124 planned_gpu_refs=14777 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=241 est_gpu=22713.0 est_ane=19215.8 est_idle=15.40% wall=419.803 ms actual_ane_groups=117 actual_ane_refs=35761 actual_gpu_groups=0 actual_gpu_refs=0 finishes=117 waits=234 overlap_gpu_groups=124
+ds4: gpu layer-major prefill layer 19 encode=642.796 ms execute=37.497 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=20 tokens=8423 unique=209 refs=50538 sync=401.719 ms plan=0.423 ms stage/compute=421.219 ms misses=209
+ds4: Flash-MoE hybrid prefill layer=20 ane_groups=76 ane_refs=40325 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=76 gpu_overlap=133 finishes=76 waits=152
+ds4: Flash-MoE overlap plan layer=20 exec_groups=209 planned_ane_groups=76 planned_ane_refs=40325 planned_gpu_groups=133 planned_gpu_refs=10213 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=209 est_gpu=18725.0 est_ane=12677.8 est_idle=32.29% wall=419.961 ms actual_ane_groups=76 actual_ane_refs=40325 actual_gpu_groups=0 actual_gpu_refs=0 finishes=76 waits=152 overlap_gpu_groups=133
+ds4: gpu layer-major prefill layer 20 encode=824.382 ms execute=47.699 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=21 tokens=8423 unique=220 refs=50538 sync=214.187 ms plan=0.330 ms stage/compute=448.494 ms misses=220
+ds4: Flash-MoE hybrid prefill layer=21 ane_groups=89 ane_refs=38821 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=89 gpu_overlap=131 finishes=89 waits=178
+ds4: Flash-MoE overlap plan layer=21 exec_groups=220 planned_ane_groups=89 planned_ane_refs=38821 planned_gpu_groups=131 planned_gpu_refs=11717 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=220 est_gpu=20101.0 est_ane=14757.2 est_idle=26.58% wall=447.164 ms actual_ane_groups=89 actual_ane_refs=38821 actual_gpu_groups=0 actual_gpu_refs=0 finishes=89 waits=178 overlap_gpu_groups=131
+ds4: gpu layer-major prefill layer 21 encode=683.506 ms execute=51.301 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=22 tokens=8423 unique=221 refs=50538 sync=409.020 ms plan=0.350 ms stage/compute=428.178 ms misses=221
+ds4: Flash-MoE hybrid prefill layer=22 ane_groups=83 ane_refs=39445 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=83 gpu_overlap=138 finishes=83 waits=166
+ds4: Flash-MoE overlap plan layer=22 exec_groups=221 planned_ane_groups=83 planned_ane_refs=39445 planned_gpu_groups=138 planned_gpu_refs=11093 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=221 est_gpu=19925.0 est_ane=13793.9 est_idle=30.77% wall=426.916 ms actual_ane_groups=83 actual_ane_refs=39445 actual_gpu_groups=0 actual_gpu_refs=0 finishes=83 waits=166 overlap_gpu_groups=138
+ds4: gpu layer-major prefill layer 22 encode=838.555 ms execute=47.431 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=23 tokens=8423 unique=235 refs=50538 sync=203.640 ms plan=0.345 ms stage/compute=439.180 ms misses=235
+ds4: Flash-MoE hybrid prefill layer=23 ane_groups=107 ane_refs=36834 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=107 gpu_overlap=128 finishes=107 waits=214
+ds4: Flash-MoE overlap plan layer=23 exec_groups=235 planned_ane_groups=107 planned_ane_refs=36834 planned_gpu_groups=128 planned_gpu_refs=13704 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=235 est_gpu=21896.0 est_ane=17628.8 est_idle=19.49% wall=437.866 ms actual_ane_groups=107 actual_ane_refs=36834 actual_gpu_groups=0 actual_gpu_refs=0 finishes=107 waits=214 overlap_gpu_groups=128
+ds4: gpu layer-major prefill layer 23 encode=665.779 ms execute=37.502 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=24 tokens=8423 unique=219 refs=50538 sync=372.528 ms plan=0.374 ms stage/compute=413.585 ms misses=219
+ds4: Flash-MoE hybrid prefill layer=24 ane_groups=84 ane_refs=38800 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=84 gpu_overlap=135 finishes=84 waits=168
+ds4: Flash-MoE overlap plan layer=24 exec_groups=219 planned_ane_groups=84 planned_ane_refs=38800 planned_gpu_groups=135 planned_gpu_refs=11738 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=219 est_gpu=20378.0 est_ane=13937.8 est_idle=31.60% wall=412.315 ms actual_ane_groups=84 actual_ane_refs=38800 actual_gpu_groups=0 actual_gpu_refs=0 finishes=84 waits=168 overlap_gpu_groups=135
+ds4: gpu layer-major prefill layer 24 encode=787.631 ms execute=48.061 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=25 tokens=8423 unique=222 refs=50538 sync=201.546 ms plan=0.382 ms stage/compute=422.176 ms misses=222
+ds4: Flash-MoE hybrid prefill layer=25 ane_groups=91 ane_refs=38102 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=91 gpu_overlap=131 finishes=91 waits=182
+ds4: Flash-MoE overlap plan layer=25 exec_groups=222 planned_ane_groups=91 planned_ane_refs=38102 planned_gpu_groups=131 planned_gpu_refs=12436 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=222 est_gpu=20820.0 est_ane=15080.4 est_idle=27.57% wall=420.910 ms actual_ane_groups=91 actual_ane_refs=38102 actual_gpu_groups=0 actual_gpu_refs=0 finishes=91 waits=182 overlap_gpu_groups=131
+ds4: gpu layer-major prefill layer 25 encode=643.591 ms execute=37.455 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=26 tokens=8423 unique=205 refs=50538 sync=389.056 ms plan=0.363 ms stage/compute=434.362 ms misses=205
+ds4: Flash-MoE hybrid prefill layer=26 ane_groups=74 ane_refs=40404 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=74 gpu_overlap=131 finishes=74 waits=148
+ds4: Flash-MoE overlap plan layer=26 exec_groups=205 planned_ane_groups=74 planned_ane_refs=40404 planned_gpu_groups=131 planned_gpu_refs=10134 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=205 est_gpu=18518.0 est_ane=12345.5 est_idle=33.33% wall=433.012 ms actual_ane_groups=74 actual_ane_refs=40404 actual_gpu_groups=0 actual_gpu_refs=0 finishes=74 waits=148 overlap_gpu_groups=131
+ds4: gpu layer-major prefill layer 26 encode=824.748 ms execute=50.136 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=27 tokens=8423 unique=218 refs=50538 sync=213.840 ms plan=0.306 ms stage/compute=422.886 ms misses=218
+ds4: Flash-MoE hybrid prefill layer=27 ane_groups=88 ane_refs=38559 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=88 gpu_overlap=130 finishes=88 waits=176
+ds4: Flash-MoE overlap plan layer=27 exec_groups=218 planned_ane_groups=88 planned_ane_refs=38559 planned_gpu_groups=130 planned_gpu_refs=11979 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=218 est_gpu=20299.0 est_ane=14585.5 est_idle=28.15% wall=421.576 ms actual_ane_groups=88 actual_ane_refs=38559 actual_gpu_groups=0 actual_gpu_refs=0 finishes=88 waits=176 overlap_gpu_groups=130
+ds4: gpu layer-major prefill layer 27 encode=661.637 ms execute=38.061 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=28 tokens=8423 unique=209 refs=50538 sync=402.776 ms plan=0.508 ms stage/compute=429.229 ms misses=209
+ds4: Flash-MoE hybrid prefill layer=28 ane_groups=86 ane_refs=38708 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=86 gpu_overlap=123 finishes=86 waits=172
+ds4: Flash-MoE overlap plan layer=28 exec_groups=209 planned_ane_groups=86 planned_ane_refs=38708 planned_gpu_groups=123 planned_gpu_refs=11830 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=209 est_gpu=19702.0 est_ane=14282.3 est_idle=27.51% wall=427.740 ms actual_ane_groups=86 actual_ane_refs=38708 actual_gpu_groups=0 actual_gpu_refs=0 finishes=86 waits=172 overlap_gpu_groups=123
+ds4: gpu layer-major prefill layer 28 encode=833.559 ms execute=48.764 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=29 tokens=8423 unique=216 refs=50538 sync=203.334 ms plan=0.504 ms stage/compute=443.456 ms misses=216
+ds4: Flash-MoE hybrid prefill layer=29 ane_groups=78 ane_refs=39842 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=78 gpu_overlap=138 finishes=78 waits=156
+ds4: Flash-MoE overlap plan layer=29 exec_groups=216 planned_ane_groups=78 planned_ane_refs=39842 planned_gpu_groups=138 planned_gpu_refs=10696 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=216 est_gpu=19528.0 est_ane=13003.0 est_idle=33.41% wall=442.175 ms actual_ane_groups=78 actual_ane_refs=39842 actual_gpu_groups=0 actual_gpu_refs=0 finishes=78 waits=156 overlap_gpu_groups=138
+ds4: gpu layer-major prefill layer 29 encode=670.519 ms execute=52.646 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=30 tokens=8423 unique=215 refs=50538 sync=413.113 ms plan=0.347 ms stage/compute=437.155 ms misses=215
+ds4: Flash-MoE hybrid prefill layer=30 ane_groups=83 ane_refs=39362 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=83 gpu_overlap=132 finishes=83 waits=166
+ds4: Flash-MoE overlap plan layer=30 exec_groups=215 planned_ane_groups=83 planned_ane_refs=39362 planned_gpu_groups=132 planned_gpu_refs=11176 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=215 est_gpu=19624.0 est_ane=13791.4 est_idle=29.72% wall=435.782 ms actual_ane_groups=83 actual_ane_refs=39362 actual_gpu_groups=0 actual_gpu_refs=0 finishes=83 waits=166 overlap_gpu_groups=132
+ds4: gpu layer-major prefill layer 30 encode=851.770 ms execute=48.862 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=31 tokens=8423 unique=231 refs=50538 sync=215.051 ms plan=0.425 ms stage/compute=480.639 ms misses=231
+ds4: Flash-MoE hybrid prefill layer=31 ane_groups=86 ane_refs=38609 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=86 gpu_overlap=145 finishes=86 waits=172
+ds4: Flash-MoE overlap plan layer=31 exec_groups=231 planned_ane_groups=86 planned_ane_refs=38609 planned_gpu_groups=145 planned_gpu_refs=11929 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=231 est_gpu=21209.0 est_ane=14298.5 est_idle=32.58% wall=479.018 ms actual_ane_groups=86 actual_ane_refs=38609 actual_gpu_groups=0 actual_gpu_refs=0 finishes=86 waits=172 overlap_gpu_groups=145
+ds4: gpu layer-major prefill layer 31 encode=720.402 ms execute=39.659 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=32 tokens=8423 unique=206 refs=50538 sync=424.947 ms plan=0.384 ms stage/compute=427.983 ms misses=206
+ds4: Flash-MoE hybrid prefill layer=32 ane_groups=76 ane_refs=39866 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=76 gpu_overlap=130 finishes=76 waits=152
+ds4: Flash-MoE overlap plan layer=32 exec_groups=206 planned_ane_groups=76 planned_ane_refs=39866 planned_gpu_groups=130 planned_gpu_refs=10672 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=206 est_gpu=18992.0 est_ane=12658.4 est_idle=33.35% wall=426.593 ms actual_ane_groups=76 actual_ane_refs=39866 actual_gpu_groups=0 actual_gpu_refs=0 finishes=76 waits=152 overlap_gpu_groups=130
+ds4: gpu layer-major prefill layer 32 encode=854.332 ms execute=48.819 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=33 tokens=8423 unique=220 refs=50538 sync=204.532 ms plan=0.560 ms stage/compute=458.049 ms misses=220
+ds4: Flash-MoE hybrid prefill layer=33 ane_groups=77 ane_refs=40092 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=77 gpu_overlap=143 finishes=77 waits=154
+ds4: Flash-MoE overlap plan layer=33 exec_groups=220 planned_ane_groups=77 planned_ane_refs=40092 planned_gpu_groups=143 planned_gpu_refs=10446 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=220 est_gpu=19598.0 est_ane=12834.6 est_idle=34.51% wall=456.667 ms actual_ane_groups=77 actual_ane_refs=40092 actual_gpu_groups=0 actual_gpu_refs=0 finishes=77 waits=154 overlap_gpu_groups=143
+ds4: gpu layer-major prefill layer 33 encode=685.730 ms execute=52.762 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=34 tokens=8423 unique=210 refs=50538 sync=407.385 ms plan=0.369 ms stage/compute=439.484 ms misses=210
+ds4: Flash-MoE hybrid prefill layer=34 ane_groups=70 ane_refs=40669 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=70 gpu_overlap=140 finishes=70 waits=140
+ds4: Flash-MoE overlap plan layer=34 exec_groups=210 planned_ane_groups=70 planned_ane_refs=40669 planned_gpu_groups=140 planned_gpu_refs=9869 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=210 est_gpu=18829.0 est_ane=11702.3 est_idle=37.85% wall=438.255 ms actual_ane_groups=70 actual_ane_refs=40669 actual_gpu_groups=0 actual_gpu_refs=0 finishes=70 waits=140 overlap_gpu_groups=140
+ds4: gpu layer-major prefill layer 34 encode=848.432 ms execute=48.891 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=35 tokens=8423 unique=236 refs=50538 sync=204.495 ms plan=0.349 ms stage/compute=447.390 ms misses=236
+ds4: Flash-MoE hybrid prefill layer=35 ane_groups=86 ane_refs=38790 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=86 gpu_overlap=150 finishes=86 waits=172
+ds4: Flash-MoE overlap plan layer=35 exec_groups=236 planned_ane_groups=86 planned_ane_refs=38790 planned_gpu_groups=150 planned_gpu_refs=11748 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=236 est_gpu=21348.0 est_ane=14257.8 est_idle=33.21% wall=446.058 ms actual_ane_groups=86 actual_ane_refs=38790 actual_gpu_groups=0 actual_gpu_refs=0 finishes=86 waits=172 overlap_gpu_groups=150
+ds4: gpu layer-major prefill layer 35 encode=674.179 ms execute=37.513 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=36 tokens=8423 unique=199 refs=50538 sync=434.525 ms plan=0.239 ms stage/compute=458.181 ms misses=199
+ds4: Flash-MoE hybrid prefill layer=36 ane_groups=65 ane_refs=41320 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=65 gpu_overlap=134 finishes=65 waits=130
+ds4: Flash-MoE overlap plan layer=36 exec_groups=199 planned_ane_groups=65 planned_ane_refs=41320 planned_gpu_groups=134 planned_gpu_refs=9218 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=199 est_gpu=17794.0 est_ane=10914.6 est_idle=38.66% wall=456.850 ms actual_ane_groups=65 actual_ane_refs=41320 actual_gpu_groups=0 actual_gpu_refs=0 finishes=65 waits=130 overlap_gpu_groups=134
+ds4: gpu layer-major prefill layer 36 encode=894.019 ms execute=52.056 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=37 tokens=8423 unique=226 refs=50538 sync=209.229 ms plan=0.370 ms stage/compute=470.409 ms misses=226
+ds4: Flash-MoE hybrid prefill layer=37 ane_groups=75 ane_refs=40005 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=75 gpu_overlap=151 finishes=75 waits=150
+ds4: Flash-MoE overlap plan layer=37 exec_groups=226 planned_ane_groups=75 planned_ane_refs=40005 planned_gpu_groups=151 planned_gpu_refs=10533 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=226 est_gpu=20197.0 est_ane=12516.5 est_idle=38.03% wall=469.102 ms actual_ane_groups=75 actual_ane_refs=40005 actual_gpu_groups=0 actual_gpu_refs=0 finishes=75 waits=150 overlap_gpu_groups=151
+ds4: gpu layer-major prefill layer 37 encode=701.968 ms execute=51.512 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=38 tokens=8423 unique=210 refs=50538 sync=420.472 ms plan=0.396 ms stage/compute=453.986 ms misses=210
+ds4: Flash-MoE hybrid prefill layer=38 ane_groups=79 ane_refs=39823 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=79 gpu_overlap=131 finishes=79 waits=158
+ds4: Flash-MoE overlap plan layer=38 exec_groups=210 planned_ane_groups=79 planned_ane_refs=39823 planned_gpu_groups=131 planned_gpu_refs=10715 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=210 est_gpu=19099.0 est_ane=13159.8 est_idle=31.10% wall=452.592 ms actual_ane_groups=79 actual_ane_refs=39823 actual_gpu_groups=0 actual_gpu_refs=0 finishes=79 waits=158 overlap_gpu_groups=131
+ds4: gpu layer-major prefill layer 38 encode=876.660 ms execute=48.766 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=39 tokens=8423 unique=231 refs=50538 sync=204.286 ms plan=0.334 ms stage/compute=460.605 ms misses=231
+ds4: Flash-MoE hybrid prefill layer=39 ane_groups=91 ane_refs=38558 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=91 gpu_overlap=140 finishes=91 waits=182
+ds4: Flash-MoE overlap plan layer=39 exec_groups=231 planned_ane_groups=91 planned_ane_refs=38558 planned_gpu_groups=140 planned_gpu_refs=11980 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=231 est_gpu=20940.0 est_ane=15068.8 est_idle=28.04% wall=459.215 ms actual_ane_groups=91 actual_ane_refs=38558 actual_gpu_groups=0 actual_gpu_refs=0 finishes=91 waits=182 overlap_gpu_groups=140
+ds4: gpu layer-major prefill layer 39 encode=687.528 ms execute=54.964 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=40 tokens=8423 unique=212 refs=50538 sync=412.250 ms plan=0.441 ms stage/compute=471.948 ms misses=212
+ds4: Flash-MoE hybrid prefill layer=40 ane_groups=78 ane_refs=40259 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=78 gpu_overlap=134 finishes=78 waits=156
+ds4: Flash-MoE overlap plan layer=40 exec_groups=212 planned_ane_groups=78 planned_ane_refs=40259 planned_gpu_groups=134 planned_gpu_refs=10279 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=212 est_gpu=18855.0 est_ane=13001.1 est_idle=31.05% wall=470.634 ms actual_ane_groups=78 actual_ane_refs=40259 actual_gpu_groups=0 actual_gpu_refs=0 finishes=78 waits=156 overlap_gpu_groups=134
+ds4: gpu layer-major prefill layer 40 encode=885.912 ms execute=51.519 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=41 tokens=8423 unique=221 refs=50538 sync=215.701 ms plan=0.457 ms stage/compute=466.341 ms misses=221
+ds4: Flash-MoE hybrid prefill layer=41 ane_groups=93 ane_refs=38101 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=93 gpu_overlap=128 finishes=93 waits=186
+ds4: Flash-MoE overlap plan layer=41 exec_groups=221 planned_ane_groups=93 planned_ane_refs=38101 planned_gpu_groups=128 planned_gpu_refs=12437 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=221 est_gpu=20629.0 est_ane=15395.9 est_idle=25.37% wall=464.795 ms actual_ane_groups=93 actual_ane_refs=38101 actual_gpu_groups=0 actual_gpu_refs=0 finishes=93 waits=186 overlap_gpu_groups=128
+ds4: gpu layer-major prefill layer 41 encode=704.576 ms execute=38.760 ms
+ds4: Flash-MoE async pread enabled slots=8 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=42 tokens=8423 unique=227 refs=50538 sync=409.578 ms plan=0.461 ms stage/compute=467.200 ms misses=227
+ds4: Flash-MoE hybrid prefill layer=42 ane_groups=95 ane_refs=38054 gpu_i8_groups=0 gpu_i8_refs=0 fp32_groups=0 ane_min_refs=32 concurrent=1 ane_pipeline=1 output_queue=1 async_ane=95 gpu_overlap=132 finishes=95 waits=190
+ds4: Flash-MoE overlap plan layer=42 exec_groups=227 planned_ane_groups=95 planned_ane_refs=38054 planned_gpu_groups=132 planned_gpu_refs=12484 tail_gpu_groups=0 tail_gpu_refs=0 planned_ssd_groups=227 est_gpu=20932.0 est_ane=15699.7 est_idle=25.00% wall=465.860 ms actual_ane_groups=95 actual_ane_refs=38054 actual_gpu_groups=0 actual_gpu_refs=0 finishes=95 waits=190 overlap_gpu_groups=132
+ds4: gpu layer-major prefill layer 42 encode=878.342 ms execute=49.452 ms
+ds4: gpu layer-major prefill total tokens=8423 encode=32743.802 ms execute=2031.416 ms read=0.032 ms total=34776.596 ms
+ds4: Flash-MoE layer=0 sync=1.738 ms remap/install=7.589 ms misses=6
+ds4: Flash-MoE layer=1 sync=6.071 ms remap/install=7.753 ms misses=6
+ds4: Flash-MoE layer=2 sync=7.267 ms remap/install=7.196 ms misses=6
+ds4: Flash-MoE layer=3 sync=6.667 ms remap/install=7.200 ms misses=6
+ds4: Flash-MoE layer=4 sync=7.072 ms remap/install=7.362 ms misses=6
+ds4: Flash-MoE layer=5 sync=8.071 ms remap/install=8.121 ms misses=6
+ds4: Flash-MoE layer=6 sync=8.010 ms remap/install=7.232 ms misses=6
+ds4: Flash-MoE layer=7 sync=7.232 ms remap/install=7.398 ms misses=6
+ds4: Flash-MoE layer=8 sync=7.009 ms remap/install=7.289 ms misses=6
+ds4: Flash-MoE layer=9 sync=7.220 ms remap/install=7.603 ms misses=6
+ds4: Flash-MoE layer=10 sync=8.154 ms remap/install=7.651 ms misses=6
+ds4: Flash-MoE layer=11 sync=7.401 ms remap/install=7.807 ms misses=6
+ds4: Flash-MoE layer=12 sync=8.879 ms remap/install=7.539 ms misses=6
+ds4: Flash-MoE layer=13 sync=7.320 ms remap/install=7.647 ms misses=6
+ds4: Flash-MoE layer=14 sync=7.650 ms remap/install=7.799 ms misses=6
+ds4: Flash-MoE layer=15 sync=9.139 ms remap/install=7.993 ms misses=6
+ds4: Flash-MoE layer=16 sync=11.301 ms remap/install=7.723 ms misses=6
+ds4: Flash-MoE layer=17 sync=9.088 ms remap/install=7.668 ms misses=6
+ds4: Flash-MoE layer=18 sync=10.455 ms remap/install=6.667 ms misses=6
+ds4: Flash-MoE layer=19 sync=8.716 ms remap/install=6.593 ms misses=6
+ds4: Flash-MoE layer=20 sync=10.532 ms remap/install=6.065 ms misses=6
+ds4: Flash-MoE layer=21 sync=9.468 ms remap/install=6.751 ms misses=6
+ds4: Flash-MoE layer=22 sync=12.481 ms remap/install=6.769 ms misses=6
+ds4: Flash-MoE layer=23 sync=10.336 ms remap/install=5.998 ms misses=6
+ds4: Flash-MoE layer=24 sync=10.949 ms remap/install=6.143 ms misses=6
+ds4: Flash-MoE layer=25 sync=8.877 ms remap/install=7.214 ms misses=6
+ds4: Flash-MoE layer=26 sync=25.396 ms remap/install=8.118 ms misses=6
+ds4: Flash-MoE layer=27 sync=12.271 ms remap/install=6.382 ms misses=6
+ds4: Flash-MoE layer=28 sync=20.253 ms remap/install=8.325 ms misses=6
+ds4: Flash-MoE layer=29 sync=19.345 ms remap/install=8.086 ms misses=6
+ds4: Flash-MoE layer=30 sync=54.609 ms remap/install=6.513 ms misses=6
+ds4: Flash-MoE layer=31 sync=21.895 ms remap/install=9.273 ms misses=6
+ds4: Flash-MoE layer=32 sync=21.218 ms remap/install=8.220 ms misses=6
+ds4: Flash-MoE layer=33 sync=23.248 ms remap/install=7.251 ms misses=6
+ds4: Flash-MoE layer=34 sync=21.303 ms remap/install=7.075 ms misses=6
+ds4: Flash-MoE layer=35 sync=17.550 ms remap/install=7.247 ms misses=6
+ds4: Flash-MoE layer=36 sync=31.746 ms remap/install=7.465 ms misses=6
+ds4: Flash-MoE layer=37 sync=13.029 ms remap/install=7.704 ms misses=6
+ds4: Flash-MoE layer=38 sync=17.108 ms remap/install=6.032 ms misses=6
+ds4: Flash-MoE layer=39 sync=17.831 ms remap/install=5.332 ms misses=6
+ds4: Flash-MoE layer=40 sync=18.936 ms remap/install=5.626 ms misses=6
+ds4: Flash-MoE layer=41 sync=11.158 ms remap/install=5.606 ms misses=6
+ds4: Flash-MoE layer=42 sync=12.576 ms remap/install=5.587 ms misses=6
+ about
+ds4: prefill: 228.94 t/s, generation: 1.11 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=9975 hit-rate=0.0% installed=67331.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=9717 saved=2163417 (99.6%) reuse=223.64x
+ds4: Flash-MoE prefill stage stats calls=9717 bytes=65589.75 MiB pread=8607.099 ms upload=1253.816 ms gate=389.491 ms up=384.830 ms down=479.495 ms scatter=57.193 ms stage_rate=6651.49 MiB/s pread_rate=7620.42 MiB/s upload_rate=52312.10 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=34222.651 ms active=25.15% span_rate=1916.56 MiB/s issue_gap=25615.552 ms post_stage_gap=15525.172 ms same_layer_issue=10112.634 ms same_layer_post=52.121 ms cross_layer_issue=15502.918 ms cross_layer_post=15473.051 ms max_issue=527.563 ms max_post=526.536 ms issue_gaps=9716 post_gaps=9716 issue_gt1=1891 issue_gt5=627 issue_gt20=69 post_gt1=42 post_gt5=42 post_gt20=42
+ds4: Flash-MoE prefill pread bucket le16 calls=2280 refs=14191 bytes=15390.00 MiB pread=1965.549 ms issue_gap=322.647 ms post_stage_gap=12.011 ms pread_rate=7829.87 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=878 refs=20919 bytes=5926.50 MiB pread=769.516 ms issue_gap=185.741 ms post_stage_gap=4.269 ms pread_rate=7701.59 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=1030 refs=48203 bytes=6952.50 MiB pread=900.329 ms issue_gap=465.965 ms post_stage_gap=4.772 ms pread_rate=7722.18 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=1434 refs=135387 bytes=9679.50 MiB pread=1234.852 ms issue_gap=508.806 ms post_stage_gap=7.312 ms pread_rate=7838.59 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=1733 refs=319594 bytes=11697.75 MiB pread=1484.547 ms issue_gap=554.596 ms post_stage_gap=9.203 ms pread_rate=7879.68 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=1346 refs=478179 bytes=9085.50 MiB pread=1194.227 ms issue_gap=1778.883 ms post_stage_gap=8.135 ms pread_rate=7607.85 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=1016 refs=1156661 bytes=6858.00 MiB pread=1058.079 ms issue_gap=21798.914 ms post_stage_gap=15479.470 ms pread_rate=6481.56 MiB/s
+ds4: ANE prefill stats calls=3981 ok=3981 skipped_big_refs=0 compile_attempts=4 compile_failures=0 eval_calls=5629 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=61.162 ms input=1.480 ms ane_eval=13205.708 ms ane_eval_a=13205.708 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=13205.708 ms writeback=49.668 ms helper_avg=2.346013 ms ane_calls=5629 ane_call_avg=2.346013 ms
+ds4: ANE prefill timing2 output_pack=437.920 ms measured_total=13755.938 ms
+ds4: ANE prefill timing3 dequant_wait=3047.049 ms post_wait=16733.335 ms x_zero=50.216 ms x_copy=132.222 ms out_zero=219.519 ms out_f16_copy=253.372 ms output_convert=437.920 ms output_gpu_encode=0.000 ms output_chunks=5629 output_elems=6748295168 output_convert_rate=15.410 Gelem/s
+ds4: ANE prefill timing4 wait_predict=7741.284 ms finish_join_ane=0.000 ms finish_join_post=20.599 ms wait_predict_calls=3981 finish_calls=3981
+ds4: ANE prefill chunks refs=1647533 padded_refs=2152128 pad_util=76.55% le16=44 le64=570 le128=842 full=1660
+ds4: ANE prefill batch_hist B64=433 refs=20148 util=72.7% B128=703 refs=67057 util=74.5% B256=1039 refs=193676 util=72.8% B512=3454 refs=1366652 util=77.3%

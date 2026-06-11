@@ -1,0 +1,156 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=64, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.277 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=64 gpu-bank=18576.00 MiB
+ds4: prefill compute: routed experts = GPU MPP-int8 / NAX (W8A8) | dense proj = W8A8 int8 (>= 4096 tok, else fp16-NAX)
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=1, banks=4)
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: MPP/NAX int8 partial-tile workaround active (64-row MPP tiles, tail rows use legacy GPU; set DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)
+ds4: Flash-MoE prefill layer=0 tokens=8423 unique=256 refs=50538 sync=446.318 ms plan=1.153 ms stage/compute=404.303 ms misses=256
+ds4: metal layer-major prefill layer 0 encode=871.120 ms execute=91.741 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=1 tokens=8423 unique=256 refs=50538 sync=98.883 ms plan=0.309 ms stage/compute=344.959 ms misses=256
+ds4: metal layer-major prefill layer 1 encode=461.862 ms execute=18.189 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=2 tokens=8423 unique=256 refs=50538 sync=373.099 ms plan=0.310 ms stage/compute=350.287 ms misses=256
+ds4: metal layer-major prefill layer 2 encode=725.412 ms execute=17.553 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=3 tokens=8423 unique=247 refs=50538 sync=116.020 ms plan=0.428 ms stage/compute=295.331 ms misses=247
+ds4: metal layer-major prefill layer 3 encode=429.439 ms execute=17.842 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=4 tokens=8423 unique=241 refs=50538 sync=289.469 ms plan=0.389 ms stage/compute=285.539 ms misses=241
+ds4: metal layer-major prefill layer 4 encode=576.351 ms execute=18.195 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=5 tokens=8423 unique=250 refs=50538 sync=115.111 ms plan=0.324 ms stage/compute=317.455 ms misses=250
+ds4: metal layer-major prefill layer 5 encode=449.572 ms execute=17.691 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=6 tokens=8423 unique=245 refs=50538 sync=288.439 ms plan=0.331 ms stage/compute=288.192 ms misses=245
+ds4: metal layer-major prefill layer 6 encode=577.996 ms execute=18.090 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=7 tokens=8423 unique=251 refs=50538 sync=115.561 ms plan=0.380 ms stage/compute=283.569 ms misses=251
+ds4: metal layer-major prefill layer 7 encode=417.751 ms execute=17.089 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=8 tokens=8423 unique=242 refs=50538 sync=289.907 ms plan=0.341 ms stage/compute=289.674 ms misses=242
+ds4: metal layer-major prefill layer 8 encode=580.840 ms execute=17.900 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=9 tokens=8423 unique=251 refs=50538 sync=114.767 ms plan=0.441 ms stage/compute=303.215 ms misses=251
+ds4: metal layer-major prefill layer 9 encode=436.667 ms execute=18.264 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=10 tokens=8423 unique=246 refs=50538 sync=289.376 ms plan=0.384 ms stage/compute=287.897 ms misses=246
+ds4: metal layer-major prefill layer 10 encode=578.550 ms execute=18.200 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=11 tokens=8423 unique=252 refs=50538 sync=115.794 ms plan=0.320 ms stage/compute=289.658 ms misses=252
+ds4: metal layer-major prefill layer 11 encode=423.862 ms execute=17.894 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=12 tokens=8423 unique=238 refs=50538 sync=286.827 ms plan=0.377 ms stage/compute=273.127 ms misses=238
+ds4: metal layer-major prefill layer 12 encode=561.250 ms execute=18.681 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=13 tokens=8423 unique=243 refs=50538 sync=118.061 ms plan=0.335 ms stage/compute=271.542 ms misses=243
+ds4: metal layer-major prefill layer 13 encode=408.491 ms execute=18.512 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=14 tokens=8423 unique=242 refs=50538 sync=291.081 ms plan=0.375 ms stage/compute=268.881 ms misses=242
+ds4: metal layer-major prefill layer 14 encode=561.188 ms execute=18.689 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=15 tokens=8423 unique=243 refs=50538 sync=116.645 ms plan=0.356 ms stage/compute=268.788 ms misses=243
+ds4: metal layer-major prefill layer 15 encode=403.703 ms execute=17.613 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=16 tokens=8423 unique=242 refs=50538 sync=290.928 ms plan=0.354 ms stage/compute=273.927 ms misses=242
+ds4: metal layer-major prefill layer 16 encode=566.179 ms execute=18.524 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=17 tokens=8423 unique=241 refs=50538 sync=117.222 ms plan=0.334 ms stage/compute=275.179 ms misses=241
+ds4: metal layer-major prefill layer 17 encode=411.108 ms execute=18.719 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=18 tokens=8423 unique=242 refs=50538 sync=291.243 ms plan=0.339 ms stage/compute=259.851 ms misses=242
+ds4: metal layer-major prefill layer 18 encode=552.313 ms execute=17.956 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=19 tokens=8423 unique=240 refs=50538 sync=117.319 ms plan=0.334 ms stage/compute=291.882 ms misses=240
+ds4: metal layer-major prefill layer 19 encode=428.400 ms execute=18.605 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=20 tokens=8423 unique=240 refs=50538 sync=289.716 ms plan=0.417 ms stage/compute=272.633 ms misses=240
+ds4: metal layer-major prefill layer 20 encode=563.671 ms execute=17.769 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=21 tokens=8423 unique=244 refs=50538 sync=118.376 ms plan=0.330 ms stage/compute=282.170 ms misses=244
+ds4: metal layer-major prefill layer 21 encode=421.462 ms execute=17.688 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=22 tokens=8423 unique=247 refs=50538 sync=289.675 ms plan=0.433 ms stage/compute=275.801 ms misses=247
+ds4: metal layer-major prefill layer 22 encode=566.849 ms execute=19.357 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=23 tokens=8423 unique=247 refs=50538 sync=117.475 ms plan=0.365 ms stage/compute=294.802 ms misses=247
+ds4: metal layer-major prefill layer 23 encode=431.417 ms execute=18.487 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=24 tokens=8423 unique=238 refs=50538 sync=290.657 ms plan=0.333 ms stage/compute=276.044 ms misses=238
+ds4: metal layer-major prefill layer 24 encode=567.979 ms execute=18.666 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=25 tokens=8423 unique=247 refs=50538 sync=117.320 ms plan=0.346 ms stage/compute=287.017 ms misses=247
+ds4: metal layer-major prefill layer 25 encode=423.573 ms execute=18.281 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=26 tokens=8423 unique=239 refs=50538 sync=290.871 ms plan=0.356 ms stage/compute=258.035 ms misses=239
+ds4: metal layer-major prefill layer 26 encode=550.109 ms execute=18.931 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=27 tokens=8423 unique=247 refs=50538 sync=117.619 ms plan=0.351 ms stage/compute=287.323 ms misses=247
+ds4: metal layer-major prefill layer 27 encode=423.134 ms execute=17.575 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=28 tokens=8423 unique=241 refs=50538 sync=291.874 ms plan=0.384 ms stage/compute=281.747 ms misses=241
+ds4: metal layer-major prefill layer 28 encode=574.955 ms execute=18.290 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=29 tokens=8423 unique=247 refs=50538 sync=118.176 ms plan=0.355 ms stage/compute=282.715 ms misses=247
+ds4: metal layer-major prefill layer 29 encode=420.744 ms execute=17.788 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=30 tokens=8423 unique=245 refs=50538 sync=289.472 ms plan=0.337 ms stage/compute=285.227 ms misses=245
+ds4: metal layer-major prefill layer 30 encode=575.892 ms execute=19.093 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=31 tokens=8423 unique=248 refs=50538 sync=117.423 ms plan=0.343 ms stage/compute=283.930 ms misses=248
+ds4: metal layer-major prefill layer 31 encode=421.226 ms execute=20.250 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=32 tokens=8423 unique=242 refs=50538 sync=291.345 ms plan=0.343 ms stage/compute=279.796 ms misses=242
+ds4: metal layer-major prefill layer 32 encode=572.469 ms execute=18.353 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=33 tokens=8423 unique=247 refs=50538 sync=117.173 ms plan=0.345 ms stage/compute=278.826 ms misses=247
+ds4: metal layer-major prefill layer 33 encode=415.667 ms execute=17.280 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=34 tokens=8423 unique=250 refs=50538 sync=289.809 ms plan=0.367 ms stage/compute=277.218 ms misses=250
+ds4: metal layer-major prefill layer 34 encode=568.309 ms execute=18.442 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=35 tokens=8423 unique=246 refs=50538 sync=117.012 ms plan=0.352 ms stage/compute=285.692 ms misses=246
+ds4: metal layer-major prefill layer 35 encode=422.201 ms execute=17.750 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=36 tokens=8423 unique=246 refs=50538 sync=291.449 ms plan=0.355 ms stage/compute=273.968 ms misses=246
+ds4: metal layer-major prefill layer 36 encode=566.694 ms execute=17.522 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=37 tokens=8423 unique=249 refs=50538 sync=116.645 ms plan=0.324 ms stage/compute=279.149 ms misses=249
+ds4: metal layer-major prefill layer 37 encode=415.168 ms execute=17.436 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=38 tokens=8423 unique=250 refs=50538 sync=290.711 ms plan=0.370 ms stage/compute=286.085 ms misses=250
+ds4: metal layer-major prefill layer 38 encode=578.103 ms execute=18.293 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=39 tokens=8423 unique=253 refs=50538 sync=116.781 ms plan=0.311 ms stage/compute=287.069 ms misses=253
+ds4: metal layer-major prefill layer 39 encode=422.554 ms execute=17.610 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=40 tokens=8423 unique=235 refs=50538 sync=289.483 ms plan=0.333 ms stage/compute=264.099 ms misses=235
+ds4: metal layer-major prefill layer 40 encode=554.892 ms execute=17.539 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=41 tokens=8423 unique=235 refs=50538 sync=118.169 ms plan=0.373 ms stage/compute=278.464 ms misses=235
+ds4: metal layer-major prefill layer 41 encode=415.395 ms execute=17.629 ms
+ds4: Flash-MoE async pread enabled slots=24 prefetch=1 after_stage=1
+ds4: Flash-MoE prefill layer=42 tokens=8423 unique=234 refs=50538 sync=290.725 ms plan=0.328 ms stage/compute=272.064 ms misses=234
+ds4: metal layer-major prefill layer 42 encode=564.067 ms execute=17.835 ms
+ds4: metal layer-major prefill total tokens=8423 encode=21953.646 ms execute=856.028 ms read=0.046 ms total=22810.827 ms
+ds4: prefill full: 8423 tokens in 22928.5 ms (367.4 t/s)
+We
+ds4: prefill: 367.36 t/s, generation: 1.21 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10799 hit-rate=0.0% resident-slots=258/2752 (9.4%, avg=6.0/layer min=6 max=6 of 64) installed=72893.25 MiB
+ds4: Flash-MoE decode prefetch calls=43 loads=258 bytes=1741.50 MiB pread=355.901 ms upload=117.273 ms overlap-flushes=43
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10541 saved=2162593 (99.5%) reuse=206.16x
+ds4: Flash-MoE prefill stage stats calls=10541 bytes=71151.75 MiB pread=7435.279 ms upload=1190.281 ms gate=367.916 ms up=363.953 ms down=458.412 ms scatter=11.518 ms stage_rate=8248.94 MiB/s pread_rate=9569.48 MiB/s upload_rate=59777.27 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=22206.892 ms active=33.48% span_rate=3204.04 MiB/s issue_gap=16267.286 ms post_stage_gap=9965.289 ms same_layer_issue=5740.852 ms same_layer_post=0.000 ms cross_layer_issue=10526.434 ms cross_layer_post=9965.289 ms max_issue=411.525 ms max_post=395.810 ms issue_gaps=7795 post_gaps=42 issue_gt1=1654 issue_gt5=50 issue_gt20=43 post_gt1=42 post_gt5=42 post_gt20=42
+ds4: Flash-MoE prefill pread bucket le16 calls=1586 refs=11183 bytes=10705.50 MiB pread=1198.858 ms issue_gap=3115.495 ms post_stage_gap=2190.900 ms pread_rate=8929.75 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=911 refs=21829 bytes=6149.25 MiB pread=663.345 ms issue_gap=969.073 ms post_stage_gap=467.820 ms pread_rate=9270.06 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=1322 refs=62381 bytes=8923.50 MiB pread=981.815 ms issue_gap=1810.099 ms post_stage_gap=1091.306 ms pread_rate=9088.78 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=1857 refs=176284 bytes=12534.75 MiB pread=1336.391 ms issue_gap=2594.943 ms post_stage_gap=1557.446 ms pread_rate=9379.55 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=2301 refs=429713 bytes=15531.75 MiB pread=1489.010 ms issue_gap=3615.365 ms post_stage_gap=2108.391 ms pread_rate=10430.92 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=1626 refs=579919 bytes=10975.50 MiB pread=1102.252 ms issue_gap=2380.255 ms post_stage_gap=1303.161 ms pread_rate=9957.34 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=938 refs=891825 bytes=6331.50 MiB pread=663.608 ms issue_gap=1782.056 ms post_stage_gap=1246.265 ms pread_rate=9541.02 MiB/s

@@ -1,0 +1,35 @@
+run=sweep_ane_8k_c4096_mr64_r1
+mode=flash-moe
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/prefill_chunk_minrefs_m5max_20260602_154858_segB/sweep_ane_8k_c4096_mr64_r1.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prefill_kernel=Flash-MoE SSD ANE routed-MoE (M5 single-cluster): GPU dedup + ANE/GPU overlap scheduler
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+prefill_size=8k ctx=10000 tokens=1 chunk=4096 raw_cap=8704 slots=96
+ane=single-cluster dual=0 threads=1 shared_expert=0 oproj=0
+async_pread=1 prefetch=3 after_stage=1
+summary_detail=concise
+
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = fp16-NAX (half x half)
+ds4: gpu chunked prefill start=0 tokens=8423 chunk=4096 encode=26374.785 ms execute=838.835 ms read=0.008 ms total=27236.287 ms
+ds4: ----------------------------------------
+ds4: prefill: 305.97 t/s, generation: 1.33 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=26140 hit-rate=0.0% resident-slots=258/4128 (6.2%, avg=6.0/layer min=6 max=6 of 96) installed=176445.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=25882 saved=2147252 (98.8%) reuse=83.96x
+ds4: Flash-MoE prefill stage stats calls=25882 bytes=174703.50 MiB pread=6026.297 ms upload=3154.121 ms gate=968.907 ms up=978.888 ms down=1206.326 ms scatter=32.150 ms stage_rate=19030.02 MiB/s pread_rate=28990.19 MiB/s upload_rate=55388.97 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=27045.755 ms active=22.28% span_rate=6459.55 MiB/s issue_gap=625165.269 ms post_stage_gap=8005.395 ms same_layer_issue=612499.875 ms same_layer_post=11.395 ms cross_layer_issue=12665.394 ms cross_layer_post=7994.000 ms max_issue=393.055 ms max_post=165.007 ms issue_gaps=19304 post_gaps=153 issue_gt1=5028 issue_gt5=3962 issue_gt20=3673 post_gt1=124 post_gt5=112 post_gt20=69
+ds4: Flash-MoE prefill pread bucket le16 calls=11387 refs=64257 bytes=76862.25 MiB pread=2854.722 ms issue_gap=250060.840 ms post_stage_gap=28.847 ms pread_rate=26924.60 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=2816 refs=66974 bytes=19008.00 MiB pread=632.672 ms issue_gap=80658.184 ms post_stage_gap=24.613 ms pread_rate=30044.00 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=3280 refs=154605 bytes=22140.00 MiB pread=719.499 ms issue_gap=88136.282 ms post_stage_gap=104.534 ms pread_rate=30771.41 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=3709 refs=344126 bytes=25035.75 MiB pread=749.092 ms issue_gap=101824.895 ms post_stage_gap=302.519 ms pread_rate=33421.46 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=2706 refs=485239 bytes=18265.50 MiB pread=583.744 ms issue_gap=57319.093 ms post_stage_gap=42.013 ms pread_rate=31290.26 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=1303 refs=458167 bytes=8795.25 MiB pread=319.593 ms issue_gap=26711.676 ms post_stage_gap=499.523 ms pread_rate=27520.16 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=681 refs=599766 bytes=4596.75 MiB pread=166.975 ms issue_gap=20454.299 ms post_stage_gap=7003.346 ms pread_rate=27529.57 MiB/s
+ds4: ANE prefill stats calls=4926 ok=4926 skipped_big_refs=0 compile_attempts=1 compile_failures=0 eval_calls=7641 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=36.650 ms input=1.367 ms ane_eval=26235.788 ms ane_eval_a=26235.788 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=26235.788 ms writeback=20.643 ms helper_avg=3.433554 ms ane_calls=7641 ane_call_avg=3.433554 ms
+ds4: ANE prefill timing2 output_pack=19.537 ms measured_total=26313.985 ms
+ds4: ANE prefill timing3 dequant_wait=3140.252 ms post_wait=0.000 ms x_zero=41.792 ms x_copy=103.306 ms out_zero=279.689 ms out_f16_copy=232.448 ms output_convert=19.537 ms output_gpu_encode=19.537 ms output_chunks=4926 output_elems=5374681088 output_convert_rate=275.103 Gelem/s
+ds4: ANE prefill timing4 wait_predict=0.000 ms finish_join_ane=1805.768 ms finish_join_post=0.000 ms wait_predict_calls=0 finish_calls=4926
+ds4: ANE prefill chunks refs=1312178 padded_refs=1956096 pad_util=67.08% le16=160 le64=432 le128=2191 full=2725
+ds4: ANE prefill batch_hist B256=7641 refs=1312178 util=67.1%

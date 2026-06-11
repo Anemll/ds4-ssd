@@ -1,0 +1,13 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=3072, raw_kv_rows=3072, raw_window=128, effective_chunk=2944; target raw cap for one chunk is 3328, also requires ctx >= that value)
+ds4: context buffers 316.54 MiB (ctx=3072, backend=metal, prefill_chunk=3072, raw_kv_rows=3072, compressed_kv_rows=770)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal lazy model views enabled (range 5.09..82702.74 MiB); model tensors will be wrapped per command batch
+ds4: Metal mapped mmaped model as 0 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: resident-NAX tile n_tokens=1098 -> sync-bridge=ON (sync_max_tokens=7168, src=auto(tile<=max)) -> slow count-readback (map_wait)

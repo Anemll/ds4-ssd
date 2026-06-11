@@ -1,0 +1,62 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=2048, raw_kv_rows=2048, raw_window=128, effective_chunk=1920; target raw cap for one chunk is 2304, also requires ctx >= that value)
+ds4: context buffers 207.09 MiB (ctx=2048, backend=metal, prefill_chunk=2048, raw_kv_rows=2048, compressed_kv_rows=514)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 4.082 ms, residency requested in 572.802 ms, warmup 3.205 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.1 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: resident-NAX tile n_tokens=260 -> sync-bridge=ON (sync_max_tokens=7168, src=auto(tile<=max)) -> slow count-readback (map_wait)
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=246 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=24 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=16.266 ms encode_wall=0.842 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=249 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=19 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=161.335 ms encode_wall=0.475 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=248 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=20 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=163.520 ms encode_wall=0.411 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=161 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=166 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=160.491 ms encode_wall=0.278 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=138 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=136 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=108.486 ms encode_wall=0.249 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=155 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=118 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=92.934 ms encode_wall=0.278 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=151 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=144 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=104.746 ms encode_wall=0.249 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=140 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=145 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=101.082 ms encode_wall=0.268 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=125 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=137 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=95.996 ms encode_wall=0.217 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=163 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=128 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=85.670 ms encode_wall=0.292 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=157 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=96 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=110.005 ms encode_wall=0.260 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=147 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=106 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=104.770 ms encode_wall=0.265 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=138 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=142 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=99.995 ms encode_wall=0.249 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=129 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=118 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=93.278 ms encode_wall=0.249 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=138 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=155 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=89.015 ms encode_wall=0.253 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=129 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=128 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=93.099 ms encode_wall=0.252 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=145 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=145 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=88.720 ms encode_wall=0.260 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=148 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=89 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=97.602 ms encode_wall=0.285 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=146 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=99 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=101.144 ms encode_wall=0.248 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=163 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=110 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=97.928 ms encode_wall=0.311 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=149 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=149 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=110.157 ms encode_wall=0.284 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=156 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=117 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=100.505 ms encode_wall=0.270 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=157 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=132 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=105.808 ms encode_wall=0.267 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=151 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=123 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=104.908 ms encode_wall=0.287 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=137 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=151 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=102.784 ms encode_wall=0.238 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=161 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=113 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=92.824 ms encode_wall=0.271 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=138 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=150 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=109.164 ms encode_wall=0.260 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=163 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=198 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=93.201 ms encode_wall=0.324 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=138 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=174 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=110.403 ms encode_wall=0.270 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=150 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=196 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=93.738 ms encode_wall=0.268 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=157 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=85 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=102.216 ms encode_wall=0.267 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=158 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=109 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=104.921 ms encode_wall=0.296 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=147 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=147 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=107.192 ms encode_wall=0.276 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=152 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=93 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=99.119 ms encode_wall=0.277 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=160 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=151 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=103.684 ms encode_wall=0.268 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=173 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=112 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=107.108 ms encode_wall=0.286 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=137 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=177 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=116.835 ms encode_wall=0.243 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=155 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=151 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=93.132 ms encode_wall=0.285 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=144 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=166 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=105.414 ms encode_wall=0.273 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=167 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=140 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=96.782 ms encode_wall=0.293 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=139 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=200 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=113.094 ms encode_wall=0.252 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=158 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=209 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=94.139 ms encode_wall=0.272 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=260 experts=160 refs=1560 fused_experts=0 fused_refs=0 total_refs=1560 max_refs=139 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=107.589 ms encode_wall=0.268 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: gpu graph prefill total tokens=260 encode=4463.762 ms execute=111.331 ms read=0.048 ms total=4575.143 ms
+ds4: prefill full: 260 tokens in 4575.2 ms (56.8 t/s)
+We
+ds4: ----------------------------------------
+ds4: prefill: 56.83 t/s, generation: 10752.69 t/s

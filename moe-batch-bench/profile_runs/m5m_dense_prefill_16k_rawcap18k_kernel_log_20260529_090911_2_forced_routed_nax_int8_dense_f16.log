@@ -1,0 +1,99 @@
+ds4-bench: context buffers 2103.60 MiB (ctx=16386, backend=metal, prefill_chunk=16384, raw_kv_rows=16386, compressed_kv_rows=4098)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 7.783s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 3.320 ms, residency requested in 879.277 ms, warmup 3.712 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.0 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident MoE kernel log: tokens=16258 route=forced/resident-MPP-NAX-int8 use_mm_id=1 mpp_shape=1 mpp_requested=1 mpp_forced=1 mpp_should_run=1 mpp_min_tokens=64 mpp_bridge=compact-forced mpp_mode=int8 mpp_fused_dequant=1 mpp_full_fused=0 mpp_fused_gate_up=0 gate_type=IQ2_XXS down_type=Q2_K experts=6 map_kernel=kernel_mul_mm_id_map0_ne20_6 gate_kernel=kernel_mul_mm_id_iq2_xxs_f32 up_kernel=kernel_mul_mm_id_iq2_xxs_f32 down_kernel=kernel_mul_mm_id_q2_K_f32 gate_tile=32 down_tile=32 mid=f32 activation=GPU_swiglu_weight sum=GPU_sum_experts dense_proj=fp16-NAX dense_i8_min=4096 mpp_kernels="int8: gather_i8 + ds4_mpp_iq2_i8_i32_counted gate/up + swiglu_i32 + ds4_mpp_q2k_i8_i32_counted"
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.589 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.400 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.604 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.375 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.351 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.357 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.368 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.367 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.336 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.639 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.324 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.338 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.400 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.565 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.359 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.328 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.320 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.413 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.327 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.335 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.434 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.358 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.394 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.332 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.365 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.346 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.364 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.382 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.355 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.335 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.419 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.347 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.403 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.364 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.351 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.338 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.517 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.326 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.356 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.354 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.357 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.350 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX compact MoE tokens=16258 indirect=1 encode_wall=0.395 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=181 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=15 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.154 ms encode_wall=0.513 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=176 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=13 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=3.834 ms encode_wall=0.467 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=176 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=16 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.265 ms encode_wall=0.356 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=141 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=23 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.311 ms encode_wall=0.301 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=132 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=55 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.256 ms encode_wall=0.278 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=148 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=34 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.142 ms encode_wall=0.311 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=139 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=28 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.820 ms encode_wall=0.276 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=141 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=62 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.169 ms encode_wall=0.284 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=124 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=58 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.120 ms encode_wall=0.444 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=152 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=25 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.443 ms encode_wall=0.325 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=140 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=35 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.209 ms encode_wall=0.278 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=131 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=35 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.217 ms encode_wall=0.271 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=125 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=47 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.944 ms encode_wall=0.252 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=100 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=44 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.900 ms encode_wall=0.206 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=115 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=80 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.142 ms encode_wall=0.230 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=114 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=65 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.563 ms encode_wall=0.250 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=110 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=87 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.794 ms encode_wall=0.223 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=111 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=58 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.417 ms encode_wall=0.273 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=102 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=68 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.262 ms encode_wall=0.207 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=136 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=45 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.140 ms encode_wall=0.288 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=106 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=56 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.047 ms encode_wall=0.262 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=128 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=37 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.765 ms encode_wall=0.268 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=137 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=51 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.830 ms encode_wall=0.266 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=109 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=63 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.187 ms encode_wall=0.220 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=119 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=70 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.963 ms encode_wall=0.244 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=119 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=55 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.815 ms encode_wall=0.250 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=86 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=100 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.168 ms encode_wall=0.180 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=96 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=66 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.417 ms encode_wall=0.337 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=89 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=88 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.424 ms encode_wall=0.197 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=105 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=76 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=5.066 ms encode_wall=0.221 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=92 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=82 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.953 ms encode_wall=0.199 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=101 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=68 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.277 ms encode_wall=0.206 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=91 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=87 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.920 ms encode_wall=0.187 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=86 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=55 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.324 ms encode_wall=0.356 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=81 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=101 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=11.174 ms encode_wall=0.175 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=90 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=73 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.202 ms encode_wall=0.191 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=88 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=98 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.901 ms encode_wall=0.185 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=105 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=79 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.177 ms encode_wall=0.215 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=97 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=74 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.557 ms encode_wall=0.203 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=119 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=76 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.172 ms encode_wall=0.247 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=91 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=56 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.926 ms encode_wall=0.194 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=106 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=39 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=4.519 ms encode_wall=0.362 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: resident MPP/NAX standard MoE mode=int8 tokens=126 experts=120 refs=756 fused_experts=0 fused_refs=0 total_refs=756 max_refs=31 hybrid_min_refs=0 gpu_tail_refs=0 map_wait=10.477 ms encode_wall=0.239 ms w_qscale=512 x_qscale=32 mid_qscale=32
+ds4: prefill full: 16384 tokens in 34761.3 ms (471.3 t/s)
+16384,16384,471.33,1,16.50,249505164

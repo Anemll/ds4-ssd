@@ -1,0 +1,69 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=6144, raw_kv_rows=6144, raw_window=128, effective_chunk=6016; target raw cap for one chunk is 6400, also requires ctx >= that value)
+ds4: context buffers 668.90 MiB (ctx=6144, backend=metal, prefill_chunk=6144, raw_kv_rows=6144, compressed_kv_rows=1538)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal lazy model views enabled (range 5.09..82702.74 MiB); model tensors will be wrapped per command batch
+ds4: Metal mapped mmaped model as 0 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): ANE hot + overlapped per-expert GPU gather/scatter cold  [per-token table path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ANE (requested): dual-cluster=off workers=1 multi-active=on tiled-fused=on queue=8 refs=256..1024 batch=256 call_max_refs=256
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: resident routed MoE using ANE/GPU DeDup prefill (ANE refs >= 256, cold tail: classic GPU gather/scatter overlapped)
+ds4: resident MPP/NAX prefill layer=0 mpp_groups=0 mpp_refs=0 fallback_groups=250 fallback_refs=24354 ane_groups=6 ane_refs=1710 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=1 mpp_groups=0 mpp_refs=0 fallback_groups=251 fallback_refs=24689 ane_groups=5 ane_refs=1375 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=2 mpp_groups=0 mpp_refs=0 fallback_groups=246 fallback_refs=23198 ane_groups=10 ane_refs=2866 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=3 mpp_groups=0 mpp_refs=0 fallback_groups=227 fallback_refs=17909 ane_groups=20 ane_refs=8155 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=4 mpp_groups=0 mpp_refs=0 fallback_groups=218 fallback_refs=14544 ane_groups=22 ane_refs=11520 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=5 mpp_groups=0 mpp_refs=0 fallback_groups=239 fallback_refs=20142 ane_groups=12 ane_refs=5922 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=6 mpp_groups=0 mpp_refs=0 fallback_groups=233 fallback_refs=18483 ane_groups=16 ane_refs=7581 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=7 mpp_groups=0 mpp_refs=0 fallback_groups=233 fallback_refs=18659 ane_groups=15 ane_refs=7405 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=8 mpp_groups=0 mpp_refs=0 fallback_groups=223 fallback_refs=15011 ane_groups=23 ane_refs=11053 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=9 mpp_groups=0 mpp_refs=0 fallback_groups=237 fallback_refs=18674 ane_groups=14 ane_refs=7390 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=10 mpp_groups=0 mpp_refs=0 fallback_groups=227 fallback_refs=16682 ane_groups=21 ane_refs=9382 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=11 mpp_groups=0 mpp_refs=0 fallback_groups=221 fallback_refs=14863 ane_groups=27 ane_refs=11201 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=12 mpp_groups=0 mpp_refs=0 fallback_groups=213 fallback_refs=14172 ane_groups=26 ane_refs=11892 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=13 mpp_groups=0 mpp_refs=0 fallback_groups=213 fallback_refs=14127 ane_groups=29 ane_refs=11937 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=14 mpp_groups=0 mpp_refs=0 fallback_groups=203 fallback_refs=14056 ane_groups=25 ane_refs=12008 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=15 mpp_groups=0 mpp_refs=0 fallback_groups=199 fallback_refs=14297 ane_groups=26 ane_refs=11767 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=16 mpp_groups=0 mpp_refs=0 fallback_groups=209 fallback_refs=14677 ane_groups=22 ane_refs=11387 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=17 mpp_groups=0 mpp_refs=0 fallback_groups=214 fallback_refs=16267 ane_groups=22 ane_refs=9797 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=18 mpp_groups=0 mpp_refs=0 fallback_groups=215 fallback_refs=14857 ane_groups=22 ane_refs=11207 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=19 mpp_groups=0 mpp_refs=0 fallback_groups=230 fallback_refs=18935 ane_groups=18 ane_refs=7129 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=20 mpp_groups=0 mpp_refs=0 fallback_groups=221 fallback_refs=18797 ane_groups=20 ane_refs=7267 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=21 mpp_groups=0 mpp_refs=0 fallback_groups=209 fallback_refs=13385 ane_groups=29 ane_refs=12679 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=22 mpp_groups=0 mpp_refs=0 fallback_groups=209 fallback_refs=14991 ane_groups=27 ane_refs=11073 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=23 mpp_groups=0 mpp_refs=0 fallback_groups=209 fallback_refs=15465 ane_groups=26 ane_refs=10599 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=24 mpp_groups=0 mpp_refs=0 fallback_groups=207 fallback_refs=15277 ane_groups=27 ane_refs=10787 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=25 mpp_groups=0 mpp_refs=0 fallback_groups=202 fallback_refs=14457 ane_groups=28 ane_refs=11607 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=26 mpp_groups=0 mpp_refs=0 fallback_groups=199 fallback_refs=14021 ane_groups=23 ane_refs=12043 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=27 mpp_groups=0 mpp_refs=0 fallback_groups=202 fallback_refs=14276 ane_groups=27 ane_refs=11788 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=28 mpp_groups=0 mpp_refs=0 fallback_groups=192 fallback_refs=15416 ane_groups=25 ane_refs=10648 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=29 mpp_groups=0 mpp_refs=0 fallback_groups=202 fallback_refs=14274 ane_groups=30 ane_refs=11790 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=30 mpp_groups=0 mpp_refs=0 fallback_groups=206 fallback_refs=14294 ane_groups=28 ane_refs=11770 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=31 mpp_groups=0 mpp_refs=0 fallback_groups=207 fallback_refs=13131 ane_groups=30 ane_refs=12933 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=32 mpp_groups=0 mpp_refs=0 fallback_groups=208 fallback_refs=15052 ane_groups=24 ane_refs=11012 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=33 mpp_groups=0 mpp_refs=0 fallback_groups=197 fallback_refs=11623 ane_groups=34 ane_refs=14441 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=34 mpp_groups=0 mpp_refs=0 fallback_groups=193 fallback_refs=13739 ane_groups=24 ane_refs=12325 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=35 mpp_groups=0 mpp_refs=0 fallback_groups=213 fallback_refs=14219 ane_groups=27 ane_refs=11845 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=36 mpp_groups=0 mpp_refs=0 fallback_groups=193 fallback_refs=10515 ane_groups=32 ane_refs=15549 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=37 mpp_groups=0 mpp_refs=0 fallback_groups=211 fallback_refs=16682 ane_groups=22 ane_refs=9382 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=38 mpp_groups=0 mpp_refs=0 fallback_groups=213 fallback_refs=13660 ane_groups=27 ane_refs=12404 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=39 mpp_groups=0 mpp_refs=0 fallback_groups=221 fallback_refs=16827 ane_groups=22 ane_refs=9237 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=40 mpp_groups=0 mpp_refs=0 fallback_groups=198 fallback_refs=12135 ane_groups=29 ane_refs=13929 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=41 mpp_groups=0 mpp_refs=0 fallback_groups=214 fallback_refs=15131 ane_groups=28 ane_refs=10933 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=42 mpp_groups=0 mpp_refs=0 fallback_groups=202 fallback_refs=14441 ane_groups=29 ane_refs=11623 ane_min_refs=256 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: metal layer-major prefill total tokens=4344 encode=8320.005 ms execute=4047.238 ms read=0.036 ms total=12367.306 ms
+ds4: prefill full: 4344 tokens in 12624.8 ms (344.1 t/s)
+We
+ds4: ----------------------------------------
+ds4: prefill: 344.05 t/s, generation: 12048.19 t/s
+ds4: ANE prefill stats calls=999 ok=999 skipped_big_refs=0 compile_attempts=1 compile_failures=0 eval_calls=2334 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=5.950 ms input=0.272 ms ane_eval=15836.180 ms ane_eval_a=15836.180 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=15836.180 ms writeback=4.577 ms helper_avg=6.784996 ms ane_calls=2334 ane_call_avg=6.784996 ms
+ds4: ANE prefill timing2 output_pack=4.286 ms measured_total=15851.265 ms
+ds4: ANE prefill timing3 dequant_wait=2199.270 ms post_wait=0.000 ms x_zero=13.985 ms x_copy=36.260 ms out_zero=121.280 ms out_f16_copy=71.345 ms output_convert=4.286 ms output_gpu_encode=4.286 ms output_chunks=999 output_elems=1803665408 output_convert_rate=420.827 Gelem/s
+ds4: ANE prefill timing4 wait_predict=0.000 ms finish_join_ane=2693.002 ms finish_join_post=0.000 ms wait_predict_calls=0 finish_calls=999
+ds4: ANE prefill chunks refs=440348 padded_refs=597504 pad_util=73.70% le16=127 le64=276 le128=255 full=1347
+ds4: ANE prefill batch_hist B256=2334 refs=440348 util=73.7%

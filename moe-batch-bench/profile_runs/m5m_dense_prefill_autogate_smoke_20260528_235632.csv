@@ -1,0 +1,3 @@
+ctx,prefill_tps,log
+4096,371.9,moe-batch-bench/profile_runs/m5m_dense_prefill_autogate_smoke_20260528_235632_4096.log
+8192,545.4,moe-batch-bench/profile_runs/m5m_dense_prefill_autogate_smoke_20260528_235632_8192.log

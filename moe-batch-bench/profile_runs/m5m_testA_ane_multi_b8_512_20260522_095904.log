@@ -1,0 +1,1244 @@
+=== int8w/i8i8 tiled_fused multi-thread smoke (up to N=16) ===
+    shape H=4096 I=2048  weights+inputs: runtime int8 random (not baked)
+    output dtypes: fp16
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 187.4 ms
+  [solo] ctx[ 0]  : 0.839 ms/iter  |  0.48 TFLOP/s
+  [solo] avg      : 0.839 ms/iter  |  0.48 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=42.71 ms  |  per-iter wall=0.854 ms  |  aggregate 0.47 TFLOP/s  |  speedup vs N*solo = 0.98x
+  [conc ] per-thread ms/iter min=0.854 max=0.854 spread=0.0%  vs solo_avg=0.839 (contention=+1.8%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 164.6 ms
+  create ctx[ 1]: 160.5 ms
+  [solo] ctx[ 0]  : 0.868 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[ 1]  : 0.858 ms/iter  |  0.47 TFLOP/s
+  [solo] avg      : 0.863 ms/iter  |  0.47 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=48.08 ms  |  per-iter wall=0.962 ms  |  aggregate 0.84 TFLOP/s  |  speedup vs N*solo = 1.79x
+  [conc ] per-thread ms/iter min=0.955 max=0.961 spread=0.7%  vs solo_avg=0.863 (contention=+11.0%)
+  [stag ] N= 2   : base=431 us  wall=48.29 ms  |  speedup vs N*solo = 1.79x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 170.8 ms
+  create ctx[ 1]: 185.3 ms
+  create ctx[ 2]: 218.0 ms
+  [solo] ctx[ 0]  : 0.885 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 1]  : 0.838 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 2]  : 0.980 ms/iter  |  0.41 TFLOP/s
+  [solo] avg      : 0.901 ms/iter  |  0.45 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=57.44 ms  |  per-iter wall=1.149 ms  |  aggregate 1.05 TFLOP/s  |  speedup vs N*solo = 2.35x
+  [conc ] per-thread ms/iter min=1.133 max=1.148 spread=1.3%  vs solo_avg=0.901 (contention=+26.6%)
+  [stag ] N= 3   : base=300 us  wall=60.20 ms  |  speedup vs N*solo = 2.24x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 172.4 ms
+  create ctx[ 1]: 169.2 ms
+  create ctx[ 2]: 172.1 ms
+  create ctx[ 3]: 191.8 ms
+  [solo] ctx[ 0]  : 0.884 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[ 1]  : 0.835 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 2]  : 0.836 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 3]  : 0.826 ms/iter  |  0.49 TFLOP/s
+  [solo] avg      : 0.845 ms/iter  |  0.48 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=69.69 ms  |  per-iter wall=1.394 ms  |  aggregate 1.16 TFLOP/s  |  speedup vs N*solo = 2.43x
+  [conc ] per-thread ms/iter min=1.374 max=1.393 spread=1.4%  vs solo_avg=0.845 (contention=+63.7%)
+  [stag ] N= 4   : base=211 us  wall=69.59 ms  |  speedup vs N*solo = 2.43x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 160.9 ms
+  create ctx[ 1]: 162.8 ms
+  create ctx[ 2]: 159.6 ms
+  create ctx[ 3]: 160.9 ms
+  create ctx[ 4]: 157.9 ms
+  create ctx[ 5]: 159.2 ms
+  [solo] ctx[ 0]  : 0.836 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 1]  : 0.895 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 2]  : 1.059 ms/iter  |  0.38 TFLOP/s
+  [solo] ctx[ 3]  : 1.001 ms/iter  |  0.40 TFLOP/s
+  [solo] ctx[ 4]  : 1.022 ms/iter  |  0.39 TFLOP/s
+  [solo] ctx[ 5]  : 0.896 ms/iter  |  0.45 TFLOP/s
+  [solo] avg      : 0.952 ms/iter  |  0.42 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=98.16 ms  |  per-iter wall=1.963 ms  |  aggregate 1.23 TFLOP/s  |  speedup vs N*solo = 2.91x
+  [conc ] per-thread ms/iter min=1.924 max=1.961 spread=1.9%  vs solo_avg=0.952 (contention=+104.2%)
+  [stag ] N= 6   : base=158 us  wall=98.00 ms  |  speedup vs N*solo = 2.91x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 174.6 ms
+  create ctx[ 1]: 227.8 ms
+  create ctx[ 2]: 178.5 ms
+  create ctx[ 3]: 177.4 ms
+  create ctx[ 4]: 171.9 ms
+  create ctx[ 5]: 193.0 ms
+  create ctx[ 6]: 179.3 ms
+  create ctx[ 7]: 199.4 ms
+  [solo] ctx[ 0]  : 0.851 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 1]  : 0.892 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 2]  : 0.867 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[ 3]  : 0.856 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 4]  : 0.862 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 5]  : 0.889 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 6]  : 0.908 ms/iter  |  0.44 TFLOP/s
+  [solo] ctx[ 7]  : 0.849 ms/iter  |  0.47 TFLOP/s
+  [solo] avg      : 0.872 ms/iter  |  0.46 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=130.68 ms  |  per-iter wall=2.614 ms  |  aggregate 1.23 TFLOP/s  |  speedup vs N*solo = 2.67x
+  [conc ] per-thread ms/iter min=2.568 max=2.612 spread=1.7%  vs solo_avg=0.872 (contention=+197.1%)
+  [stag ] N= 8   : base=108 us  wall=131.00 ms  |  speedup vs N*solo = 2.66x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 267.9 ms
+  create ctx[ 1]: 264.7 ms
+  create ctx[ 2]: 282.9 ms
+  create ctx[ 3]: 300.5 ms
+  create ctx[ 4]: 204.4 ms
+  create ctx[ 5]: 166.8 ms
+  create ctx[ 6]: 174.5 ms
+  create ctx[ 7]: 187.2 ms
+  create ctx[ 8]: 202.4 ms
+  create ctx[ 9]: 176.4 ms
+  create ctx[10]: 192.1 ms
+  create ctx[11]: 177.3 ms
+  [solo] ctx[ 0]  : 0.839 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 1]  : 0.831 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 2]  : 0.886 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 3]  : 0.855 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 4]  : 0.836 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 5]  : 0.844 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 6]  : 0.891 ms/iter  |  0.45 TFLOP/s
+  [solo] ctx[ 7]  : 0.839 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 8]  : 0.858 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 9]  : 0.850 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[10]  : 0.860 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[11]  : 0.860 ms/iter  |  0.47 TFLOP/s
+  [solo] avg      : 0.854 ms/iter  |  0.47 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=195.92 ms  |  per-iter wall=3.918 ms  |  aggregate 1.23 TFLOP/s  |  speedup vs N*solo = 2.62x
+  [conc ] per-thread ms/iter min=3.841 max=3.916 spread=1.9%  vs solo_avg=0.854 (contention=+354.1%)
+  [stag ] N=12   : base=71 us  wall=195.58 ms  |  speedup vs N*solo = 2.62x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=8  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 187.3 ms
+  create ctx[ 1]: 172.3 ms
+  create ctx[ 2]: 189.8 ms
+  create ctx[ 3]: 181.8 ms
+  create ctx[ 4]: 164.6 ms
+  create ctx[ 5]: 187.3 ms
+  create ctx[ 6]: 170.9 ms
+  create ctx[ 7]: 177.8 ms
+  create ctx[ 8]: 171.4 ms
+  create ctx[ 9]: 171.0 ms
+  create ctx[10]: 171.7 ms
+  create ctx[11]: 161.6 ms
+  create ctx[12]: 162.1 ms
+  create ctx[13]: 169.9 ms
+  create ctx[14]: 169.2 ms
+  create ctx[15]: 183.6 ms
+  [solo] ctx[ 0]  : 0.848 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 1]  : 0.853 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 2]  : 0.849 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 3]  : 0.872 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[ 4]  : 0.845 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 5]  : 0.834 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 6]  : 0.875 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[ 7]  : 0.843 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[ 8]  : 0.854 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[ 9]  : 0.841 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[10]  : 0.854 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[11]  : 0.852 ms/iter  |  0.47 TFLOP/s
+  [solo] ctx[12]  : 0.877 ms/iter  |  0.46 TFLOP/s
+  [solo] ctx[13]  : 0.822 ms/iter  |  0.49 TFLOP/s
+  [solo] ctx[14]  : 0.837 ms/iter  |  0.48 TFLOP/s
+  [solo] ctx[15]  : 0.825 ms/iter  |  0.49 TFLOP/s
+  [solo] avg      : 0.849 ms/iter  |  0.47 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=260.35 ms  |  per-iter wall=5.207 ms  |  aggregate 1.24 TFLOP/s  |  speedup vs N*solo = 2.61x
+  [conc ] per-thread ms/iter min=5.109 max=5.205 spread=1.8%  vs solo_avg=0.849 (contention=+507.5%)
+  [stag ] N=16   : base=53 us  wall=260.46 ms  |  speedup vs N*solo = 2.61x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 189.1 ms
+  [solo] ctx[ 0]  : 0.881 ms/iter  |  0.91 TFLOP/s
+  [solo] avg      : 0.881 ms/iter  |  0.91 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=43.45 ms  |  per-iter wall=0.869 ms  |  aggregate 0.93 TFLOP/s  |  speedup vs N*solo = 1.01x
+  [conc ] per-thread ms/iter min=0.869 max=0.869 spread=0.0%  vs solo_avg=0.881 (contention=-1.4%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 193.3 ms
+  create ctx[ 1]: 187.5 ms
+  [solo] ctx[ 0]  : 0.886 ms/iter  |  0.91 TFLOP/s
+  [solo] ctx[ 1]  : 0.903 ms/iter  |  0.89 TFLOP/s
+  [solo] avg      : 0.895 ms/iter  |  0.90 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=50.25 ms  |  per-iter wall=1.005 ms  |  aggregate 1.60 TFLOP/s  |  speedup vs N*solo = 1.78x
+  [conc ] per-thread ms/iter min=0.996 max=1.005 spread=0.8%  vs solo_avg=0.895 (contention=+11.8%)
+  [stag ] N= 2   : base=447 us  wall=50.93 ms  |  speedup vs N*solo = 1.76x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 195.2 ms
+  create ctx[ 1]: 175.7 ms
+  create ctx[ 2]: 196.3 ms
+  [solo] ctx[ 0]  : 0.857 ms/iter  |  0.94 TFLOP/s
+  [solo] ctx[ 1]  : 0.835 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 2]  : 0.859 ms/iter  |  0.94 TFLOP/s
+  [solo] avg      : 0.850 ms/iter  |  0.95 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=58.13 ms  |  per-iter wall=1.163 ms  |  aggregate 2.08 TFLOP/s  |  speedup vs N*solo = 2.19x
+  [conc ] per-thread ms/iter min=1.148 max=1.162 spread=1.2%  vs solo_avg=0.850 (contention=+35.9%)
+  [stag ] N= 3   : base=283 us  wall=59.03 ms  |  speedup vs N*solo = 2.16x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 183.3 ms
+  create ctx[ 1]: 187.1 ms
+  create ctx[ 2]: 192.9 ms
+  create ctx[ 3]: 176.5 ms
+  [solo] ctx[ 0]  : 0.830 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 1]  : 0.857 ms/iter  |  0.94 TFLOP/s
+  [solo] ctx[ 2]  : 0.840 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 3]  : 0.836 ms/iter  |  0.96 TFLOP/s
+  [solo] avg      : 0.841 ms/iter  |  0.96 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=69.26 ms  |  per-iter wall=1.385 ms  |  aggregate 2.33 TFLOP/s  |  speedup vs N*solo = 2.43x
+  [conc ] per-thread ms/iter min=1.365 max=1.385 spread=1.4%  vs solo_avg=0.841 (contention=+63.5%)
+  [stag ] N= 4   : base=210 us  wall=70.04 ms  |  speedup vs N*solo = 2.40x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 193.7 ms
+  create ctx[ 1]: 176.4 ms
+  create ctx[ 2]: 183.0 ms
+  create ctx[ 3]: 182.4 ms
+  create ctx[ 4]: 182.5 ms
+  create ctx[ 5]: 185.4 ms
+  [solo] ctx[ 0]  : 0.851 ms/iter  |  0.95 TFLOP/s
+  [solo] ctx[ 1]  : 0.875 ms/iter  |  0.92 TFLOP/s
+  [solo] ctx[ 2]  : 0.866 ms/iter  |  0.93 TFLOP/s
+  [solo] ctx[ 3]  : 0.864 ms/iter  |  0.93 TFLOP/s
+  [solo] ctx[ 4]  : 0.859 ms/iter  |  0.94 TFLOP/s
+  [solo] ctx[ 5]  : 0.869 ms/iter  |  0.93 TFLOP/s
+  [solo] avg      : 0.864 ms/iter  |  0.93 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=99.89 ms  |  per-iter wall=1.998 ms  |  aggregate 2.42 TFLOP/s  |  speedup vs N*solo = 2.59x
+  [conc ] per-thread ms/iter min=1.965 max=1.997 spread=1.6%  vs solo_avg=0.864 (contention=+129.3%)
+  [stag ] N= 6   : base=143 us  wall=99.86 ms  |  speedup vs N*solo = 2.60x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 200.9 ms
+  create ctx[ 1]: 198.2 ms
+  create ctx[ 2]: 199.5 ms
+  create ctx[ 3]: 181.7 ms
+  create ctx[ 4]: 178.5 ms
+  create ctx[ 5]: 184.7 ms
+  create ctx[ 6]: 194.2 ms
+  create ctx[ 7]: 192.4 ms
+  [solo] ctx[ 0]  : 0.875 ms/iter  |  0.92 TFLOP/s
+  [solo] ctx[ 1]  : 0.830 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 2]  : 0.842 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 3]  : 0.852 ms/iter  |  0.95 TFLOP/s
+  [solo] ctx[ 4]  : 0.833 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 5]  : 0.835 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 6]  : 0.835 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 7]  : 0.845 ms/iter  |  0.95 TFLOP/s
+  [solo] avg      : 0.843 ms/iter  |  0.95 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=132.74 ms  |  per-iter wall=2.655 ms  |  aggregate 2.43 TFLOP/s  |  speedup vs N*solo = 2.54x
+  [conc ] per-thread ms/iter min=2.610 max=2.656 spread=1.7%  vs solo_avg=0.843 (contention=+212.2%)
+  [stag ] N= 8   : base=105 us  wall=132.33 ms  |  speedup vs N*solo = 2.55x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 183.0 ms
+  create ctx[ 1]: 180.7 ms
+  create ctx[ 2]: 180.2 ms
+  create ctx[ 3]: 191.3 ms
+  create ctx[ 4]: 185.3 ms
+  create ctx[ 5]: 188.2 ms
+  create ctx[ 6]: 217.9 ms
+  create ctx[ 7]: 284.9 ms
+  create ctx[ 8]: 270.8 ms
+  create ctx[ 9]: 278.9 ms
+  create ctx[10]: 270.9 ms
+  create ctx[11]: 197.2 ms
+  [solo] ctx[ 0]  : 0.849 ms/iter  |  0.95 TFLOP/s
+  [solo] ctx[ 1]  : 0.844 ms/iter  |  0.95 TFLOP/s
+  [solo] ctx[ 2]  : 0.821 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 3]  : 0.835 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 4]  : 0.866 ms/iter  |  0.93 TFLOP/s
+  [solo] ctx[ 5]  : 0.854 ms/iter  |  0.94 TFLOP/s
+  [solo] ctx[ 6]  : 0.825 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 7]  : 0.833 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 8]  : 0.825 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 9]  : 0.826 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[10]  : 0.864 ms/iter  |  0.93 TFLOP/s
+  [solo] ctx[11]  : 0.875 ms/iter  |  0.92 TFLOP/s
+  [solo] avg      : 0.843 ms/iter  |  0.96 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=198.10 ms  |  per-iter wall=3.962 ms  |  aggregate 2.44 TFLOP/s  |  speedup vs N*solo = 2.55x
+  [conc ] per-thread ms/iter min=3.852 max=3.962 spread=2.8%  vs solo_avg=0.843 (contention=+363.5%)
+  [stag ] N=12   : base=70 us  wall=198.07 ms  |  speedup vs N*solo = 2.55x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=16  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 214.6 ms
+  create ctx[ 1]: 218.7 ms
+  create ctx[ 2]: 191.7 ms
+  create ctx[ 3]: 182.9 ms
+  create ctx[ 4]: 232.3 ms
+  create ctx[ 5]: 215.0 ms
+  create ctx[ 6]: 189.8 ms
+  create ctx[ 7]: 189.7 ms
+  create ctx[ 8]: 209.0 ms
+  create ctx[ 9]: 178.7 ms
+  create ctx[10]: 177.6 ms
+  create ctx[11]: 174.8 ms
+  create ctx[12]: 187.6 ms
+  create ctx[13]: 197.1 ms
+  create ctx[14]: 195.4 ms
+  create ctx[15]: 183.5 ms
+  [solo] ctx[ 0]  : 0.816 ms/iter  |  0.99 TFLOP/s
+  [solo] ctx[ 1]  : 0.826 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 2]  : 0.816 ms/iter  |  0.99 TFLOP/s
+  [solo] ctx[ 3]  : 0.839 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[ 4]  : 0.822 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 5]  : 0.818 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[ 6]  : 0.826 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 7]  : 0.830 ms/iter  |  0.97 TFLOP/s
+  [solo] ctx[ 8]  : 0.860 ms/iter  |  0.94 TFLOP/s
+  [solo] ctx[ 9]  : 0.824 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[10]  : 0.810 ms/iter  |  0.99 TFLOP/s
+  [solo] ctx[11]  : 0.839 ms/iter  |  0.96 TFLOP/s
+  [solo] ctx[12]  : 0.819 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[13]  : 0.822 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[14]  : 0.822 ms/iter  |  0.98 TFLOP/s
+  [solo] ctx[15]  : 0.839 ms/iter  |  0.96 TFLOP/s
+  [solo] avg      : 0.827 ms/iter  |  0.97 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=264.06 ms  |  per-iter wall=5.281 ms  |  aggregate 2.44 TFLOP/s  |  speedup vs N*solo = 2.50x
+  [conc ] per-thread ms/iter min=5.180 max=5.280 spread=1.9%  vs solo_avg=0.827 (contention=+532.6%)
+  [stag ] N=16   : base=51 us  wall=264.31 ms  |  speedup vs N*solo = 2.50x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 216.2 ms
+  [solo] ctx[ 0]  : 0.956 ms/iter  |  1.69 TFLOP/s
+  [solo] avg      : 0.956 ms/iter  |  1.69 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=49.00 ms  |  per-iter wall=0.980 ms  |  aggregate 1.64 TFLOP/s  |  speedup vs N*solo = 0.98x
+  [conc ] per-thread ms/iter min=0.980 max=0.980 spread=0.0%  vs solo_avg=0.956 (contention=+2.6%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 202.2 ms
+  create ctx[ 1]: 200.7 ms
+  [solo] ctx[ 0]  : 0.907 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[ 1]  : 0.904 ms/iter  |  1.78 TFLOP/s
+  [solo] avg      : 0.906 ms/iter  |  1.78 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=48.99 ms  |  per-iter wall=0.980 ms  |  aggregate 3.29 TFLOP/s  |  speedup vs N*solo = 1.85x
+  [conc ] per-thread ms/iter min=0.971 max=0.979 spread=0.9%  vs solo_avg=0.906 (contention=+7.7%)
+  [stag ] N= 2   : base=452 us  wall=50.47 ms  |  speedup vs N*solo = 1.79x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 194.0 ms
+  create ctx[ 1]: 189.1 ms
+  create ctx[ 2]: 184.5 ms
+  [solo] ctx[ 0]  : 0.896 ms/iter  |  1.80 TFLOP/s
+  [solo] ctx[ 1]  : 0.892 ms/iter  |  1.81 TFLOP/s
+  [solo] ctx[ 2]  : 0.900 ms/iter  |  1.79 TFLOP/s
+  [solo] avg      : 0.896 ms/iter  |  1.80 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=61.16 ms  |  per-iter wall=1.223 ms  |  aggregate 3.95 TFLOP/s  |  speedup vs N*solo = 2.20x
+  [conc ] per-thread ms/iter min=1.207 max=1.222 spread=1.3%  vs solo_avg=0.896 (contention=+35.6%)
+  [stag ] N= 3   : base=298 us  wall=61.42 ms  |  speedup vs N*solo = 2.19x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 195.9 ms
+  create ctx[ 1]: 187.3 ms
+  create ctx[ 2]: 183.7 ms
+  create ctx[ 3]: 195.7 ms
+  [solo] ctx[ 0]  : 0.921 ms/iter  |  1.75 TFLOP/s
+  [solo] ctx[ 1]  : 0.948 ms/iter  |  1.70 TFLOP/s
+  [solo] ctx[ 2]  : 0.885 ms/iter  |  1.82 TFLOP/s
+  [solo] ctx[ 3]  : 0.898 ms/iter  |  1.79 TFLOP/s
+  [solo] avg      : 0.913 ms/iter  |  1.76 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=81.04 ms  |  per-iter wall=1.621 ms  |  aggregate 3.97 TFLOP/s  |  speedup vs N*solo = 2.25x
+  [conc ] per-thread ms/iter min=1.595 max=1.619 spread=1.5%  vs solo_avg=0.913 (contention=+76.0%)
+  [stag ] N= 4   : base=228 us  wall=92.94 ms  |  speedup vs N*solo = 1.97x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 263.1 ms
+  create ctx[ 1]: 211.9 ms
+  create ctx[ 2]: 196.2 ms
+  create ctx[ 3]: 194.8 ms
+  create ctx[ 4]: 193.4 ms
+  create ctx[ 5]: 192.4 ms
+  [solo] ctx[ 0]  : 0.920 ms/iter  |  1.75 TFLOP/s
+  [solo] ctx[ 1]  : 0.912 ms/iter  |  1.77 TFLOP/s
+  [solo] ctx[ 2]  : 0.903 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[ 3]  : 0.960 ms/iter  |  1.68 TFLOP/s
+  [solo] ctx[ 4]  : 0.904 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[ 5]  : 0.903 ms/iter  |  1.78 TFLOP/s
+  [solo] avg      : 0.917 ms/iter  |  1.76 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=120.24 ms  |  per-iter wall=2.405 ms  |  aggregate 4.02 TFLOP/s  |  speedup vs N*solo = 2.29x
+  [conc ] per-thread ms/iter min=2.355 max=2.404 spread=2.0%  vs solo_avg=0.917 (contention=+159.4%)
+  [stag ] N= 6   : base=152 us  wall=119.88 ms  |  speedup vs N*solo = 2.30x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 190.8 ms
+  create ctx[ 1]: 184.1 ms
+  create ctx[ 2]: 184.2 ms
+  create ctx[ 3]: 184.6 ms
+  create ctx[ 4]: 205.6 ms
+  create ctx[ 5]: 185.0 ms
+  create ctx[ 6]: 185.2 ms
+  create ctx[ 7]: 184.3 ms
+  [solo] ctx[ 0]  : 0.924 ms/iter  |  1.74 TFLOP/s
+  [solo] ctx[ 1]  : 0.897 ms/iter  |  1.80 TFLOP/s
+  [solo] ctx[ 2]  : 0.914 ms/iter  |  1.76 TFLOP/s
+  [solo] ctx[ 3]  : 0.917 ms/iter  |  1.76 TFLOP/s
+  [solo] ctx[ 4]  : 0.914 ms/iter  |  1.76 TFLOP/s
+  [solo] ctx[ 5]  : 0.922 ms/iter  |  1.75 TFLOP/s
+  [solo] ctx[ 6]  : 0.895 ms/iter  |  1.80 TFLOP/s
+  [solo] ctx[ 7]  : 0.924 ms/iter  |  1.74 TFLOP/s
+  [solo] avg      : 0.913 ms/iter  |  1.76 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=159.97 ms  |  per-iter wall=3.199 ms  |  aggregate 4.03 TFLOP/s  |  speedup vs N*solo = 2.28x
+  [conc ] per-thread ms/iter min=3.143 max=3.198 spread=1.7%  vs solo_avg=0.913 (contention=+247.1%)
+  [stag ] N= 8   : base=114 us  wall=160.48 ms  |  speedup vs N*solo = 2.28x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 197.9 ms
+  create ctx[ 1]: 213.5 ms
+  create ctx[ 2]: 193.8 ms
+  create ctx[ 3]: 186.1 ms
+  create ctx[ 4]: 190.8 ms
+  create ctx[ 5]: 189.9 ms
+  create ctx[ 6]: 184.6 ms
+  create ctx[ 7]: 197.5 ms
+  create ctx[ 8]: 186.4 ms
+  create ctx[ 9]: 187.6 ms
+  create ctx[10]: 204.8 ms
+  create ctx[11]: 188.0 ms
+  [solo] ctx[ 0]  : 0.915 ms/iter  |  1.76 TFLOP/s
+  [solo] ctx[ 1]  : 0.917 ms/iter  |  1.76 TFLOP/s
+  [solo] ctx[ 2]  : 0.920 ms/iter  |  1.75 TFLOP/s
+  [solo] ctx[ 3]  : 0.888 ms/iter  |  1.81 TFLOP/s
+  [solo] ctx[ 4]  : 0.939 ms/iter  |  1.72 TFLOP/s
+  [solo] ctx[ 5]  : 0.909 ms/iter  |  1.77 TFLOP/s
+  [solo] ctx[ 6]  : 0.936 ms/iter  |  1.72 TFLOP/s
+  [solo] ctx[ 7]  : 0.905 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[ 8]  : 0.936 ms/iter  |  1.72 TFLOP/s
+  [solo] ctx[ 9]  : 0.906 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[10]  : 0.907 ms/iter  |  1.78 TFLOP/s
+  [solo] ctx[11]  : 0.958 ms/iter  |  1.68 TFLOP/s
+  [solo] avg      : 0.920 ms/iter  |  1.75 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=239.20 ms  |  per-iter wall=4.784 ms  |  aggregate 4.04 TFLOP/s  |  speedup vs N*solo = 2.31x
+  [conc ] per-thread ms/iter min=4.698 max=4.784 spread=1.8%  vs solo_avg=0.920 (contention=+415.6%)
+  [stag ] N=12   : base=76 us  wall=239.53 ms  |  speedup vs N*solo = 2.30x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=32  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 215.9 ms
+  create ctx[ 1]: 297.6 ms
+  create ctx[ 2]: 317.3 ms
+  create ctx[ 3]: 312.7 ms
+  create ctx[ 4]: 320.6 ms
+  create ctx[ 5]: 187.1 ms
+  create ctx[ 6]: 202.0 ms
+  create ctx[ 7]: 194.6 ms
+  create ctx[ 8]: 185.7 ms
+  create ctx[ 9]: 184.9 ms
+  create ctx[10]: 185.1 ms
+  create ctx[11]: 188.2 ms
+  create ctx[12]: 195.3 ms
+  create ctx[13]: 188.2 ms
+  create ctx[14]: 192.4 ms
+  create ctx[15]: 198.7 ms
+  [solo] ctx[ 0]  : 0.961 ms/iter  |  1.68 TFLOP/s
+  [solo] ctx[ 1]  : 0.939 ms/iter  |  1.71 TFLOP/s
+  [solo] ctx[ 2]  : 0.945 ms/iter  |  1.70 TFLOP/s
+  [solo] ctx[ 3]  : 0.932 ms/iter  |  1.73 TFLOP/s
+  [solo] ctx[ 4]  : 0.988 ms/iter  |  1.63 TFLOP/s
+  [solo] ctx[ 5]  : 0.947 ms/iter  |  1.70 TFLOP/s
+  [solo] ctx[ 6]  : 0.939 ms/iter  |  1.71 TFLOP/s
+  [solo] ctx[ 7]  : 0.942 ms/iter  |  1.71 TFLOP/s
+  [solo] ctx[ 8]  : 0.932 ms/iter  |  1.73 TFLOP/s
+  [solo] ctx[ 9]  : 0.961 ms/iter  |  1.68 TFLOP/s
+  [solo] ctx[10]  : 1.186 ms/iter  |  1.36 TFLOP/s
+  [solo] ctx[11]  : 0.933 ms/iter  |  1.73 TFLOP/s
+  [solo] ctx[12]  : 0.946 ms/iter  |  1.70 TFLOP/s
+  [solo] ctx[13]  : 0.908 ms/iter  |  1.77 TFLOP/s
+  [solo] ctx[14]  : 0.901 ms/iter  |  1.79 TFLOP/s
+  [solo] ctx[15]  : 0.930 ms/iter  |  1.73 TFLOP/s
+  [solo] avg      : 0.956 ms/iter  |  1.69 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=318.55 ms  |  per-iter wall=6.371 ms  |  aggregate 4.04 TFLOP/s  |  speedup vs N*solo = 2.40x
+  [conc ] per-thread ms/iter min=6.249 max=6.367 spread=1.9%  vs solo_avg=0.956 (contention=+560.1%)
+  [stag ] N=16   : base=59 us  wall=318.34 ms  |  speedup vs N*solo = 2.40x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 211.0 ms
+  [solo] ctx[ 0]  : 0.996 ms/iter  |  3.23 TFLOP/s
+  [solo] avg      : 0.996 ms/iter  |  3.23 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=49.13 ms  |  per-iter wall=0.983 ms  |  aggregate 3.28 TFLOP/s  |  speedup vs N*solo = 1.01x
+  [conc ] per-thread ms/iter min=0.982 max=0.982 spread=0.0%  vs solo_avg=0.996 (contention=-1.3%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 212.8 ms
+  create ctx[ 1]: 222.8 ms
+  [solo] ctx[ 0]  : 0.964 ms/iter  |  3.34 TFLOP/s
+  [solo] ctx[ 1]  : 0.962 ms/iter  |  3.35 TFLOP/s
+  [solo] avg      : 0.963 ms/iter  |  3.35 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=53.80 ms  |  per-iter wall=1.076 ms  |  aggregate 5.99 TFLOP/s  |  speedup vs N*solo = 1.79x
+  [conc ] per-thread ms/iter min=1.064 max=1.075 spread=1.1%  vs solo_avg=0.963 (contention=+11.1%)
+  [stag ] N= 2   : base=481 us  wall=53.87 ms  |  speedup vs N*solo = 1.79x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 203.3 ms
+  create ctx[ 1]: 202.6 ms
+  create ctx[ 2]: 209.1 ms
+  [solo] ctx[ 0]  : 0.965 ms/iter  |  3.34 TFLOP/s
+  [solo] ctx[ 1]  : 0.953 ms/iter  |  3.38 TFLOP/s
+  [solo] ctx[ 2]  : 0.972 ms/iter  |  3.31 TFLOP/s
+  [solo] avg      : 0.963 ms/iter  |  3.34 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=69.67 ms  |  per-iter wall=1.393 ms  |  aggregate 6.94 TFLOP/s  |  speedup vs N*solo = 2.07x
+  [conc ] per-thread ms/iter min=1.375 max=1.393 spread=1.3%  vs solo_avg=0.963 (contention=+43.7%)
+  [stag ] N= 3   : base=321 us  wall=72.53 ms  |  speedup vs N*solo = 1.99x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 215.3 ms
+  create ctx[ 1]: 211.6 ms
+  create ctx[ 2]: 210.0 ms
+  create ctx[ 3]: 235.3 ms
+  [solo] ctx[ 0]  : 0.968 ms/iter  |  3.33 TFLOP/s
+  [solo] ctx[ 1]  : 0.999 ms/iter  |  3.22 TFLOP/s
+  [solo] ctx[ 2]  : 0.966 ms/iter  |  3.33 TFLOP/s
+  [solo] ctx[ 3]  : 0.973 ms/iter  |  3.31 TFLOP/s
+  [solo] avg      : 0.976 ms/iter  |  3.30 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=92.53 ms  |  per-iter wall=1.851 ms  |  aggregate 6.96 TFLOP/s  |  speedup vs N*solo = 2.11x
+  [conc ] per-thread ms/iter min=1.823 max=1.850 spread=1.5%  vs solo_avg=0.976 (contention=+88.1%)
+  [stag ] N= 4   : base=244 us  wall=92.02 ms  |  speedup vs N*solo = 2.12x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 230.1 ms
+  create ctx[ 1]: 235.5 ms
+  create ctx[ 2]: 209.9 ms
+  create ctx[ 3]: 223.4 ms
+  create ctx[ 4]: 204.9 ms
+  create ctx[ 5]: 205.9 ms
+  [solo] ctx[ 0]  : 0.973 ms/iter  |  3.31 TFLOP/s
+  [solo] ctx[ 1]  : 0.979 ms/iter  |  3.29 TFLOP/s
+  [solo] ctx[ 2]  : 0.980 ms/iter  |  3.29 TFLOP/s
+  [solo] ctx[ 3]  : 0.959 ms/iter  |  3.36 TFLOP/s
+  [solo] ctx[ 4]  : 0.976 ms/iter  |  3.30 TFLOP/s
+  [solo] ctx[ 5]  : 0.960 ms/iter  |  3.35 TFLOP/s
+  [solo] avg      : 0.971 ms/iter  |  3.32 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=138.81 ms  |  per-iter wall=2.776 ms  |  aggregate 6.96 TFLOP/s  |  speedup vs N*solo = 2.10x
+  [conc ] per-thread ms/iter min=2.729 max=2.775 spread=1.7%  vs solo_avg=0.971 (contention=+183.4%)
+  [stag ] N= 6   : base=161 us  wall=138.41 ms  |  speedup vs N*solo = 2.10x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 214.1 ms
+  create ctx[ 1]: 217.3 ms
+  create ctx[ 2]: 211.6 ms
+  create ctx[ 3]: 212.5 ms
+  create ctx[ 4]: 220.8 ms
+  create ctx[ 5]: 204.4 ms
+  create ctx[ 6]: 210.0 ms
+  create ctx[ 7]: 204.1 ms
+  [solo] ctx[ 0]  : 0.978 ms/iter  |  3.29 TFLOP/s
+  [solo] ctx[ 1]  : 0.985 ms/iter  |  3.27 TFLOP/s
+  [solo] ctx[ 2]  : 0.964 ms/iter  |  3.34 TFLOP/s
+  [solo] ctx[ 3]  : 0.967 ms/iter  |  3.33 TFLOP/s
+  [solo] ctx[ 4]  : 0.972 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[ 5]  : 0.983 ms/iter  |  3.28 TFLOP/s
+  [solo] ctx[ 6]  : 1.009 ms/iter  |  3.19 TFLOP/s
+  [solo] ctx[ 7]  : 0.980 ms/iter  |  3.29 TFLOP/s
+  [solo] avg      : 0.980 ms/iter  |  3.29 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=184.76 ms  |  per-iter wall=3.695 ms  |  aggregate 6.97 TFLOP/s  |  speedup vs N*solo = 2.12x
+  [conc ] per-thread ms/iter min=3.630 max=3.693 spread=1.7%  vs solo_avg=0.980 (contention=+273.8%)
+  [stag ] N= 8   : base=122 us  wall=184.24 ms  |  speedup vs N*solo = 2.13x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 222.2 ms
+  create ctx[ 1]: 201.1 ms
+  create ctx[ 2]: 206.4 ms
+  create ctx[ 3]: 218.2 ms
+  create ctx[ 4]: 205.0 ms
+  create ctx[ 5]: 200.2 ms
+  create ctx[ 6]: 214.3 ms
+  create ctx[ 7]: 214.0 ms
+  create ctx[ 8]: 225.1 ms
+  create ctx[ 9]: 209.7 ms
+  create ctx[10]: 202.5 ms
+  create ctx[11]: 206.4 ms
+  [solo] ctx[ 0]  : 0.970 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[ 1]  : 0.992 ms/iter  |  3.25 TFLOP/s
+  [solo] ctx[ 2]  : 0.983 ms/iter  |  3.28 TFLOP/s
+  [solo] ctx[ 3]  : 0.959 ms/iter  |  3.36 TFLOP/s
+  [solo] ctx[ 4]  : 0.965 ms/iter  |  3.34 TFLOP/s
+  [solo] ctx[ 5]  : 0.973 ms/iter  |  3.31 TFLOP/s
+  [solo] ctx[ 6]  : 0.971 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[ 7]  : 0.952 ms/iter  |  3.38 TFLOP/s
+  [solo] ctx[ 8]  : 0.963 ms/iter  |  3.34 TFLOP/s
+  [solo] ctx[ 9]  : 0.968 ms/iter  |  3.33 TFLOP/s
+  [solo] ctx[10]  : 0.994 ms/iter  |  3.24 TFLOP/s
+  [solo] ctx[11]  : 0.988 ms/iter  |  3.26 TFLOP/s
+  [solo] avg      : 0.973 ms/iter  |  3.31 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=276.24 ms  |  per-iter wall=5.525 ms  |  aggregate 7.00 TFLOP/s  |  speedup vs N*solo = 2.11x
+  [conc ] per-thread ms/iter min=5.424 max=5.524 spread=1.8%  vs solo_avg=0.973 (contention=+462.5%)
+  [stag ] N=12   : base=81 us  wall=275.68 ms  |  speedup vs N*solo = 2.12x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=64  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 213.3 ms
+  create ctx[ 1]: 203.9 ms
+  create ctx[ 2]: 201.2 ms
+  create ctx[ 3]: 221.1 ms
+  create ctx[ 4]: 206.1 ms
+  create ctx[ 5]: 213.0 ms
+  create ctx[ 6]: 213.2 ms
+  create ctx[ 7]: 206.5 ms
+  create ctx[ 8]: 204.6 ms
+  create ctx[ 9]: 200.0 ms
+  create ctx[10]: 206.4 ms
+  create ctx[11]: 211.8 ms
+  create ctx[12]: 213.5 ms
+  create ctx[13]: 217.5 ms
+  create ctx[14]: 210.0 ms
+  create ctx[15]: 203.1 ms
+  [solo] ctx[ 0]  : 0.961 ms/iter  |  3.35 TFLOP/s
+  [solo] ctx[ 1]  : 0.969 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[ 2]  : 0.991 ms/iter  |  3.25 TFLOP/s
+  [solo] ctx[ 3]  : 0.983 ms/iter  |  3.28 TFLOP/s
+  [solo] ctx[ 4]  : 0.981 ms/iter  |  3.28 TFLOP/s
+  [solo] ctx[ 5]  : 0.973 ms/iter  |  3.31 TFLOP/s
+  [solo] ctx[ 6]  : 0.988 ms/iter  |  3.26 TFLOP/s
+  [solo] ctx[ 7]  : 0.962 ms/iter  |  3.35 TFLOP/s
+  [solo] ctx[ 8]  : 0.982 ms/iter  |  3.28 TFLOP/s
+  [solo] ctx[ 9]  : 0.971 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[10]  : 0.990 ms/iter  |  3.26 TFLOP/s
+  [solo] ctx[11]  : 0.961 ms/iter  |  3.35 TFLOP/s
+  [solo] ctx[12]  : 0.976 ms/iter  |  3.30 TFLOP/s
+  [solo] ctx[13]  : 0.988 ms/iter  |  3.26 TFLOP/s
+  [solo] ctx[14]  : 0.970 ms/iter  |  3.32 TFLOP/s
+  [solo] ctx[15]  : 1.000 ms/iter  |  3.22 TFLOP/s
+  [solo] avg      : 0.978 ms/iter  |  3.29 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=368.35 ms  |  per-iter wall=7.367 ms  |  aggregate 7.00 TFLOP/s  |  speedup vs N*solo = 2.12x
+  [conc ] per-thread ms/iter min=7.230 max=7.365 spread=1.8%  vs solo_avg=0.978 (contention=+646.3%)
+  [stag ] N=16   : base=61 us  wall=368.10 ms  |  speedup vs N*solo = 2.13x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 249.3 ms
+  [solo] ctx[ 0]  : 1.166 ms/iter  |  5.52 TFLOP/s
+  [solo] avg      : 1.166 ms/iter  |  5.52 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=58.45 ms  |  per-iter wall=1.169 ms  |  aggregate 5.51 TFLOP/s  |  speedup vs N*solo = 1.00x
+  [conc ] per-thread ms/iter min=1.169 max=1.169 spread=0.0%  vs solo_avg=1.166 (contention=+0.2%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 245.3 ms
+  create ctx[ 1]: 230.2 ms
+  [solo] ctx[ 0]  : 1.141 ms/iter  |  5.64 TFLOP/s
+  [solo] ctx[ 1]  : 1.135 ms/iter  |  5.67 TFLOP/s
+  [solo] avg      : 1.138 ms/iter  |  5.66 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=64.06 ms  |  per-iter wall=1.281 ms  |  aggregate 10.06 TFLOP/s  |  speedup vs N*solo = 1.78x
+  [conc ] per-thread ms/iter min=1.269 max=1.281 spread=1.0%  vs solo_avg=1.138 (contention=+12.0%)
+  [stag ] N= 2   : base=569 us  wall=63.56 ms  |  speedup vs N*solo = 1.79x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 236.9 ms
+  create ctx[ 1]: 255.6 ms
+  create ctx[ 2]: 249.7 ms
+  [solo] ctx[ 0]  : 1.309 ms/iter  |  4.92 TFLOP/s
+  [solo] ctx[ 1]  : 1.201 ms/iter  |  5.36 TFLOP/s
+  [solo] ctx[ 2]  : 1.278 ms/iter  |  5.04 TFLOP/s
+  [solo] avg      : 1.263 ms/iter  |  5.10 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=91.73 ms  |  per-iter wall=1.835 ms  |  aggregate 10.54 TFLOP/s  |  speedup vs N*solo = 2.07x
+  [conc ] per-thread ms/iter min=1.809 max=1.834 spread=1.3%  vs solo_avg=1.263 (contention=+44.2%)
+  [stag ] N= 3   : base=421 us  wall=91.40 ms  |  speedup vs N*solo = 2.07x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 245.8 ms
+  create ctx[ 1]: 236.8 ms
+  create ctx[ 2]: 263.5 ms
+  create ctx[ 3]: 288.7 ms
+  [solo] ctx[ 0]  : 1.193 ms/iter  |  5.40 TFLOP/s
+  [solo] ctx[ 1]  : 1.264 ms/iter  |  5.10 TFLOP/s
+  [solo] ctx[ 2]  : 1.226 ms/iter  |  5.25 TFLOP/s
+  [solo] ctx[ 3]  : 1.176 ms/iter  |  5.48 TFLOP/s
+  [solo] avg      : 1.215 ms/iter  |  5.30 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=122.52 ms  |  per-iter wall=2.450 ms  |  aggregate 10.52 TFLOP/s  |  speedup vs N*solo = 1.98x
+  [conc ] per-thread ms/iter min=2.413 max=2.450 spread=1.5%  vs solo_avg=1.215 (contention=+100.2%)
+  [stag ] N= 4   : base=303 us  wall=122.29 ms  |  speedup vs N*solo = 1.99x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 308.7 ms
+  create ctx[ 1]: 310.4 ms
+  create ctx[ 2]: 321.1 ms
+  create ctx[ 3]: 331.7 ms
+  create ctx[ 4]: 263.2 ms
+  create ctx[ 5]: 235.0 ms
+  [solo] ctx[ 0]  : 1.118 ms/iter  |  5.76 TFLOP/s
+  [solo] ctx[ 1]  : 1.106 ms/iter  |  5.82 TFLOP/s
+  [solo] ctx[ 2]  : 1.125 ms/iter  |  5.73 TFLOP/s
+  [solo] ctx[ 3]  : 1.109 ms/iter  |  5.81 TFLOP/s
+  [solo] ctx[ 4]  : 1.115 ms/iter  |  5.78 TFLOP/s
+  [solo] ctx[ 5]  : 1.130 ms/iter  |  5.70 TFLOP/s
+  [solo] avg      : 1.117 ms/iter  |  5.77 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=182.74 ms  |  per-iter wall=3.655 ms  |  aggregate 10.58 TFLOP/s  |  speedup vs N*solo = 1.83x
+  [conc ] per-thread ms/iter min=3.593 max=3.654 spread=1.7%  vs solo_avg=1.117 (contention=+224.4%)
+  [stag ] N= 6   : base=186 us  wall=182.30 ms  |  speedup vs N*solo = 1.84x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 239.5 ms
+  create ctx[ 1]: 237.8 ms
+  create ctx[ 2]: 251.9 ms
+  create ctx[ 3]: 261.8 ms
+  create ctx[ 4]: 256.9 ms
+  create ctx[ 5]: 238.4 ms
+  create ctx[ 6]: 235.3 ms
+  create ctx[ 7]: 241.1 ms
+  [solo] ctx[ 0]  : 1.126 ms/iter  |  5.72 TFLOP/s
+  [solo] ctx[ 1]  : 1.135 ms/iter  |  5.68 TFLOP/s
+  [solo] ctx[ 2]  : 1.121 ms/iter  |  5.75 TFLOP/s
+  [solo] ctx[ 3]  : 1.180 ms/iter  |  5.46 TFLOP/s
+  [solo] ctx[ 4]  : 1.134 ms/iter  |  5.68 TFLOP/s
+  [solo] ctx[ 5]  : 1.132 ms/iter  |  5.69 TFLOP/s
+  [solo] ctx[ 6]  : 1.122 ms/iter  |  5.74 TFLOP/s
+  [solo] ctx[ 7]  : 1.136 ms/iter  |  5.67 TFLOP/s
+  [solo] avg      : 1.136 ms/iter  |  5.67 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=243.61 ms  |  per-iter wall=4.872 ms  |  aggregate 10.58 TFLOP/s  |  speedup vs N*solo = 1.86x
+  [conc ] per-thread ms/iter min=4.788 max=4.872 spread=1.7%  vs solo_avg=1.136 (contention=+325.2%)
+  [stag ] N= 8   : base=141 us  wall=242.86 ms  |  speedup vs N*solo = 1.87x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 242.0 ms
+  create ctx[ 1]: 238.6 ms
+  create ctx[ 2]: 238.5 ms
+  create ctx[ 3]: 246.7 ms
+  create ctx[ 4]: 244.9 ms
+  create ctx[ 5]: 265.5 ms
+  create ctx[ 6]: 251.2 ms
+  create ctx[ 7]: 246.2 ms
+  create ctx[ 8]: 235.5 ms
+  create ctx[ 9]: 233.1 ms
+  create ctx[10]: 230.8 ms
+  create ctx[11]: 237.4 ms
+  [solo] ctx[ 0]  : 1.171 ms/iter  |  5.50 TFLOP/s
+  [solo] ctx[ 1]  : 1.132 ms/iter  |  5.69 TFLOP/s
+  [solo] ctx[ 2]  : 1.133 ms/iter  |  5.69 TFLOP/s
+  [solo] ctx[ 3]  : 1.145 ms/iter  |  5.63 TFLOP/s
+  [solo] ctx[ 4]  : 1.148 ms/iter  |  5.61 TFLOP/s
+  [solo] ctx[ 5]  : 1.127 ms/iter  |  5.71 TFLOP/s
+  [solo] ctx[ 6]  : 1.137 ms/iter  |  5.66 TFLOP/s
+  [solo] ctx[ 7]  : 1.136 ms/iter  |  5.67 TFLOP/s
+  [solo] ctx[ 8]  : 1.126 ms/iter  |  5.72 TFLOP/s
+  [solo] ctx[ 9]  : 1.144 ms/iter  |  5.63 TFLOP/s
+  [solo] ctx[10]  : 1.130 ms/iter  |  5.70 TFLOP/s
+  [solo] ctx[11]  : 1.127 ms/iter  |  5.72 TFLOP/s
+  [solo] avg      : 1.138 ms/iter  |  5.66 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=364.55 ms  |  per-iter wall=7.291 ms  |  aggregate 10.60 TFLOP/s  |  speedup vs N*solo = 1.87x
+  [conc ] per-thread ms/iter min=7.158 max=7.290 spread=1.8%  vs solo_avg=1.138 (contention=+534.8%)
+  [stag ] N=12   : base=94 us  wall=364.58 ms  |  speedup vs N*solo = 1.87x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=128  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 251.3 ms
+  create ctx[ 1]: 267.8 ms
+  create ctx[ 2]: 251.1 ms
+  create ctx[ 3]: 251.9 ms
+  create ctx[ 4]: 247.3 ms
+  create ctx[ 5]: 246.2 ms
+  create ctx[ 6]: 257.9 ms
+  create ctx[ 7]: 245.5 ms
+  create ctx[ 8]: 238.8 ms
+  create ctx[ 9]: 248.6 ms
+  create ctx[10]: 234.9 ms
+  create ctx[11]: 249.0 ms
+  create ctx[12]: 244.1 ms
+  create ctx[13]: 231.8 ms
+  create ctx[14]: 253.6 ms
+  create ctx[15]: 251.4 ms
+  [solo] ctx[ 0]  : 1.170 ms/iter  |  5.51 TFLOP/s
+  [solo] ctx[ 1]  : 1.178 ms/iter  |  5.47 TFLOP/s
+  [solo] ctx[ 2]  : 1.177 ms/iter  |  5.47 TFLOP/s
+  [solo] ctx[ 3]  : 1.145 ms/iter  |  5.63 TFLOP/s
+  [solo] ctx[ 4]  : 1.173 ms/iter  |  5.49 TFLOP/s
+  [solo] ctx[ 5]  : 1.174 ms/iter  |  5.49 TFLOP/s
+  [solo] ctx[ 6]  : 1.135 ms/iter  |  5.68 TFLOP/s
+  [solo] ctx[ 7]  : 1.158 ms/iter  |  5.56 TFLOP/s
+  [solo] ctx[ 8]  : 1.159 ms/iter  |  5.56 TFLOP/s
+  [solo] ctx[ 9]  : 1.134 ms/iter  |  5.68 TFLOP/s
+  [solo] ctx[10]  : 1.140 ms/iter  |  5.65 TFLOP/s
+  [solo] ctx[11]  : 1.126 ms/iter  |  5.72 TFLOP/s
+  [solo] ctx[12]  : 1.151 ms/iter  |  5.60 TFLOP/s
+  [solo] ctx[13]  : 1.140 ms/iter  |  5.65 TFLOP/s
+  [solo] ctx[14]  : 1.135 ms/iter  |  5.67 TFLOP/s
+  [solo] ctx[15]  : 1.190 ms/iter  |  5.41 TFLOP/s
+  [solo] avg      : 1.155 ms/iter  |  5.58 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=486.37 ms  |  per-iter wall=9.727 ms  |  aggregate 10.60 TFLOP/s  |  speedup vs N*solo = 1.90x
+  [conc ] per-thread ms/iter min=9.544 max=9.726 spread=1.9%  vs solo_avg=1.155 (contention=+734.0%)
+  [stag ] N=16   : base=72 us  wall=487.00 ms  |  speedup vs N*solo = 1.90x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 284.7 ms
+  [solo] ctx[ 0]  : 1.652 ms/iter  |  7.80 TFLOP/s
+  [solo] avg      : 1.652 ms/iter  |  7.80 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=82.93 ms  |  per-iter wall=1.659 ms  |  aggregate 7.77 TFLOP/s  |  speedup vs N*solo = 1.00x
+  [conc ] per-thread ms/iter min=1.658 max=1.658 spread=0.0%  vs solo_avg=1.652 (contention=+0.4%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 281.4 ms
+  create ctx[ 1]: 279.2 ms
+  [solo] ctx[ 0]  : 1.677 ms/iter  |  7.68 TFLOP/s
+  [solo] ctx[ 1]  : 1.698 ms/iter  |  7.59 TFLOP/s
+  [solo] avg      : 1.688 ms/iter  |  7.64 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=110.83 ms  |  per-iter wall=2.217 ms  |  aggregate 11.63 TFLOP/s  |  speedup vs N*solo = 1.52x
+  [conc ] per-thread ms/iter min=2.194 max=2.216 spread=1.0%  vs solo_avg=1.688 (contention=+30.7%)
+  [stag ] N= 2   : base=843 us  wall=110.43 ms  |  speedup vs N*solo = 1.53x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 296.3 ms
+  create ctx[ 1]: 286.1 ms
+  create ctx[ 2]: 272.8 ms
+  [solo] ctx[ 0]  : 1.655 ms/iter  |  7.78 TFLOP/s
+  [solo] ctx[ 1]  : 1.674 ms/iter  |  7.70 TFLOP/s
+  [solo] ctx[ 2]  : 1.664 ms/iter  |  7.74 TFLOP/s
+  [solo] avg      : 1.664 ms/iter  |  7.74 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=166.14 ms  |  per-iter wall=3.323 ms  |  aggregate 11.63 TFLOP/s  |  speedup vs N*solo = 1.50x
+  [conc ] per-thread ms/iter min=3.278 max=3.322 spread=1.3%  vs solo_avg=1.664 (contention=+98.3%)
+  [stag ] N= 3   : base=554 us  wall=165.97 ms  |  speedup vs N*solo = 1.50x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 294.7 ms
+  create ctx[ 1]: 280.4 ms
+  create ctx[ 2]: 275.8 ms
+  create ctx[ 3]: 272.5 ms
+  [solo] ctx[ 0]  : 1.673 ms/iter  |  7.70 TFLOP/s
+  [solo] ctx[ 1]  : 1.677 ms/iter  |  7.69 TFLOP/s
+  [solo] ctx[ 2]  : 1.674 ms/iter  |  7.70 TFLOP/s
+  [solo] ctx[ 3]  : 1.656 ms/iter  |  7.78 TFLOP/s
+  [solo] avg      : 1.670 ms/iter  |  7.72 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=221.27 ms  |  per-iter wall=4.425 ms  |  aggregate 11.65 TFLOP/s  |  speedup vs N*solo = 1.51x
+  [conc ] per-thread ms/iter min=4.359 max=4.425 spread=1.5%  vs solo_avg=1.670 (contention=+163.0%)
+  [stag ] N= 4   : base=417 us  wall=220.90 ms  |  speedup vs N*solo = 1.51x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 291.9 ms
+  create ctx[ 1]: 300.6 ms
+  create ctx[ 2]: 281.1 ms
+  create ctx[ 3]: 280.9 ms
+  create ctx[ 4]: 278.5 ms
+  create ctx[ 5]: 275.6 ms
+  [solo] ctx[ 0]  : 1.680 ms/iter  |  7.67 TFLOP/s
+  [solo] ctx[ 1]  : 1.692 ms/iter  |  7.61 TFLOP/s
+  [solo] ctx[ 2]  : 1.667 ms/iter  |  7.73 TFLOP/s
+  [solo] ctx[ 3]  : 1.682 ms/iter  |  7.66 TFLOP/s
+  [solo] ctx[ 4]  : 1.687 ms/iter  |  7.64 TFLOP/s
+  [solo] ctx[ 5]  : 1.690 ms/iter  |  7.62 TFLOP/s
+  [solo] avg      : 1.683 ms/iter  |  7.66 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=331.42 ms  |  per-iter wall=6.628 ms  |  aggregate 11.66 TFLOP/s  |  speedup vs N*solo = 1.52x
+  [conc ] per-thread ms/iter min=6.518 max=6.628 spread=1.6%  vs solo_avg=1.683 (contention=+290.6%)
+  [stag ] N= 6   : base=280 us  wall=331.10 ms  |  speedup vs N*solo = 1.52x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 291.0 ms
+  create ctx[ 1]: 296.5 ms
+  create ctx[ 2]: 305.2 ms
+  create ctx[ 3]: 290.4 ms
+  create ctx[ 4]: 295.1 ms
+  create ctx[ 5]: 277.9 ms
+  create ctx[ 6]: 277.2 ms
+  create ctx[ 7]: 287.4 ms
+  [solo] ctx[ 0]  : 1.752 ms/iter  |  7.35 TFLOP/s
+  [solo] ctx[ 1]  : 1.708 ms/iter  |  7.54 TFLOP/s
+  [solo] ctx[ 2]  : 1.680 ms/iter  |  7.67 TFLOP/s
+  [solo] ctx[ 3]  : 1.669 ms/iter  |  7.72 TFLOP/s
+  [solo] ctx[ 4]  : 1.674 ms/iter  |  7.70 TFLOP/s
+  [solo] ctx[ 5]  : 1.686 ms/iter  |  7.64 TFLOP/s
+  [solo] ctx[ 6]  : 1.668 ms/iter  |  7.73 TFLOP/s
+  [solo] ctx[ 7]  : 1.650 ms/iter  |  7.81 TFLOP/s
+  [solo] avg      : 1.686 ms/iter  |  7.64 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=441.02 ms  |  per-iter wall=8.820 ms  |  aggregate 11.69 TFLOP/s  |  speedup vs N*solo = 1.53x
+  [conc ] per-thread ms/iter min=8.666 max=8.819 spread=1.7%  vs solo_avg=1.686 (contention=+418.6%)
+  [stag ] N= 8   : base=210 us  wall=442.34 ms  |  speedup vs N*solo = 1.52x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 331.8 ms
+  create ctx[ 1]: 295.1 ms
+  create ctx[ 2]: 283.4 ms
+  create ctx[ 3]: 275.1 ms
+  create ctx[ 4]: 278.7 ms
+  create ctx[ 5]: 283.1 ms
+  create ctx[ 6]: 291.6 ms
+  create ctx[ 7]: 280.5 ms
+  create ctx[ 8]: 285.6 ms
+  create ctx[ 9]: 281.8 ms
+  create ctx[10]: 281.4 ms
+  create ctx[11]: 310.8 ms
+  [solo] ctx[ 0]  : 1.677 ms/iter  |  7.68 TFLOP/s
+  [solo] ctx[ 1]  : 1.660 ms/iter  |  7.76 TFLOP/s
+  [solo] ctx[ 2]  : 1.695 ms/iter  |  7.60 TFLOP/s
+  [solo] ctx[ 3]  : 1.709 ms/iter  |  7.54 TFLOP/s
+  [solo] ctx[ 4]  : 1.692 ms/iter  |  7.61 TFLOP/s
+  [solo] ctx[ 5]  : 1.658 ms/iter  |  7.77 TFLOP/s
+  [solo] ctx[ 6]  : 1.679 ms/iter  |  7.67 TFLOP/s
+  [solo] ctx[ 7]  : 1.701 ms/iter  |  7.58 TFLOP/s
+  [solo] ctx[ 8]  : 1.686 ms/iter  |  7.64 TFLOP/s
+  [solo] ctx[ 9]  : 1.690 ms/iter  |  7.62 TFLOP/s
+  [solo] ctx[10]  : 1.689 ms/iter  |  7.63 TFLOP/s
+  [solo] ctx[11]  : 1.672 ms/iter  |  7.71 TFLOP/s
+  [solo] avg      : 1.684 ms/iter  |  7.65 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=661.92 ms  |  per-iter wall=13.238 ms  |  aggregate 11.68 TFLOP/s  |  speedup vs N*solo = 1.53x
+  [conc ] per-thread ms/iter min=12.996 max=13.238 spread=1.8%  vs solo_avg=1.684 (contention=+678.9%)
+  [stag ] N=12   : base=140 us  wall=663.63 ms  |  speedup vs N*solo = 1.52x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 307.3 ms
+  create ctx[ 1]: 313.4 ms
+  create ctx[ 2]: 331.6 ms
+  create ctx[ 3]: 334.3 ms
+  create ctx[ 4]: 371.4 ms
+  create ctx[ 5]: 344.2 ms
+  create ctx[ 6]: 287.2 ms
+  create ctx[ 7]: 274.5 ms
+  create ctx[ 8]: 277.2 ms
+  create ctx[ 9]: 273.5 ms
+  create ctx[10]: 285.6 ms
+  create ctx[11]: 277.6 ms
+  create ctx[12]: 280.6 ms
+  create ctx[13]: 282.3 ms
+  create ctx[14]: 297.3 ms
+  create ctx[15]: 281.4 ms
+  [solo] ctx[ 0]  : 1.648 ms/iter  |  7.82 TFLOP/s
+  [solo] ctx[ 1]  : 1.681 ms/iter  |  7.67 TFLOP/s
+  [solo] ctx[ 2]  : 1.685 ms/iter  |  7.65 TFLOP/s
+  [solo] ctx[ 3]  : 1.693 ms/iter  |  7.61 TFLOP/s
+  [solo] ctx[ 4]  : 1.682 ms/iter  |  7.66 TFLOP/s
+  [solo] ctx[ 5]  : 1.675 ms/iter  |  7.69 TFLOP/s
+  [solo] ctx[ 6]  : 1.671 ms/iter  |  7.71 TFLOP/s
+  [solo] ctx[ 7]  : 1.696 ms/iter  |  7.60 TFLOP/s
+  [solo] ctx[ 8]  : 1.703 ms/iter  |  7.57 TFLOP/s
+  [solo] ctx[ 9]  : 1.672 ms/iter  |  7.71 TFLOP/s
+  [solo] ctx[10]  : 1.680 ms/iter  |  7.67 TFLOP/s
+  [solo] ctx[11]  : 1.664 ms/iter  |  7.74 TFLOP/s
+  [solo] ctx[12]  : 1.656 ms/iter  |  7.78 TFLOP/s
+  [solo] ctx[13]  : 1.660 ms/iter  |  7.76 TFLOP/s
+  [solo] ctx[14]  : 1.758 ms/iter  |  7.33 TFLOP/s
+  [solo] ctx[15]  : 1.692 ms/iter  |  7.62 TFLOP/s
+  [solo] avg      : 1.682 ms/iter  |  7.66 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=883.47 ms  |  per-iter wall=17.669 ms  |  aggregate 11.67 TFLOP/s  |  speedup vs N*solo = 1.52x
+  [conc ] per-thread ms/iter min=17.313 max=17.627 spread=1.8%  vs solo_avg=1.682 (contention=+938.6%)
+  [stag ] N=16   : base=105 us  wall=884.48 ms  |  speedup vs N*solo = 1.52x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=1  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 400.1 ms
+  [solo] ctx[ 0]  : 2.636 ms/iter  |  9.78 TFLOP/s
+  [solo] avg      : 2.636 ms/iter  |  9.78 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=132.20 ms  |  per-iter wall=2.644 ms  |  aggregate 9.75 TFLOP/s  |  speedup vs N*solo = 1.00x
+  [conc ] per-thread ms/iter min=2.644 max=2.644 spread=0.0%  vs solo_avg=2.636 (contention=+0.3%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=2  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 407.2 ms
+  create ctx[ 1]: 392.5 ms
+  [solo] ctx[ 0]  : 2.639 ms/iter  |  9.77 TFLOP/s
+  [solo] ctx[ 1]  : 2.619 ms/iter  |  9.84 TFLOP/s
+  [solo] avg      : 2.629 ms/iter  |  9.80 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=199.94 ms  |  per-iter wall=3.999 ms  |  aggregate 12.89 TFLOP/s  |  speedup vs N*solo = 1.31x
+  [conc ] per-thread ms/iter min=3.958 max=3.999 spread=1.0%  vs solo_avg=2.629 (contention=+51.3%)
+  [stag ] N= 2   : base=1314 us  wall=201.02 ms  |  speedup vs N*solo = 1.31x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=3  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 392.9 ms
+  create ctx[ 1]: 392.4 ms
+  create ctx[ 2]: 394.6 ms
+  [solo] ctx[ 0]  : 2.629 ms/iter  |  9.80 TFLOP/s
+  [solo] ctx[ 1]  : 2.620 ms/iter  |  9.83 TFLOP/s
+  [solo] ctx[ 2]  : 2.644 ms/iter  |  9.75 TFLOP/s
+  [solo] avg      : 2.631 ms/iter  |  9.79 TFLOP/s  (per-context baseline)
+  [conc ] N= 3   : wall=300.47 ms  |  per-iter wall=6.009 ms  |  aggregate 12.86 TFLOP/s  |  speedup vs N*solo = 1.31x
+  [conc ] per-thread ms/iter min=5.928 max=6.010 spread=1.4%  vs solo_avg=2.631 (contention=+126.8%)
+  [stag ] N= 3   : base=877 us  wall=300.88 ms  |  speedup vs N*solo = 1.31x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=4  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 392.5 ms
+  create ctx[ 1]: 390.9 ms
+  create ctx[ 2]: 378.1 ms
+  create ctx[ 3]: 389.8 ms
+  [solo] ctx[ 0]  : 2.625 ms/iter  |  9.82 TFLOP/s
+  [solo] ctx[ 1]  : 2.642 ms/iter  |  9.75 TFLOP/s
+  [solo] ctx[ 2]  : 2.659 ms/iter  |  9.69 TFLOP/s
+  [solo] ctx[ 3]  : 2.629 ms/iter  |  9.80 TFLOP/s
+  [solo] avg      : 2.639 ms/iter  |  9.77 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=401.68 ms  |  per-iter wall=8.034 ms  |  aggregate 12.83 TFLOP/s  |  speedup vs N*solo = 1.31x
+  [conc ] per-thread ms/iter min=7.909 max=8.029 spread=1.5%  vs solo_avg=2.639 (contention=+202.0%)
+  [stag ] N= 4   : base=659 us  wall=400.95 ms  |  speedup vs N*solo = 1.32x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=6  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 384.6 ms
+  create ctx[ 1]: 385.7 ms
+  create ctx[ 2]: 419.8 ms
+  create ctx[ 3]: 392.0 ms
+  create ctx[ 4]: 378.5 ms
+  create ctx[ 5]: 397.2 ms
+  [solo] ctx[ 0]  : 2.620 ms/iter  |  9.84 TFLOP/s
+  [solo] ctx[ 1]  : 2.616 ms/iter  |  9.85 TFLOP/s
+  [solo] ctx[ 2]  : 2.624 ms/iter  |  9.82 TFLOP/s
+  [solo] ctx[ 3]  : 2.638 ms/iter  |  9.77 TFLOP/s
+  [solo] ctx[ 4]  : 2.613 ms/iter  |  9.86 TFLOP/s
+  [solo] ctx[ 5]  : 2.612 ms/iter  |  9.87 TFLOP/s
+  [solo] avg      : 2.620 ms/iter  |  9.83 TFLOP/s  (per-context baseline)
+  [conc ] N= 6   : wall=599.92 ms  |  per-iter wall=11.998 ms  |  aggregate 12.89 TFLOP/s  |  speedup vs N*solo = 1.31x
+  [conc ] per-thread ms/iter min=11.799 max=11.997 spread=1.7%  vs solo_avg=2.620 (contention=+354.1%)
+  [stag ] N= 6   : base=436 us  wall=600.24 ms  |  speedup vs N*solo = 1.31x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=8  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 405.8 ms
+  create ctx[ 1]: 397.6 ms
+  create ctx[ 2]: 389.7 ms
+  create ctx[ 3]: 391.7 ms
+  create ctx[ 4]: 381.5 ms
+  create ctx[ 5]: 387.7 ms
+  create ctx[ 6]: 397.1 ms
+  create ctx[ 7]: 381.8 ms
+  [solo] ctx[ 0]  : 2.646 ms/iter  |  9.74 TFLOP/s
+  [solo] ctx[ 1]  : 2.649 ms/iter  |  9.73 TFLOP/s
+  [solo] ctx[ 2]  : 2.655 ms/iter  |  9.71 TFLOP/s
+  [solo] ctx[ 3]  : 2.707 ms/iter  |  9.52 TFLOP/s
+  [solo] ctx[ 4]  : 2.667 ms/iter  |  9.66 TFLOP/s
+  [solo] ctx[ 5]  : 2.675 ms/iter  |  9.63 TFLOP/s
+  [solo] ctx[ 6]  : 2.650 ms/iter  |  9.72 TFLOP/s
+  [solo] ctx[ 7]  : 2.690 ms/iter  |  9.58 TFLOP/s
+  [solo] avg      : 2.667 ms/iter  |  9.66 TFLOP/s  (per-context baseline)
+  [conc ] N= 8   : wall=800.72 ms  |  per-iter wall=16.014 ms  |  aggregate 12.87 TFLOP/s  |  speedup vs N*solo = 1.33x
+  [conc ] per-thread ms/iter min=15.732 max=16.012 spread=1.7%  vs solo_avg=2.667 (contention=+495.1%)
+  [stag ] N= 8   : base=333 us  wall=798.78 ms  |  speedup vs N*solo = 1.34x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=12  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 391.3 ms
+  create ctx[ 1]: 376.8 ms
+  create ctx[ 2]: 376.0 ms
+  create ctx[ 3]: 386.3 ms
+  create ctx[ 4]: 392.5 ms
+  create ctx[ 5]: 399.5 ms
+  create ctx[ 6]: 374.8 ms
+  create ctx[ 7]: 394.1 ms
+  create ctx[ 8]: 381.2 ms
+  create ctx[ 9]: 390.4 ms
+  create ctx[10]: 374.4 ms
+  create ctx[11]: 377.5 ms
+  [solo] ctx[ 0]  : 2.654 ms/iter  |  9.71 TFLOP/s
+  [solo] ctx[ 1]  : 2.655 ms/iter  |  9.71 TFLOP/s
+  [solo] ctx[ 2]  : 2.683 ms/iter  |  9.60 TFLOP/s
+  [solo] ctx[ 3]  : 2.651 ms/iter  |  9.72 TFLOP/s
+  [solo] ctx[ 4]  : 2.658 ms/iter  |  9.69 TFLOP/s
+  [solo] ctx[ 5]  : 2.658 ms/iter  |  9.70 TFLOP/s
+  [solo] ctx[ 6]  : 2.665 ms/iter  |  9.67 TFLOP/s
+  [solo] ctx[ 7]  : 2.657 ms/iter  |  9.70 TFLOP/s
+  [solo] ctx[ 8]  : 2.648 ms/iter  |  9.73 TFLOP/s
+  [solo] ctx[ 9]  : 2.600 ms/iter  |  9.91 TFLOP/s
+  [solo] ctx[10]  : 2.623 ms/iter  |  9.82 TFLOP/s
+  [solo] ctx[11]  : 2.610 ms/iter  |  9.87 TFLOP/s
+  [solo] avg      : 2.647 ms/iter  |  9.74 TFLOP/s  (per-context baseline)
+  [conc ] N=12   : wall=1195.81 ms  |  per-iter wall=23.916 ms  |  aggregate 12.93 TFLOP/s  |  speedup vs N*solo = 1.33x
+  [conc ] per-thread ms/iter min=23.478 max=23.914 spread=1.8%  vs solo_avg=2.647 (contention=+795.2%)
+  [stag ] N=12   : base=220 us  wall=1194.82 ms  |  speedup vs N*solo = 1.33x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=512  N=16  out=fp16  warmup=5  iters=50
+============================================================
+  create ctx[ 0]: 410.9 ms
+  create ctx[ 1]: 404.9 ms
+  create ctx[ 2]: 386.6 ms
+  create ctx[ 3]: 376.2 ms
+  create ctx[ 4]: 377.6 ms
+  create ctx[ 5]: 371.2 ms
+  create ctx[ 6]: 373.2 ms
+  create ctx[ 7]: 378.7 ms
+  create ctx[ 8]: 401.6 ms
+  create ctx[ 9]: 391.3 ms
+  create ctx[10]: 399.6 ms
+  create ctx[11]: 404.5 ms
+  create ctx[12]: 406.1 ms
+  create ctx[13]: 383.1 ms
+  create ctx[14]: 379.9 ms
+  create ctx[15]: 383.6 ms
+  [solo] ctx[ 0]  : 2.688 ms/iter  |  9.59 TFLOP/s
+  [solo] ctx[ 1]  : 2.617 ms/iter  |  9.85 TFLOP/s
+  [solo] ctx[ 2]  : 2.660 ms/iter  |  9.69 TFLOP/s
+  [solo] ctx[ 3]  : 2.586 ms/iter  |  9.96 TFLOP/s
+  [solo] ctx[ 4]  : 2.596 ms/iter  |  9.93 TFLOP/s
+  [solo] ctx[ 5]  : 2.623 ms/iter  |  9.82 TFLOP/s
+  [solo] ctx[ 6]  : 2.651 ms/iter  |  9.72 TFLOP/s
+  [solo] ctx[ 7]  : 2.636 ms/iter  |  9.78 TFLOP/s
+  [solo] ctx[ 8]  : 2.641 ms/iter  |  9.76 TFLOP/s
+  [solo] ctx[ 9]  : 2.674 ms/iter  |  9.64 TFLOP/s
+  [solo] ctx[10]  : 2.698 ms/iter  |  9.55 TFLOP/s
+  [solo] ctx[11]  : 2.654 ms/iter  |  9.71 TFLOP/s
+  [solo] ctx[12]  : 2.646 ms/iter  |  9.74 TFLOP/s
+  [solo] ctx[13]  : 2.610 ms/iter  |  9.87 TFLOP/s
+  [solo] ctx[14]  : 2.607 ms/iter  |  9.89 TFLOP/s
+  [solo] ctx[15]  : 2.594 ms/iter  |  9.93 TFLOP/s
+  [solo] avg      : 2.636 ms/iter  |  9.77 TFLOP/s  (per-context baseline)
+  [conc ] N=16   : wall=1592.81 ms  |  per-iter wall=31.856 ms  |  aggregate 12.94 TFLOP/s  |  speedup vs N*solo = 1.32x
+  [conc ] per-thread ms/iter min=31.258 max=31.854 spread=1.9%  vs solo_avg=2.636 (contention=+1096.9%)
+  [stag ] N=16   : base=164 us  wall=1593.15 ms  |  speedup vs N*solo = 1.32x
+
+============================================================
+ SUMMARY  H=4096  I=2048   (random int8 weights, runtime MatMul)
+============================================================
+  out    B    N    solo_ms  solo_TF/s   conc_ms/it  conc_wall_ms   aggregate_TF/s  speedup   stagger_TF/s  contention%
+  ----  ----  ---  -------  ---------  ----------  ------------   --------------  -------   ------------  -----------
+  fp16     8    1    0.839       0.48       0.854         42.71             0.47    0.98x          0.00        +1.8%
+  fp16     8    2    0.863       0.47       0.962         48.08             0.84    1.79x          0.83       +11.0%
+  fp16     8    3    0.901       0.45       1.149         57.44             1.05    2.35x          1.00       +26.6%
+  fp16     8    4    0.845       0.48       1.394         69.69             1.16    2.43x          1.16       +63.7%
+  fp16     8    6    0.952       0.42       1.963         98.16             1.23    2.91x          1.23      +104.2%
+  fp16     8    8    0.872       0.46       2.614        130.68             1.23    2.67x          1.23      +197.1%
+  fp16     8   12    0.854       0.47       3.918        195.92             1.23    2.62x          1.24      +354.1%
+  fp16     8   16    0.849       0.47       5.207        260.35             1.24    2.61x          1.24      +507.5%
+  fp16    16    1    0.881       0.91       0.869         43.45             0.93    1.01x          0.00        -1.4%
+  fp16    16    2    0.895       0.90       1.005         50.25             1.60    1.78x          1.58       +11.8%
+  fp16    16    3    0.850       0.95       1.163         58.13             2.08    2.19x          2.05       +35.9%
+  fp16    16    4    0.841       0.96       1.385         69.26             2.33    2.43x          2.30       +63.5%
+  fp16    16    6    0.864       0.93       1.998         99.89             2.42    2.59x          2.42      +129.3%
+  fp16    16    8    0.843       0.95       2.655        132.74             2.43    2.54x          2.43      +212.2%
+  fp16    16   12    0.843       0.96       3.962        198.10             2.44    2.55x          2.44      +363.5%
+  fp16    16   16    0.827       0.97       5.281        264.06             2.44    2.50x          2.44      +532.6%
+  fp16    32    1    0.956       1.69       0.980         49.00             1.64    0.98x          0.00        +2.6%
+  fp16    32    2    0.906       1.78       0.980         48.99             3.29    1.85x          3.19        +7.7%
+  fp16    32    3    0.896       1.80       1.223         61.16             3.95    2.20x          3.93       +35.6%
+  fp16    32    4    0.913       1.76       1.621         81.04             3.97    2.25x          3.47       +76.0%
+  fp16    32    6    0.917       1.76       2.405        120.24             4.02    2.29x          4.03      +159.4%
+  fp16    32    8    0.913       1.76       3.199        159.97             4.03    2.28x          4.01      +247.1%
+  fp16    32   12    0.920       1.75       4.784        239.20             4.04    2.31x          4.03      +415.6%
+  fp16    32   16    0.956       1.69       6.371        318.55             4.04    2.40x          4.05      +560.1%
+  fp16    64    1    0.996       3.23       0.983         49.13             3.28    1.01x          0.00        -1.3%
+  fp16    64    2    0.963       3.35       1.076         53.80             5.99    1.79x          5.98       +11.1%
+  fp16    64    3    0.963       3.34       1.393         69.67             6.94    2.07x          6.66       +43.7%
+  fp16    64    4    0.976       3.30       1.851         92.53             6.96    2.11x          7.00       +88.1%
+  fp16    64    6    0.971       3.32       2.776        138.81             6.96    2.10x          6.98      +183.4%
+  fp16    64    8    0.980       3.29       3.695        184.76             6.97    2.12x          6.99      +273.8%
+  fp16    64   12    0.973       3.31       5.525        276.24             7.00    2.11x          7.01      +462.5%
+  fp16    64   16    0.978       3.29       7.367        368.35             7.00    2.12x          7.00      +646.3%
+  fp16   128    1    1.166       5.52       1.169         58.45             5.51    1.00x          0.00        +0.2%
+  fp16   128    2    1.138       5.66       1.281         64.06            10.06    1.78x         10.14       +12.0%
+  fp16   128    3    1.263       5.10       1.835         91.73            10.54    2.07x         10.57       +44.2%
+  fp16   128    4    1.215       5.30       2.450        122.52            10.52    1.98x         10.54      +100.2%
+  fp16   128    6    1.117       5.77       3.655        182.74            10.58    1.83x         10.60      +224.4%
+  fp16   128    8    1.136       5.67       4.872        243.61            10.58    1.86x         10.61      +325.2%
+  fp16   128   12    1.138       5.66       7.291        364.55            10.60    1.87x         10.60      +534.8%
+  fp16   128   16    1.155       5.58       9.727        486.37            10.60    1.90x         10.58      +734.0%
+  fp16   256    1    1.652       7.80       1.659         82.93             7.77    1.00x          0.00        +0.4%
+  fp16   256    2    1.688       7.64       2.217        110.83            11.63    1.52x         11.67       +30.7%
+  fp16   256    3    1.664       7.74       3.323        166.14            11.63    1.50x         11.64       +98.3%
+  fp16   256    4    1.670       7.72       4.425        221.27            11.65    1.51x         11.67      +163.0%
+  fp16   256    6    1.683       7.66       6.628        331.42            11.66    1.52x         11.67      +290.6%
+  fp16   256    8    1.686       7.64       8.820        441.02            11.69    1.53x         11.65      +418.6%
+  fp16   256   12    1.684       7.65      13.238        661.92            11.68    1.53x         11.65      +678.9%
+  fp16   256   16    1.682       7.66      17.669        883.47            11.67    1.52x         11.65      +938.6%
+  fp16   512    1    2.636       9.78       2.644        132.20             9.75    1.00x          0.00        +0.3%
+  fp16   512    2    2.629       9.80       3.999        199.94            12.89    1.31x         12.82       +51.3%
+  fp16   512    3    2.631       9.79       6.009        300.47            12.86    1.31x         12.85      +126.8%
+  fp16   512    4    2.639       9.77       8.034        401.68            12.83    1.31x         12.85      +202.0%
+  fp16   512    6    2.620       9.83      11.998        599.92            12.89    1.31x         12.88      +354.1%
+  fp16   512    8    2.667       9.66      16.014        800.72            12.87    1.33x         12.90      +495.1%
+  fp16   512   12    2.647       9.74      23.916       1195.81            12.93    1.33x         12.94      +795.2%
+  fp16   512   16    2.636       9.77      31.856       1592.81            12.94    1.32x         12.94     +1096.9%
+
+  Peak aggregate TFLOP/s by output dtype and batch:
+    out=fp16  B=   8 : 1.24 TFLOP/s  @ N=16
+    out=fp16  B=  16 : 2.44 TFLOP/s  @ N=16
+    out=fp16  B=  32 : 4.04 TFLOP/s  @ N=16
+    out=fp16  B=  64 : 7.00 TFLOP/s  @ N=12
+    out=fp16  B= 128 : 10.60 TFLOP/s  @ N=12
+    out=fp16  B= 256 : 11.69 TFLOP/s  @ N=8
+    out=fp16  B= 512 : 12.94 TFLOP/s  @ N=16
+

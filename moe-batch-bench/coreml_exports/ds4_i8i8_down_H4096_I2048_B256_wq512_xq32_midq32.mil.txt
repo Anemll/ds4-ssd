@@ -1,0 +1,10 @@
+
+main[CoreML8](%Wdq: (2048, 4096, int8)(Tensor),
+              %hidden_q: (256, 2048, int8)(Tensor)) {
+  block1() {
+    %Wd: (2048, 4096, fp16)(Tensor) = dequantize(input=%Wdq, zero_point=0, scale=0.001953125, name="Wd")
+    %hidden: (256, 2048, fp16)(Tensor) = dequantize(input=%hidden_q, zero_point=0, scale=0.03125, name="hidden")
+    %hidden3: (1, 256, 2048, fp16)(Tensor) = expand_dims(x=%hidden, axes=[0], name="hidden3")
+    %Y: (1, 256, 4096, fp16)(Tensor) = matmul(x=%hidden3, y=%Wd, transpose_x=False, transpose_y=False, name="Y")
+  } -> (%Y)
+}

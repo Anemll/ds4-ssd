@@ -1,0 +1,66 @@
+run=m5max_gpuonly_20260526_105708
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/m5max_gpuonly_20260526_105708.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+ctx=98192 tokens=1 chunk=32000 slots=64
+async_pread=1 prefetch=1 after_stage=1
+
+ds4: prefill compute: routed experts = GPU MPP-int8 / NAX (W8A8) | dense proj = fp16-NAX (half x half)
+ds4: MPP/NAX int8 partial-tile workaround active (64-row MPP tiles, tail rows use legacy GPU; set DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)
+ds4: metal layer-major prefill layer 0 encode=844.774 ms execute=84.099 ms
+ds4: metal layer-major prefill layer 1 encode=467.050 ms execute=19.192 ms
+ds4: metal layer-major prefill layer 2 encode=737.845 ms execute=18.812 ms
+ds4: metal layer-major prefill layer 3 encode=434.307 ms execute=18.960 ms
+ds4: metal layer-major prefill layer 4 encode=591.245 ms execute=19.277 ms
+ds4: metal layer-major prefill layer 5 encode=441.258 ms execute=18.687 ms
+ds4: metal layer-major prefill layer 6 encode=582.623 ms execute=19.252 ms
+ds4: metal layer-major prefill layer 7 encode=419.497 ms execute=18.483 ms
+ds4: metal layer-major prefill layer 8 encode=579.120 ms execute=18.980 ms
+ds4: metal layer-major prefill layer 9 encode=438.503 ms execute=19.008 ms
+ds4: metal layer-major prefill layer 10 encode=584.992 ms execute=19.240 ms
+ds4: metal layer-major prefill layer 11 encode=425.896 ms execute=19.337 ms
+ds4: metal layer-major prefill layer 12 encode=564.229 ms execute=19.705 ms
+ds4: metal layer-major prefill layer 13 encode=412.820 ms execute=19.237 ms
+ds4: metal layer-major prefill layer 14 encode=567.911 ms execute=19.532 ms
+ds4: metal layer-major prefill layer 15 encode=411.103 ms execute=18.494 ms
+ds4: metal layer-major prefill layer 16 encode=570.994 ms execute=19.418 ms
+ds4: metal layer-major prefill layer 17 encode=416.368 ms execute=19.782 ms
+ds4: metal layer-major prefill layer 18 encode=559.499 ms execute=18.290 ms
+ds4: metal layer-major prefill layer 19 encode=433.656 ms execute=19.310 ms
+ds4: metal layer-major prefill layer 20 encode=569.629 ms execute=18.616 ms
+ds4: metal layer-major prefill layer 21 encode=545.234 ms execute=18.380 ms
+ds4: metal layer-major prefill layer 22 encode=572.960 ms execute=20.252 ms
+ds4: metal layer-major prefill layer 23 encode=437.635 ms execute=19.250 ms
+ds4: metal layer-major prefill layer 24 encode=695.719 ms execute=19.331 ms
+ds4: metal layer-major prefill layer 25 encode=428.369 ms execute=18.903 ms
+ds4: metal layer-major prefill layer 26 encode=562.604 ms execute=19.378 ms
+ds4: metal layer-major prefill layer 27 encode=425.030 ms execute=18.580 ms
+ds4: metal layer-major prefill layer 28 encode=581.556 ms execute=18.838 ms
+ds4: metal layer-major prefill layer 29 encode=425.215 ms execute=19.085 ms
+ds4: metal layer-major prefill layer 30 encode=578.106 ms execute=19.693 ms
+ds4: metal layer-major prefill layer 31 encode=427.603 ms execute=20.779 ms
+ds4: metal layer-major prefill layer 32 encode=575.975 ms execute=19.194 ms
+ds4: metal layer-major prefill layer 33 encode=427.844 ms execute=18.253 ms
+ds4: metal layer-major prefill layer 34 encode=570.658 ms execute=19.270 ms
+ds4: metal layer-major prefill layer 35 encode=426.320 ms execute=18.456 ms
+ds4: metal layer-major prefill layer 36 encode=573.198 ms execute=19.227 ms
+ds4: metal layer-major prefill layer 37 encode=417.192 ms execute=18.220 ms
+ds4: metal layer-major prefill layer 38 encode=577.529 ms execute=19.098 ms
+ds4: metal layer-major prefill layer 39 encode=422.296 ms execute=19.832 ms
+ds4: metal layer-major prefill layer 40 encode=555.934 ms execute=18.672 ms
+ds4: metal layer-major prefill layer 41 encode=411.099 ms execute=18.831 ms
+ds4: metal layer-major prefill layer 42 encode=566.302 ms execute=19.015 ms
+ds4: metal layer-major prefill total tokens=8423 encode=22307.782 ms execute=887.463 ms read=0.035 ms total=23196.505 ms
+ds4: prefill: 361.27 t/s, generation: 1.34 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10777 hit-rate=0.0% resident-slots=258/2752 (9.4%, avg=6.0/layer min=6 max=6 of 64) installed=72744.75 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10519 saved=2162615 (99.5%) reuse=206.59x
+ds4: Flash-MoE prefill stage stats calls=10519 bytes=71003.25 MiB pread=9494.319 ms upload=1187.419 ms gate=366.604 ms up=363.685 ms down=457.130 ms scatter=11.789 ms stage_rate=6647.16 MiB/s pread_rate=7478.50 MiB/s upload_rate=59796.29 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=22665.257 ms active=41.89% span_rate=3132.69 MiB/s issue_gap=15870.496 ms post_stage_gap=10285.766 ms same_layer_issue=5028.612 ms same_layer_post=0.000 ms cross_layer_issue=10841.884 ms cross_layer_post=10285.766 ms max_issue=449.846 ms max_post=432.630 ms issue_gaps=7104 post_gaps=42 issue_gt1=1423 issue_gt5=49 issue_gt20=43 post_gt1=42 post_gt5=42 post_gt20=42
+ds4: Flash-MoE prefill pread bucket le16 calls=1564 refs=11154 bytes=10557.00 MiB pread=1636.847 ms issue_gap=3099.656 ms post_stage_gap=2241.057 ms pread_rate=6449.59 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=960 refs=22975 bytes=6480.00 MiB pread=940.368 ms issue_gap=948.365 ms post_stage_gap=477.462 ms pread_rate=6890.92 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=1303 refs=62138 bytes=8795.25 MiB pread=1115.079 ms issue_gap=1562.182 ms post_stage_gap=956.221 ms pread_rate=7887.56 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=1796 refs=170612 bytes=12123.00 MiB pread=1580.304 ms issue_gap=2833.304 ms post_stage_gap=1910.160 ms pread_rate=7671.31 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=2326 refs=431665 bytes=15700.50 MiB pread=1907.675 ms issue_gap=3313.733 ms post_stage_gap=1995.468 ms pread_rate=8230.18 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=1652 refs=590258 bytes=11151.00 MiB pread=1383.267 ms issue_gap=2095.111 ms post_stage_gap=1161.404 ms pread_rate=8061.35 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=918 refs=884332 bytes=6196.50 MiB pread=930.779 ms issue_gap=2018.145 ms post_stage_gap=1543.994 ms pread_rate=6657.33 MiB/s

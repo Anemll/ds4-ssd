@@ -1,0 +1,22 @@
+
+main[CoreML9](%Wgq: (4096, 2048, int8)(Tensor),
+              %Wuq: (4096, 2048, int8)(Tensor),
+              %Wdq: (2048, 4096, int8)(Tensor),
+              %Xq: (256, 4096, int8)(Tensor)) {
+  block0() {
+    %Wg: (4096, 2048, fp16)(Tensor) = dequantize(input=%Wgq, zero_point=0, scale=0.001953125, name="Wg")
+    %Wu: (4096, 2048, fp16)(Tensor) = dequantize(input=%Wuq, zero_point=0, scale=0.001953125, name="Wu")
+    %Wd: (2048, 4096, fp16)(Tensor) = dequantize(input=%Wdq, zero_point=0, scale=0.001953125, name="Wd")
+    %X: (256, 4096, fp16)(Tensor) = dequantize(input=%Xq, zero_point=0, scale=0.03125, name="X")
+    %X3: (1, 256, 4096, fp16)(Tensor) = expand_dims(x=%X, axes=[0], name="X3")
+    %gate: (1, 256, 2048, fp16)(Tensor) = matmul(x=%X3, y=%Wg, transpose_x=False, transpose_y=False, name="gate")
+    %up: (1, 256, 2048, fp16)(Tensor) = matmul(x=%X3, y=%Wu, transpose_x=False, transpose_y=False, name="up")
+    %gate_c: (1, 256, 2048, fp16)(Tensor) = clip(x=%gate, alpha=-10.0, beta=10.0, name="gate_c")
+    %up_c: (1, 256, 2048, fp16)(Tensor) = clip(x=%up, alpha=-10.0, beta=10.0, name="up_c")
+    %act: (1, 256, 2048, fp16)(Tensor) = silu(x=%gate_c, name="act")
+    %hidden_fp: (1, 256, 2048, fp16)(Tensor) = mul(x=%act, y=%up_c, name="hidden_fp")
+    %hidden_q: (1, 256, 2048, int8)(Tensor) = quantize(input=%hidden_fp, zero_point=0, scale=0.03125, output_dtype="int8", name="hidden_q")
+    %hidden: (1, 256, 2048, fp16)(Tensor) = dequantize(input=%hidden_q, zero_point=0, scale=0.03125, name="hidden")
+    %Y: (1, 256, 4096, fp16)(Tensor) = matmul(x=%hidden, y=%Wd, transpose_x=False, transpose_y=False, name="Y")
+  } -> (%Y)
+}

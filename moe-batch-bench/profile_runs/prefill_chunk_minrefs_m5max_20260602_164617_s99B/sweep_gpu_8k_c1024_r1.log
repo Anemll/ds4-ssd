@@ -1,0 +1,1204 @@
+ds4: context buffers 881.95 MiB (ctx=10000, backend=metal, prefill_chunk=1024, raw_kv_rows=8704, compressed_kv_rows=2502)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=99, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.281 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 1024, graph_raw_cap=8704
+ds4: Flash-MoE slot banks allocated: layers=43 slots=99 gpu-bank=28734.75 MiB
+ds4: prefill compute: routed experts = GPU MPP-int8 / NAX (W8A8) | dense proj = fp16-NAX (half x half)
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 xlayer=auto<=6k-tok topk=49
+ds4: decode  I/O: io-split=4 temporal-prefetch=on slots=99
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: prefill chunk cap EFFECTIVE=1024 tokens (DS4_METAL_PREFILL_CHUNK=1024) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 8423 input tokens: 0/8423 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: MPP/NAX int8 partial-tile workaround active (64-row MPP tiles, tail rows use legacy GPU; set DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=28.710 ms plan=0.593 ms stage/compute=158.219 ms misses=256
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 0 encode=192.409 ms execute=5.286 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.214 ms plan=0.341 ms stage/compute=147.890 ms misses=256
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 1 encode=160.951 ms execute=2.846 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=21.792 ms plan=0.362 ms stage/compute=148.531 ms misses=256
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 2 encode=171.729 ms execute=2.584 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=233 refs=6144 sync=14.478 ms plan=0.298 ms stage/compute=122.732 ms misses=233
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=5 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 3 encode=138.389 ms execute=2.616 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=201 refs=6144 sync=20.264 ms plan=0.274 ms stage/compute=110.450 ms misses=201
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=18 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 4 encode=131.758 ms execute=2.718 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=224 refs=6144 sync=14.514 ms plan=0.361 ms stage/compute=121.280 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=26 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 5 encode=136.672 ms execute=2.677 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=218 refs=6144 sync=20.579 ms plan=0.322 ms stage/compute=115.170 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=32 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 6 encode=136.688 ms execute=2.785 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=218 refs=6144 sync=14.398 ms plan=0.332 ms stage/compute=107.513 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=36 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 7 encode=122.738 ms execute=2.581 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=205 refs=6144 sync=20.232 ms plan=0.347 ms stage/compute=105.959 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=45 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 8 encode=127.136 ms execute=2.779 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=225 refs=6144 sync=14.512 ms plan=0.292 ms stage/compute=119.724 ms misses=225
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=53 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 9 encode=135.038 ms execute=2.497 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=210 refs=6144 sync=20.232 ms plan=0.355 ms stage/compute=113.896 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=61 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 10 encode=135.124 ms execute=2.788 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=221 refs=6144 sync=14.593 ms plan=0.347 ms stage/compute=115.421 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=70 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 11 encode=130.942 ms execute=2.587 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=195 refs=6144 sync=20.974 ms plan=0.286 ms stage/compute=105.506 ms misses=195
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=85 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 12 encode=127.346 ms execute=3.563 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=209 refs=6144 sync=15.211 ms plan=0.308 ms stage/compute=106.143 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=91 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 13 encode=122.141 ms execute=2.557 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=194 refs=6144 sync=20.308 ms plan=0.280 ms stage/compute=104.712 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=104 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 14 encode=125.875 ms execute=2.498 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=196 refs=6144 sync=14.619 ms plan=0.307 ms stage/compute=108.541 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=114 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 15 encode=123.936 ms execute=2.525 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=194 refs=6144 sync=20.235 ms plan=0.358 ms stage/compute=110.154 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=122 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 16 encode=131.418 ms execute=2.585 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=201 refs=6144 sync=14.700 ms plan=0.303 ms stage/compute=112.484 ms misses=201
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=130 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 17 encode=128.029 ms execute=3.483 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=194 refs=6144 sync=20.280 ms plan=0.305 ms stage/compute=109.693 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=146 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 18 encode=130.873 ms execute=2.714 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=217 refs=6144 sync=14.530 ms plan=0.346 ms stage/compute=122.154 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=154 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 19 encode=137.551 ms execute=2.587 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=205 refs=6144 sync=20.246 ms plan=0.309 ms stage/compute=118.487 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=162 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 20 encode=139.673 ms execute=2.838 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=210 refs=6144 sync=14.628 ms plan=0.298 ms stage/compute=119.598 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=174 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 21 encode=134.966 ms execute=2.636 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=223 refs=6144 sync=20.199 ms plan=0.337 ms stage/compute=117.607 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=180 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 22 encode=138.753 ms execute=2.844 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=216 refs=6144 sync=14.405 ms plan=0.333 ms stage/compute=120.381 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=187 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 23 encode=135.576 ms execute=2.550 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=194 refs=6144 sync=20.167 ms plan=0.298 ms stage/compute=108.270 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=196 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 24 encode=129.366 ms execute=2.534 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=218 refs=6144 sync=14.433 ms plan=0.325 ms stage/compute=117.363 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=202 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 25 encode=132.598 ms execute=2.559 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=200 refs=6144 sync=20.308 ms plan=0.374 ms stage/compute=104.279 ms misses=200
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=212 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 26 encode=125.551 ms execute=2.804 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=218 refs=6144 sync=14.337 ms plan=0.368 ms stage/compute=114.633 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=219 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 27 encode=129.809 ms execute=2.609 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=206 refs=6144 sync=20.213 ms plan=0.304 ms stage/compute=109.393 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=226 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 28 encode=130.517 ms execute=2.671 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=204 refs=6144 sync=14.635 ms plan=0.350 ms stage/compute=108.199 ms misses=204
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=233 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 29 encode=123.629 ms execute=2.815 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=205 refs=6144 sync=20.593 ms plan=0.313 ms stage/compute=109.823 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=241 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 30 encode=131.329 ms execute=2.706 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=221 refs=6144 sync=14.425 ms plan=0.323 ms stage/compute=116.876 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=251 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 31 encode=132.076 ms execute=3.721 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=212 refs=6144 sync=20.130 ms plan=0.303 ms stage/compute=118.148 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=258 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 32 encode=139.230 ms execute=2.680 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=222 refs=6144 sync=14.565 ms plan=0.336 ms stage/compute=116.164 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=262 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 33 encode=131.547 ms execute=2.514 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=205 refs=6144 sync=20.236 ms plan=0.294 ms stage/compute=112.155 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=271 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 34 encode=133.301 ms execute=2.586 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=220 refs=6144 sync=14.417 ms plan=0.439 ms stage/compute=119.197 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=276 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 35 encode=134.555 ms execute=2.619 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=207 refs=6144 sync=20.207 ms plan=0.364 ms stage/compute=108.139 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=285 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 36 encode=129.264 ms execute=2.494 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=214 refs=6144 sync=14.488 ms plan=0.309 ms stage/compute=114.850 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=296 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 37 encode=130.079 ms execute=2.538 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=204 refs=6144 sync=20.097 ms plan=0.309 ms stage/compute=106.341 ms misses=204
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=304 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 38 encode=127.394 ms execute=2.911 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=213 refs=6144 sync=14.382 ms plan=0.354 ms stage/compute=111.512 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=312 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 39 encode=126.773 ms execute=2.534 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=187 refs=6144 sync=20.214 ms plan=0.303 ms stage/compute=96.886 ms misses=187
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=322 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 40 encode=118.094 ms execute=2.760 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=207 refs=6144 sync=14.389 ms plan=0.333 ms stage/compute=110.659 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=329 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 41 encode=125.861 ms execute=2.805 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=204 refs=6144 sync=20.453 ms plan=0.262 ms stage/compute=108.963 ms misses=204
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=339 finished=0
+ds4: gpu chunked prefill pos=0 tokens=1024 layer 42 encode=130.354 ms execute=2.400 ms
+processing 8423 input tokens: 1024/8423 (12.2%) batch=174.11 t/s avg=172.02 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.157 ms plan=0.319 ms stage/compute=147.733 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=339 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 0 encode=160.605 ms execute=2.966 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.440 ms plan=0.325 ms stage/compute=149.074 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=339 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 1 encode=162.339 ms execute=2.766 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=23.216 ms plan=0.335 ms stage/compute=149.097 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=339 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 2 encode=173.524 ms execute=2.640 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=232 refs=6144 sync=14.593 ms plan=0.382 ms stage/compute=130.395 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=344 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 3 encode=145.869 ms execute=2.640 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=218 refs=6144 sync=23.109 ms plan=0.328 ms stage/compute=121.892 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=354 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 4 encode=145.973 ms execute=2.789 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=238 refs=6144 sync=14.529 ms plan=0.351 ms stage/compute=131.045 ms misses=238
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=358 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 5 encode=146.530 ms execute=2.700 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=228 refs=6144 sync=23.343 ms plan=0.322 ms stage/compute=127.268 ms misses=228
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=364 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 6 encode=151.722 ms execute=2.767 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=229 refs=6144 sync=14.507 ms plan=0.333 ms stage/compute=117.839 ms misses=229
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=368 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 7 encode=133.436 ms execute=2.612 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=228 refs=6144 sync=23.253 ms plan=0.309 ms stage/compute=121.104 ms misses=228
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=373 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 8 encode=145.399 ms execute=2.940 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=240 refs=6144 sync=14.523 ms plan=0.305 ms stage/compute=130.483 ms misses=240
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=377 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 9 encode=145.798 ms execute=2.646 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=224 refs=6144 sync=23.130 ms plan=0.322 ms stage/compute=128.125 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=387 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 10 encode=152.347 ms execute=2.785 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=232 refs=6144 sync=14.537 ms plan=0.370 ms stage/compute=126.318 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=392 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 11 encode=141.843 ms execute=2.616 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=212 refs=6144 sync=23.217 ms plan=0.286 ms stage/compute=118.000 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=402 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 12 encode=142.312 ms execute=3.326 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=212 refs=6144 sync=14.471 ms plan=0.369 ms stage/compute=114.782 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=407 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 13 encode=130.132 ms execute=2.584 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=207 refs=6144 sync=23.316 ms plan=0.366 ms stage/compute=111.092 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=419 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 14 encode=135.544 ms execute=2.645 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=215 refs=6144 sync=14.666 ms plan=0.354 ms stage/compute=117.661 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=427 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 15 encode=133.160 ms execute=2.632 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=209 refs=6144 sync=23.368 ms plan=0.307 ms stage/compute=119.855 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=438 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 16 encode=144.229 ms execute=2.931 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=211 refs=6144 sync=14.579 ms plan=0.362 ms stage/compute=118.769 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=443 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 17 encode=134.233 ms execute=3.373 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=215 refs=6144 sync=23.816 ms plan=0.307 ms stage/compute=116.714 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=450 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 18 encode=141.768 ms execute=2.716 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=226 refs=6144 sync=14.533 ms plan=0.308 ms stage/compute=129.391 ms misses=226
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=452 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 19 encode=144.809 ms execute=2.800 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=193 refs=6144 sync=23.512 ms plan=0.359 ms stage/compute=110.637 ms misses=193
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=462 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 20 encode=135.206 ms execute=2.969 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=218 refs=6144 sync=14.433 ms plan=0.317 ms stage/compute=123.659 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=472 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 21 encode=138.928 ms execute=2.709 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=216 refs=6144 sync=23.113 ms plan=0.320 ms stage/compute=119.926 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=481 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 22 encode=144.065 ms execute=3.675 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=222 refs=6144 sync=14.419 ms plan=0.412 ms stage/compute=129.405 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=486 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 23 encode=144.735 ms execute=2.934 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=210 refs=6144 sync=22.962 ms plan=0.311 ms stage/compute=119.239 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=493 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 24 encode=143.261 ms execute=2.991 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=214 refs=6144 sync=14.420 ms plan=0.359 ms stage/compute=122.878 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=505 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 25 encode=138.179 ms execute=2.679 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=218 refs=6144 sync=23.146 ms plan=0.350 ms stage/compute=123.399 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=509 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 26 encode=147.622 ms execute=2.933 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=219 refs=6144 sync=14.373 ms plan=0.349 ms stage/compute=123.095 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=513 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 27 encode=138.556 ms execute=2.627 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=211 refs=6144 sync=23.036 ms plan=0.318 ms stage/compute=121.617 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=526 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 28 encode=145.690 ms execute=3.049 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=213 refs=6144 sync=14.724 ms plan=0.356 ms stage/compute=122.802 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=538 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 29 encode=138.372 ms execute=2.585 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=216 refs=6144 sync=23.130 ms plan=0.329 ms stage/compute=121.846 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=549 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 30 encode=146.069 ms execute=2.928 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=216 refs=6144 sync=14.540 ms plan=0.339 ms stage/compute=121.545 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=556 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 31 encode=136.973 ms execute=3.561 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=213 refs=6144 sync=23.013 ms plan=0.306 ms stage/compute=123.408 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=559 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 32 encode=147.541 ms execute=2.777 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=204 refs=6144 sync=14.490 ms plan=0.305 ms stage/compute=120.126 ms misses=204
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=575 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 33 encode=135.422 ms execute=3.301 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=214 refs=6144 sync=23.128 ms plan=0.312 ms stage/compute=118.422 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=579 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 34 encode=142.601 ms execute=2.909 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=225 refs=6144 sync=14.513 ms plan=0.307 ms stage/compute=126.884 ms misses=225
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=585 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 35 encode=142.234 ms execute=2.767 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=218 refs=6144 sync=23.133 ms plan=0.373 ms stage/compute=121.114 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=596 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 36 encode=145.429 ms execute=3.025 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=212 refs=6144 sync=14.353 ms plan=0.303 ms stage/compute=116.761 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=609 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 37 encode=131.980 ms execute=2.831 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=206 refs=6144 sync=23.398 ms plan=0.285 ms stage/compute=120.602 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=621 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 38 encode=144.983 ms execute=2.759 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=219 refs=6144 sync=14.484 ms plan=0.395 ms stage/compute=124.826 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=627 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 39 encode=140.223 ms execute=2.646 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=184 refs=6144 sync=23.151 ms plan=0.322 ms stage/compute=106.773 ms misses=184
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=639 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 40 encode=130.959 ms execute=2.579 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=198 refs=6144 sync=14.477 ms plan=0.346 ms stage/compute=117.177 ms misses=198
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=654 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 41 encode=132.594 ms execute=2.618 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=205 refs=6144 sync=23.083 ms plan=0.321 ms stage/compute=119.285 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=664 finished=0
+ds4: gpu chunked prefill pos=1024 tokens=1024 layer 42 encode=143.535 ms execute=2.533 ms
+processing 8423 input tokens: 2048/8423 (24.3%) batch=163.26 t/s avg=167.53 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.250 ms plan=0.289 ms stage/compute=150.397 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=664 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 0 encode=163.335 ms execute=2.949 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.430 ms plan=0.332 ms stage/compute=149.407 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=664 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 1 encode=162.674 ms execute=2.744 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=37.357 ms plan=0.332 ms stage/compute=149.692 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=664 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 2 encode=187.877 ms execute=2.656 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=234 refs=6144 sync=14.570 ms plan=0.334 ms stage/compute=134.620 ms misses=234
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=670 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 3 encode=150.120 ms execute=2.785 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=221 refs=6144 sync=37.251 ms plan=0.340 ms stage/compute=125.978 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=677 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 4 encode=163.847 ms execute=2.920 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=238 refs=6144 sync=14.546 ms plan=0.337 ms stage/compute=130.329 ms misses=238
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=682 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 5 encode=145.713 ms execute=2.653 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=226 refs=6144 sync=37.645 ms plan=0.328 ms stage/compute=127.579 ms misses=226
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=687 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 6 encode=165.833 ms execute=2.739 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=233 refs=6144 sync=14.459 ms plan=0.323 ms stage/compute=124.571 ms misses=233
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=691 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 7 encode=139.847 ms execute=2.578 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=228 refs=6144 sync=37.205 ms plan=0.306 ms stage/compute=124.078 ms misses=228
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=700 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 8 encode=161.853 ms execute=3.067 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=240 refs=6144 sync=14.523 ms plan=0.334 ms stage/compute=133.789 ms misses=240
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=704 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 9 encode=149.310 ms execute=2.790 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=230 refs=6144 sync=36.900 ms plan=0.324 ms stage/compute=130.916 ms misses=230
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=711 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 10 encode=168.417 ms execute=2.802 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=238 refs=6144 sync=14.595 ms plan=0.326 ms stage/compute=131.800 ms misses=238
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=715 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 11 encode=147.207 ms execute=2.707 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=208 refs=6144 sync=36.970 ms plan=0.361 ms stage/compute=121.106 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=724 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 12 encode=158.707 ms execute=3.433 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=217 refs=6144 sync=14.732 ms plan=0.304 ms stage/compute=118.579 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=731 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 13 encode=134.123 ms execute=2.833 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=213 refs=6144 sync=36.968 ms plan=0.341 ms stage/compute=118.847 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=742 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 14 encode=156.460 ms execute=2.978 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=212 refs=6144 sync=14.691 ms plan=0.343 ms stage/compute=120.119 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=749 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 15 encode=135.694 ms execute=2.711 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=214 refs=6144 sync=36.949 ms plan=0.327 ms stage/compute=122.239 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=758 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 16 encode=159.818 ms execute=2.857 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=214 refs=6144 sync=14.887 ms plan=0.318 ms stage/compute=121.258 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=766 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 17 encode=137.134 ms execute=3.315 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=212 refs=6144 sync=36.841 ms plan=0.323 ms stage/compute=114.668 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=777 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 18 encode=152.108 ms execute=2.866 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=231 refs=6144 sync=14.620 ms plan=0.303 ms stage/compute=131.345 ms misses=231
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=780 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 19 encode=146.781 ms execute=2.712 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=200 refs=6144 sync=36.872 ms plan=0.355 ms stage/compute=116.287 ms misses=200
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=791 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 20 encode=153.795 ms execute=2.955 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=219 refs=6144 sync=14.555 ms plan=0.308 ms stage/compute=125.754 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=797 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 21 encode=141.102 ms execute=2.598 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=210 refs=6144 sync=36.827 ms plan=0.330 ms stage/compute=120.292 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=805 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 22 encode=157.737 ms execute=3.631 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=220 refs=6144 sync=14.786 ms plan=0.401 ms stage/compute=129.759 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=811 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 23 encode=145.492 ms execute=2.937 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=206 refs=6144 sync=36.844 ms plan=0.325 ms stage/compute=120.383 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=812 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 24 encode=157.812 ms execute=2.952 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=217 refs=6144 sync=14.430 ms plan=0.377 ms stage/compute=126.385 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=820 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 25 encode=141.744 ms execute=2.650 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=210 refs=6144 sync=36.861 ms plan=0.304 ms stage/compute=119.672 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=827 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 26 encode=157.095 ms execute=2.926 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=218 refs=6144 sync=14.409 ms plan=0.347 ms stage/compute=125.135 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=832 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 27 encode=140.427 ms execute=2.645 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=213 refs=6144 sync=36.826 ms plan=0.275 ms stage/compute=123.002 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=842 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 28 encode=160.381 ms execute=2.867 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=202 refs=6144 sync=14.430 ms plan=0.300 ms stage/compute=120.462 ms misses=202
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=858 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 29 encode=135.723 ms execute=2.647 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=209 refs=6144 sync=36.860 ms plan=0.325 ms stage/compute=123.739 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=869 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 30 encode=161.241 ms execute=3.396 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=210 refs=6144 sync=14.317 ms plan=0.337 ms stage/compute=119.514 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=877 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 31 encode=134.701 ms execute=3.640 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=207 refs=6144 sync=36.908 ms plan=0.412 ms stage/compute=122.293 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=886 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 32 encode=159.866 ms execute=2.677 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=207 refs=6144 sync=14.480 ms plan=0.345 ms stage/compute=120.368 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=897 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 33 encode=135.683 ms execute=2.942 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=213 refs=6144 sync=36.964 ms plan=0.322 ms stage/compute=120.089 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=905 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 34 encode=157.650 ms execute=2.880 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=212 refs=6144 sync=14.397 ms plan=0.375 ms stage/compute=122.423 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=914 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 35 encode=137.743 ms execute=2.644 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=215 refs=6144 sync=36.860 ms plan=0.288 ms stage/compute=122.746 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=922 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 36 encode=160.152 ms execute=2.819 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=212 refs=6144 sync=14.403 ms plan=0.330 ms stage/compute=119.634 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=932 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 37 encode=134.900 ms execute=2.817 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=216 refs=6144 sync=37.079 ms plan=0.265 ms stage/compute=123.008 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=939 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 38 encode=160.639 ms execute=2.697 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=216 refs=6144 sync=14.491 ms plan=0.303 ms stage/compute=119.876 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=947 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 39 encode=135.208 ms execute=2.778 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=171 refs=6144 sync=37.134 ms plan=0.382 ms stage/compute=101.944 ms misses=171
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=962 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 40 encode=139.735 ms execute=2.631 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=186 refs=6144 sync=14.459 ms plan=0.344 ms stage/compute=110.738 ms misses=186
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=974 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 41 encode=126.075 ms execute=2.598 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=196 refs=6144 sync=36.859 ms plan=0.325 ms stage/compute=115.895 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=987 finished=0
+ds4: gpu chunked prefill pos=2048 tokens=1024 layer 42 encode=153.349 ms execute=2.461 ms
+processing 8423 input tokens: 3072/8423 (36.5%) batch=155.13 t/s avg=163.18 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.620 ms plan=0.361 ms stage/compute=146.230 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=987 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 0 encode=159.586 ms execute=2.967 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.446 ms plan=0.328 ms stage/compute=149.314 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=987 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 1 encode=162.600 ms execute=2.767 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=37.682 ms plan=0.367 ms stage/compute=151.808 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=987 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 2 encode=190.136 ms execute=2.654 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=234 refs=6144 sync=14.593 ms plan=0.344 ms stage/compute=132.034 ms misses=234
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=993 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 3 encode=147.528 ms execute=2.727 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=223 refs=6144 sync=37.772 ms plan=0.333 ms stage/compute=125.772 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=999 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 4 encode=164.162 ms execute=2.941 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=237 refs=6144 sync=14.516 ms plan=0.289 ms stage/compute=132.689 ms misses=237
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1003 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 5 encode=148.038 ms execute=2.620 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=225 refs=6144 sync=38.319 ms plan=0.363 ms stage/compute=129.875 ms misses=225
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1007 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 6 encode=168.857 ms execute=2.744 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=232 refs=6144 sync=14.558 ms plan=0.343 ms stage/compute=123.124 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1011 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 7 encode=138.537 ms execute=2.594 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=222 refs=6144 sync=38.258 ms plan=0.380 ms stage/compute=123.859 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1016 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 8 encode=162.786 ms execute=2.974 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=231 refs=6144 sync=14.546 ms plan=0.347 ms stage/compute=131.211 ms misses=231
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1020 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 9 encode=146.631 ms execute=2.823 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=223 refs=6144 sync=37.676 ms plan=0.321 ms stage/compute=126.839 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1027 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 10 encode=165.115 ms execute=2.848 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=237 refs=6144 sync=14.499 ms plan=0.316 ms stage/compute=129.956 ms misses=237
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1029 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 11 encode=145.326 ms execute=2.774 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=205 refs=6144 sync=37.609 ms plan=0.378 ms stage/compute=122.659 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1039 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 12 encode=160.903 ms execute=2.985 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=220 refs=6144 sync=14.839 ms plan=0.308 ms stage/compute=120.610 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1047 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 13 encode=136.358 ms execute=2.941 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=214 refs=6144 sync=38.203 ms plan=0.340 ms stage/compute=120.626 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1056 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 14 encode=159.434 ms execute=3.021 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=211 refs=6144 sync=14.835 ms plan=0.325 ms stage/compute=120.610 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1062 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 15 encode=136.314 ms execute=2.575 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=208 refs=6144 sync=37.588 ms plan=0.343 ms stage/compute=121.207 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1073 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 16 encode=159.406 ms execute=2.831 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=219 refs=6144 sync=14.709 ms plan=0.303 ms stage/compute=120.620 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1082 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 17 encode=136.231 ms execute=3.293 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=203 refs=6144 sync=37.531 ms plan=0.321 ms stage/compute=114.978 ms misses=203
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1094 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 18 encode=153.093 ms execute=2.597 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=230 refs=6144 sync=14.728 ms plan=0.368 ms stage/compute=133.438 ms misses=230
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1098 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 19 encode=149.072 ms execute=2.789 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=194 refs=6144 sync=37.677 ms plan=0.342 ms stage/compute=115.332 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1111 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 20 encode=153.643 ms execute=3.358 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=208 refs=6144 sync=14.721 ms plan=0.317 ms stage/compute=123.219 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1119 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 21 encode=138.801 ms execute=2.599 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=203 refs=6144 sync=37.607 ms plan=0.396 ms stage/compute=116.626 ms misses=203
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1126 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 22 encode=154.964 ms execute=3.482 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=217 refs=6144 sync=14.674 ms plan=0.363 ms stage/compute=126.463 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1134 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 23 encode=142.021 ms execute=2.930 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=205 refs=6144 sync=37.555 ms plan=0.381 ms stage/compute=120.769 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1141 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 24 encode=158.972 ms execute=2.972 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=218 refs=6144 sync=14.449 ms plan=0.374 ms stage/compute=128.637 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1149 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 25 encode=143.987 ms execute=2.812 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=214 refs=6144 sync=37.524 ms plan=0.351 ms stage/compute=120.861 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1158 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 26 encode=158.994 ms execute=2.933 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=216 refs=6144 sync=14.378 ms plan=0.331 ms stage/compute=126.423 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1163 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 27 encode=141.701 ms execute=2.661 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=211 refs=6144 sync=37.722 ms plan=0.329 ms stage/compute=125.738 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1170 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 28 encode=164.060 ms execute=2.844 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=205 refs=6144 sync=14.320 ms plan=0.440 ms stage/compute=120.437 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1184 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 29 encode=135.739 ms execute=2.650 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=216 refs=6144 sync=37.742 ms plan=0.318 ms stage/compute=127.351 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1194 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 30 encode=165.698 ms execute=3.615 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=209 refs=6144 sync=14.341 ms plan=0.304 ms stage/compute=120.446 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1200 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 31 encode=135.609 ms execute=3.647 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=213 refs=6144 sync=37.896 ms plan=0.326 ms stage/compute=124.238 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1207 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 32 encode=162.774 ms execute=2.664 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=206 refs=6144 sync=14.483 ms plan=0.356 ms stage/compute=119.897 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1218 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 33 encode=135.232 ms execute=2.964 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=211 refs=6144 sync=38.124 ms plan=0.336 ms stage/compute=116.282 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1226 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 34 encode=155.015 ms execute=2.889 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=219 refs=6144 sync=14.367 ms plan=0.319 ms stage/compute=123.080 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1237 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 35 encode=138.261 ms execute=2.600 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=214 refs=6144 sync=38.141 ms plan=0.330 ms stage/compute=119.009 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1248 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 36 encode=157.745 ms execute=2.625 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=208 refs=6144 sync=14.480 ms plan=0.361 ms stage/compute=117.077 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1257 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 37 encode=132.461 ms execute=2.837 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=208 refs=6144 sync=37.852 ms plan=0.315 ms stage/compute=122.245 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1266 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 38 encode=160.690 ms execute=2.662 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=219 refs=6144 sync=14.489 ms plan=0.335 ms stage/compute=124.777 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1274 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 39 encode=140.084 ms execute=2.781 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=171 refs=6144 sync=38.332 ms plan=0.350 ms stage/compute=103.521 ms misses=171
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1287 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 40 encode=142.471 ms execute=2.684 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=180 refs=6144 sync=14.516 ms plan=0.311 ms stage/compute=111.199 ms misses=180
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1297 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 41 encode=126.552 ms execute=2.605 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=199 refs=6144 sync=37.464 ms plan=0.306 ms stage/compute=118.809 ms misses=199
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1308 finished=0
+ds4: gpu chunked prefill pos=3072 tokens=1024 layer 42 encode=156.828 ms execute=2.819 ms
+processing 8423 input tokens: 4096/8423 (48.6%) batch=154.72 t/s avg=160.98 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.068 ms plan=0.321 ms stage/compute=147.978 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1308 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 0 encode=160.780 ms execute=3.023 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.383 ms plan=0.310 ms stage/compute=149.345 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1308 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 1 encode=162.549 ms execute=2.837 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=38.851 ms plan=0.382 ms stage/compute=150.660 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1308 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 2 encode=190.234 ms execute=2.657 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=236 refs=6144 sync=14.590 ms plan=0.292 ms stage/compute=135.278 ms misses=236
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1313 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 3 encode=150.723 ms execute=2.682 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=219 refs=6144 sync=39.039 ms plan=0.320 ms stage/compute=123.511 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1321 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 4 encode=163.164 ms execute=2.935 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=239 refs=6144 sync=14.495 ms plan=0.366 ms stage/compute=133.945 ms misses=239
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1324 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 5 encode=149.338 ms execute=2.657 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=222 refs=6144 sync=38.757 ms plan=0.365 ms stage/compute=130.748 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1327 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 6 encode=170.163 ms execute=2.720 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=224 refs=6144 sync=14.578 ms plan=0.306 ms stage/compute=125.402 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1332 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 7 encode=140.868 ms execute=2.603 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=220 refs=6144 sync=38.718 ms plan=0.345 ms stage/compute=124.078 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1337 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 8 encode=163.422 ms execute=3.009 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=228 refs=6144 sync=14.795 ms plan=0.305 ms stage/compute=130.684 ms misses=228
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1342 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 9 encode=146.349 ms execute=2.912 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=224 refs=6144 sync=38.580 ms plan=0.346 ms stage/compute=130.652 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1350 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 10 encode=169.850 ms execute=2.863 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=234 refs=6144 sync=14.492 ms plan=0.380 ms stage/compute=129.790 ms misses=234
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1352 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 11 encode=145.200 ms execute=2.804 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=206 refs=6144 sync=38.635 ms plan=0.393 ms stage/compute=125.014 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1361 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 12 encode=164.312 ms execute=2.948 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=220 refs=6144 sync=14.501 ms plan=0.326 ms stage/compute=122.670 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1367 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 13 encode=138.075 ms execute=2.949 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=220 refs=6144 sync=38.937 ms plan=0.378 ms stage/compute=124.194 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1375 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 14 encode=163.772 ms execute=3.308 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=209 refs=6144 sync=14.489 ms plan=0.323 ms stage/compute=121.093 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1381 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 15 encode=136.441 ms execute=2.640 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=213 refs=6144 sync=38.961 ms plan=0.331 ms stage/compute=120.111 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1389 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 16 encode=159.682 ms execute=2.868 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=220 refs=6144 sync=14.576 ms plan=0.321 ms stage/compute=120.020 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1399 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 17 encode=135.434 ms execute=3.356 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=203 refs=6144 sync=39.070 ms plan=0.328 ms stage/compute=116.053 ms misses=203
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1412 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 18 encode=155.736 ms execute=2.607 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=227 refs=6144 sync=14.567 ms plan=0.341 ms stage/compute=129.307 ms misses=227
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1417 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 19 encode=144.729 ms execute=2.867 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=194 refs=6144 sync=39.621 ms plan=0.366 ms stage/compute=115.072 ms misses=194
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1429 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 20 encode=155.435 ms execute=3.399 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=206 refs=6144 sync=14.518 ms plan=0.324 ms stage/compute=121.011 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1436 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 21 encode=136.415 ms execute=2.931 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=209 refs=6144 sync=39.308 ms plan=0.361 ms stage/compute=122.804 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1443 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 22 encode=162.725 ms execute=3.311 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=217 refs=6144 sync=14.306 ms plan=0.324 ms stage/compute=127.778 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1451 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 23 encode=143.029 ms execute=2.927 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=204 refs=6144 sync=38.935 ms plan=0.319 ms stage/compute=118.597 ms misses=204
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1457 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 24 encode=158.132 ms execute=2.951 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=224 refs=6144 sync=14.340 ms plan=0.282 ms stage/compute=129.384 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1465 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 25 encode=144.539 ms execute=2.951 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=210 refs=6144 sync=38.855 ms plan=0.309 ms stage/compute=116.487 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1472 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 26 encode=155.921 ms execute=3.004 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=219 refs=6144 sync=14.428 ms plan=0.311 ms stage/compute=123.204 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1476 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 27 encode=138.467 ms execute=2.602 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=213 refs=6144 sync=38.931 ms plan=0.342 ms stage/compute=123.161 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1485 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 28 encode=162.691 ms execute=2.844 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=213 refs=6144 sync=14.407 ms plan=0.316 ms stage/compute=124.150 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1497 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 29 encode=139.427 ms execute=2.617 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=212 refs=6144 sync=38.625 ms plan=0.329 ms stage/compute=128.595 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1507 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 30 encode=167.815 ms execute=3.644 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=210 refs=6144 sync=14.350 ms plan=0.349 ms stage/compute=122.494 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1515 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 31 encode=137.753 ms execute=3.651 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=218 refs=6144 sync=38.525 ms plan=0.315 ms stage/compute=123.474 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1521 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 32 encode=162.633 ms execute=2.774 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=208 refs=6144 sync=14.652 ms plan=0.271 ms stage/compute=120.145 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1533 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 33 encode=135.576 ms execute=2.955 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=206 refs=6144 sync=38.556 ms plan=0.334 ms stage/compute=117.273 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1542 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 34 encode=156.429 ms execute=2.920 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=215 refs=6144 sync=14.389 ms plan=0.372 ms stage/compute=122.310 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1551 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 35 encode=137.628 ms execute=2.595 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=216 refs=6144 sync=38.542 ms plan=0.334 ms stage/compute=121.808 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1559 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 36 encode=160.974 ms execute=2.626 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=211 refs=6144 sync=14.991 ms plan=0.369 ms stage/compute=118.019 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1567 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 37 encode=133.880 ms execute=2.765 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=214 refs=6144 sync=38.618 ms plan=0.350 ms stage/compute=125.818 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1580 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 38 encode=165.058 ms execute=2.701 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=221 refs=6144 sync=14.659 ms plan=0.337 ms stage/compute=124.262 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1590 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 39 encode=139.847 ms execute=2.692 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=163 refs=6144 sync=39.049 ms plan=0.373 ms stage/compute=101.614 ms misses=163
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1606 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 40 encode=141.331 ms execute=2.619 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=182 refs=6144 sync=14.462 ms plan=0.296 ms stage/compute=112.040 ms misses=182
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1618 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 41 encode=127.420 ms execute=2.607 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=196 refs=6144 sync=38.591 ms plan=0.323 ms stage/compute=117.163 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1631 finished=0
+ds4: gpu chunked prefill pos=4096 tokens=1024 layer 42 encode=156.378 ms execute=2.463 ms
+processing 8423 input tokens: 5120/8423 (60.8%) batch=153.82 t/s avg=159.49 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.033 ms plan=0.292 ms stage/compute=149.676 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1631 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 0 encode=162.387 ms execute=2.989 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.391 ms plan=0.282 ms stage/compute=149.497 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1631 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 1 encode=162.732 ms execute=2.730 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=39.798 ms plan=0.363 ms stage/compute=151.080 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1631 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 2 encode=191.545 ms execute=2.653 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=236 refs=6144 sync=14.936 ms plan=0.341 ms stage/compute=133.578 ms misses=236
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1636 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 3 encode=149.460 ms execute=2.660 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=219 refs=6144 sync=39.400 ms plan=0.356 ms stage/compute=125.220 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1646 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 4 encode=165.231 ms execute=2.973 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=240 refs=6144 sync=14.483 ms plan=0.324 ms stage/compute=132.467 ms misses=240
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1649 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 5 encode=147.788 ms execute=2.596 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=222 refs=6144 sync=39.567 ms plan=0.328 ms stage/compute=130.299 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1654 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 6 encode=170.469 ms execute=2.692 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=222 refs=6144 sync=14.512 ms plan=0.380 ms stage/compute=126.201 ms misses=222
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1658 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 7 encode=141.612 ms execute=2.580 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=221 refs=6144 sync=40.068 ms plan=0.378 ms stage/compute=125.939 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1661 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 8 encode=166.648 ms execute=2.897 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=231 refs=6144 sync=14.515 ms plan=0.314 ms stage/compute=130.498 ms misses=231
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1664 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 9 encode=145.829 ms execute=2.955 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=220 refs=6144 sync=39.786 ms plan=0.341 ms stage/compute=128.279 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1674 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 10 encode=168.667 ms execute=2.872 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=232 refs=6144 sync=14.530 ms plan=0.328 ms stage/compute=129.502 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1678 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 11 encode=144.960 ms execute=2.941 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=202 refs=6144 sync=39.429 ms plan=0.363 ms stage/compute=121.469 ms misses=202
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1688 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 12 encode=161.514 ms execute=2.920 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=224 refs=6144 sync=14.627 ms plan=0.333 ms stage/compute=122.642 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1693 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 13 encode=138.152 ms execute=2.920 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=221 refs=6144 sync=39.342 ms plan=0.354 ms stage/compute=122.481 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1701 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 14 encode=162.448 ms execute=3.551 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=207 refs=6144 sync=14.713 ms plan=0.332 ms stage/compute=118.625 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1705 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 15 encode=134.161 ms execute=2.596 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=201 refs=6144 sync=39.337 ms plan=0.330 ms stage/compute=117.783 ms misses=201
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1716 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 16 encode=157.713 ms execute=2.828 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=215 refs=6144 sync=15.070 ms plan=0.333 ms stage/compute=120.302 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1725 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 17 encode=136.332 ms execute=3.300 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=199 refs=6144 sync=39.341 ms plan=0.362 ms stage/compute=112.999 ms misses=199
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1739 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 18 encode=152.976 ms execute=2.624 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=227 refs=6144 sync=14.572 ms plan=0.304 ms stage/compute=131.961 ms misses=227
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1743 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 19 encode=147.366 ms execute=2.685 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=196 refs=6144 sync=39.387 ms plan=0.296 ms stage/compute=119.024 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1756 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 20 encode=158.982 ms execute=3.769 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=205 refs=6144 sync=14.492 ms plan=0.369 ms stage/compute=120.066 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1763 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 21 encode=135.510 ms execute=2.931 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=209 refs=6144 sync=39.293 ms plan=0.329 ms stage/compute=119.803 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1769 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 22 encode=159.691 ms execute=3.650 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=219 refs=6144 sync=14.607 ms plan=0.336 ms stage/compute=127.605 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1775 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 23 encode=143.111 ms execute=2.876 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=209 refs=6144 sync=39.187 ms plan=0.285 ms stage/compute=120.400 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1781 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 24 encode=160.176 ms execute=2.948 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=218 refs=6144 sync=14.411 ms plan=0.346 ms stage/compute=129.070 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1789 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 25 encode=144.344 ms execute=2.890 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=209 refs=6144 sync=39.243 ms plan=0.317 ms stage/compute=116.789 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1795 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 26 encode=156.692 ms execute=2.990 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=219 refs=6144 sync=14.439 ms plan=0.282 ms stage/compute=125.884 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1798 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 27 encode=141.120 ms execute=2.601 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=220 refs=6144 sync=39.314 ms plan=0.334 ms stage/compute=125.691 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1803 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 28 encode=165.612 ms execute=2.772 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=209 refs=6144 sync=14.468 ms plan=0.343 ms stage/compute=123.425 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1815 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 29 encode=138.819 ms execute=2.606 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=218 refs=6144 sync=39.361 ms plan=0.307 ms stage/compute=126.950 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1824 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 30 encode=166.884 ms execute=3.609 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=212 refs=6144 sync=14.393 ms plan=0.305 ms stage/compute=123.781 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1830 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 31 encode=139.021 ms execute=3.685 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=216 refs=6144 sync=40.369 ms plan=0.326 ms stage/compute=125.643 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1837 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 32 encode=166.625 ms execute=2.675 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=198 refs=6144 sync=14.466 ms plan=0.345 ms stage/compute=118.136 ms misses=198
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1851 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 33 encode=133.522 ms execute=3.015 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=213 refs=6144 sync=39.907 ms plan=0.355 ms stage/compute=118.775 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1859 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 34 encode=159.313 ms execute=2.867 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=212 refs=6144 sync=14.376 ms plan=0.333 ms stage/compute=119.692 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1870 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 35 encode=134.922 ms execute=2.641 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=219 refs=6144 sync=40.129 ms plan=0.337 ms stage/compute=121.530 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1878 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 36 encode=162.277 ms execute=2.656 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=213 refs=6144 sync=14.392 ms plan=0.283 ms stage/compute=119.466 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1886 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 37 encode=134.644 ms execute=2.585 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=216 refs=6144 sync=39.607 ms plan=0.305 ms stage/compute=124.222 ms misses=216
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1894 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 38 encode=164.449 ms execute=2.683 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=218 refs=6144 sync=14.508 ms plan=0.330 ms stage/compute=124.086 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1904 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 39 encode=139.455 ms execute=2.669 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=162 refs=6144 sync=39.795 ms plan=0.326 ms stage/compute=100.993 ms misses=162
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1923 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 40 encode=141.399 ms execute=2.572 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=181 refs=6144 sync=14.459 ms plan=0.292 ms stage/compute=112.098 ms misses=181
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1935 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 41 encode=127.374 ms execute=2.620 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=197 refs=6144 sync=39.499 ms plan=0.330 ms stage/compute=115.735 ms misses=197
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1949 finished=0
+ds4: gpu chunked prefill pos=5120 tokens=1024 layer 42 encode=155.842 ms execute=2.477 ms
+processing 8423 input tokens: 6144/8423 (72.9%) batch=153.65 t/s avg=158.49 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.070 ms plan=0.331 ms stage/compute=147.519 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1949 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 0 encode=160.348 ms execute=2.998 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.794 ms plan=0.358 ms stage/compute=150.995 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1949 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 1 encode=164.654 ms execute=2.755 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=40.326 ms plan=0.312 ms stage/compute=149.386 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1949 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 2 encode=190.331 ms execute=2.637 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=239 refs=6144 sync=14.580 ms plan=0.353 ms stage/compute=133.933 ms misses=239
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1954 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 3 encode=149.403 ms execute=2.684 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=215 refs=6144 sync=40.166 ms plan=0.354 ms stage/compute=123.104 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1965 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 4 encode=163.896 ms execute=2.948 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=239 refs=6144 sync=14.525 ms plan=0.344 ms stage/compute=131.566 ms misses=239
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1967 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 5 encode=146.939 ms execute=2.627 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=219 refs=6144 sync=40.109 ms plan=0.355 ms stage/compute=126.342 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1972 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 6 encode=167.063 ms execute=2.870 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=221 refs=6144 sync=14.772 ms plan=0.320 ms stage/compute=123.539 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1976 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 7 encode=139.178 ms execute=2.626 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=218 refs=6144 sync=40.092 ms plan=0.355 ms stage/compute=124.796 ms misses=218
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1983 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 8 encode=165.516 ms execute=3.069 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=231 refs=6144 sync=14.523 ms plan=0.327 ms stage/compute=130.990 ms misses=231
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1986 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 9 encode=146.492 ms execute=2.871 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=220 refs=6144 sync=40.215 ms plan=0.303 ms stage/compute=127.951 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=1997 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 10 encode=168.814 ms execute=2.882 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=232 refs=6144 sync=14.527 ms plan=0.362 ms stage/compute=126.111 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2001 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 11 encode=141.603 ms execute=2.973 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=197 refs=6144 sync=40.371 ms plan=0.328 ms stage/compute=117.682 ms misses=197
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2010 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 12 encode=158.648 ms execute=2.932 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=220 refs=6144 sync=14.518 ms plan=0.307 ms stage/compute=119.232 ms misses=220
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2017 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 13 encode=134.571 ms execute=3.015 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=219 refs=6144 sync=40.251 ms plan=0.303 ms stage/compute=121.308 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2026 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 14 encode=162.139 ms execute=3.381 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=217 refs=6144 sync=14.458 ms plan=0.320 ms stage/compute=120.685 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2031 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 15 encode=135.969 ms execute=2.581 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=207 refs=6144 sync=40.762 ms plan=0.299 ms stage/compute=121.899 ms misses=207
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2043 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 16 encode=163.262 ms execute=2.755 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=219 refs=6144 sync=14.499 ms plan=0.290 ms stage/compute=121.008 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2051 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 17 encode=136.320 ms execute=3.369 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=196 refs=6144 sync=40.740 ms plan=0.326 ms stage/compute=110.476 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2067 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 18 encode=151.819 ms execute=2.692 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=227 refs=6144 sync=14.599 ms plan=0.364 ms stage/compute=130.751 ms misses=227
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2073 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 19 encode=146.279 ms execute=2.760 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=188 refs=6144 sync=40.944 ms plan=0.311 ms stage/compute=115.175 ms misses=188
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2088 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 20 encode=156.703 ms execute=3.522 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=205 refs=6144 sync=14.360 ms plan=0.424 ms stage/compute=119.588 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2097 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 21 encode=134.956 ms execute=2.952 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=214 refs=6144 sync=41.142 ms plan=0.329 ms stage/compute=121.580 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2102 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 22 encode=163.325 ms execute=3.620 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=221 refs=6144 sync=14.328 ms plan=0.293 ms stage/compute=128.630 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2110 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 23 encode=143.833 ms execute=2.972 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=209 refs=6144 sync=40.314 ms plan=0.336 ms stage/compute=121.238 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2117 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 24 encode=162.169 ms execute=2.967 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=221 refs=6144 sync=14.391 ms plan=0.321 ms stage/compute=127.514 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2127 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 25 encode=142.809 ms execute=2.949 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=211 refs=6144 sync=39.904 ms plan=0.390 ms stage/compute=119.800 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2134 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 26 encode=160.393 ms execute=2.934 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=211 refs=6144 sync=14.461 ms plan=0.354 ms stage/compute=124.109 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2140 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 27 encode=139.451 ms execute=2.622 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=212 refs=6144 sync=39.955 ms plan=0.344 ms stage/compute=122.670 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2147 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 28 encode=163.269 ms execute=2.699 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=209 refs=6144 sync=14.480 ms plan=0.280 ms stage/compute=121.741 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2160 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 29 encode=137.039 ms execute=2.623 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=213 refs=6144 sync=39.949 ms plan=0.311 ms stage/compute=127.022 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2171 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 30 encode=167.576 ms execute=3.621 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=211 refs=6144 sync=16.220 ms plan=0.339 ms stage/compute=124.640 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2182 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 31 encode=141.768 ms execute=3.411 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=213 refs=6144 sync=39.883 ms plan=0.317 ms stage/compute=123.246 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2187 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 32 encode=163.713 ms execute=2.802 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=203 refs=6144 sync=14.513 ms plan=0.302 ms stage/compute=118.219 ms misses=203
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2200 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 33 encode=133.641 ms execute=3.294 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=205 refs=6144 sync=39.872 ms plan=0.375 ms stage/compute=116.038 ms misses=205
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2208 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 34 encode=156.559 ms execute=2.878 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=209 refs=6144 sync=14.773 ms plan=0.340 ms stage/compute=119.663 ms misses=209
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2218 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 35 encode=135.361 ms execute=2.629 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=221 refs=6144 sync=40.115 ms plan=0.310 ms stage/compute=124.181 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2225 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 36 encode=164.911 ms execute=2.694 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=210 refs=6144 sync=14.520 ms plan=0.322 ms stage/compute=119.586 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2232 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 37 encode=134.987 ms execute=2.724 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=215 refs=6144 sync=39.937 ms plan=0.296 ms stage/compute=124.349 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2246 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 38 encode=164.870 ms execute=2.676 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=219 refs=6144 sync=14.484 ms plan=0.356 ms stage/compute=121.682 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2254 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 39 encode=137.117 ms execute=2.662 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=163 refs=6144 sync=39.975 ms plan=0.343 ms stage/compute=100.350 ms misses=163
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2272 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 40 encode=140.940 ms execute=2.622 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=178 refs=6144 sync=14.702 ms plan=0.335 ms stage/compute=110.780 ms misses=178
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2286 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 41 encode=126.573 ms execute=2.656 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=196 refs=6144 sync=40.873 ms plan=0.335 ms stage/compute=117.837 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2299 finished=0
+ds4: gpu chunked prefill pos=6144 tokens=1024 layer 42 encode=159.327 ms execute=2.497 ms
+processing 8423 input tokens: 7168/8423 (85.1%) batch=153.94 t/s avg=157.82 t/s
+ds4: Flash-MoE prefill layer=0 tokens=1024 unique=256 refs=6144 sync=12.095 ms plan=0.320 ms stage/compute=150.774 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2299 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 0 encode=163.692 ms execute=2.968 ms
+ds4: Flash-MoE prefill layer=1 tokens=1024 unique=256 refs=6144 sync=12.418 ms plan=0.365 ms stage/compute=150.660 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2299 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 1 encode=163.994 ms execute=2.741 ms
+ds4: Flash-MoE prefill layer=2 tokens=1024 unique=256 refs=6144 sync=40.752 ms plan=0.322 ms stage/compute=150.479 ms misses=256
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2299 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 2 encode=191.828 ms execute=2.674 ms
+ds4: Flash-MoE prefill layer=3 tokens=1024 unique=238 refs=6144 sync=14.563 ms plan=0.339 ms stage/compute=134.964 ms misses=238
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2304 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 3 encode=150.432 ms execute=2.770 ms
+ds4: Flash-MoE prefill layer=4 tokens=1024 unique=219 refs=6144 sync=41.414 ms plan=0.355 ms stage/compute=126.874 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2313 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 4 encode=168.943 ms execute=2.999 ms
+ds4: Flash-MoE prefill layer=5 tokens=1024 unique=242 refs=6144 sync=14.472 ms plan=0.306 ms stage/compute=133.108 ms misses=242
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2316 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 5 encode=148.412 ms execute=2.604 ms
+ds4: Flash-MoE prefill layer=6 tokens=1024 unique=224 refs=6144 sync=41.246 ms plan=0.335 ms stage/compute=133.174 ms misses=224
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2320 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 6 encode=175.027 ms execute=2.701 ms
+ds4: Flash-MoE prefill layer=7 tokens=1024 unique=223 refs=6144 sync=14.539 ms plan=0.293 ms stage/compute=125.138 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2327 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 7 encode=140.531 ms execute=2.585 ms
+ds4: Flash-MoE prefill layer=8 tokens=1024 unique=217 refs=6144 sync=40.869 ms plan=0.371 ms stage/compute=124.300 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2332 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 8 encode=165.807 ms execute=2.778 ms
+ds4: Flash-MoE prefill layer=9 tokens=1024 unique=228 refs=6144 sync=14.488 ms plan=0.287 ms stage/compute=131.536 ms misses=228
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2335 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 9 encode=146.929 ms execute=2.941 ms
+ds4: Flash-MoE prefill layer=10 tokens=1024 unique=226 refs=6144 sync=40.828 ms plan=0.366 ms stage/compute=130.567 ms misses=226
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2343 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 10 encode=172.037 ms execute=2.903 ms
+ds4: Flash-MoE prefill layer=11 tokens=1024 unique=232 refs=6144 sync=14.464 ms plan=0.346 ms stage/compute=128.601 ms misses=232
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2346 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 11 encode=143.988 ms execute=2.941 ms
+ds4: Flash-MoE prefill layer=12 tokens=1024 unique=200 refs=6144 sync=40.805 ms plan=0.315 ms stage/compute=120.278 ms misses=200
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2358 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 12 encode=161.676 ms execute=2.980 ms
+ds4: Flash-MoE prefill layer=13 tokens=1024 unique=217 refs=6144 sync=14.464 ms plan=0.330 ms stage/compute=121.347 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2364 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 13 encode=136.693 ms execute=2.990 ms
+ds4: Flash-MoE prefill layer=14 tokens=1024 unique=214 refs=6144 sync=40.941 ms plan=0.334 ms stage/compute=122.272 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2370 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 14 encode=163.938 ms execute=3.384 ms
+ds4: Flash-MoE prefill layer=15 tokens=1024 unique=210 refs=6144 sync=14.475 ms plan=0.315 ms stage/compute=119.865 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2378 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 15 encode=135.192 ms execute=2.629 ms
+ds4: Flash-MoE prefill layer=16 tokens=1024 unique=208 refs=6144 sync=41.007 ms plan=0.303 ms stage/compute=121.373 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2389 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 16 encode=162.948 ms execute=2.794 ms
+ds4: Flash-MoE prefill layer=17 tokens=1024 unique=213 refs=6144 sync=14.515 ms plan=0.323 ms stage/compute=120.903 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2399 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 17 encode=136.292 ms execute=3.271 ms
+ds4: Flash-MoE prefill layer=18 tokens=1024 unique=195 refs=6144 sync=41.025 ms plan=0.339 ms stage/compute=110.238 ms misses=195
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2414 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 18 encode=151.907 ms execute=2.660 ms
+ds4: Flash-MoE prefill layer=19 tokens=1024 unique=229 refs=6144 sync=14.463 ms plan=0.323 ms stage/compute=131.015 ms misses=229
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2418 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 19 encode=146.463 ms execute=2.733 ms
+ds4: Flash-MoE prefill layer=20 tokens=1024 unique=202 refs=6144 sync=41.408 ms plan=0.358 ms stage/compute=118.640 ms misses=202
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2430 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 20 encode=160.706 ms execute=3.589 ms
+ds4: Flash-MoE prefill layer=21 tokens=1024 unique=206 refs=6144 sync=14.335 ms plan=0.308 ms stage/compute=118.547 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2439 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 21 encode=133.696 ms execute=2.601 ms
+ds4: Flash-MoE prefill layer=22 tokens=1024 unique=206 refs=6144 sync=41.217 ms plan=0.398 ms stage/compute=118.706 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2445 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 22 encode=160.592 ms execute=3.587 ms
+ds4: Flash-MoE prefill layer=23 tokens=1024 unique=223 refs=6144 sync=14.315 ms plan=0.318 ms stage/compute=127.247 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2452 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 23 encode=142.425 ms execute=2.871 ms
+ds4: Flash-MoE prefill layer=24 tokens=1024 unique=211 refs=6144 sync=41.434 ms plan=0.329 ms stage/compute=123.686 ms misses=211
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2457 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 24 encode=165.727 ms execute=2.953 ms
+ds4: Flash-MoE prefill layer=25 tokens=1024 unique=223 refs=6144 sync=14.240 ms plan=0.313 ms stage/compute=128.407 ms misses=223
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2465 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 25 encode=143.517 ms execute=2.951 ms
+ds4: Flash-MoE prefill layer=26 tokens=1024 unique=213 refs=6144 sync=41.123 ms plan=0.391 ms stage/compute=124.219 ms misses=213
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2471 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 26 encode=166.148 ms execute=2.965 ms
+ds4: Flash-MoE prefill layer=27 tokens=1024 unique=221 refs=6144 sync=14.507 ms plan=0.385 ms stage/compute=128.283 ms misses=221
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2475 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 27 encode=143.720 ms execute=2.596 ms
+ds4: Flash-MoE prefill layer=28 tokens=1024 unique=215 refs=6144 sync=40.707 ms plan=0.370 ms stage/compute=124.750 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2483 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 28 encode=166.085 ms execute=2.687 ms
+ds4: Flash-MoE prefill layer=29 tokens=1024 unique=206 refs=6144 sync=14.384 ms plan=0.367 ms stage/compute=124.167 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2495 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 29 encode=139.461 ms execute=2.592 ms
+ds4: Flash-MoE prefill layer=30 tokens=1024 unique=215 refs=6144 sync=40.747 ms plan=0.454 ms stage/compute=130.456 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2506 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 30 encode=171.963 ms execute=3.618 ms
+ds4: Flash-MoE prefill layer=31 tokens=1024 unique=208 refs=6144 sync=14.530 ms plan=0.373 ms stage/compute=125.815 ms misses=208
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2514 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 31 encode=141.325 ms execute=3.473 ms
+ds4: Flash-MoE prefill layer=32 tokens=1024 unique=212 refs=6144 sync=40.668 ms plan=0.424 ms stage/compute=126.511 ms misses=212
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2521 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 32 encode=167.878 ms execute=2.715 ms
+ds4: Flash-MoE prefill layer=33 tokens=1024 unique=214 refs=6144 sync=14.431 ms plan=0.408 ms stage/compute=124.134 ms misses=214
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2531 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 33 encode=139.560 ms execute=3.432 ms
+ds4: Flash-MoE prefill layer=34 tokens=1024 unique=215 refs=6144 sync=41.202 ms plan=0.369 ms stage/compute=118.522 ms misses=215
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2538 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 34 encode=160.375 ms execute=2.863 ms
+ds4: Flash-MoE prefill layer=35 tokens=1024 unique=206 refs=6144 sync=14.301 ms plan=0.395 ms stage/compute=120.720 ms misses=206
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2548 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 35 encode=135.992 ms execute=2.689 ms
+ds4: Flash-MoE prefill layer=36 tokens=1024 unique=217 refs=6144 sync=40.859 ms plan=0.354 ms stage/compute=123.989 ms misses=217
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2557 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 36 encode=165.474 ms execute=2.647 ms
+ds4: Flash-MoE prefill layer=37 tokens=1024 unique=210 refs=6144 sync=14.419 ms plan=0.372 ms stage/compute=122.362 ms misses=210
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2567 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 37 encode=137.665 ms execute=2.580 ms
+ds4: Flash-MoE prefill layer=38 tokens=1024 unique=219 refs=6144 sync=40.918 ms plan=0.351 ms stage/compute=128.610 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2578 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 38 encode=170.154 ms execute=2.685 ms
+ds4: Flash-MoE prefill layer=39 tokens=1024 unique=219 refs=6144 sync=14.407 ms plan=0.367 ms stage/compute=125.747 ms misses=219
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2586 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 39 encode=141.055 ms execute=2.753 ms
+ds4: Flash-MoE prefill layer=40 tokens=1024 unique=164 refs=6144 sync=41.287 ms plan=0.425 ms stage/compute=101.931 ms misses=164
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2603 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 40 encode=143.955 ms execute=2.562 ms
+ds4: Flash-MoE prefill layer=41 tokens=1024 unique=179 refs=6144 sync=14.398 ms plan=0.316 ms stage/compute=111.953 ms misses=179
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2616 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 41 encode=127.177 ms execute=2.646 ms
+ds4: Flash-MoE prefill layer=42 tokens=1024 unique=196 refs=6144 sync=40.829 ms plan=0.377 ms stage/compute=118.865 ms misses=196
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2630 finished=0
+ds4: gpu chunked prefill pos=7168 tokens=1024 layer 42 encode=160.375 ms execute=2.505 ms
+processing 8423 input tokens: 8192/8423 (97.3%) batch=151.96 t/s avg=157.06 t/s
+ds4: Flash-MoE prefill layer=0 tokens=231 unique=251 refs=1386 sync=4.797 ms plan=0.427 ms stage/compute=98.104 ms misses=251
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2630 finished=0
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 0 encode=103.739 ms execute=1.018 ms
+ds4: Flash-MoE prefill layer=1 tokens=231 unique=254 refs=1386 sync=4.659 ms plan=0.436 ms stage/compute=96.907 ms misses=254
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2630 finished=0
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 1 encode=102.227 ms execute=0.998 ms
+ds4: Flash-MoE prefill layer=2 tokens=231 unique=252 refs=1386 sync=14.725 ms plan=0.380 ms stage/compute=93.126 ms misses=252
+ds4: Flash-MoE async pread canceled queued=0 reading=0 ready=2630 finished=0
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 2 encode=109.473 ms execute=0.957 ms
+ds4: Flash-MoE prefill layer=3 tokens=231 unique=191 refs=1386 sync=5.606 ms plan=0.335 ms stage/compute=78.936 ms misses=191
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2640 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 3 encode=85.424 ms execute=0.942 ms
+ds4: Flash-MoE prefill layer=4 tokens=231 unique=184 refs=1386 sync=14.702 ms plan=0.372 ms stage/compute=73.870 ms misses=184
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2652 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 4 encode=89.900 ms execute=0.980 ms
+ds4: Flash-MoE prefill layer=5 tokens=231 unique=194 refs=1386 sync=5.546 ms plan=0.350 ms stage/compute=75.411 ms misses=194
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2664 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 5 encode=81.796 ms execute=1.031 ms
+ds4: Flash-MoE prefill layer=6 tokens=231 unique=193 refs=1386 sync=14.857 ms plan=0.317 ms stage/compute=73.870 ms misses=193
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2677 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 6 encode=89.974 ms execute=1.021 ms
+ds4: Flash-MoE prefill layer=7 tokens=231 unique=182 refs=1386 sync=5.610 ms plan=0.279 ms stage/compute=70.876 ms misses=182
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2688 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 7 encode=77.510 ms execute=0.925 ms
+ds4: Flash-MoE prefill layer=8 tokens=231 unique=172 refs=1386 sync=14.700 ms plan=0.409 ms stage/compute=71.961 ms misses=172
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2703 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 8 encode=88.017 ms execute=1.002 ms
+ds4: Flash-MoE prefill layer=9 tokens=231 unique=190 refs=1386 sync=5.606 ms plan=0.352 ms stage/compute=75.493 ms misses=190
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2717 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 9 encode=81.988 ms execute=1.043 ms
+ds4: Flash-MoE prefill layer=10 tokens=231 unique=181 refs=1386 sync=14.731 ms plan=0.380 ms stage/compute=70.417 ms misses=181
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2734 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 10 encode=86.455 ms execute=1.025 ms
+ds4: Flash-MoE prefill layer=11 tokens=231 unique=181 refs=1386 sync=5.505 ms plan=0.335 ms stage/compute=69.121 ms misses=181
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2746 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 11 encode=75.433 ms execute=1.082 ms
+ds4: Flash-MoE prefill layer=12 tokens=231 unique=156 refs=1386 sync=14.637 ms plan=0.345 ms stage/compute=64.487 ms misses=156
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2767 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 12 encode=80.459 ms execute=1.017 ms
+ds4: Flash-MoE prefill layer=13 tokens=231 unique=177 refs=1386 sync=5.638 ms plan=0.394 ms stage/compute=70.674 ms misses=177
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2783 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 13 encode=77.228 ms execute=1.118 ms
+ds4: Flash-MoE prefill layer=14 tokens=231 unique=174 refs=1386 sync=14.672 ms plan=0.359 ms stage/compute=69.912 ms misses=174
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2797 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 14 encode=85.982 ms execute=1.170 ms
+ds4: Flash-MoE prefill layer=15 tokens=231 unique=157 refs=1386 sync=5.584 ms plan=0.322 ms stage/compute=62.740 ms misses=157
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2819 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 15 encode=69.156 ms execute=1.213 ms
+ds4: Flash-MoE prefill layer=16 tokens=231 unique=168 refs=1386 sync=14.623 ms plan=0.401 ms stage/compute=66.352 ms misses=168
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2835 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 16 encode=82.316 ms execute=1.005 ms
+ds4: Flash-MoE prefill layer=17 tokens=231 unique=181 refs=1386 sync=5.510 ms plan=0.304 ms stage/compute=69.288 ms misses=181
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2853 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 17 encode=75.603 ms execute=1.045 ms
+ds4: Flash-MoE prefill layer=18 tokens=231 unique=152 refs=1386 sync=14.811 ms plan=0.358 ms stage/compute=61.490 ms misses=152
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2874 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 18 encode=77.656 ms execute=0.977 ms
+ds4: Flash-MoE prefill layer=19 tokens=231 unique=196 refs=1386 sync=5.522 ms plan=0.350 ms stage/compute=76.122 ms misses=196
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2883 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 19 encode=82.494 ms execute=1.070 ms
+ds4: Flash-MoE prefill layer=20 tokens=231 unique=151 refs=1386 sync=14.670 ms plan=0.294 ms stage/compute=60.143 ms misses=151
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2904 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 20 encode=76.098 ms execute=1.213 ms
+ds4: Flash-MoE prefill layer=21 tokens=231 unique=160 refs=1386 sync=5.512 ms plan=0.333 ms stage/compute=62.735 ms misses=160
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2920 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 21 encode=69.065 ms execute=1.051 ms
+ds4: Flash-MoE prefill layer=22 tokens=231 unique=173 refs=1386 sync=14.885 ms plan=0.342 ms stage/compute=66.710 ms misses=173
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2937 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 22 encode=82.883 ms execute=1.310 ms
+ds4: Flash-MoE prefill layer=23 tokens=231 unique=191 refs=1386 sync=5.399 ms plan=0.366 ms stage/compute=73.756 ms misses=191
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2950 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 23 encode=80.001 ms execute=1.095 ms
+ds4: Flash-MoE prefill layer=24 tokens=231 unique=178 refs=1386 sync=14.613 ms plan=0.370 ms stage/compute=69.636 ms misses=178
+ds4: Flash-MoE async pread canceled queued=2 reading=1 ready=2956 finished=1
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 24 encode=85.641 ms execute=1.179 ms
+ds4: Flash-MoE prefill layer=25 tokens=231 unique=194 refs=1386 sync=5.378 ms plan=0.294 ms stage/compute=75.692 ms misses=194
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=2969 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 25 encode=81.851 ms execute=1.021 ms
+ds4: Flash-MoE prefill layer=26 tokens=231 unique=161 refs=1386 sync=14.538 ms plan=0.377 ms stage/compute=62.743 ms misses=161
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=2982 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 26 encode=78.580 ms execute=1.073 ms
+ds4: Flash-MoE prefill layer=27 tokens=231 unique=178 refs=1386 sync=5.407 ms plan=0.332 ms stage/compute=68.710 ms misses=178
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=2999 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 27 encode=74.958 ms execute=0.950 ms
+ds4: Flash-MoE prefill layer=28 tokens=231 unique=173 refs=1386 sync=14.823 ms plan=0.278 ms stage/compute=67.385 ms misses=173
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3015 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 28 encode=83.572 ms execute=0.933 ms
+ds4: Flash-MoE prefill layer=29 tokens=231 unique=174 refs=1386 sync=5.460 ms plan=0.365 ms stage/compute=68.059 ms misses=174
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3039 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 29 encode=74.475 ms execute=0.914 ms
+ds4: Flash-MoE prefill layer=30 tokens=231 unique=175 refs=1386 sync=14.498 ms plan=0.380 ms stage/compute=68.142 ms misses=175
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3055 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 30 encode=83.950 ms execute=1.242 ms
+ds4: Flash-MoE prefill layer=31 tokens=231 unique=177 refs=1386 sync=5.418 ms plan=0.362 ms stage/compute=67.665 ms misses=177
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3066 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 31 encode=73.942 ms execute=1.213 ms
+ds4: Flash-MoE prefill layer=32 tokens=231 unique=179 refs=1386 sync=14.551 ms plan=0.327 ms stage/compute=69.073 ms misses=179
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3079 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 32 encode=84.957 ms execute=0.997 ms
+ds4: Flash-MoE prefill layer=33 tokens=231 unique=162 refs=1386 sync=5.440 ms plan=0.355 ms stage/compute=65.416 ms misses=162
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3098 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 33 encode=71.716 ms execute=1.252 ms
+ds4: Flash-MoE prefill layer=34 tokens=231 unique=166 refs=1386 sync=14.562 ms plan=0.380 ms stage/compute=64.425 ms misses=166
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3110 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 34 encode=80.294 ms execute=0.979 ms
+ds4: Flash-MoE prefill layer=35 tokens=231 unique=178 refs=1386 sync=5.383 ms plan=0.289 ms stage/compute=68.648 ms misses=178
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3130 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 35 encode=74.807 ms execute=0.945 ms
+ds4: Flash-MoE prefill layer=36 tokens=231 unique=172 refs=1386 sync=14.529 ms plan=0.347 ms stage/compute=68.191 ms misses=172
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3146 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 36 encode=83.991 ms execute=0.921 ms
+ds4: Flash-MoE prefill layer=37 tokens=231 unique=168 refs=1386 sync=5.463 ms plan=0.340 ms stage/compute=65.444 ms misses=168
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3160 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 37 encode=71.750 ms execute=0.994 ms
+ds4: Flash-MoE prefill layer=38 tokens=231 unique=186 refs=1386 sync=14.604 ms plan=0.293 ms stage/compute=71.008 ms misses=186
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3179 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 38 encode=86.886 ms execute=0.986 ms
+ds4: Flash-MoE prefill layer=39 tokens=231 unique=176 refs=1386 sync=5.506 ms plan=0.318 ms stage/compute=66.806 ms misses=176
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3192 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 39 encode=73.126 ms execute=0.944 ms
+ds4: Flash-MoE prefill layer=40 tokens=231 unique=125 refs=1386 sync=14.522 ms plan=0.323 ms stage/compute=52.522 ms misses=125
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3216 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 40 encode=68.304 ms execute=1.007 ms
+ds4: Flash-MoE prefill layer=41 tokens=231 unique=155 refs=1386 sync=5.462 ms plan=0.298 ms stage/compute=63.632 ms misses=155
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3238 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 41 encode=69.952 ms execute=0.968 ms
+ds4: Flash-MoE prefill layer=42 tokens=231 unique=155 refs=1386 sync=14.746 ms plan=0.272 ms stage/compute=63.141 ms misses=155
+ds4: Flash-MoE async pread canceled queued=2 reading=2 ready=3259 finished=2
+ds4: gpu chunked prefill pos=8192 tokens=231 layer 42 encode=79.239 ms execute=0.906 ms
+processing 8423 input tokens: 8423/8423 (100.0%) batch=65.21 t/s avg=151.22 t/s
+ds4: gpu chunked prefill start=0 tokens=8423 chunk=1024 encode=54568.557 ms execute=1029.084 ms read=0.008 ms total=55630.413 ms
+ds4: prefill full: 8423 tokens in 55700.8 ms (151.2 t/s)
+We
+ds4: ----------------------------------------
+ds4: prefill: 151.22 t/s, generation: 1.40 t/s
+ds4: Flash-MoE cross-layer prefetch layers=378 experts_queued=18522 (avg=49.0/layer)
+ds4: Flash-MoE slot-bank stats hits=0 misses=82337 hit-rate=0.0% resident-slots=258/4257 (6.1%, avg=6.0/layer min=6 max=6 of 99) installed=555774.75 MiB
+ds4: Flash-MoE decode prefetch calls=43 loads=258 bytes=1741.50 MiB pread=128.258 ms upload=99.903 ms overlap-flushes=43
+ds4: Flash-MoE prefill dedup refs=2173134 unique=82079 saved=2091055 (96.2%) reuse=26.48x
+ds4: Flash-MoE prefill stage stats calls=82079 bytes=554033.25 MiB pread=14912.266 ms upload=9039.004 ms gate=2842.714 ms up=2748.323 ms down=3447.967 ms scatter=70.738 ms stage_rate=23131.69 MiB/s pread_rate=37152.85 MiB/s upload_rate=61293.62 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=55508.188 ms active=26.86% span_rate=9981.11 MiB/s issue_gap=969283.924 ms post_stage_gap=8662.442 ms same_layer_issue=948140.913 ms same_layer_post=5.053 ms cross_layer_issue=21143.011 ms cross_layer_post=8657.389 ms max_issue=189.181 ms max_post=46.253 ms issue_gaps=63335 post_gaps=394 issue_gt1=17078 issue_gt5=12935 issue_gt20=11767 post_gt1=384 post_gt5=329 post_gt20=151
+ds4: Flash-MoE prefill pread bucket le16 calls=45724 refs=290882 bytes=308637.00 MiB pread=8638.196 ms issue_gap=522378.142 ms post_stage_gap=4355.737 ms pread_rate=35729.34 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=16914 refs=398567 bytes=114169.50 MiB pread=2859.389 ms issue_gap=196149.739 ms post_stage_gap=1581.727 ms pread_rate=39927.94 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=11877 refs=533993 bytes=80169.75 MiB pread=2044.669 ms issue_gap=153512.008 ms post_stage_gap=1141.049 ms pread_rate=39209.16 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=5350 refs=467411 bytes=36112.50 MiB pread=938.905 ms issue_gap=72270.552 ms post_stage_gap=1429.298 ms pread_rate=38462.36 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=1750 refs=297214 bytes=11812.50 MiB pread=331.213 ms issue_gap=17381.610 ms post_stage_gap=154.631 ms pread_rate=35664.36 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=387 refs=132648 bytes=2612.25 MiB pread=80.786 ms issue_gap=6730.944 ms post_stage_gap=0.000 ms pread_rate=32335.43 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=77 refs=52419 bytes=519.75 MiB pread=19.108 ms issue_gap=860.929 ms post_stage_gap=0.000 ms pread_rate=27200.65 MiB/s

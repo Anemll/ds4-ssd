@@ -1,0 +1,2 @@
+ds4: context buffers 1003.90 MiB (ctx=9000, backend=metal, prefill_chunk=9000, raw_kv_rows=8704, compressed_kv_rows=2252)
+ds4: cannot open model '/Volumes/optane/dsv4-iq2xxs-expert-major/dense/model-dense.gguf': No such file or directory

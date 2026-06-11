@@ -1,0 +1,27 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=64, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.397 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=64 gpu-bank=18576.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+We need to generate a detailed implementation plan for the DFlash dataset generation using GLM-5.1 MoE model. The user wants a plan covering model splitting, code skeleton, data packing, memory profiling, runtime estimates, modifications to Unsloth loading, and testing plan. The context includes a problem description and proposed solution. The user also mentions "Below steelman analisys of this approach in 400 words" but that seems to be a repetition of the same text. I need to produce a comprehensive plan.
+
+First, understand the problem: Generate a high-quality training dataset for DFlash (block-diffusion speculative decoding) to create a small ~0.8B draft model using GLM-5.1 MoE teacher. The teacher is 205 GB (15 GB dense, 190 GB MoE experts). Cannot load full model at once due to memory constraints. Proposed solution: split model into two halves, use layer-wise inference, only load active experts per token, extract hidden context vectors from 5 sampled layers, etc.
+
+We need to deliver a plan covering:
+- Exact model splitting strategy (which layers go to TPU #1 vs #2).
+- JAX/PyTorch-XLA code skeleton for layer-wise prefill + expert deduplication + hidden extraction.
+- Data packing logic (64/128 → 4K/16K) and GCS streaming.
+- Memory profiling & checkpointing strategy.
+- Estimated runtime/storage for 50K, 100K, 200K sequences.
+- Modifications to Unsloth UD-Q2_K_XL loading for TPU.
+- Testing plan (small-scale smoke test on 1K sequences).
+
+We need to produce a detailed plan. The user also says "Below steelman analisys of this approach in 400 words" but that seems to be a placeholder or a request to include a steelman analysis? Actually, the user repeated the same document multiple times, maybe to emphasize. The final instruction: "Below steelman analisys of this approach in 400 words" might be a request to provide a steelman analysis of the approach in 400 words. But the user also says "Please create a detailed implementation plan covering: ..." So I need to produce both? The user says "Below steelman analisys of this approach in 400 words" at the end of each repetition. Possibly they want a steelman analysis as part of the
+ds4: prefill: 289.40 t/s, generation: 9.96 t/s
+ds4: Flash-MoE slot-bank stats hits=96386 misses=42746 hit-rate=69.3% installed=288535.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10132 saved=2163002 (99.5%) reuse=214.48x

@@ -1,0 +1,35 @@
+mode: flash-moe
+route: nax_int8 (NAX-int8 (MPP int8 matmul2d, W8A8))
+prefill_kernel: Flash-MoE SSD GPU routed-MoE (M5): NAX-int8 (MPP int8 matmul2d, W8A8), ANE off | dense proj = fp16-NAX
+log: /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/prefill_chunk_minrefs_m5max_20260602_164617_s99A/sweep_gpu_8k_c16384_r1.log
+summary: /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/prefill_chunk_minrefs_m5max_20260602_164617_s99A/sweep_gpu_8k_c16384_r1.summary.txt
+run=sweep_gpu_8k_c16384_r1
+mode=flash-moe
+route=nax_int8 (NAX-int8 (MPP int8 matmul2d, W8A8))
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/prefill_chunk_minrefs_m5max_20260602_164617_s99A/sweep_gpu_8k_c16384_r1.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prefill_kernel=Flash-MoE SSD GPU routed-MoE (M5): NAX-int8 (MPP int8 matmul2d, W8A8), ANE off | dense proj = fp16-NAX
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+prefill_size=8k ctx=10000 tokens=1 chunk=16384 raw_cap=8704 slots=99
+async_pread=1 prefetch=3 after_stage=1
+summary_detail=concise
+
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill compute: routed experts = GPU MPP-int8 / NAX (W8A8) | dense proj = fp16-NAX (half x half)
+ds4: MPP/NAX int8 partial-tile workaround active (64-row MPP tiles, tail rows use legacy GPU; set DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)
+ds4: metal layer-major prefill total tokens=8423 encode=13260.723 ms execute=9335.455 ms read=0.055 ms total=22596.249 ms
+ds4: ----------------------------------------
+ds4: prefill: 371.31 t/s, generation: 1.40 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10780 hit-rate=0.0% resident-slots=258/4257 (6.1%, avg=6.0/layer min=6 max=6 of 99) installed=72765.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10522 saved=2162612 (99.5%) reuse=206.53x
+ds4: Flash-MoE prefill stage stats calls=10522 bytes=71023.50 MiB pread=2883.025 ms upload=1144.577 ms gate=361.313 ms up=347.617 ms down=435.647 ms scatter=11.460 ms stage_rate=17634.19 MiB/s pread_rate=24635.06 MiB/s upload_rate=62052.18 MiB/s
+ds4: Flash-MoE prefill pread issue stats span=22314.559 ms active=12.92% span_rate=3182.83 MiB/s issue_gap=19800.632 ms post_stage_gap=9970.002 ms same_layer_issue=9248.274 ms same_layer_post=4.053 ms cross_layer_issue=10552.358 ms cross_layer_post=9965.949 ms max_issue=341.508 ms max_post=326.323 ms issue_gaps=9700 post_gaps=44 issue_gt1=4735 issue_gt5=56 issue_gt20=42 post_gt1=44 post_gt5=42 post_gt20=42
+ds4: Flash-MoE prefill pread bucket le16 calls=1586 refs=11197 bytes=10705.50 MiB pread=538.790 ms issue_gap=3489.189 ms post_stage_gap=1904.808 ms pread_rate=19869.52 MiB/s
+ds4: Flash-MoE prefill pread bucket le32 calls=942 refs=22647 bytes=6358.50 MiB pread=238.187 ms issue_gap=1544.924 ms post_stage_gap=637.672 ms pread_rate=26695.41 MiB/s
+ds4: Flash-MoE prefill pread bucket le64 calls=1303 refs=62160 bytes=8795.25 MiB pread=330.356 ms issue_gap=2297.475 ms post_stage_gap=1102.574 ms pread_rate=26623.55 MiB/s
+ds4: Flash-MoE prefill pread bucket le128 calls=1813 refs=172278 bytes=12237.75 MiB pread=481.355 ms issue_gap=2893.179 ms post_stage_gap=1262.066 ms pread_rate=25423.54 MiB/s
+ds4: Flash-MoE prefill pread bucket le256 calls=2307 refs=428348 bytes=15572.25 MiB pread=689.873 ms issue_gap=4467.976 ms post_stage_gap=2386.278 ms pread_rate=22572.63 MiB/s
+ds4: Flash-MoE prefill pread bucket le512 calls=1652 refs=590865 bytes=11151.00 MiB pread=419.502 ms issue_gap=2817.556 ms post_stage_gap=1264.503 ms pread_rate=26581.52 MiB/s
+ds4: Flash-MoE prefill pread bucket gt512 calls=919 refs=885639 bytes=6203.25 MiB pread=184.962 ms issue_gap=2290.333 ms post_stage_gap=1412.101 ms pread_rate=33537.97 MiB/s

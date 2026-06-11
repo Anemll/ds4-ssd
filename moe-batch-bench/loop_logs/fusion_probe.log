@@ -1,0 +1,22 @@
+ds4: context buffers 537.24 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 5.844 ms, residency requested in 398.848 ms, warmup 3.560 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: using GPU graph generation with layer-major graph prefill
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=2 wait=1
+ds4: metal prefill layer 1/43ds4: metal prefill layer 2/43ds4: metal prefill layer 3/43ds4: metal prefill layer 4/43ds4: metal prefill layer 5/43ds4: metal prefill layer 6/43ds4: metal prefill layer 7/43ds4: metal prefill layer 8/43ds4: metal prefill layer 9/43ds4: metal prefill layer 10/43ds4: metal prefill layer 11/43ds4: metal prefill layer 12/43ds4: metal prefill layer 13/43ds4: metal prefill layer 14/43ds4: metal prefill layer 15/43ds4: metal prefill layer 16/43ds4: metal prefill layer 17/43ds4: metal prefill layer 18/43ds4: metal prefill layer 19/43ds4: metal prefill layer 20/43ds4: metal prefill layer 21/43ds4: metal prefill layer 22/43ds4: metal prefill layer 23/43ds4: metal prefill layer 24/43ds4: metal prefill layer 25/43ds4: metal prefill layer 26/43ds4: metal prefill layer 27/43ds4: metal prefill layer 28/43ds4: metal prefill layer 29/43ds4: metal prefill layer 30/43ds4: metal prefill layer 31/43ds4: metal prefill layer 32/43ds4: metal prefill layer 33/43ds4: metal prefill layer 34/43ds4: metal prefill layer 35/43ds4: metal prefill layer 36/43ds4: metal prefill layer 37/43ds4: metal prefill layer 38/43ds4: metal prefill layer 39/43ds4: metal prefill layer 40/43ds4: metal prefill layer 41/43ds4: metal prefill layer 42/43ds4: metal prefill layer 43/43
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+Weds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ needds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ tods4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ countds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ tods4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ fiveds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+.ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ Theds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ userds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ saidds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+ "ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=2 wait=2
+Count
+ds4: prefill: 53.65 t/s, generation: 37.05 t/s

@@ -1,0 +1,37 @@
+ds4-bench: context buffers 1415.43 MiB (ctx=16386, backend=metal, prefill_chunk=16384, raw_kv_rows=8192, compressed_kv_rows=4098)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 7.759s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 3.640 ms, residency requested in 879.860 ms, warmup 4.063 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.0 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.015625 x_scale=0.0625 mid_scale=0.0625
+ds4: [ane-hybrid-outer] layer=0 n_tokens=8064 total_refs=48384 max_refs=867
+ds4: [ane-hybrid-outer] ANE 1-call [250-256]: experts=0 refs=0 (0.0% of total)
+ds4: [ane-hybrid-outer] ANE multi-call [257-1024]: experts=91 refs=35067 (72.5% of total)
+ds4: [ane-hybrid-outer] too hot (refs>1024): experts=0 refs=0
+ds4: [ane-hybrid-outer] total ANE wall (sequential): 257.50 ms (4-cluster: 64.38 ms)
+ds4: [ane-hybrid-outer] refs bucket distribution: <32:80, <64:1, <128:0, <192:84, <256:0, <384:59, <512:14, >=512:18
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: [ane-hybrid-outer] layer=3 fired 1 ANE experts, total wall=0.31 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=6.85 ms
+ds4: [ane-hybrid-outer] layer=4 fired 1 ANE experts, total wall=0.10 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=3.65 ms
+ds4: [ane-hybrid-outer] layer=5 fired 1 ANE experts, total wall=0.06 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.23 ms
+ds4: [ane-hybrid-outer] layer=6 fired 1 ANE experts, total wall=0.05 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.16 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.12 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.19 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.69 ms
+ds4: [ane-direct] post-GPU drain: 1 jobs, wall=2.20 ms
+ds4: [ane-hybrid-outer] layer=0 n_tokens=8064 total_refs=48384 max_refs=869
+ds4: [ane-hybrid-outer] ANE 1-call [250-256]: experts=0 refs=0 (0.0% of total)
+ds4: [ane-hybrid-outer] ANE multi-call [257-1024]: experts=91 refs=35102 (72.5% of total)
+ds4: [ane-hybrid-outer] too hot (refs>1024): experts=0 refs=0
+ds4: [ane-hybrid-outer] total ANE wall (sequential): 257.50 ms (4-cluster: 64.38 ms)
+ds4: [ane-hybrid-outer] refs bucket distribution: <32:80, <64:1, <128:0, <192:84, <256:0, <384:59, <512:14, >=512:18
+ds4: prefill full: 16384 tokens in 35320.2 ms (463.9 t/s)
+16384,16384,463.87,1,22.92,249505164

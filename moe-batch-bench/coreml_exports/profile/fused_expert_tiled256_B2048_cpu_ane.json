@@ -1,0 +1,2110 @@
+{
+  "op_type_totals" : {
+    "grand_gflop" : 103.86019400000002,
+    "grand_gbps" : 24.332850603458535,
+    "grand_weight_mb" : 48,
+    "grand_runtime_ms" : 51.94623600000002
+  },
+  "cpu_op_types" : {
+
+  },
+  "fallback_ops" : [
+
+  ],
+  "version" : "0.4.1",
+  "top_operations" : [
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i0_256"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i0_256"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i0_256"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i256_512"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i256_512"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i256_512"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i512_768"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i512_768"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i512_768"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i768_1024"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i768_1024"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i768_1024"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1024_1280"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1024_1280"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1024_1280"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1280_1536"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1280_1536"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1280_1536"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1536_1792"
+    },
+    {
+      "bound" : "Compute",
+      "runtime_ms" : 1.819901,
+      "gbps" : 10.440128336651279,
+      "total_mb" : 19,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1536_1792"
+    }
+  ],
+  "unsupported_reasons_by_type" : {
+
+  },
+  "tool" : "anemll-profile",
+  "measured_prediction" : {
+    "status" : "ok",
+    "iter_per_sec" : 106.00894008728068,
+    "tops" : 11.01010908319935,
+    "runs" : 10,
+    "weight_bw_gbps" : 5.0884291241894726,
+    "steady_ms" : 9.8507916666666659,
+    "average_ms" : 9.4331666666666685,
+    "speedup_vs_sequential" : 5.5067654198837444,
+    "gflops_per_sec" : 11010.10908319935
+  },
+  "summary" : {
+    "unique_costmodel_ops" : 133,
+    "gpu_cost" : 0,
+    "grand_runtime_ms" : 51.94623600000002,
+    "ane_ops" : 129,
+    "ane_cost" : 1.0000000000000007,
+    "gpu_ops" : 0,
+    "grand_gflop" : 103.86019400000002,
+    "total_cost" : 1.0000000000000007,
+    "cpu_ops" : 0,
+    "total_ops" : 307,
+    "const_ops" : 178,
+    "cpu_cost" : 0,
+    "costmodel_entries" : 798
+  },
+  "compute" : {
+    "mode" : "CPU+ANE",
+    "interrupt_boundary_ms" : 300,
+    "compute_units_all" : 0
+  },
+  "graph_interruptions" : {
+    "interrupted_ops" : 0,
+    "total_non_focus_ops" : 0,
+    "interrupted_soft_ops" : 0,
+    "edge_runs_ignored" : 0,
+    "interrupted_hard_ops" : 0,
+    "focus_device" : "ANE",
+    "interrupted_missing_runtime_ops" : 0,
+    "edge_runs" : [
+
+    ],
+    "interrupted_cost" : 0,
+    "interruptions" : [
+
+    ],
+    "total_non_focus_cost" : 0,
+    "estimated_switch_tax_ms" : 0,
+    "graph_interruptions" : 0,
+    "estimated_island_time_ms" : 0,
+    "estimated_total_tax_ms" : 0,
+    "best_case_savings_ms" : 0,
+    "timeline_by_function" : [
+      {
+        "function" : "main",
+        "segments" : [
+          {
+            "start_index" : 1,
+            "device" : "ANE",
+            "end_index" : 306,
+            "kind" : "focus"
+          }
+        ]
+      }
+    ],
+    "non_focus_runs" : 0
+  },
+  "conv_detail" : [
+
+  ],
+  "ordered_placements" : [
+    {
+      "device" : "ANE",
+      "cost" : 0.017009063124703502,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_0",
+      "index" : 1
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.022678751734110526,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.expand_dims",
+      "short_type" : "expand_dims",
+      "name" : "X3",
+      "index" : 3
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i0_256",
+      "index" : 6
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i0_256",
+      "index" : 9
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i0_256",
+      "index" : 12
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_1",
+      "index" : 14
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_2",
+      "index" : 16
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_3",
+      "index" : 18
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i0_256",
+      "index" : 21
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i0_256",
+      "index" : 24
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i0_256",
+      "index" : 27
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i0_256",
+      "index" : 30
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i0_256",
+      "index" : 31
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i0_256",
+      "index" : 32
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_0",
+      "index" : 35
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_4",
+      "index" : 37
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i0_256",
+      "index" : 40
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i256_512",
+      "index" : 43
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i256_512",
+      "index" : 46
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i256_512",
+      "index" : 49
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_5",
+      "index" : 51
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_6",
+      "index" : 53
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_7",
+      "index" : 55
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i256_512",
+      "index" : 58
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i256_512",
+      "index" : 61
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i256_512",
+      "index" : 64
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i256_512",
+      "index" : 67
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i256_512",
+      "index" : 68
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i256_512",
+      "index" : 69
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_1",
+      "index" : 72
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_8",
+      "index" : 74
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i256_512",
+      "index" : 77
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i256_512",
+      "index" : 78
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i512_768",
+      "index" : 81
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i512_768",
+      "index" : 84
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i512_768",
+      "index" : 87
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_9",
+      "index" : 89
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_10",
+      "index" : 91
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_11",
+      "index" : 93
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i512_768",
+      "index" : 96
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i512_768",
+      "index" : 99
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i512_768",
+      "index" : 102
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i512_768",
+      "index" : 105
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i512_768",
+      "index" : 106
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i512_768",
+      "index" : 107
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_2",
+      "index" : 110
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_12",
+      "index" : 112
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i512_768",
+      "index" : 115
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i512_768",
+      "index" : 116
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i768_1024",
+      "index" : 119
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i768_1024",
+      "index" : 122
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i768_1024",
+      "index" : 125
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_13",
+      "index" : 127
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_14",
+      "index" : 129
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_15",
+      "index" : 131
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i768_1024",
+      "index" : 134
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i768_1024",
+      "index" : 137
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i768_1024",
+      "index" : 140
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i768_1024",
+      "index" : 143
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i768_1024",
+      "index" : 144
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i768_1024",
+      "index" : 145
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_3",
+      "index" : 148
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_16",
+      "index" : 150
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i768_1024",
+      "index" : 153
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i768_1024",
+      "index" : 154
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i1024_1280",
+      "index" : 157
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i1024_1280",
+      "index" : 160
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i1024_1280",
+      "index" : 163
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_17",
+      "index" : 165
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_18",
+      "index" : 167
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_19",
+      "index" : 169
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1024_1280",
+      "index" : 172
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1024_1280",
+      "index" : 175
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i1024_1280",
+      "index" : 178
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i1024_1280",
+      "index" : 181
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i1024_1280",
+      "index" : 182
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i1024_1280",
+      "index" : 183
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_4",
+      "index" : 186
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_20",
+      "index" : 188
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1024_1280",
+      "index" : 191
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i1024_1280",
+      "index" : 192
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i1280_1536",
+      "index" : 195
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i1280_1536",
+      "index" : 198
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i1280_1536",
+      "index" : 201
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_21",
+      "index" : 203
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_22",
+      "index" : 205
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_23",
+      "index" : 207
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1280_1536",
+      "index" : 210
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1280_1536",
+      "index" : 213
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i1280_1536",
+      "index" : 216
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i1280_1536",
+      "index" : 219
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i1280_1536",
+      "index" : 220
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i1280_1536",
+      "index" : 221
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_5",
+      "index" : 224
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_24",
+      "index" : 226
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1280_1536",
+      "index" : 229
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i1280_1536",
+      "index" : 230
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i1536_1792",
+      "index" : 233
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i1536_1792",
+      "index" : 236
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i1536_1792",
+      "index" : 239
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_25",
+      "index" : 241
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_26",
+      "index" : 243
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_27",
+      "index" : 245
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1536_1792",
+      "index" : 248
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1536_1792",
+      "index" : 251
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i1536_1792",
+      "index" : 254
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i1536_1792",
+      "index" : 257
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i1536_1792",
+      "index" : 258
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i1536_1792",
+      "index" : 259
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_6",
+      "index" : 262
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_28",
+      "index" : 264
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1536_1792",
+      "index" : 267
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i1536_1792",
+      "index" : 268
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wgq_i1792_2048",
+      "index" : 271
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wuq_i1792_2048",
+      "index" : 274
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0063784089789245112,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "name" : "Wdq_i1792_2048",
+      "index" : 277
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_29",
+      "index" : 279
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_30",
+      "index" : 281
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0021261340733768706,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_31",
+      "index" : 283
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "gate_i1792_2048",
+      "index" : 286
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "up_i1792_2048",
+      "index" : 289
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "gate_c_i1792_2048",
+      "index" : 292
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174245179296202,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "name" : "up_c_i1792_2048",
+      "index" : 295
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0014174218144120602,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "name" : "act_i1792_2048",
+      "index" : 296
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0007480956997622649,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "name" : "hidden_fp_i1792_2048",
+      "index" : 297
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "name" : "quantize_7",
+      "index" : 300
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.0010630677125678251,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "name" : "dequantize_32",
+      "index" : 302
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.025641850737967729,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "name" : "Y_i1792_2048",
+      "index" : 305
+    },
+    {
+      "device" : "ANE",
+      "cost" : 0.011969531196196238,
+      "function" : "main",
+      "ane_supported" : 1,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "name" : "Y_acc_i1792_2048",
+      "index" : 306
+    }
+  ],
+  "op_type_breakdown" : [
+    {
+      "bound" : "Comp",
+      "gflop" : 103.08000000000003,
+      "count" : 24,
+      "gbps" : 10.440128336651274,
+      "ms_per_op" : 1.8199010000000009,
+      "share_pct" : 84.082365467249659,
+      "type" : "ios18.matmul",
+      "short_type" : "matmul",
+      "total_ms" : 43.677624000000023,
+      "weight_mb" : 48
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.23485,
+      "count" : 7,
+      "gbps" : 97.718875011451445,
+      "ms_per_op" : 0.49120499999999995,
+      "share_pct" : 6.6192187630302959,
+      "type" : "ios19.add",
+      "short_type" : "add",
+      "total_ms" : 3.4384349999999997,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.40272000000000008,
+      "count" : 24,
+      "gbps" : 97.718808699145498,
+      "ms_per_op" : 0.092101000000000002,
+      "share_pct" : 4.2552149495489902,
+      "type" : "ios19.slice_by_index",
+      "short_type" : "slice_by_index",
+      "total_ms" : 2.2104240000000002,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.075500000000000025,
+      "count" : 33,
+      "gbps" : 97.719604452756727,
+      "ms_per_op" : 0.033490999999999972,
+      "share_pct" : 2.1275901491688418,
+      "type" : "ios19.dequantize",
+      "short_type" : "dequantize",
+      "total_ms" : 1.105202999999999,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.016783999999999997,
+      "count" : 16,
+      "gbps" : 97.718278203938013,
+      "ms_per_op" : 0.020467000000000006,
+      "share_pct" : 0.63040563708985575,
+      "type" : "ios18.clip",
+      "short_type" : "clip",
+      "total_ms" : 0.3274720000000001,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0,
+      "count" : 4,
+      "gbps" : 97.718278203938056,
+      "ms_per_op" : 0.081867999999999996,
+      "share_pct" : 0.63040563708985542,
+      "type" : "ios17.tensor_buffer_to_tensor",
+      "short_type" : "tensor_buffer_to_tensor",
+      "total_ms" : 0.32747199999999999,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.01678,
+      "count" : 1,
+      "gbps" : 97.718875011451431,
+      "ms_per_op" : 0.32746999999999998,
+      "share_pct" : 0.63040178695526627,
+      "type" : "ios19.expand_dims",
+      "short_type" : "expand_dims",
+      "total_ms" : 0.32746999999999998,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.016775999999999999,
+      "count" : 8,
+      "gbps" : 97.719869706840385,
+      "ms_per_op" : 0.030700000000000002,
+      "share_pct" : 0.47279652754821333,
+      "type" : "ios19.mul",
+      "short_type" : "mul",
+      "total_ms" : 0.24560000000000001,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.0083919999999999984,
+      "count" : 8,
+      "gbps" : 97.718278203938056,
+      "ms_per_op" : 0.020466999999999999,
+      "share_pct" : 0.31520281854492771,
+      "type" : "ios18.silu",
+      "short_type" : "silu",
+      "total_ms" : 0.16373599999999999,
+      "weight_mb" : 0
+    },
+    {
+      "bound" : "Mem",
+      "gflop" : 0.0083919999999999984,
+      "count" : 8,
+      "gbps" : 97.719869706840385,
+      "ms_per_op" : 0.015350000000000001,
+      "share_pct" : 0.23639826377410667,
+      "type" : "ios19.quantize",
+      "short_type" : "quantize",
+      "total_ms" : 0.12280000000000001,
+      "weight_mb" : 0
+    }
+  ],
+  "high_cost_ops" : [
+    {
+      "short_type" : "dequantize",
+      "device" : "ANE",
+      "type" : "ios19.dequantize",
+      "cost" : 0.017009063124703502,
+      "index" : 1
+    },
+    {
+      "short_type" : "expand_dims",
+      "device" : "ANE",
+      "type" : "ios19.expand_dims",
+      "cost" : 0.022678751734110526,
+      "index" : 3
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 6
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 9
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 12
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 21
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 24
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 40
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 43
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 46
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 49
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 58
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 61
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 77
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 78
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 81
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 84
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 87
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 96
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 99
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 115
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 116
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 119
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 122
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 125
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 134
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 137
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 153
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 154
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 157
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 160
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 163
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 172
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 175
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 191
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 192
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 195
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 198
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 201
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 210
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 213
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 229
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 230
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 233
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 236
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 239
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 248
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 251
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 267
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 268
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 271
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 274
+    },
+    {
+      "short_type" : "slice_by_index",
+      "device" : "ANE",
+      "type" : "ios19.slice_by_index",
+      "cost" : 0.0063784089789245112,
+      "index" : 277
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 286
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 289
+    },
+    {
+      "short_type" : "matmul",
+      "device" : "ANE",
+      "type" : "ios18.matmul",
+      "cost" : 0.025641850737967729,
+      "index" : 305
+    },
+    {
+      "short_type" : "add",
+      "device" : "ANE",
+      "type" : "ios19.add",
+      "cost" : 0.011969531196196238,
+      "index" : 306
+    }
+  ],
+  "model" : {
+    "format" : "ML Program",
+    "input_path" : "moe-batch-bench\/coreml_exports\/ds4_i8i8_fused_expert_tiled256_H4096_I2048_B2048_wq512_xq32_midq32.mlpackage",
+    "size_mb" : 0.044644355773925781,
+    "size_bytes" : 46813,
+    "display_name" : "ds4_i8i8_fused_expert_tiled256_H4096_I2048_B2048_wq512_xq32_midq32.mlpackage",
+    "compiled_from_package" : true,
+    "compiled_model_path" : "\/var\/folders\/fz\/kw8lq5f567b_lc3dfq367b_c0000gn\/T\/ds4_i8i8_fused_expert_tiled256_H4096_I2048_B2048_wq512_xq32_midq32.mlmodelc"
+  },
+  "status" : {
+    "log_data_masked" : false,
+    "no_costmodel_entries" : false
+  },
+  "ane_op_types" : {
+    "ios19.add" : 7,
+    "ios19.quantize" : 8,
+    "ios19.slice_by_index" : 24,
+    "ios19.dequantize" : 33,
+    "ios18.matmul" : 24,
+    "ios18.silu" : 8,
+    "ios18.clip" : 16,
+    "ios19.expand_dims" : 1,
+    "ios19.mul" : 8
+  }
+}

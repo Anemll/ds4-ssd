@@ -1,0 +1,72 @@
+# M5M ANE production prefill sweep Fri May 22 10:04:17 PDT 2026
+
+=== DEFAULT ===
+log=moe-batch-bench/profile_runs/m5m_self_DEFAULT_100417.log
+ds4: prefill: 228.94 t/s, generation: 1.11 t/s
+ds4: ANE prefill stats calls=3981 ok=3981 skipped_big_refs=0 compile_attempts=4 compile_failures=0 eval_calls=5629 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=61.162 ms input=1.480 ms ane_eval=13205.708 ms ane_eval_a=13205.708 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=13205.708 ms writeback=49.668 ms helper_avg=2.346013 ms ane_calls=5629 ane_call_avg=2.346013 ms
+ds4: ANE prefill timing2 output_pack=437.920 ms measured_total=13755.938 ms
+ds4: ANE prefill chunks refs=1647533 padded_refs=2152128 pad_util=76.55% le16=44 le64=570 le128=842 full=1660
+ds4: ANE prefill batch_hist B64=433 refs=20148 util=72.7% B128=703 refs=67057 util=74.5% B256=1039 refs=193676 util=72.8% B512=3454 refs=1366652 util=77.3%
+ds4: gpu layer-major prefill total tokens=8423 encode=32743.802 ms execute=2031.416 ms read=0.032 ms total=34776.596 ms
+
+=== M3U_DUAL ===
+log=moe-batch-bench/profile_runs/m5m_self_M3U_DUAL_100456.log
+ds4: prefill: 275.41 t/s, generation: 1.34 t/s
+ds4: ANE prefill stats calls=1222 ok=1222 skipped_big_refs=0 compile_attempts=2 compile_failures=0 eval_calls=4898 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=16.485 ms input=0.775 ms ane_eval=39495.571 ms ane_eval_a=24931.887 ms ane_eval_b=14563.684 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=24931.887 ms writeback=11.857 ms helper_avg=8.063612 ms ane_calls=4898 ane_call_avg=8.063612 ms
+ds4: ANE prefill timing2 output_pack=11.206 ms measured_total=24972.210 ms
+ds4: ANE prefill chunks refs=1107326 padded_refs=1253888 pad_util=88.31% le16=51 le64=223 le128=234 full=3324
+ds4: ANE prefill batch_hist B256=4898 refs=1107326 util=88.3%
+ds4: gpu layer-major prefill total tokens=8423 encode=28334.662 ms execute=1826.895 ms read=0.065 ms total=30163.040 ms
+
+=== M3U_SINGLE ===
+log=moe-batch-bench/profile_runs/m5m_self_M3U_SINGLE_100527.log
+ds4: prefill: 275.70 t/s, generation: 1.57 t/s
+ds4: ANE prefill stats calls=1202 ok=1202 skipped_big_refs=0 compile_attempts=1 compile_failures=0 eval_calls=4855 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=15.641 ms input=0.742 ms ane_eval=24785.367 ms ane_eval_a=24785.367 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=24785.367 ms writeback=10.168 ms helper_avg=5.105122 ms ane_calls=4855 ane_call_avg=5.105122 ms
+ds4: ANE prefill timing2 output_pack=9.465 ms measured_total=24821.383 ms
+ds4: ANE prefill chunks refs=1100401 padded_refs=1242880 pad_util=88.54% le16=76 le64=197 le128=223 full=3656
+ds4: ANE prefill batch_hist B256=4855 refs=1100401 util=88.5%
+ds4: gpu layer-major prefill total tokens=8423 encode=28231.814 ms execute=1889.786 ms read=0.074 ms total=30123.038 ms
+
+=== MAX128 ===
+log=moe-batch-bench/profile_runs/m5m_self_MAX128_100559.log
+ds4: prefill: 259.95 t/s, generation: 1.63 t/s
+ds4: ANE prefill stats calls=1231 ok=1231 skipped_big_refs=0 compile_attempts=2 compile_failures=0 eval_calls=9266 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=19.649 ms input=0.960 ms ane_eval=35204.673 ms ane_eval_a=19934.998 ms ane_eval_b=15269.675 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=19934.998 ms writeback=12.470 ms helper_avg=3.799339 ms ane_calls=9266 ane_call_avg=3.799339 ms
+ds4: ANE prefill timing2 output_pack=11.627 ms measured_total=19979.704 ms
+ds4: ANE prefill chunks refs=1102054 padded_refs=1186048 pad_util=92.92% le16=178 le64=502 le128=8579 full=0
+ds4: ANE prefill batch_hist B128=9266 refs=1102054 util=92.9%
+ds4: gpu layer-major prefill total tokens=8423 encode=29949.781 ms execute=2106.676 ms read=0.037 ms total=32057.920 ms
+
+=== MAX128_T2 ===
+log=moe-batch-bench/profile_runs/m5m_self_MAX128_T2_100632.log
+ds4: prefill: 263.18 t/s, generation: 1.61 t/s
+ds4: ANE prefill stats calls=1242 ok=1242 skipped_big_refs=0 compile_attempts=2 compile_failures=0 eval_calls=9319 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=19.208 ms input=0.935 ms ane_eval=35526.786 ms ane_eval_a=20318.674 ms ane_eval_b=15208.112 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=20318.674 ms writeback=12.058 ms helper_avg=3.812296 ms ane_calls=9319 ane_call_avg=3.812296 ms
+ds4: ANE prefill timing2 output_pack=11.399 ms measured_total=20362.274 ms
+ds4: ANE prefill chunks refs=1110175 padded_refs=1192832 pad_util=93.07% le16=175 le64=494 le128=8645 full=0
+ds4: ANE prefill batch_hist B128=9319 refs=1110175 util=93.1%
+ds4: gpu layer-major prefill total tokens=8423 encode=29628.233 ms execute=2054.041 ms read=0.067 ms total=31683.760 ms
+
+=== MAX512_T2 ===
+log=moe-batch-bench/profile_runs/m5m_self_MAX512_T2_100705.log
+ds4: prefill: 270.41 t/s, generation: 1.70 t/s
+ds4: ANE prefill stats calls=1231 ok=1231 skipped_big_refs=0 compile_attempts=2 compile_failures=0 eval_calls=2751 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=14.421 ms input=0.762 ms ane_eval=26443.906 ms ane_eval_a=17550.372 ms ane_eval_b=8893.534 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=17550.372 ms writeback=8.854 ms helper_avg=9.612470 ms ane_calls=2751 ane_call_avg=9.612470 ms
+ds4: ANE prefill timing2 output_pack=8.375 ms measured_total=17582.784 ms
+ds4: ANE prefill chunks refs=1110638 padded_refs=1408512 pad_util=78.85% le16=55 le64=149 le128=150 full=1521
+ds4: ANE prefill batch_hist B512=2751 refs=1110638 util=78.9%
+ds4: gpu layer-major prefill total tokens=8423 encode=28671.503 ms execute=1995.385 ms read=0.059 ms total=30668.232 ms
+
+=== MIX128_256_MAX128_T2 ===
+log=moe-batch-bench/profile_runs/m5m_self_MIX128_256_MAX128_T2_100737.log
+ds4: prefill: 239.45 t/s, generation: 1.48 t/s
+ds4: ANE prefill stats calls=1209 ok=1209 skipped_big_refs=0 compile_attempts=3 compile_failures=0 eval_calls=9212 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=16.768 ms input=0.827 ms ane_eval=76603.109 ms ane_eval_a=43799.239 ms ane_eval_b=32803.870 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=43799.239 ms writeback=12.317 ms helper_avg=8.315578 ms ane_calls=9212 ane_call_avg=8.315578 ms
+ds4: ANE prefill timing2 output_pack=11.528 ms measured_total=43840.679 ms
+ds4: ANE prefill chunks refs=1099244 padded_refs=2358272 pad_util=46.61% le16=148 le64=502 le128=8555 full=0
+ds4: ANE prefill batch_hist B256=9212 refs=1099244 util=46.6%
+ds4: gpu layer-major prefill total tokens=8423 encode=32470.214 ms execute=2123.825 ms read=0.132 ms total=34595.559 ms
+

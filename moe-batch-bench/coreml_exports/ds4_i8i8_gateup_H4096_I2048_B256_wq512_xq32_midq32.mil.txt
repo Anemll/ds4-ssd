@@ -1,0 +1,13 @@
+
+main[CoreML8](%Wgq: (4096, 2048, int8)(Tensor),
+              %Wuq: (4096, 2048, int8)(Tensor),
+              %Xq: (256, 4096, int8)(Tensor)) {
+  block0() {
+    %Wg: (4096, 2048, fp16)(Tensor) = dequantize(input=%Wgq, zero_point=0, scale=0.001953125, name="Wg")
+    %Wu: (4096, 2048, fp16)(Tensor) = dequantize(input=%Wuq, zero_point=0, scale=0.001953125, name="Wu")
+    %X: (256, 4096, fp16)(Tensor) = dequantize(input=%Xq, zero_point=0, scale=0.03125, name="X")
+    %X3: (1, 256, 4096, fp16)(Tensor) = expand_dims(x=%X, axes=[0], name="X3")
+    %gate: (1, 256, 2048, fp16)(Tensor) = matmul(x=%X3, y=%Wg, transpose_x=False, transpose_y=False, name="gate")
+    %up: (1, 256, 2048, fp16)(Tensor) = matmul(x=%X3, y=%Wu, transpose_x=False, transpose_y=False, name="up")
+  } -> (%gate, %up)
+}

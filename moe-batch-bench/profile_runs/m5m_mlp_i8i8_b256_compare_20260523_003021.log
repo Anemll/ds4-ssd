@@ -1,0 +1,53 @@
+=== int8w/i8i8 tiled_fused multi-thread smoke (up to N=16) ===
+    shape H=4096 I=2048  weights+inputs: runtime int8 random (not baked)
+    output dtypes: fp16
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=1  out=fp16  warmup=5  iters=30
+============================================================
+  create ctx[ 0]: 375.2 ms
+  [solo] ctx[ 0]  : 2.052 ms/iter  |  6.28 TFLOP/s
+  [solo] avg      : 2.052 ms/iter  |  6.28 TFLOP/s  (per-context baseline)
+  [conc ] N= 1   : wall=60.85 ms  |  per-iter wall=2.028 ms  |  aggregate 6.35 TFLOP/s  |  speedup vs N*solo = 1.01x
+  [conc ] per-thread ms/iter min=2.027 max=2.027 spread=0.0%  vs solo_avg=2.052 (contention=-1.2%)
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=2  out=fp16  warmup=5  iters=30
+============================================================
+  create ctx[ 0]: 318.6 ms
+  create ctx[ 1]: 303.6 ms
+  [solo] ctx[ 0]  : 2.230 ms/iter  |  5.78 TFLOP/s
+  [solo] ctx[ 1]  : 2.175 ms/iter  |  5.93 TFLOP/s
+  [solo] avg      : 2.202 ms/iter  |  5.85 TFLOP/s  (per-context baseline)
+  [conc ] N= 2   : wall=68.85 ms  |  per-iter wall=2.295 ms  |  aggregate 11.23 TFLOP/s  |  speedup vs N*solo = 1.92x
+  [conc ] per-thread ms/iter min=2.257 max=2.296 spread=1.7%  vs solo_avg=2.202 (contention=+3.4%)
+  [stag ] N= 2   : base=1101 us  wall=69.50 ms  |  speedup vs N*solo = 1.90x
+
+============================================================
+ int8w/i8i8 tiled_fused  H=4096  I=2048  B=256  N=4  out=fp16  warmup=5  iters=30
+============================================================
+  create ctx[ 0]: 326.1 ms
+  create ctx[ 1]: 344.1 ms
+  create ctx[ 2]: 308.5 ms
+  create ctx[ 3]: 338.2 ms
+  [solo] ctx[ 0]  : 1.948 ms/iter  |  6.61 TFLOP/s
+  [solo] ctx[ 1]  : 1.951 ms/iter  |  6.60 TFLOP/s
+  [solo] ctx[ 2]  : 1.843 ms/iter  |  6.99 TFLOP/s
+  [solo] ctx[ 3]  : 1.822 ms/iter  |  7.07 TFLOP/s
+  [solo] avg      : 1.891 ms/iter  |  6.81 TFLOP/s  (per-context baseline)
+  [conc ] N= 4   : wall=135.66 ms  |  per-iter wall=4.522 ms  |  aggregate 11.40 TFLOP/s  |  speedup vs N*solo = 1.67x
+  [conc ] per-thread ms/iter min=4.409 max=4.521 spread=2.5%  vs solo_avg=1.891 (contention=+136.1%)
+  [stag ] N= 4   : base=472 us  wall=135.66 ms  |  speedup vs N*solo = 1.67x
+
+============================================================
+ SUMMARY  H=4096  I=2048   (random int8 weights, runtime MatMul)
+============================================================
+  out    B    N    solo_ms  solo_TF/s   conc_ms/it  conc_wall_ms   aggregate_TF/s  speedup   stagger_TF/s  contention%
+  ----  ----  ---  -------  ---------  ----------  ------------   --------------  -------   ------------  -----------
+  fp16   256    1    2.052       6.28       2.028         60.85             6.35    1.01x          0.00        -1.2%
+  fp16   256    2    2.202       5.85       2.295         68.85            11.23    1.92x         11.12        +3.4%
+  fp16   256    4    1.891       6.81       4.522        135.66            11.40    1.67x         11.40      +136.1%
+
+  Peak aggregate TFLOP/s by output dtype and batch:
+    out=fp16  B= 256 : 11.40 TFLOP/s  @ N=4
+

@@ -1,0 +1,18 @@
+ds4-bench: context buffers 431.85 MiB (ctx=4101, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=1027)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal shader compilation failed: program_source:22:9: warning: 'M_PI_F' macro redefined [-Wmacro-redefined]
+#define M_PI_F 3.14159265358979323846f
+        ^
+/System/Library/PrivateFrameworks/GPUCompiler.framework/Versions/32023/Libraries/lib/clang/32023.864/include/metal/metal_types:294:9: note: previous definition is here
+#define M_PI_F __FLT_M_PI__
+        ^
+program_source:2391:57: error: use of undeclared identifier 'FC_MUL_MM_M5_SGMATRIX'
+constant bool FC_mul_mm_m5_sgmatrix [[function_constant(FC_MUL_MM_M5_SGMATRIX)]];
+                                                        ^
+program_source:2391:15: error: variable in constant address space must be initialized
+constant bool FC_mul_mm_m5_sgmatrix [[function_constant(FC_MUL_MM_M5_SGMATRIX)]];
+              ^
+
+ds4: metal backend unavailable; aborting startup

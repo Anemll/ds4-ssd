@@ -1,0 +1,18 @@
+ds4: context buffers 2142.43 MiB (ctx=32768, backend=metal, prefill_chunk=16384, raw_kv_rows=8192, compressed_kv_rows=8194)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.412 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+processing 8423 input tokens: 0/8423 (0.0%)
+processing 8423 input tokens: 8064/8423 (95.7%)
+processing 8423 input tokens: 8423/8423 (100.0%)
+ We need to produce a detailed implementation plan for generating the DFlash dataset using GLM-5.1 MoE teacher model, with the constraints of TPU memory and the need for layer-wise pipeline parallelism. The user has provided a long document describing the problem and proposed solution, and asks for a detailed plan covering model splitting, JAX/PyTorch-XLA code skeleton, data packing, memory profiling, runtime estimates, modifications to Unsloth loading, and testing plan.
+
+We need to
+ds4: prefill: 175.15 t/s, generation: 10.63 t/s
+ds4: Flash-MoE slot-bank stats hits=16349 misses=28228 hit-rate=36.7% installed=190539.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=18777 saved=2154357 (99.1%) reuse=115.73x

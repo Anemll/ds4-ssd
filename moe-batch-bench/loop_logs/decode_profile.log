@@ -1,0 +1,2 @@
+ds4: context buffers 537.24 MiB (ctx=8192, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=2050)
+ds4: another ds4 process is already running (pid 43220); refusing to start

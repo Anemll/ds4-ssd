@@ -1,0 +1,10 @@
+run=m5max_aneonly_b256_20260522_104308
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/m5max_aneonly_b256_20260522_104308.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+ctx=98192 tokens=500 chunk=32000 slots=96
+
+ds4: prefill: 289.24 t/s, generation: 11.53 t/s
+ds4: Flash-MoE slot-bank stats hits=109409 misses=29721 hit-rate=78.6% installed=200616.75 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10130 saved=2163004 (99.5%) reuse=214.52x

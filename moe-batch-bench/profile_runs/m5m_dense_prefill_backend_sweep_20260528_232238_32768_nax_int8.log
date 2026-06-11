@@ -1,0 +1,12 @@
+ds4-bench: context buffers 2142.43 MiB (ctx=32770, backend=metal, prefill_chunk=16384, raw_kv_rows=8192, compressed_kv_rows=8194)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 7.751s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 2.349 ms, residency requested in 895.035 ms, warmup 3.979 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 1.9 ms total (paid before prefill timer)
+ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: prefill full: 32768 tokens in 72215.7 ms (453.8 t/s)
+32768,32768,453.75,1,14.19,475014540

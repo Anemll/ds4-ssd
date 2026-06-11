@@ -1,0 +1,15 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=48, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.360 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: ANE O-proj disabled while routed ANE prefill is active (serial dependency boundary); set DS4_FLASH_MOE_ANE_OUTPUT_PROJ_FORCE=1 to benchmark it anyway
+ds4: Flash-MoE slot banks allocated: layers=43 slots=48 gpu-bank=13932.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+We
+ds4: prefill: 267.17 t/s, generation: 1.24 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10408 hit-rate=0.0% installed=70254.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10150 saved=2162984 (99.5%) reuse=214.10x

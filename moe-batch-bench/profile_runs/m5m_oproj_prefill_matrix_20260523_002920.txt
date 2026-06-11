@@ -1,0 +1,234 @@
+# M5M O-proj/shared ANE prefill matrix Sat May 23 00:29:20 PDT 2026
+
+=== GPU_ONLY ===
+log=moe-batch-bench/profile_runs/m5m_GPU_ONLY_002920.log
+ds4: metal layer-major prefill total tokens=8423 encode=28133.050 ms execute=1954.282 ms read=0.040 ms total=30089.117 ms
+ds4: prefill: 279.17 t/s, generation: 1.42 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10772 hit-rate=0.0% installed=72711.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10514 saved=2162620 (99.5%) reuse=206.69x
+
+=== ROUTED_ANE_BASE ===
+log=moe-batch-bench/profile_runs/m5m_ROUTED_ANE_BASE_002952.log
+ds4: metal layer-major prefill total tokens=8423 encode=30045.083 ms execute=2136.080 ms read=0.139 ms total=32182.704 ms
+ds4: prefill: 258.04 t/s, generation: 1.34 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10342 hit-rate=0.0% installed=69808.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10084 saved=2163050 (99.5%) reuse=215.50x
+ds4: ANE prefill timing dequant=21.416 ms input=0.897 ms ane_eval=23234.574 ms ane_eval_a=23234.574 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=23234.574 ms writeback=12.755 ms helper_avg=4.743686 ms ane_calls=4898 ane_call_avg=4.743686 ms
+ds4: ANE prefill chunks refs=1108894 padded_refs=1253888 pad_util=88.44% le16=71 le64=189 le128=226 full=3666
+ds4: ANE prefill batch_hist B256=4898 refs=1108894 util=88.4%
+
+=== SHARED_ANE ===
+log=moe-batch-bench/profile_runs/m5m_SHARED_ANE_003025.log
+ds4: ANE shared-expert init layer=12 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=141.4
+ds4: ANE shared-expert init layer=13 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=142.4
+ds4: ANE shared-expert init layer=14 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.1
+ds4: ANE shared-expert init layer=15 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=139.0
+ds4: ANE shared-expert init layer=16 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.3
+ds4: ANE shared-expert init layer=17 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=161.3
+ds4: ANE shared-expert init layer=18 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=146.1
+ds4: ANE shared-expert init layer=19 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=136.0
+ds4: ANE shared-expert init layer=20 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=135.2
+ds4: ANE shared-expert init layer=21 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=138.2
+ds4: ANE shared-expert init layer=22 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.7
+ds4: ANE shared-expert init layer=23 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=138.6
+ds4: ANE shared-expert init layer=24 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=138.5
+ds4: ANE shared-expert init layer=25 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.0
+ds4: ANE shared-expert init layer=26 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=141.1
+ds4: ANE shared-expert init layer=27 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=143.0
+ds4: ANE shared-expert init layer=28 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=141.5
+ds4: ANE shared-expert init layer=29 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=137.4
+ds4: ANE shared-expert init layer=30 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.4
+ds4: ANE shared-expert init layer=31 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=139.4
+ds4: ANE shared-expert init layer=32 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=136.9
+ds4: ANE shared-expert init layer=33 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=138.8
+ds4: ANE shared-expert init layer=34 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=141.3
+ds4: ANE shared-expert init layer=35 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=141.9
+ds4: ANE shared-expert init layer=36 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=138.6
+ds4: ANE shared-expert init layer=37 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=137.3
+ds4: ANE shared-expert init layer=38 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=137.2
+ds4: ANE shared-expert init layer=39 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=137.0
+ds4: ANE shared-expert init layer=40 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=137.9
+ds4: ANE shared-expert init layer=41 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=140.2
+ds4: ANE shared-expert init layer=42 in=4096 mid=2048 B=256 fp16w split-matmul init_ms=134.8
+ds4: ANE shared-expert prewarm: 43/43 layers, 6137.1 ms total (paid before prefill timer)
+ds4: metal layer-major prefill total tokens=8423 encode=30808.875 ms execute=382.814 ms read=0.065 ms total=31193.079 ms
+ds4: prefill: 266.85 t/s, generation: 1.26 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10382 hit-rate=0.0% installed=70078.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10124 saved=2163010 (99.5%) reuse=214.65x
+ds4: ANE prefill timing dequant=20.440 ms input=0.929 ms ane_eval=26550.513 ms ane_eval_a=26550.513 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=26550.513 ms writeback=14.164 ms helper_avg=5.432886 ms ane_calls=4887 ane_call_avg=5.432886 ms
+ds4: ANE shared-expert calls=43 total_ms=30315.448 eval_ms=9288.927 eval_avg=216.022 ms/call input_ms=1053.792 output_ms=1119.783 init_ms=6135.512 warm_ms=0.000 dep_wait_ms=15243.138 join_wait_ms=0.216 join_avg=0.005 ms/call
+ds4: ANE prefill chunks refs=1108691 padded_refs=1251072 pad_util=88.62% le16=61 le64=211 le128=205 full=3667
+ds4: ANE prefill batch_hist B256=4887 refs=1108691 util=88.6%
+
+=== SHARED_CONV ===
+log=moe-batch-bench/profile_runs/m5m_SHARED_CONV_003104.log
+ds4: ANE shared-expert init layer=12 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=150.1
+ds4: ANE shared-expert init layer=13 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=148.3
+ds4: ANE shared-expert init layer=14 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=149.1
+ds4: ANE shared-expert init layer=15 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=148.3
+ds4: ANE shared-expert init layer=16 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=158.1
+ds4: ANE shared-expert init layer=17 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=160.7
+ds4: ANE shared-expert init layer=18 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=157.3
+ds4: ANE shared-expert init layer=19 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=147.0
+ds4: ANE shared-expert init layer=20 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=144.1
+ds4: ANE shared-expert init layer=21 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=149.2
+ds4: ANE shared-expert init layer=22 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=144.8
+ds4: ANE shared-expert init layer=23 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=148.0
+ds4: ANE shared-expert init layer=24 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=148.7
+ds4: ANE shared-expert init layer=25 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=142.7
+ds4: ANE shared-expert init layer=26 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=145.3
+ds4: ANE shared-expert init layer=27 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=144.8
+ds4: ANE shared-expert init layer=28 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=152.5
+ds4: ANE shared-expert init layer=29 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=149.8
+ds4: ANE shared-expert init layer=30 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=152.4
+ds4: ANE shared-expert init layer=31 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=149.0
+ds4: ANE shared-expert init layer=32 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=147.1
+ds4: ANE shared-expert init layer=33 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=153.5
+ds4: ANE shared-expert init layer=34 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=144.9
+ds4: ANE shared-expert init layer=35 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=153.1
+ds4: ANE shared-expert init layer=36 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=168.6
+ds4: ANE shared-expert init layer=37 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=146.7
+ds4: ANE shared-expert init layer=38 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=145.5
+ds4: ANE shared-expert init layer=39 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=139.6
+ds4: ANE shared-expert init layer=40 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=142.0
+ds4: ANE shared-expert init layer=41 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=141.1
+ds4: ANE shared-expert init layer=42 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=144.9
+ds4: ANE shared-expert prewarm: 43/43 layers, 6404.6 ms total (paid before prefill timer)
+ds4: metal layer-major prefill total tokens=8423 encode=32450.238 ms execute=402.981 ms read=0.053 ms total=32854.843 ms
+ds4: prefill: 253.44 t/s, generation: 1.38 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=10414 hit-rate=0.0% installed=70294.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10156 saved=2162978 (99.5%) reuse=213.98x
+ds4: ANE prefill timing dequant=19.866 ms input=1.020 ms ane_eval=32401.573 ms ane_eval_a=32401.573 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=32401.573 ms writeback=12.023 ms helper_avg=6.588364 ms ane_calls=4918 ane_call_avg=6.588364 ms
+ds4: ANE shared-expert calls=43 total_ms=31962.579 eval_ms=2787.469 eval_avg=64.825 ms/call input_ms=1064.814 output_ms=1054.026 init_ms=6403.523 warm_ms=104.788 dep_wait_ms=15797.029 join_wait_ms=0.299 join_avg=0.007 ms/call
+ds4: ANE prefill chunks refs=1111830 padded_refs=1259008 pad_util=88.31% le16=65 le64=209 le128=235 full=3695
+ds4: ANE prefill batch_hist B256=4918 refs=1111830 util=88.3%
+
+=== OPROJ_I8_T1 ===
+log=moe-batch-bench/profile_runs/m5m_OPROJ_I8_T1_003145.log
+ds4: ANE O-proj init layer=12 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=848.1
+ds4: ANE O-proj init layer=13 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=919.9
+ds4: ANE O-proj init layer=14 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=875.9
+ds4: ANE O-proj init layer=15 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=842.4
+ds4: ANE O-proj init layer=16 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=873.2
+ds4: ANE O-proj init layer=17 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=867.0
+ds4: ANE O-proj init layer=18 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=893.7
+ds4: ANE O-proj init layer=19 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=866.8
+ds4: ANE O-proj init layer=20 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=858.7
+ds4: ANE O-proj init layer=21 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=852.6
+ds4: ANE O-proj init layer=22 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=865.2
+ds4: ANE O-proj init layer=23 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=869.0
+ds4: ANE O-proj init layer=24 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=883.7
+ds4: ANE O-proj init layer=25 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=848.2
+ds4: ANE O-proj init layer=26 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=871.6
+ds4: ANE O-proj init layer=27 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=859.0
+ds4: ANE O-proj init layer=28 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=897.7
+ds4: ANE O-proj init layer=29 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=852.9
+ds4: ANE O-proj init layer=30 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=840.3
+ds4: ANE O-proj init layer=31 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=793.3
+ds4: ANE O-proj init layer=32 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=829.2
+ds4: ANE O-proj init layer=33 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=824.9
+ds4: ANE O-proj init layer=34 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=816.2
+ds4: ANE O-proj init layer=35 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=781.1
+ds4: ANE O-proj init layer=36 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=832.9
+ds4: ANE O-proj init layer=37 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=920.3
+ds4: ANE O-proj init layer=38 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=931.8
+ds4: ANE O-proj init layer=39 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=897.6
+ds4: ANE O-proj init layer=40 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=831.5
+ds4: ANE O-proj init layer=41 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=843.1
+ds4: ANE O-proj init layer=42 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=814.6
+ds4: ANE O-proj prewarm: 43/43 layers, 37122.4 ms total (paid before prefill timer)
+ds4: metal layer-major prefill total tokens=8423 encode=33169.463 ms execute=2253.220 ms read=0.117 ms total=35424.492 ms
+ds4: prefill: 235.45 t/s, generation: 0.94 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=9957 hit-rate=0.0% installed=67209.75 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=9699 saved=2163435 (99.6%) reuse=224.06x
+ds4: ANE prefill timing dequant=16.030 ms input=1.211 ms ane_eval=27542.887 ms ane_eval_a=27542.887 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=27542.887 ms writeback=11.135 ms helper_avg=5.037104 ms ane_calls=5468 ane_call_avg=5.037104 ms
+ds4: ANE O-proj calls=43 total_ms=17030.416 eval_ms=5682.392 eval_avg=132.149 ms/call input_ms=0.000 output_ms=91.604 init_ms=37121.233 dep_wait_ms=11236.875 join_wait_ms=17028.176 join_avg=396.004 ms/call
+ds4: ANE prefill chunks refs=1287341 padded_refs=1399808 pad_util=91.97% le16=43 le64=174 le128=175 full=4540
+ds4: ANE prefill batch_hist B256=5468 refs=1287341 util=92.0%
+
+=== OPROJ_I8_T2 ===
+log=moe-batch-bench/profile_runs/m5m_OPROJ_I8_T2_003300.log
+ds4: ANE O-proj init layer=12 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1007.1
+ds4: ANE O-proj init layer=13 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1004.1
+ds4: ANE O-proj init layer=14 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1025.7
+ds4: ANE O-proj init layer=15 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=981.6
+ds4: ANE O-proj init layer=16 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1015.9
+ds4: ANE O-proj init layer=17 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1008.3
+ds4: ANE O-proj init layer=18 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1038.1
+ds4: ANE O-proj init layer=19 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1049.6
+ds4: ANE O-proj init layer=20 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1000.1
+ds4: ANE O-proj init layer=21 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=993.9
+ds4: ANE O-proj init layer=22 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=987.3
+ds4: ANE O-proj init layer=23 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1053.2
+ds4: ANE O-proj init layer=24 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1058.6
+ds4: ANE O-proj init layer=25 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1014.7
+ds4: ANE O-proj init layer=26 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1028.4
+ds4: ANE O-proj init layer=27 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1035.9
+ds4: ANE O-proj init layer=28 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1045.7
+ds4: ANE O-proj init layer=29 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1007.0
+ds4: ANE O-proj init layer=30 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1004.7
+ds4: ANE O-proj init layer=31 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1016.3
+ds4: ANE O-proj init layer=32 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1047.8
+ds4: ANE O-proj init layer=33 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1012.7
+ds4: ANE O-proj init layer=34 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1028.7
+ds4: ANE O-proj init layer=35 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1143.9
+ds4: ANE O-proj init layer=36 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1093.3
+ds4: ANE O-proj init layer=37 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1005.5
+ds4: ANE O-proj init layer=38 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1076.6
+ds4: ANE O-proj init layer=39 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1032.3
+ds4: ANE O-proj init layer=40 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1035.1
+ds4: ANE O-proj init layer=41 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1028.5
+ds4: ANE O-proj init layer=42 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, dual cluster) init_ms=1036.1
+ds4: ANE O-proj prewarm: 43/43 layers, 44731.2 ms total (paid before prefill timer)
+ds4: metal layer-major prefill total tokens=8423 encode=31501.999 ms execute=2012.410 ms read=0.036 ms total=33515.886 ms
+ds4: prefill: 248.60 t/s, generation: 1.44 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=9923 hit-rate=0.0% installed=66980.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=9665 saved=2163469 (99.6%) reuse=224.85x
+ds4: ANE prefill timing dequant=14.475 ms input=0.983 ms ane_eval=27972.390 ms ane_eval_a=27972.390 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=27972.390 ms writeback=10.208 ms helper_avg=5.080347 ms ane_calls=5506 ane_call_avg=5.080347 ms
+ds4: ANE O-proj calls=43 total_ms=15686.374 eval_ms=10095.434 eval_avg=234.778 ms/call input_ms=0.000 output_ms=89.710 init_ms=44729.984 dep_wait_ms=10457.603 join_wait_ms=15684.364 join_avg=364.753 ms/call
+ds4: ANE prefill chunks refs=1296322 padded_refs=1409536 pad_util=91.97% le16=72 le64=144 le128=176 full=4585
+ds4: ANE prefill batch_hist B256=5506 refs=1296322 util=92.0%
+
+=== STACK_SHARED_OPROJ ===
+log=moe-batch-bench/profile_runs/m5m_STACK_SHARED_OPROJ_003419.log
+ds4: ANE O-proj init layer=13 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=909.9
+ds4: ANE O-proj init layer=14 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=896.6
+ds4: ANE O-proj init layer=15 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=867.5
+ds4: ANE O-proj init layer=16 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=870.4
+ds4: ANE O-proj init layer=17 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=893.2
+ds4: ANE O-proj init layer=18 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=891.1
+ds4: ANE O-proj init layer=19 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=887.6
+ds4: ANE O-proj init layer=20 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=850.6
+ds4: ANE O-proj init layer=21 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=881.5
+ds4: ANE O-proj init layer=22 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=862.8
+ds4: ANE O-proj init layer=23 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=888.8
+ds4: ANE O-proj init layer=24 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=859.3
+ds4: ANE O-proj init layer=25 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=883.7
+ds4: ANE O-proj init layer=26 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=950.2
+ds4: ANE O-proj init layer=27 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=1010.9
+ds4: ANE O-proj init layer=28 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=892.9
+ds4: ANE O-proj init layer=29 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=879.4
+ds4: ANE O-proj init layer=30 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=881.9
+ds4: ANE O-proj init layer=31 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=874.6
+ds4: ANE O-proj init layer=32 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=950.6
+ds4: ANE O-proj init layer=33 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=891.3
+ds4: ANE O-proj init layer=34 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=903.5
+ds4: ANE O-proj init layer=35 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=881.5
+ds4: ANE O-proj init layer=36 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=842.4
+ds4: ANE O-proj init layer=37 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=867.2
+ds4: ANE O-proj init layer=38 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=911.9
+ds4: ANE O-proj init layer=39 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=870.8
+ds4: ANE O-proj init layer=40 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=875.3
+ds4: ANE O-proj init layer=41 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=894.0
+ds4: ANE O-proj init layer=42 in=4096 out_low=8192 n_embd=4096 B=256 i8w-linear-conv (per-channel, 1 ctx) init_ms=849.2
+ds4: ANE O-proj prewarm: 43/43 layers, 38171.1 ms total (paid before prefill timer)
+ds4: metal layer-major prefill total tokens=8423 encode=32114.643 ms execute=383.108 ms read=0.059 ms total=32499.093 ms
+ds4: prefill: 256.29 t/s, generation: 1.12 t/s
+ds4: Flash-MoE slot-bank stats hits=0 misses=9909 hit-rate=0.0% installed=66885.75 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=9651 saved=2163483 (99.6%) reuse=225.17x
+ds4: ANE prefill timing dequant=16.152 ms input=0.975 ms ane_eval=31796.768 ms ane_eval_a=31796.768 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=31796.768 ms writeback=11.262 ms helper_avg=5.821451 ms ane_calls=5462 ane_call_avg=5.821451 ms
+ds4: ANE shared-expert calls=43 total_ms=16131.512 eval_ms=9616.307 eval_avg=223.635 ms/call input_ms=1055.974 output_ms=1080.521 init_ms=6016.089 warm_ms=0.000 dep_wait_ms=463.160 join_wait_ms=0.366 join_avg=0.009 ms/call
+ds4: ANE O-proj calls=43 total_ms=15493.949 eval_ms=5515.913 eval_avg=128.277 ms/call input_ms=0.000 output_ms=93.803 init_ms=38169.814 dep_wait_ms=9865.091 join_wait_ms=15491.817 join_avg=360.275 ms/call
+ds4: ANE prefill chunks refs=1282773 padded_refs=1398272 pad_util=91.74% le16=56 le64=170 le128=190 full=4536
+ds4: ANE prefill batch_hist B256=5462 refs=1282773 util=91.7%
+

@@ -1,0 +1,17 @@
+=== O-proj constexpr conv smoke: H=4096 I=8192 B=256 iters/thread=30 ===
+Creating 4 ctx(s)...
+  ctx[0] created in 300.0 ms
+  ctx[1] created in 258.3 ms
+  ctx[2] created in 275.0 ms
+  ctx[3] created in 273.9 ms
+
+┌─────────┬────────────┬───────────┬───────────┬─────────────┐
+│ Threads │ Wall (ms)  │ ms/iter   │ TFLOP/s   │ Scaling vs 1│
+├─────────┼────────────┼───────────┼───────────┼─────────────┤
+│       1 │     182.80 │     6.093 │      5.64 │   1.00x     │
+│       2 │     348.94 │     5.816 │      5.91 │   1.05x     │
+│       4 │     697.62 │     5.814 │      5.91 │   1.05x     │
+└─────────┴────────────┴───────────┴───────────┴─────────────┘
+
+Note: ms/iter = wall / (n_threads * iters), so a perfect scaling shows
+      identical ms/iter across thread counts.

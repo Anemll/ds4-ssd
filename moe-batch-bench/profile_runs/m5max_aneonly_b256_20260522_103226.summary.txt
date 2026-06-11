@@ -1,0 +1,54 @@
+run=m5max_aneonly_b256_20260522_103226
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/m5max_aneonly_b256_20260522_103226.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+ctx=98192 tokens=1024 chunk=32000 slots=48
+
+ds4: metal layer-major prefill layer 0 encode=831.863 ms execute=96.054 ms
+ds4: metal layer-major prefill layer 1 encode=512.900 ms execute=38.354 ms
+ds4: metal layer-major prefill layer 2 encode=770.513 ms execute=47.110 ms
+ds4: metal layer-major prefill layer 3 encode=522.166 ms execute=38.362 ms
+ds4: metal layer-major prefill layer 4 encode=656.848 ms execute=37.749 ms
+ds4: metal layer-major prefill layer 5 encode=521.183 ms execute=37.706 ms
+ds4: metal layer-major prefill layer 6 encode=665.773 ms execute=37.516 ms
+ds4: metal layer-major prefill layer 7 encode=527.179 ms execute=38.352 ms
+ds4: metal layer-major prefill layer 8 encode=687.144 ms execute=37.688 ms
+ds4: metal layer-major prefill layer 9 encode=514.084 ms execute=38.940 ms
+ds4: metal layer-major prefill layer 10 encode=657.542 ms execute=37.624 ms
+ds4: metal layer-major prefill layer 11 encode=525.419 ms execute=37.529 ms
+ds4: metal layer-major prefill layer 12 encode=653.269 ms execute=37.502 ms
+ds4: metal layer-major prefill layer 13 encode=514.684 ms execute=38.674 ms
+ds4: metal layer-major prefill layer 14 encode=667.185 ms execute=37.761 ms
+ds4: metal layer-major prefill layer 15 encode=523.072 ms execute=37.574 ms
+ds4: metal layer-major prefill layer 16 encode=675.506 ms execute=38.231 ms
+ds4: metal layer-major prefill layer 17 encode=511.304 ms execute=38.143 ms
+ds4: metal layer-major prefill layer 18 encode=678.341 ms execute=38.774 ms
+ds4: metal layer-major prefill layer 19 encode=505.548 ms execute=37.977 ms
+ds4: metal layer-major prefill layer 20 encode=677.737 ms execute=37.977 ms
+ds4: metal layer-major prefill layer 21 encode=517.881 ms execute=40.233 ms
+ds4: metal layer-major prefill layer 22 encode=719.782 ms execute=38.773 ms
+ds4: metal layer-major prefill layer 23 encode=524.150 ms execute=38.104 ms
+ds4: metal layer-major prefill layer 24 encode=685.293 ms execute=38.830 ms
+ds4: metal layer-major prefill layer 25 encode=508.616 ms execute=38.532 ms
+ds4: metal layer-major prefill layer 26 encode=686.173 ms execute=47.382 ms
+ds4: metal layer-major prefill layer 27 encode=513.101 ms execute=38.651 ms
+ds4: metal layer-major prefill layer 28 encode=676.419 ms execute=37.592 ms
+ds4: metal layer-major prefill layer 29 encode=547.239 ms execute=37.775 ms
+ds4: metal layer-major prefill layer 30 encode=674.599 ms execute=37.568 ms
+ds4: metal layer-major prefill layer 31 encode=529.231 ms execute=38.468 ms
+ds4: metal layer-major prefill layer 32 encode=675.835 ms execute=37.727 ms
+ds4: metal layer-major prefill layer 33 encode=546.892 ms execute=38.084 ms
+ds4: metal layer-major prefill layer 34 encode=706.589 ms execute=37.687 ms
+ds4: metal layer-major prefill layer 35 encode=539.631 ms execute=38.965 ms
+ds4: metal layer-major prefill layer 36 encode=706.517 ms execute=38.421 ms
+ds4: metal layer-major prefill layer 37 encode=554.222 ms execute=38.775 ms
+ds4: metal layer-major prefill layer 38 encode=678.699 ms execute=37.599 ms
+ds4: metal layer-major prefill layer 39 encode=539.958 ms execute=37.458 ms
+ds4: metal layer-major prefill layer 40 encode=719.665 ms execute=38.253 ms
+ds4: metal layer-major prefill layer 41 encode=526.085 ms execute=37.716 ms
+ds4: metal layer-major prefill layer 42 encode=692.663 ms execute=38.547 ms
+ds4: metal layer-major prefill total tokens=8423 encode=26326.044 ms execute=1717.978 ms read=0.077 ms total=28044.388 ms
+ds4: prefill: 296.21 t/s, generation: 9.17 t/s
+ds4: Flash-MoE slot-bank stats hits=165622 misses=108715 hit-rate=60.4% installed=733826.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10145 saved=2162989 (99.5%) reuse=214.21x

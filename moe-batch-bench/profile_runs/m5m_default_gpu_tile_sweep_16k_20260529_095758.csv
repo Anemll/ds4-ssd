@@ -1,0 +1,4 @@
+variant,tile_max,prefill_chunk,raw_kv_rows,effective_tokens,route,gate_tile,down_tile,prefill_tps,status,log
+default_gpu_tile32,32,16384,16640,16384,default-GPU-mul_mm_id,32,32,379.8,ok,moe-batch-bench/profile_runs/m5m_default_gpu_tile_sweep_16k_20260529_095758_default_gpu_tile32.log
+default_gpu_tile64,64,16384,16640,16384,default-GPU-mul_mm_id,64,64,481.1,ok,moe-batch-bench/profile_runs/m5m_default_gpu_tile_sweep_16k_20260529_095758_default_gpu_tile64.log
+default_gpu_tile128,128,16384,16640,16384,default-GPU-mul_mm_id,128,128,552.9,ok,moe-batch-bench/profile_runs/m5m_default_gpu_tile_sweep_16k_20260529_095758_default_gpu_tile128.log

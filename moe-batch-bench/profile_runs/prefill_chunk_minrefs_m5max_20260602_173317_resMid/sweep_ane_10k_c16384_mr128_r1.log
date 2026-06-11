@@ -1,0 +1,23 @@
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=12000, raw_kv_rows=8704, raw_window=128, effective_chunk=8576; target raw cap for one chunk is 12288, also requires ctx >= that value)
+ds4: context buffers 1163.46 MiB (ctx=12000, backend=metal, prefill_chunk=12000, raw_kv_rows=8704, compressed_kv_rows=3002)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal lazy model views enabled (range 5.09..82702.74 MiB); model tensors will be wrapped per command batch
+ds4: Metal mapped mmaped model as 0 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): ANE hot + overlapped per-expert GPU gather/scatter cold  [per-token table path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ANE (requested): dual-cluster=off workers=1 multi-active=on tiled-fused=on queue=8 refs=128..1024 batch=256 call_max_refs=256
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=8704
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: resident routed MoE using ANE/GPU DeDup prefill (ANE refs >= 128, cold tail: classic GPU gather/scatter overlapped)
+ds4: resident MPP/NAX prefill layer=0 mpp_groups=0 mpp_refs=0 fallback_groups=32 fallback_refs=2968 ane_groups=224 ane_refs=60182 ane_min_refs=128 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: resident MPP/NAX prefill layer=1 mpp_groups=0 mpp_refs=0 fallback_groups=39 fallback_refs=3886 ane_groups=217 ane_refs=59264 ane_min_refs=128 ane_max_refs=1024 ane_start_failures=0 ane_scatter_failures=0 cold_tail=gather_scatter_gpu_overlap
+ds4: ANE prefill stats calls=441 ok=441 skipped_big_refs=0 compile_attempts=1 compile_failures=0 eval_calls=661 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=2.569 ms input=0.105 ms ane_eval=4220.495 ms ane_eval_a=4220.495 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=4220.495 ms writeback=2.048 ms helper_avg=6.385015 ms ane_calls=661 ane_call_avg=6.385015 ms
+ds4: ANE prefill timing2 output_pack=1.945 ms measured_total=4227.162 ms
+ds4: ANE prefill timing3 dequant_wait=914.701 ms post_wait=0.000 ms x_zero=4.561 ms x_copy=10.358 ms out_zero=24.050 ms out_f16_copy=20.772 ms output_convert=1.945 ms output_gpu_encode=1.945 ms output_chunks=441 output_elems=489250816 output_convert_rate=251.543 Gelem/s
+ds4: ANE prefill timing4 wait_predict=0.000 ms finish_join_ane=795.251 ms finish_join_post=0.000 ms wait_predict_calls=0 finish_calls=441
+ds4: ANE prefill chunks refs=119446 padded_refs=169216 pad_util=70.59% le16=34 le64=67 le128=51 full=223
+ds4: ANE prefill batch_hist B256=661 refs=119446 util=70.6%

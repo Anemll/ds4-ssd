@@ -1,0 +1,16 @@
+ds4: context buffers 2142.43 MiB (ctx=32768, backend=metal, prefill_chunk=16384, raw_kv_rows=8192, compressed_kv_rows=8194)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.313 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+processing 8423 input tokens: 0/8423 (0.0%)
+processing 8423 input tokens: 8064/8423 (95.7%)
+processing 8423 input tokens: 8423/8423 (100.0%)
+ through the details of the DFlash dataset generation plan for the GLM-5
+ds4: prefill: 186.92 t/s, generation: 7.64 t/s
+ds4: Flash-MoE slot-bank stats hits=2203 misses=19258 hit-rate=10.3% installed=129991.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=17333 saved=2155801 (99.2%) reuse=125.38x

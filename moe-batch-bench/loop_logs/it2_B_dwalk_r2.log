@@ -1,0 +1,10 @@
+ds4-bench: context buffers 1051.91 MiB (ctx=32777, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=8196)
+ds4: warming mapped tensor pages: 80.76 GiB
+ds4: warmed tensor pages in 6.510s (checksum=660464255)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal model views created in 3.077 ms, residency requested in 403.224 ms, warmup 3.374 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: NAX fused library macros: {
+    "DS4_DENSE_WALK" = 1;
+}

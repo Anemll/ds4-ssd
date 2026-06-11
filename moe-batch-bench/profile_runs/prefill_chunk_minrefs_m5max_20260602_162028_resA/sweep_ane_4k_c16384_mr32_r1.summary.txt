@@ -1,0 +1,23 @@
+run=sweep_ane_4k_c16384_mr32_r1
+mode=resident
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/prefill_chunk_minrefs_m5max_20260602_162028_resA/sweep_ane_4k_c16384_mr32_r1.log
+model=/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf
+prefill_kernel=resident ANE routed-MoE (M5 single-cluster): ane_gpu (ANE i8i8 hot experts + overlapped per-expert GPU gather/scatter cold tail)
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_4k.txt
+prefill_size=8k ctx=6144 tokens=1 chunk=16384 raw_cap=8704 slots=96
+ane=single-cluster dual=0 threads=1 shared_expert=0 oproj=0
+async_pread=1 prefetch=3 after_stage=1
+summary_detail=concise
+
+ds4: prefill routed-MoE (requested): ANE hot + overlapped per-expert GPU gather/scatter cold  [per-token table path]
+ds4: resident routed MoE using ANE/GPU DeDup prefill (ANE refs >= 32, cold tail: classic GPU gather/scatter overlapped)
+ds4: metal layer-major prefill total tokens=4344 encode=11359.322 ms execute=4038.718 ms read=0.037 ms total=15398.093 ms
+ds4: ----------------------------------------
+ds4: prefill: 277.17 t/s, generation: 10869.56 t/s
+ds4: ANE prefill stats calls=5996 ok=5996 skipped_big_refs=0 compile_attempts=1 compile_failures=0 eval_calls=7375 eval_failures=0 write_failures=0 reopen_failures=0
+ds4: ANE prefill timing dequant=30.374 ms input=1.245 ms ane_eval=42051.625 ms ane_eval_a=42051.625 ms ane_eval_b=0.000 ms ane_eval_c=0.000 ms ane_eval_d=0.000 ms ane_wall_est=42051.625 ms writeback=26.364 ms helper_avg=5.701915 ms ane_calls=7375 ane_call_avg=5.701915 ms
+ds4: ANE prefill timing2 output_pack=25.151 ms measured_total=42134.759 ms
+ds4: ANE prefill timing3 dequant_wait=12527.963 ms post_wait=0.000 ms x_zero=39.918 ms x_copy=70.034 ms out_zero=168.988 ms out_f16_copy=155.225 ms output_convert=25.151 ms output_gpu_encode=25.151 ms output_chunks=5996 output_elems=3930202112 output_convert_rate=156.264 Gelem/s
+ds4: ANE prefill timing4 wait_predict=0.000 ms finish_join_ane=8919.988 ms finish_join_post=0.000 ms wait_predict_calls=0 finish_calls=5996
+ds4: ANE prefill chunks refs=959522 padded_refs=1888000 pad_util=50.82% le16=115 le64=1984 le128=2169 full=1385
+ds4: ANE prefill batch_hist B256=7375 refs=959522 util=50.8%

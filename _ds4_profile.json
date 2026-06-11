@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "_comment": "DS4 machine tuning profiles. The first entry whose match{chip substring, min_ram_gib} fits this machine is applied: each env var is set as a DEFAULT (setenv overwrite=0), so anything you export yourself still wins. Generate/refresh an entry for your machine with ./tune_profile.sh. Order entries most-specific first.",
+  "profiles": [
+    {
+      "_comment": "M5 Max, MEASURED (81G IQ2XXS, 45s cooldown, alone on box). prefill_by_tokens picks per prefill chunk: nax_half_alu below 7680 tok/chunk, nax_int8 at/above. Measured t/s half-vs-int8: 4096:316/269, 5120:364/309, 6144:395/337, 7168:423/366 (half wins), 8192:378/500 (int8 wins) -> crossover in (7168,8192], boundary=midpoint 7680. Both backends enabled + MPP_FORCE; loader maps ranges to DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS=7680.",
+      "match": {
+        "chip": "Apple M5 Max",
+        "min_ram_gib": 128
+      },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "16384",
+        "DS4_RESIDENT_MOE_MPP_INT8_PREFILL": "1",
+        "DS4_RESIDENT_MOE_MPP_FORCE": "1",
+        "DS4_RESIDENT_MOE_MPP_MIN_TOKENS": "64",
+        "DS4_RESIDENT_MOE_MPP_COMPACT_MIN_TOKENS": "64",
+        "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
+        "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
+        "DS4_RESIDENT_MOE_NAX_HALF": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP": "1",
+        "DS4_RESIDENT_MOE_NAX_FUSED_MIN_REFS": "0"
+      },
+      "prefill_by_tokens": [
+        { "min_tokens": 0,    "max_tokens": 7679,  "backend": "nax_half_alu" },
+        { "min_tokens": 7680, "max_tokens": 99999, "backend": "nax_int8" }
+      ]
+    },
+    {
+      "_comment": "M3 Ultra: NO NAX (matmul2d is M5-only via ds4_gpu_is_m5_device; nax_half_alu/nax_int8 silently fall back to mul_mm_id), so there is NO per-token GPU-backend split like the M5 entry — the routed GPU path is mul_mm_id at every chunk size, and a nax-style prefill_by_tokens would no-op. M3U's win is DUAL-CLUSTER ANE, gated PER-EXPERT by refs (no per-chunk-token ANE gate exists). refs ~= chunk_tokens/32, so prefill_by_tokens here is informational: it documents the token->refs mapping that ANE_MIN_REFS=64 implies (ANE auto-engages on chunks >~2048 tokens and scales up). To get MEASURED M3U numbers, run tune_profile.sh ON the M3U (this box is M5 Max; M3U cannot be benchmarked here). DS4_FLASH_MOE_ANE_DUAL=1 lights both ANE clusters on the SSD/slot-bank path.",
+      "match": {
+        "chip": "Apple M3 Ultra",
+        "min_ram_gib": 64
+      },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048",
+        "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
+        "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
+        "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
+      },
+      "prefill_by_tokens": [
+        { "min_tokens": 0,    "max_tokens": 2047,  "backend": "mul_mm_id", "ane": "off (refs < ANE_MIN_REFS=64)", "measured": false },
+        { "min_tokens": 2048, "max_tokens": 99999, "backend": "mul_mm_id", "ane": "on (dual-cluster; refs >= 64)", "measured": false }
+      ]
+    },
+    {
+      "match": {
+        "chip": "Apple M5 Max",
+        "min_ram_gib": 96
+      },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "16384",
+        "DS4_RESIDENT_MOE_ANE_MIN_REFS": "64",
+        "DS4_RESIDENT_MOE_ANE_MAX_REFS": "1024",
+        "DS4_RESIDENT_MOE_ANE_QUEUE": "8"
+      }
+    },
+    {
+      "match": {
+        "chip": "Apple M1 Max"
+      },
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048"
+      }
+    },
+    {
+      "match": {},
+      "env": {
+        "DS4_CTX_GROW": "1",
+        "DS4_CTX_GROW_BLOCK": "2048"
+      }
+    }
+  ]
+}

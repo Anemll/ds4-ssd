@@ -1,0 +1,2 @@
+label	prefill_ts	ane_groups	ane_refs	ane_start_fail	ane_scatter_fail	mpp_groups	mpp_refs	route	beats_gpu	beats_int8	env
+seq_f24_noov	191.5	1867	411410	0	0	35672	3815662	route=forced/resident-MPP-NAX-int8	n	n	DS4_RESIDENT_MOE_ANE_MIN_REFS=64 DS4_RESIDENT_MOE_ANE_MAX_REFS=256 DS4_CTX_GROW_BLOCK=4096 DS4_RESIDENT_MOE_ANE_NAX_FRAC=0.24 DS4_RESIDENT_MOE_ANE_NAX_OVERLAP=0

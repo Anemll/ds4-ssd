@@ -1,0 +1,58 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 1.038 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: gpu layer-major prefill layer 0 encode=825.445 ms execute=93.449 ms
+ds4: gpu layer-major prefill layer 1 encode=515.473 ms execute=38.126 ms
+ds4: gpu layer-major prefill layer 2 encode=775.898 ms execute=38.124 ms
+ds4: gpu layer-major prefill layer 3 encode=534.165 ms execute=37.708 ms
+ds4: gpu layer-major prefill layer 4 encode=663.741 ms execute=37.560 ms
+ds4: gpu layer-major prefill layer 5 encode=531.569 ms execute=37.514 ms
+ds4: gpu layer-major prefill layer 6 encode=680.163 ms execute=37.503 ms
+ds4: gpu layer-major prefill layer 7 encode=523.462 ms execute=37.622 ms
+ds4: gpu layer-major prefill layer 8 encode=689.378 ms execute=37.528 ms
+ds4: gpu layer-major prefill layer 9 encode=514.536 ms execute=38.954 ms
+ds4: gpu layer-major prefill layer 10 encode=661.565 ms execute=37.526 ms
+ds4: gpu layer-major prefill layer 11 encode=518.455 ms execute=37.660 ms
+ds4: gpu layer-major prefill layer 12 encode=663.743 ms execute=37.550 ms
+ds4: gpu layer-major prefill layer 13 encode=520.800 ms execute=37.739 ms
+ds4: gpu layer-major prefill layer 14 encode=673.605 ms execute=37.607 ms
+ds4: gpu layer-major prefill layer 15 encode=523.027 ms execute=38.650 ms
+ds4: gpu layer-major prefill layer 16 encode=671.144 ms execute=37.808 ms
+ds4: gpu layer-major prefill layer 17 encode=514.422 ms execute=37.556 ms
+ds4: gpu layer-major prefill layer 18 encode=666.125 ms execute=37.577 ms
+ds4: gpu layer-major prefill layer 19 encode=504.712 ms execute=38.411 ms
+ds4: gpu layer-major prefill layer 20 encode=683.587 ms execute=37.694 ms
+ds4: gpu layer-major prefill layer 21 encode=503.639 ms execute=37.930 ms
+ds4: gpu layer-major prefill layer 22 encode=686.488 ms execute=38.310 ms
+ds4: gpu layer-major prefill layer 23 encode=521.122 ms execute=37.519 ms
+ds4: gpu layer-major prefill layer 24 encode=684.651 ms execute=37.641 ms
+ds4: gpu layer-major prefill layer 25 encode=512.628 ms execute=37.491 ms
+ds4: gpu layer-major prefill layer 26 encode=687.281 ms execute=37.633 ms
+ds4: gpu layer-major prefill layer 27 encode=531.565 ms execute=37.767 ms
+ds4: gpu layer-major prefill layer 28 encode=677.623 ms execute=37.716 ms
+ds4: gpu layer-major prefill layer 29 encode=533.568 ms execute=38.601 ms
+ds4: gpu layer-major prefill layer 30 encode=678.707 ms execute=37.551 ms
+ds4: gpu layer-major prefill layer 31 encode=522.100 ms execute=37.723 ms
+ds4: gpu layer-major prefill layer 32 encode=677.197 ms execute=37.778 ms
+ds4: gpu layer-major prefill layer 33 encode=538.071 ms execute=37.605 ms
+ds4: gpu layer-major prefill layer 34 encode=695.747 ms execute=37.846 ms
+ds4: gpu layer-major prefill layer 35 encode=537.125 ms execute=37.614 ms
+ds4: gpu layer-major prefill layer 36 encode=691.406 ms execute=47.847 ms
+ds4: gpu layer-major prefill layer 37 encode=563.095 ms execute=37.827 ms
+ds4: gpu layer-major prefill layer 38 encode=682.391 ms execute=37.550 ms
+ds4: gpu layer-major prefill layer 39 encode=535.184 ms execute=37.854 ms
+ds4: gpu layer-major prefill layer 40 encode=708.753 ms execute=37.517 ms
+ds4: gpu layer-major prefill layer 41 encode=516.261 ms execute=38.283 ms
+ds4: gpu layer-major prefill layer 42 encode=690.458 ms execute=37.535 ms
+ds4: gpu layer-major prefill total tokens=8423 encode=26285.925 ms execute=1692.224 ms read=0.033 ms total=27978.481 ms
+We need to generate a detailed implementation plan for DFlash dataset generation using GLM-5.1 MoE teacher. The user has provided a long document describing the problem and proposed solution. They want a plan covering model splitting, code skeleton, data packing, memory profiling, runtime estimates, modifications, testing plan. Also they want a "steelman analysis" in 400 words. But the user message is repetitive; it's the same document repeated many times. The assistant's response should be a
+ds4: prefill: 296.96 t/s, generation: 8.29 t/s
+ds4: Flash-MoE slot-bank stats hits=16403 misses=19516 hit-rate=45.7% installed=131733.00 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10119 saved=2163015 (99.5%) reuse=214.76x

@@ -1,0 +1,54 @@
+run=m5max_aneonly_b256_20260522_102527
+log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/moe-batch-bench/profile_runs/m5max_aneonly_b256_20260522_102527.log
+model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf
+sidecar=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+prompt=/Users/anemll/SourceRelease/GITHUB/ML_playground/mlx-flash-moe/anemll-flash-llama.cpp/tools/flashmoe-sidecar/prompts/coding/coding_8k.txt
+ctx=98192 tokens=100 chunk=32000 slots=48
+
+ds4: gpu layer-major prefill layer 0 encode=833.070 ms execute=96.506 ms
+ds4: gpu layer-major prefill layer 1 encode=503.685 ms execute=38.197 ms
+ds4: gpu layer-major prefill layer 2 encode=825.387 ms execute=53.220 ms
+ds4: gpu layer-major prefill layer 3 encode=578.820 ms execute=41.382 ms
+ds4: gpu layer-major prefill layer 4 encode=741.727 ms execute=40.262 ms
+ds4: gpu layer-major prefill layer 5 encode=550.467 ms execute=38.668 ms
+ds4: gpu layer-major prefill layer 6 encode=717.130 ms execute=39.908 ms
+ds4: gpu layer-major prefill layer 7 encode=544.178 ms execute=38.547 ms
+ds4: gpu layer-major prefill layer 8 encode=716.631 ms execute=37.548 ms
+ds4: gpu layer-major prefill layer 9 encode=525.697 ms execute=38.214 ms
+ds4: gpu layer-major prefill layer 10 encode=700.542 ms execute=40.391 ms
+ds4: gpu layer-major prefill layer 11 encode=546.115 ms execute=39.635 ms
+ds4: gpu layer-major prefill layer 12 encode=707.660 ms execute=39.811 ms
+ds4: gpu layer-major prefill layer 13 encode=537.932 ms execute=38.414 ms
+ds4: gpu layer-major prefill layer 14 encode=711.069 ms execute=39.089 ms
+ds4: gpu layer-major prefill layer 15 encode=531.632 ms execute=37.923 ms
+ds4: gpu layer-major prefill layer 16 encode=696.756 ms execute=39.976 ms
+ds4: gpu layer-major prefill layer 17 encode=530.354 ms execute=38.752 ms
+ds4: gpu layer-major prefill layer 18 encode=710.016 ms execute=46.317 ms
+ds4: gpu layer-major prefill layer 19 encode=525.442 ms execute=39.629 ms
+ds4: gpu layer-major prefill layer 20 encode=720.205 ms execute=39.126 ms
+ds4: gpu layer-major prefill layer 21 encode=523.384 ms execute=38.541 ms
+ds4: gpu layer-major prefill layer 22 encode=711.797 ms execute=39.330 ms
+ds4: gpu layer-major prefill layer 23 encode=519.471 ms execute=38.726 ms
+ds4: gpu layer-major prefill layer 24 encode=706.922 ms execute=40.004 ms
+ds4: gpu layer-major prefill layer 25 encode=537.944 ms execute=38.616 ms
+ds4: gpu layer-major prefill layer 26 encode=718.271 ms execute=50.093 ms
+ds4: gpu layer-major prefill layer 27 encode=541.801 ms execute=38.572 ms
+ds4: gpu layer-major prefill layer 28 encode=699.435 ms execute=39.487 ms
+ds4: gpu layer-major prefill layer 29 encode=540.797 ms execute=38.452 ms
+ds4: gpu layer-major prefill layer 30 encode=714.911 ms execute=39.615 ms
+ds4: gpu layer-major prefill layer 31 encode=543.415 ms execute=38.472 ms
+ds4: gpu layer-major prefill layer 32 encode=720.053 ms execute=49.539 ms
+ds4: gpu layer-major prefill layer 33 encode=544.980 ms execute=38.147 ms
+ds4: gpu layer-major prefill layer 34 encode=732.601 ms execute=38.330 ms
+ds4: gpu layer-major prefill layer 35 encode=543.524 ms execute=37.836 ms
+ds4: gpu layer-major prefill layer 36 encode=718.774 ms execute=39.481 ms
+ds4: gpu layer-major prefill layer 37 encode=555.505 ms execute=38.207 ms
+ds4: gpu layer-major prefill layer 38 encode=713.735 ms execute=47.420 ms
+ds4: gpu layer-major prefill layer 39 encode=549.460 ms execute=39.069 ms
+ds4: gpu layer-major prefill layer 40 encode=736.254 ms execute=38.637 ms
+ds4: gpu layer-major prefill layer 41 encode=519.641 ms execute=39.267 ms
+ds4: gpu layer-major prefill layer 42 encode=725.914 ms execute=39.519 ms
+ds4: gpu layer-major prefill total tokens=8423 encode=27324.174 ms execute=1788.170 ms read=0.035 ms total=29114.183 ms
+ds4: prefill: 285.43 t/s, generation: 8.34 t/s
+ds4: Flash-MoE slot-bank stats hits=16410 misses=19490 hit-rate=45.7% installed=131557.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10100 saved=2163034 (99.5%) reuse=215.16x

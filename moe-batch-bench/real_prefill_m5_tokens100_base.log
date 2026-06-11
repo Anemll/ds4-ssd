@@ -1,0 +1,17 @@
+ds4: context buffers 2142.43 MiB (ctx=32768, backend=metal, prefill_chunk=16384, raw_kv_rows=8192, compressed_kv_rows=8194)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.338 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+processing 8423 input tokens: 0/8423 (0.0%)
+processing 8423 input tokens: 8064/8423 (95.7%)
+processing 8423 input tokens: 8423/8423 (100.0%)
+ about the user's request for a detailed implementation plan for generating a DFlash dataset using the GLM-5.1 MoE teacher model. The user wants a comprehensive plan covering model splitting, JAX/PyTorch-XLA code, data packing, memory profiling, runtime estimates, and testing.
+
+First, I need to understand the core requirements: the GLM-5.1 model is 205GB total with 15GB dense layers and 190GB MoE experts. The key
+ds4: prefill: 181.20 t/s, generation: 10.52 t/s
+ds4: Flash-MoE slot-bank stats hits=16543 misses=45219 hit-rate=26.8% installed=305228.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=17981 saved=2155153 (99.2%) reuse=120.86x

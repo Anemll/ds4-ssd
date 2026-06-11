@@ -1,0 +1,41 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=104, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.343 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=104 gpu-bank=30186.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ about the problem.
+
+We need to generate a high-quality training dataset for DFlash (block-diffusion speculative decoding) to create a small ~0.8B draft model that can be used with the 754B-parameter GLM-5.1 MoE teacher (Zhipu AI).
+
+Key requirements for the DFlash dataset (per the 2026 paper):
+- 50K–800K sequences (start with 50K–100K for PoC, scale to 200K–400K for good quality).
+- Each sequence: packed short examples (initially 64–128 tokens) into longer contexts (target 4K–16K token windows).
+- For every sequence we must extract:
+  - Generated tokens from the teacher.
+  - Hidden-layer context vectors from exactly 5 uniformly sampled layers (between layer 2 and third-to-last).
+  - 512 random anchor positions per sequence for block-diffusion training.
+  - Top-K or full next-token distributions (optional but useful).
+
+Core compute challenge:
+- Full GLM-5.1 model (quantized with Unsloth UD-Q2_K_XL) is 205 GB total:
+  - 15 GB dense layers.
+  - 190 GB MoE experts.
+- Even on a high-memory Colab TPUv6 instance (~173 GB system RAM / 225 GB disk), the full model cannot be loaded at once for efficient inference.
+- Naïve full-model loading + batched prefill is SSD-bound and extremely slow for the required dataset size.
+- We must support layer-wise expert deduplication (only load active experts per token) and selective hidden-state extraction to avoid materializing massive activations/KV caches.
+- Without a smart sharding + streaming strategy, dataset generation becomes impractical on consumer/cloud TPUs and would require a full cluster.
+
+2. Proposed Solution / Way We Want to Address It
+We will implement layer-wise, pipeline-parallel inference on TPUs using the Unsloth UD-Q2_K_XL weights. The model will be split into two halves so that each half (approximately half the layers) fits comfortably inside a single 32 GB TPU slice.
+
+High-Level Workflow
+- Offline dataset preparation (this phase):
+  - Start with curated short sequences (64–128 tokens) from high-quality sources (e.g., Nemotron Post-Training Dataset V2 + code/data mixtures).
+ds4: prefill: 289.13 t/s, generation: 11.08 t/s
+ds4: Flash-MoE slot-bank stats hits=107597 misses=31514 hit-rate=77.3% installed=212719.50 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10111 saved=2163023 (99.5%) reuse=214.93x

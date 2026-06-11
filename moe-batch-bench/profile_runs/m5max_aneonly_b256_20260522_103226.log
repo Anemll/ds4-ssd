@@ -1,0 +1,72 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.385 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: metal layer-major prefill layer 0 encode=831.863 ms execute=96.054 ms
+ds4: metal layer-major prefill layer 1 encode=512.900 ms execute=38.354 ms
+ds4: metal layer-major prefill layer 2 encode=770.513 ms execute=47.110 ms
+ds4: metal layer-major prefill layer 3 encode=522.166 ms execute=38.362 ms
+ds4: metal layer-major prefill layer 4 encode=656.848 ms execute=37.749 ms
+ds4: metal layer-major prefill layer 5 encode=521.183 ms execute=37.706 ms
+ds4: metal layer-major prefill layer 6 encode=665.773 ms execute=37.516 ms
+ds4: metal layer-major prefill layer 7 encode=527.179 ms execute=38.352 ms
+ds4: metal layer-major prefill layer 8 encode=687.144 ms execute=37.688 ms
+ds4: metal layer-major prefill layer 9 encode=514.084 ms execute=38.940 ms
+ds4: metal layer-major prefill layer 10 encode=657.542 ms execute=37.624 ms
+ds4: metal layer-major prefill layer 11 encode=525.419 ms execute=37.529 ms
+ds4: metal layer-major prefill layer 12 encode=653.269 ms execute=37.502 ms
+ds4: metal layer-major prefill layer 13 encode=514.684 ms execute=38.674 ms
+ds4: metal layer-major prefill layer 14 encode=667.185 ms execute=37.761 ms
+ds4: metal layer-major prefill layer 15 encode=523.072 ms execute=37.574 ms
+ds4: metal layer-major prefill layer 16 encode=675.506 ms execute=38.231 ms
+ds4: metal layer-major prefill layer 17 encode=511.304 ms execute=38.143 ms
+ds4: metal layer-major prefill layer 18 encode=678.341 ms execute=38.774 ms
+ds4: metal layer-major prefill layer 19 encode=505.548 ms execute=37.977 ms
+ds4: metal layer-major prefill layer 20 encode=677.737 ms execute=37.977 ms
+ds4: metal layer-major prefill layer 21 encode=517.881 ms execute=40.233 ms
+ds4: metal layer-major prefill layer 22 encode=719.782 ms execute=38.773 ms
+ds4: metal layer-major prefill layer 23 encode=524.150 ms execute=38.104 ms
+ds4: metal layer-major prefill layer 24 encode=685.293 ms execute=38.830 ms
+ds4: metal layer-major prefill layer 25 encode=508.616 ms execute=38.532 ms
+ds4: metal layer-major prefill layer 26 encode=686.173 ms execute=47.382 ms
+ds4: metal layer-major prefill layer 27 encode=513.101 ms execute=38.651 ms
+ds4: metal layer-major prefill layer 28 encode=676.419 ms execute=37.592 ms
+ds4: metal layer-major prefill layer 29 encode=547.239 ms execute=37.775 ms
+ds4: metal layer-major prefill layer 30 encode=674.599 ms execute=37.568 ms
+ds4: metal layer-major prefill layer 31 encode=529.231 ms execute=38.468 ms
+ds4: metal layer-major prefill layer 32 encode=675.835 ms execute=37.727 ms
+ds4: metal layer-major prefill layer 33 encode=546.892 ms execute=38.084 ms
+ds4: metal layer-major prefill layer 34 encode=706.589 ms execute=37.687 ms
+ds4: metal layer-major prefill layer 35 encode=539.631 ms execute=38.965 ms
+ds4: metal layer-major prefill layer 36 encode=706.517 ms execute=38.421 ms
+ds4: metal layer-major prefill layer 37 encode=554.222 ms execute=38.775 ms
+ds4: metal layer-major prefill layer 38 encode=678.699 ms execute=37.599 ms
+ds4: metal layer-major prefill layer 39 encode=539.958 ms execute=37.458 ms
+ds4: metal layer-major prefill layer 40 encode=719.665 ms execute=38.253 ms
+ds4: metal layer-major prefill layer 41 encode=526.085 ms execute=37.716 ms
+ds4: metal layer-major prefill layer 42 encode=692.663 ms execute=38.547 ms
+ds4: metal layer-major prefill total tokens=8423 encode=26326.044 ms execute=1717.978 ms read=0.077 ms total=28044.388 ms
+We need to produce a detailed implementation plan for generating a DFlash dataset for a speculative decoding draft model. The user has provided a long document describing the problem and proposed solution. They want a plan covering model splitting, JAX/PyTorch-XLA code skeleton, data packing, memory profiling, runtime estimates, modifications to Unsloth loading, and testing plan. The user also mentions "Below steelman analisys of this approach in 400 words" but that seems like a note or a request for a summary? Actually the user repeated the same document multiple times, likely to emphasize. The final instruction: "Below steelman analisys of this approach in 400 words" might be asking for a concise analysis (steelman = strong version of the argument) in 400 words. But the main request is "Please create a detailed implementation plan covering: ..." So we need to produce both: a detailed plan and a 400-word steelman analysis? The user says "Below steelman analisys of this approach in 400 words" at the end of each repetition. Possibly they want the assistant to provide a steelman analysis after the plan. However, the assistant's role is to help. I'll interpret: The user wants a detailed implementation plan as described, and also a steelman analysis (a strong, supportive argument) of the approach in 400 words. The plan should be comprehensive. I'll produce a structured plan covering all requested points, and then a separate steelman analysis.
+
+But note: The user is likely a developer or researcher working on this project. They want a concrete plan. I'll write in a technical, detailed style.
+
+Let me outline the plan:
+
+1. Model Splitting Strategy: Determine split point N such that each half has roughly equal memory footprint. GLM-5.1 has 15 dense layers + 190 MoE experts. Dense layers are likely the main memory consumers. We need to split such that each TPU slice (32 GB) can hold half the model weights plus activations. We'll compute memory per layer: each dense layer has parameters (weights) and MoE experts have parameters. We'll split after some dense layer, say after layer 7 or 8, so that first half has layers 0-7 (8 dense layers) and second half has layers 8-14 (7 dense layers) plus the final layers? Actually the model has 15 dense layers, so we can split at layer 7 (0-7 and 8-14). But also need to consider MoE experts: they are interleaved? The paper says "190 GB MoE experts" - likely the experts are distributed across layers. We need to ensure each half has a balanced number of experts. We'll propose a split based on memory profiling.
+
+2. JAX/PyTorch-XLA code skeleton: We'll describe a pipeline using jax with pjit or pmap for layer-wise execution. We'll use a custom inference loop that loads weights for one layer at a time, processes tokens, and extracts hidden states. We'll use expert deduplication: only load the MoE experts that are activated for the current token (based on top-k routing). We'll implement a function that for each token, computes which experts are needed, loads their weights from disk/RAM, and applies them. For hidden extraction, we'll save the context vectors (maybe the output of the layer before the MoE? Or after? The paper says "hidden-layer context vectors from exactly 5 uniformly sampled layers". We'll sample layers 2, 5, 8, 11, 14 (for 15 layers) or similar. We'll save the fused compact context vector (maybe concatenation of certain activations). We'll use jax's checkpointing to discard intermediate activations.
+
+3. Data packing logic: We'll take short sequences (64-128 tokens) from Nemotron dataset and pack them into longer contexts (4K-16K tokens). We'll use a sliding window approach: pack multiple short sequences with separators, then process as one long sequence. We'll generate multiple such packed sequences for each batch. We'll store them in a format suitable for streaming.
+
+4. Memory profiling & checkpointing: We'll estimate memory usage per layer: weights (dense + MoE experts), activations (key-value caches, hidden states). We'll set a threshold for RAM exhaustion (e.g., 90% of 32 GB). When RAM is about to exceed, we checkpoint the current state (fused context vectors, anchor masks) to GCS, then clear activations and continue with next batch. We'll use asynchronous streaming to GCS.
+
+5. Runtime estimates: For 50K sequences (each packed to 4K tokens), we estimate time based on TPU speed. Assume TPUv6 has ~ 90 TFLOPS, model size 205B parameters, but we only load half at a time. We
+ds4: prefill: 296.21 t/s, generation: 9.17 t/s
+ds4: Flash-MoE slot-bank stats hits=165622 misses=108715 hit-rate=60.4% installed=733826.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10145 saved=2162989 (99.5%) reuse=214.21x

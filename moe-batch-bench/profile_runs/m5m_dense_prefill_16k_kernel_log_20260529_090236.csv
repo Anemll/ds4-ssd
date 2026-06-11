@@ -1,0 +1,5 @@
+pass,ctx,prefill_chunk,variant,prefill_tps,status,log
+1,16384,16384,default_routed_dense_f16_nax,533.9,ok,moe-batch-bench/profile_runs/m5m_dense_prefill_16k_kernel_log_20260529_090236_1_default_routed_dense_f16_nax.log
+2,16384,16384,forced_routed_nax_int8_dense_f16,476.4,ok,moe-batch-bench/profile_runs/m5m_dense_prefill_16k_kernel_log_20260529_090236_2_forced_routed_nax_int8_dense_f16.log
+3,16384,16384,forced_routed_nax_half_dense_f16,474.3,ok,moe-batch-bench/profile_runs/m5m_dense_prefill_16k_kernel_log_20260529_090236_3_forced_routed_nax_half_dense_f16.log
+4,16384,16384,default_routed_dense_f16_nax,529.3,ok,moe-batch-bench/profile_runs/m5m_dense_prefill_16k_kernel_log_20260529_090236_4_default_routed_dense_f16_nax.log

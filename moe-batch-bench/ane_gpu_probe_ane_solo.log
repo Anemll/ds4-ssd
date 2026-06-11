@@ -1,0 +1,8 @@
+=== DSv4 MLP packed-input fused ANE bench, FULL I-axis split (T=3) ===
+No tensor in the graph has the full I axis; everything is split into T pieces of I/T = 6144.
+Target: m3u (M3 Ultra) — H=7168 I=18432 prefill shape.
+
+--- DSv4 MLP, H=7168, I=18432, B=128, T=3 ---
+compile 110.6 ms  |  load 15.8 ms
+eval (B=128 H=7168 I=18432 T=3):  20.244 ms/iter  |  5.01 TFLOP/s  |  packed input 757.8 MB/iter
+

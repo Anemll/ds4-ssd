@@ -1,0 +1,2 @@
+pass,ctx,prefill_chunk,variant,prefill_tps,status,log
+1,16384,16384,pure_legacy_dense_simd,402.8,ok,moe-batch-bench/profile_runs/m5m_dense_prefill_16k_controlled_20260529_081617_1_pure_legacy_dense_simd.log

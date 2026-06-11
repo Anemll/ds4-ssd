@@ -1,0 +1,58 @@
+ds4: context buffers 8013.36 MiB (ctx=98192, backend=metal, prefill_chunk=32000, raw_kv_rows=8704, compressed_kv_rows=24550)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.342 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: ANE shared-expert init layer=0 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=212.6
+ds4: ANE shared-expert init layer=1 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=232.7
+ds4: ANE shared-expert init layer=2 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=294.5
+ds4: ANE shared-expert init layer=3 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=174.9
+ds4: ANE shared-expert init layer=4 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=195.5
+ds4: ANE shared-expert init layer=5 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=214.5
+ds4: ANE shared-expert init layer=6 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=167.7
+ds4: ANE shared-expert init layer=7 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=164.8
+ds4: ANE shared-expert init layer=8 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=168.6
+ds4: ANE shared-expert init layer=9 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=179.5
+ds4: ANE shared-expert init layer=10 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=164.7
+ds4: ANE shared-expert init layer=11 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=151.1
+ds4: ANE shared-expert init layer=12 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=165.5
+ds4: ANE shared-expert init layer=13 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=158.0
+ds4: ANE shared-expert init layer=14 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=167.2
+ds4: ANE shared-expert init layer=15 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=159.0
+ds4: ANE shared-expert init layer=16 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=170.1
+ds4: ANE shared-expert init layer=17 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=163.6
+ds4: ANE shared-expert init layer=18 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=171.1
+ds4: ANE shared-expert init layer=19 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=190.1
+ds4: ANE shared-expert init layer=20 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=151.7
+ds4: ANE shared-expert init layer=21 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=173.1
+ds4: ANE shared-expert init layer=22 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=161.6
+ds4: ANE shared-expert init layer=23 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=173.1
+ds4: ANE shared-expert init layer=24 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=162.5
+ds4: ANE shared-expert init layer=25 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=168.4
+ds4: ANE shared-expert init layer=26 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=184.5
+ds4: ANE shared-expert init layer=27 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=154.8
+ds4: ANE shared-expert init layer=28 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=165.6
+ds4: ANE shared-expert init layer=29 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=153.8
+ds4: ANE shared-expert init layer=30 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=177.6
+ds4: ANE shared-expert init layer=31 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=169.8
+ds4: ANE shared-expert init layer=32 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=171.3
+ds4: ANE shared-expert init layer=33 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=189.7
+ds4: ANE shared-expert init layer=34 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=170.4
+ds4: ANE shared-expert init layer=35 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=151.8
+ds4: ANE shared-expert init layer=36 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=163.2
+ds4: ANE shared-expert init layer=37 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=161.8
+ds4: ANE shared-expert init layer=38 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=177.0
+ds4: ANE shared-expert init layer=39 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=162.9
+ds4: ANE shared-expert init layer=40 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=169.2
+ds4: ANE shared-expert init layer=41 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=173.8
+ds4: ANE shared-expert init layer=42 in=4096 mid=2048 B=256 fp16w-constexpr-conv (per-layer ctx) init_ms=154.1
+ds4: ANE shared-expert prewarm: 43/43 layers, 7508.6 ms total (paid before prefill timer)
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9288.00 MiB
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=1, banks=4)
+ds4: ANE_SHARED_EXPERT=1 — synchronous ANE shared expert
+We need to produce a "steelman analysis" of the proposed approach in 400 words. The user has provided the same document multiple times, but the instruction is clear: "Below steelman analisys of this approach in 400 words". So we need to write a critical analysis that strengthens the approach by anticipating and addressing potential weaknesses, making it more robust. This is a "steelman" (as opposed to "strawman") analysis: we take the best possible version of the
+ds4: prefill: 234.08 t/s, generation: 7.76 t/s
+ds4: Flash-MoE slot-bank stats hits=15430 misses=20867 hit-rate=42.5% installed=140852.25 MiB
+ds4: Flash-MoE prefill dedup refs=2173134 unique=10497 saved=2162637 (99.5%) reuse=207.02x

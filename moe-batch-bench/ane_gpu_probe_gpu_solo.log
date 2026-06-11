@@ -1,0 +1,3 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+backend,dtype,batch,in_dim,mid_dim,iters,ms,gflops
+gpu_ds4_moe_block,iq2xxs_q2k_mid_f16,8192,4096,2048,80,33.427000,12334.845
