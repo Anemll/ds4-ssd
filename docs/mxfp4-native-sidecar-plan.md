@@ -16,7 +16,8 @@
 > ANE i8i8 confirmed optimal vs GPU mul_mm_id A/B (315.9 vs 307.9 t/s 16k).
 > Phase 3 validation complete: 16k smoke, ANE-vs-GPU backend A/B, graded QA
 > (2/2 = Q4K), and the 2-turn resume-after-decode repro (clean cross-turn
-> context, no bank-replay corruption). Bonus: high-slot decode cliff
+> context, no bank-replay corruption), and a ds4-server OpenAI-API smoke
+> (exact instruction following). Bonus: high-slot decode cliff
 > root-caused (page-cache squeeze) and fixed via DS4_SSD_CACHE_AUTO_PCT
 > (default 20). Remaining: MPP 4.1 scaffolding items below (macOS 27).
 
