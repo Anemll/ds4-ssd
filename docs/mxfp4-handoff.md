@@ -212,3 +212,22 @@ Leads for the O(bank) routed_moe cost (next session, in order):
 3. First-GPU-touch page validation of CPU-written pages in the wired bank.
    Test: GPU-blit a dummy read over installed slots right after install,
    off the critical path.
+
+Update (negatives, all at 90 GB warm bank, baseline 0.22-0.26 t/s):
+- DS4_FLASH_MOE_SLOT_BANK_RESIDENCY is default OFF; =0 run was a no-op.
+- RESIDENCY=1 + TOUCH_PAGES=1 (all 89.95 GiB wired+touched): 0.28 t/s. FLAT.
+  Swap/pressure/page-fault-in-kernel theory dead.
+- didModifyRange on/off: flat. ICB useResource: path default-off, never ran.
+So the O(bank) routed_moe cost is NOT: miss IO, page cache, wiring, swap,
+didModify, or ICB. Remaining suspects for next session:
+1. Per-dispatch driver cost of binding the per-layer mixed-bank buffer
+   (2.14 GB at 168 slots vs 0.26 GB at 44) — setBuffer/commit-time page-table
+   work proportional to buffer size, 43 binds/token. Test: allocate the bank
+   as N small per-slot-group buffers instead of one mixed buffer per layer
+   (per_slot buffers mode exists: flash_moe_per_slot_buffers_enabled).
+2. The banked decode kernel itself — read metal/moe.metal banked/slots6
+   kernels for any loop bounded by slot_bank rather than n_active experts.
+3. Decisive instrument: Instruments "Metal System Trace" on a 6-token decode
+   at 90 GB vs 20 GB — splits routed_moe 80 ms into encode/driver/GPU-exec.
+Quick env A/B available: per-slot buffer mode at 90 GB
+(flash_moe_per_slot_buffers_enabled env) — if fast, suspect #1 confirmed.
