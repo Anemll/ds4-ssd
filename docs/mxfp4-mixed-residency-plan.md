@@ -314,3 +314,51 @@ Updated conclusion:
   The next implementation should be explicit about that tradeoff, e.g. an
   auto-tuned decode bank cap or a real two-tier L1/L2 design with promotion
   only when L2 hits replace true disk reads.
+
+### 2026-06-12 - Step 5 fast mixed-L1 decode cap prototype
+
+Implemented the first policy-shaped prototype: a large explicit cache request
+can now opt into a moderate mixed decode L1 without the large-bank per-slot
+auto guard blocking the shrink.
+
+Code behavior:
+
+- If `DS4_FLASH_MOE_DECODE_SLOT_BANK=<N>` or
+  `DS4_FLASH_MOE_DECODE_SSD_CACHE=<size>` requests a real post-prefill shrink,
+  large-bank auto per-slot buffers are suppressed so the bank can remain mixed
+  for prefill and shrink to the requested mixed decode bank.
+- Added `DS4_FLASH_MOE_FAST_DECODE_L1=1` as a shorthand prototype policy. It
+  defaults the decode L1 budget to 32 GB, overrideable with
+  `DS4_FLASH_MOE_FAST_DECODE_SSD_CACHE=<size>` or
+  `DS4_FLASH_MOE_DECODE_L1_SSD_CACHE=<size>`.
+- `DS4_FLASH_MOE_DECODE_SLOT_BANK=0` still explicitly opts out and keeps the
+  existing no-shrink behavior.
+
+Validation:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=16 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 64 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+| config | prefill bank | decode bank | tok64 hit | prefill | generation |
+|---|---:|---:|---:|---:|---:|
+| 90 GB + decode L1 cap | 168 slots / 89.95 GiB | 59 slots / 31.59 GiB | 77.3% | 6.00 t/s | 7.51 t/s |
+| 32 GB reference | 59 slots / 31.59 GiB | 59 slots / 31.59 GiB | 77.3% | 5.51 t/s | 7.48 t/s |
+| 90 GB per-slot-auto | 168 slots / 89.95 GiB | 168 slots / per-slot | 85.4% | ~6 t/s | ~6.0-6.2 t/s |
+
+Interpretation:
+
+- This restores 32 GB-class decode speed for an explicit 90 GB request.
+- It does not yet preserve the 90 GB decode hit rate; the shrink resets the
+  slot cache and decode uses a 59-slot L1. This is therefore a fast-L1 policy
+  prototype, not a real L2 cache.
+- The next layer, if needed, is a true L2: keep the 59-slot mixed L1 for decode
+  and retain/promote from a separate larger backing cache only when it replaces
+  true SSD reads. Do not put the full 90 GB working set directly on the decode
+  hot path.

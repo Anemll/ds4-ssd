@@ -319,3 +319,44 @@ Updated direction:
   true SSD reads: e.g. an auto-tuned decode bank cap, or a real two-tier
   mixed-L1 / large-L2 cache with promotion. Do not resurrect active staging
   unless a new workload proves the copy cost is cheaper than true disk misses.
+
+## PROTOTYPE (2026-06-12): explicit 90 GB request with fast 32 GB mixed decode L1
+
+The first policy prototype works: keep the initial large request, but make
+decode run from a moderate mixed L1 instead of the full 90 GB hot set.
+
+Implementation:
+
+- An explicit decode-bank cap now suppresses the large-bank auto per-slot guard
+  so the graph can allocate a mixed prefill bank and then shrink it after
+  prefill.
+- Existing knobs now work for large explicit banks:
+  `DS4_FLASH_MOE_DECODE_SLOT_BANK=<slots>` or
+  `DS4_FLASH_MOE_DECODE_SSD_CACHE=<size>`.
+- New shorthand prototype:
+  `DS4_FLASH_MOE_FAST_DECODE_L1=1` defaults the decode L1 budget to 32 GB.
+  Override with `DS4_FLASH_MOE_FAST_DECODE_SSD_CACHE=<size>` or
+  `DS4_FLASH_MOE_DECODE_L1_SSD_CACHE=<size>`.
+- `DS4_FLASH_MOE_DECODE_SLOT_BANK=0` remains an explicit opt-out.
+
+Validation on M5 Max 128 GB:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=16 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 64 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Observed:
+
+- Startup: 168-slot / 89.95 GiB mixed prefill bank.
+- After prefill: shrinks 168 -> 59 slots / 31.59 GiB mixed decode bank.
+- `generation: 7.51 t/s`, `prefill: 6.00 t/s`, tok64 hit 77.3%.
+- Fresh 32 GB reference was `generation: 7.48 t/s`, tok64 hit 77.3%.
+
+This is not a true 90 GB L2 yet: the shrink resets the slot cache, so decode
+hit rate is the 59-slot L1 hit rate. But it gets explicit 90 GB requests back
+to 32 GB-class decode speed and gives the next prototype a clean base: add a
+separate L2/promotion path only for cases where it avoids true SSD reads.
