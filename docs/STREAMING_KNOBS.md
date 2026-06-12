@@ -32,6 +32,46 @@ ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... b
 ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
+## Decode-bank shrink (page-cache cliff fix)
+
+On a RAM-limited machine (sidecar larger than physical RAM) a big wired slot
+bank evicts the OS file cache that serves decode-miss preads at RAM speed, and
+decode collapses to true SSD reads (the "decode cliff": measured ~13x on a
+96 GiB M3U at `--ssd-cache 48GB`). The bank still helps prefill streaming, so
+the fix keeps the requested bank for prefill and **shrinks it to a small decode
+bank after prefill**, letting the file cache repopulate.
+
+This is automatic: when the sidecar is larger than RAM and the resolved bank is
+≥ 44 GiB, the decode bank is shrunk to the same size `--ssd-cache auto` would
+pick (`DS4_SSD_CACHE_AUTO_PCT`%, default 20, of RAM left after dense+context).
+Memory-rich machines and banks already under the threshold are untouched.
+
+```text
+ds4: Flash-MoE shrinking decode slot bank after full prefill: layers=43 slots 89->31 ...
+ds4: Flash-MoE slot banks shrunk for decode: layers=43 slots=31 gpu-bank=16.6GB ...
+```
+
+Overrides:
+
+```sh
+DS4_FLASH_MOE_DECODE_SLOT_BANK=31   # force exact decode slot count (0 = keep big bank, opt out)
+DS4_FLASH_MOE_DECODE_SSD_CACHE=20GB # set decode bank by byte budget instead
+```
+
+Either override wins over the automatic target. The prefill bank is still set by
+`--ssd-cache` / `--moe-slot-bank` as before.
+
+Explicit `--ssd-cache` values are additionally clamped at startup so the prefill
+bank itself cannot overflow memory: bank + dense + context is kept within
+`DS4_SSD_CACHE_MAX_PCT`% (default 85) of physical RAM, with a loud message when
+clamping (e.g. `--ssd-cache 80GB` on a 96 GiB machine clamps to ~70 GiB).
+
+Measured note (96 GiB M3U, 145 GiB sidecar): after the shrink, decode misses are
+served by the OS file cache at RAM speed, so decode-time bank warming
+(`DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=2..6`) adds no throughput, and decode
+is insensitive to the post-shrink bank size (6 vs 31 slots within noise). Keep
+the defaults.
+
 ## Experimental Pro Support
 
 DeepSeek V4 Pro sidecar support is experimental. For Pro agent testing, start

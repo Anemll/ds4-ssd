@@ -62,6 +62,19 @@ Download the prebuilt sidecar package:
 ./download_model.sh sidecar
 ```
 
+Or the native MXFP4 package (bit-exact MXFP4 routed experts, ~156 GB,
+[anemll/DSv4-Flash-MXFP4-native-flash](https://huggingface.co/anemll/DSv4-Flash-MXFP4-native-flash)):
+
+```sh
+./download_model.sh mxfp4
+./ds4 -m models/DSv4-Flash-MXFP4-native-flash --ssd-cache auto -p "Hello"
+```
+
+`--ssd-cache` sizes the resident expert slot bank (`auto`, or an explicit value
+like `32GB`). Any size is safe: on RAM-limited machines the bank is clamped so
+prefill cannot overflow memory and auto-shrinks after prefill so decode-miss
+reads stay served by the OS file cache.
+
 Then set `DS4_SIDECAR_DIR` to the sidecar package root containing
 `manifest.json` and `dense/model-dense.gguf`:
 

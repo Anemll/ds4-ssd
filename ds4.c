@@ -400,11 +400,22 @@ typedef struct {
     uint16_t qs[QK_K / 8];
 } block_iq2_xxs;
 
+/* MXFP4 (OCP microscaling, ggml GGML_TYPE_MXFP4): 32 FP4 E2M1 values sharing
+ * one E8M0 scale byte (value = 2^(e - 127)).  qs[j] low nibble = element j,
+ * high nibble = element j + 16. */
+#define QK_MXFP4 32
+
+typedef struct {
+    uint8_t e;
+    uint8_t qs[QK_MXFP4 / 2];
+} block_mxfp4;
+
 #define DS4_STATIC_ASSERT(name, cond) typedef char name[(cond) ? 1 : -1]
 DS4_STATIC_ASSERT(ds4_block_q2_k_size, sizeof(block_q2_K) == 84);
 DS4_STATIC_ASSERT(ds4_block_q4_k_size, sizeof(block_q4_K) == 144);
 DS4_STATIC_ASSERT(ds4_block_q8_k_size, sizeof(block_q8_K) == 292);
 DS4_STATIC_ASSERT(ds4_block_iq2_xxs_size, sizeof(block_iq2_xxs) == 66);
+DS4_STATIC_ASSERT(ds4_block_mxfp4_size, sizeof(block_mxfp4) == 17);
 
 typedef struct {
     uint32_t ctx_size;
@@ -1233,6 +1244,7 @@ static const gguf_type_info gguf_types[] = {
     [28] = {"f64",      1,   8},
     [29] = {"iq1_m",  256,  56},
     [30] = {"bf16",     1,   2},
+    [39] = {"mxfp4",   32,  17},
 };
 
 enum {
@@ -1243,6 +1255,7 @@ enum {
     DS4_TENSOR_Q4_K     = 12,
     DS4_TENSOR_IQ2_XXS  = 16,
     DS4_TENSOR_I32      = 26,
+    DS4_TENSOR_MXFP4    = 39,
 };
 
 typedef struct {
@@ -2780,7 +2793,8 @@ static void tensor_expect_plain_layout(
 static bool tensor_is_routed_expert_type(uint32_t type) {
     return type == DS4_TENSOR_IQ2_XXS ||
            type == DS4_TENSOR_Q2_K ||
-           type == DS4_TENSOR_Q4_K;
+           type == DS4_TENSOR_Q4_K ||
+           type == DS4_TENSOR_MXFP4;
 }
 
 static DS4_MAYBE_UNUSED uint64_t routed_expert_block_bytes(uint32_t type) {
@@ -2788,14 +2802,20 @@ static DS4_MAYBE_UNUSED uint64_t routed_expert_block_bytes(uint32_t type) {
     case DS4_TENSOR_IQ2_XXS: return sizeof(block_iq2_xxs);
     case DS4_TENSOR_Q2_K:    return sizeof(block_q2_K);
     case DS4_TENSOR_Q4_K:    return sizeof(block_q4_K);
+    case DS4_TENSOR_MXFP4:   return sizeof(block_mxfp4);
     default:                 ds4_die("unsupported routed expert tensor type");
     }
     return 0;
 }
 
+static DS4_MAYBE_UNUSED uint64_t routed_expert_block_elems(uint32_t type) {
+    return type == DS4_TENSOR_MXFP4 ? QK_MXFP4 : QK_K;
+}
+
 static DS4_MAYBE_UNUSED uint64_t routed_expert_row_bytes_for_type(uint32_t type, uint64_t width) {
-    if ((width % QK_K) != 0) ds4_die("routed expert row is not QK_K aligned");
-    return (width / QK_K) * routed_expert_block_bytes(type);
+    const uint64_t elems = routed_expert_block_elems(type);
+    if ((width % elems) != 0) ds4_die("routed expert row is not block aligned");
+    return (width / elems) * routed_expert_block_bytes(type);
 }
 
 static DS4_MAYBE_UNUSED uint64_t routed_expert_row_bytes(const ds4_tensor *t) {
@@ -2996,6 +3016,7 @@ static uint32_t flash_moe_quant_type_id(const char *quant) {
     if (!strcmp(quant, "IQ2_XXS")) return DS4_TENSOR_IQ2_XXS;
     if (!strcmp(quant, "Q2_K")) return DS4_TENSOR_Q2_K;
     if (!strcmp(quant, "Q4_K")) return DS4_TENSOR_Q4_K;
+    if (!strcmp(quant, "MXFP4")) return DS4_TENSOR_MXFP4;
     fprintf(stderr, "ds4: Flash-MoE sidecar has unsupported routed quant type: %s\n", quant);
     return UINT32_MAX;
 }
@@ -3443,16 +3464,35 @@ static bool ds4_flash_moe_ssd_cache_budget(
             return false;
         }
         const uint64_t remaining = available - dense_bytes - kv_bytes;
-        *budget_out = (remaining / 100u) * 85u + (remaining % 100u) * 85u / 100u;
+        /* A wired slot bank competes with the OS file cache that serves
+         * decode-miss preads of the sidecar at RAM speed. When the sidecar is
+         * larger than RAM, oversizing the bank evicts that cache and decode
+         * collapses to true SSD reads (measured ~40x slower at 85% on a
+         * 128 GiB M5 Max; see docs/flash-moe-stable-slot-progress.md). Keep a
+         * conservative default and let DS4_SSD_CACHE_AUTO_PCT override.
+         * Sweep on M5 Max 128GB / 145GB sidecar (cold decode t/s):
+         * 10%:10.5  20%:10.0  30%:9.2  40%:6.5  85%:0.21 — smaller is better
+         * in the cold-decode regime; 20% stays near peak with bank headroom. */
+        uint32_t pct = 20u;
+        const char *pct_env = getenv("DS4_SSD_CACHE_AUTO_PCT");
+        if (pct_env && pct_env[0]) {
+            char *end = NULL;
+            errno = 0;
+            long v = strtol(pct_env, &end, 10);
+            if (errno == 0 && end != pct_env && v >= 1 && v <= 100) pct = (uint32_t)v;
+        }
+        *budget_out = (remaining / 100u) * pct + (remaining % 100u) * pct / 100u;
         *auto_out = true;
         fprintf(stderr,
                 "ds4: --ssd-cache auto: available=%.2f GiB dense=%.2f GiB "
-                "context=%.2f GiB remaining=%.2f GiB budget=%.2f GiB (85%%)\n",
+                "context=%.2f GiB remaining=%.2f GiB budget=%.2f GiB (%u%%, "
+                "DS4_SSD_CACHE_AUTO_PCT to override)\n",
                 (double)available / 1073741824.0,
                 (double)dense_bytes / 1073741824.0,
                 (double)kv_bytes / 1073741824.0,
                 (double)remaining / 1073741824.0,
-                (double)*budget_out / 1073741824.0);
+                (double)*budget_out / 1073741824.0,
+                pct);
         return true;
     }
 
@@ -3460,6 +3500,55 @@ static bool ds4_flash_moe_ssd_cache_budget(
     if (!ds4_parse_u64_suffix(opt->ssd_cache, &budget) || budget == 0) {
         fprintf(stderr,
                 "ds4: invalid --ssd-cache value '%s' (use bytes with K/M/G suffix, e.g. 25GB, or auto)\n",
+                opt->ssd_cache);
+        return false;
+    }
+
+    /* Clamp explicit budgets so the prefill bank can never overflow memory:
+     * bank + dense + context must stay within DS4_SSD_CACHE_MAX_PCT% (default
+     * 85, ~the GPU wired working-set budget) of physical RAM. Without this an
+     * oversized --ssd-cache wires past RAM during prefill and the machine
+     * swaps before the decode-bank shrink ever gets a chance to run. */
+    const uint64_t ram = ds4_gpu_system_memory_bytes();
+    if (ram > 0) {
+        uint32_t max_pct = 85u;
+        const char *max_env = getenv("DS4_SSD_CACHE_MAX_PCT");
+        if (max_env && max_env[0]) {
+            char *end = NULL;
+            errno = 0;
+            long v = strtol(max_env, &end, 10);
+            if (errno == 0 && end != max_env && v >= 1 && v <= 100) max_pct = (uint32_t)v;
+        }
+        const uint64_t safe_total =
+            (ram / 100u) * max_pct + (ram % 100u) * max_pct / 100u;
+        const uint64_t dense_bytes =
+            model && model->size > model->tensor_data_pos ?
+            model->size - model->tensor_data_pos :
+            (model ? model->size : 0);
+        const uint64_t kv_bytes =
+            opt->ctx_size > 0 ?
+            ds4_context_memory_estimate(opt->backend, opt->ctx_size).total_bytes : 0;
+        const uint64_t reserved = dense_bytes + kv_bytes;
+        const uint64_t cap = safe_total > reserved ? safe_total - reserved : 0;
+        if (budget > cap) {
+            fprintf(stderr,
+                    "ds4: --ssd-cache %s would overflow memory during prefill "
+                    "(RAM=%.2f GiB, dense=%.2f GiB, context=%.2f GiB, cap=%u%%); "
+                    "clamping bank budget %.2f -> %.2f GiB "
+                    "(DS4_SSD_CACHE_MAX_PCT to override)\n",
+                    opt->ssd_cache,
+                    (double)ram / 1073741824.0,
+                    (double)dense_bytes / 1073741824.0,
+                    (double)kv_bytes / 1073741824.0,
+                    max_pct,
+                    (double)budget / 1073741824.0,
+                    (double)cap / 1073741824.0);
+            budget = cap;
+        }
+    }
+    if (budget == 0) {
+        fprintf(stderr,
+                "ds4: --ssd-cache %s leaves no memory for a slot bank after dense/context\n",
                 opt->ssd_cache);
         return false;
     }
@@ -11776,11 +11865,25 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
         } else {
             fprintf(stderr,
                     "ds4: warning: very large Flash-MoE slot bank can collapse decode throughput "
-                    "(slots=%u, gpu-bank=%.2f GiB). On 96 GiB M3 Ultra, 128 slots can work "
-                    "with current tuning; if decode tanks, compare --moe-slot-bank 64/96 and "
-                    "remove profiling/no-residency test flags.\n",
+                    "(slots=%u, gpu-bank=%.2f GiB). The wired bank competes with the OS file "
+                    "cache that serves decode-miss reads of the sidecar; when the sidecar is "
+                    "larger than RAM, smaller banks decode faster. Compare --moe-slot-bank "
+                    "32/48/64 or use --ssd-cache auto.\n",
                     g->flash_slot_bank,
                     (double)warn_bank_bytes / 1073741824.0);
+        }
+    }
+
+    {
+        const uint64_t wset = ds4_gpu_recommended_working_set_bytes();
+        if (wset != 0 && warn_bank_bytes > wset) {
+            fprintf(stderr,
+                    "ds4: warning: Flash-MoE slot bank %.2f GiB exceeds the GPU working-set "
+                    "budget %.2f GiB; Metal residency will thrash. Shrink the bank or raise "
+                    "the limit: sudo sysctl iogpu.wired_limit_mb=%llu\n",
+                    (double)warn_bank_bytes / 1073741824.0,
+                    (double)wset / 1073741824.0,
+                    (unsigned long long)((warn_bank_bytes >> 20) + 16384u));
         }
     }
 
@@ -15925,12 +16028,165 @@ static bool metal_graph_flash_moe_realloc_slot_banks_after_prefill(
     return true;
 }
 
+/*
+ * Decode-bank shrink target. On a RAM-limited machine a big wired slot bank
+ * evicts the OS file cache that serves decode-miss preads at RAM speed, so
+ * decode collapses to true SSD reads (the "decode cliff"; see
+ * docs/flash-moe-stable-slot-progress.md and docs/mxfp4-handoff.md). A large
+ * bank still helps prefill streaming and never hurts it, so the production fix
+ * is to keep the requested bank for prefill and shrink it to a small decode
+ * bank afterward, letting the file cache repopulate.
+ *
+ * Returns the desired decode slot count, or 0 for "no shrink". Honors:
+ *   DS4_FLASH_MOE_DECODE_SLOT_BANK=<slots>   explicit slot count (0 disables)
+ *   DS4_FLASH_MOE_DECODE_SSD_CACHE=<size>    GB/MB budget, e.g. 20GB
+ * The slot form wins if both are set. The target is clamped to
+ * [DS4_N_EXPERT_ACTIVE_USED, current bank]; a value >= current is a no-op.
+ */
+static uint32_t flash_moe_decode_slot_bank_target(const ds4_gpu_graph *g) {
+    if (!g || !g->flash_moe || g->flash_slot_bank == 0) return 0;
+    /* Per-expert/per-slot buffer modes keep every expert resident by design;
+     * shrinking them is meaningless and would break their slot==expert map. */
+    if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) return 0;
+    const uint32_t cur = g->flash_slot_bank;
+    const uint32_t min_slots = DS4_N_EXPERT_ACTIVE_USED;
+
+    const char *slots_env = getenv("DS4_FLASH_MOE_DECODE_SLOT_BANK");
+    if (slots_env && slots_env[0]) {
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(slots_env, &end, 10);
+        if (errno == 0 && end != slots_env && v >= 0) {
+            if (v == 0) return 0; /* explicit opt-out */
+            uint32_t t = (uint32_t)v;
+            if (t < min_slots) t = min_slots;
+            if (t >= cur) return 0;
+            return t;
+        }
+    }
+
+    const char *gb_env = getenv("DS4_FLASH_MOE_DECODE_SSD_CACHE");
+    if (gb_env && gb_env[0]) {
+        uint64_t budget = 0;
+        if (ds4_parse_u64_suffix(gb_env, &budget) && budget > 0) {
+            uint32_t best = 0;
+            for (uint32_t s = min_slots; s <= cur; s++) {
+                uint64_t bytes = 0;
+                if (!ds4_flash_moe_sidecar_bank_bytes_for_slots(g->flash_moe, s, &bytes)) break;
+                if (bytes <= budget) best = s; else break;
+            }
+            if (best == 0 || best >= cur) return 0;
+            return best;
+        }
+    }
+
+    /*
+     * Automatic decode-bank shrink, RAM-limited regime only. When the sidecar
+     * is larger than physical RAM, a big wired bank evicts the OS file cache
+     * that serves decode-miss preads and decode collapses (measured ~13x on a
+     * 96 GiB M3U at a 48 GiB bank). Shrink the decode bank to the same target
+     * --ssd-cache auto would pick: DS4_SSD_CACHE_AUTO_PCT% (default 20) of the
+     * RAM left after dense + context. On memory-rich machines (sidecar fits in
+     * RAM) the bank coexists with the cache, so leave it alone. Opt out with
+     * DS4_FLASH_MOE_DECODE_SLOT_BANK=0; this fires only when --ssd-cache / the
+     * resolved bank is large enough that the shrink target is actually smaller.
+     */
+    const uint64_t ram = ds4_gpu_system_memory_bytes();
+    uint64_t sidecar_full = 0;
+    if (ram == 0 ||
+        !ds4_flash_moe_sidecar_bank_bytes_for_slots(g->flash_moe, DS4_N_EXPERT, &sidecar_full) ||
+        sidecar_full <= ram) {
+        return 0;
+    }
+    /* Only auto-rescue banks big enough to actually trigger the cliff (the same
+     * 44 GiB threshold as the big-bank warning). Smaller banks that fit the
+     * decode budget already are left exactly as configured. */
+    const uint64_t warn_bank_bytes = 44ull * 1024ull * 1024ull * 1024ull;
+    uint64_t cur_bytes = 0;
+    if (!ds4_flash_moe_sidecar_bank_bytes_for_slots(g->flash_moe, cur, &cur_bytes) ||
+        cur_bytes < warn_bank_bytes) {
+        return 0;
+    }
+    const uint64_t reserved = g->dense_mapped_bytes + g->context_buffer_bytes;
+    if (ram <= reserved) return 0;
+    uint32_t pct = 20u;
+    const char *pct_env = getenv("DS4_SSD_CACHE_AUTO_PCT");
+    if (pct_env && pct_env[0]) {
+        char *end = NULL;
+        errno = 0;
+        long v = strtol(pct_env, &end, 10);
+        if (errno == 0 && end != pct_env && v >= 1 && v <= 100) pct = (uint32_t)v;
+    }
+    const uint64_t remaining = ram - reserved;
+    const uint64_t budget =
+        (remaining / 100u) * pct + (remaining % 100u) * pct / 100u;
+    uint32_t best = 0;
+    for (uint32_t s = min_slots; s <= cur; s++) {
+        uint64_t bytes = 0;
+        if (!ds4_flash_moe_sidecar_bank_bytes_for_slots(g->flash_moe, s, &bytes)) break;
+        if (bytes <= budget) best = s; else break;
+    }
+    if (best == 0 || best >= cur) return 0;
+    return best;
+}
+
+/*
+ * Shrink the slot bank to `target` slots in place: synchronize, free the old
+ * (large) banks, retarget both the graph slot count and the sidecar slot count
+ * (which drives buffer byte sizing in the allocator), then re-allocate the
+ * smaller banks. The slot index arrays (slot_to_expert/expert_to_slot/age/
+ * replay) were allocated for the original, larger bank, so a smaller stride
+ * only under-uses them — never overflows — and the subsequent cache reset
+ * clears the now-smaller working set. Freeing the large bank returns its wired
+ * pages to the OS so the file cache can repopulate for decode.
+ */
+static bool metal_graph_flash_moe_shrink_slot_banks_after_prefill(
+        ds4_gpu_graph *g,
+        uint32_t       target,
+        const char    *reason) {
+    if (!g || !g->flash_moe || g->flash_slot_bank == 0) return true;
+    if (target == 0 || target >= g->flash_slot_bank) return true;
+
+    const uint32_t from = g->flash_slot_bank;
+    fprintf(stderr,
+            "ds4: Flash-MoE shrinking decode slot bank %s: layers=%u slots %u->%u "
+            "(frees wired bank pages so the OS file cache can serve decode-miss reads)\n",
+            reason && reason[0] ? reason : "after prefill",
+            (unsigned)DS4_N_LAYER, from, target);
+
+    if (ds4_gpu_synchronize() == 0) {
+        fprintf(stderr,
+                "ds4: failed to synchronize before Flash-MoE decode-bank shrink\n");
+        return false;
+    }
+    metal_graph_flash_moe_free_slot_banks(g);
+    g->flash_slot_bank = target;
+    /* The sidecar's slot_bank drives per-layer buffer byte sizing in the
+     * allocator; keep it in lockstep with the graph slot count. The underlying
+     * object is non-const (it was mutated during --ssd-cache resolution). */
+    ((ds4_flash_moe_sidecar *)g->flash_moe)->slot_bank = target;
+    if (!metal_graph_flash_moe_alloc_slot_banks(g, g->flash_moe, "shrunk for decode")) {
+        fprintf(stderr,
+                "ds4: failed to re-allocate Flash-MoE slot banks after decode shrink "
+                "(slots=%u)\n", target);
+        return false;
+    }
+    return true;
+}
+
 static bool metal_graph_flash_moe_reset_slot_cache_after_prefill(
         ds4_gpu_graph *g,
         const char    *reason) {
+    const uint32_t shrink_target = flash_moe_decode_slot_bank_target(g);
+    const bool do_shrink = shrink_target != 0;
     const bool do_reset = flash_moe_reset_slot_cache_after_prefill_enabled();
-    const bool do_realloc = flash_moe_realloc_slot_bank_after_prefill_enabled();
-    if (!do_reset && !do_realloc) return true;
+    const bool do_realloc =
+        !do_shrink && flash_moe_realloc_slot_bank_after_prefill_enabled();
+    if (!do_shrink && !do_reset && !do_realloc) return true;
+    if (do_shrink &&
+        !metal_graph_flash_moe_shrink_slot_banks_after_prefill(g, shrink_target, reason)) {
+        return false;
+    }
     if (do_realloc && !metal_graph_flash_moe_realloc_slot_banks_after_prefill(g, reason)) {
         return false;
     }
@@ -16058,7 +16314,11 @@ static bool flash_moe_ane_prefill_tensor_types_supported(
         layer->ffn_gate_exps->type == DS4_TENSOR_Q4_K &&
         layer->ffn_up_exps->type == DS4_TENSOR_Q4_K &&
         layer->ffn_down_exps->type == DS4_TENSOR_Q4_K;
-    return iq2_path || q4_path;
+    const bool mxfp4_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_MXFP4 &&
+        layer->ffn_up_exps->type == DS4_TENSOR_MXFP4 &&
+        layer->ffn_down_exps->type == DS4_TENSOR_MXFP4;
+    return iq2_path || q4_path || mxfp4_path;
 }
 
 static const char *flash_moe_ane_prefill_unsupported_reason(
@@ -16074,8 +16334,8 @@ static const char *flash_moe_ane_prefill_unsupported_reason(
     snprintf(buf,
              buf_sz,
              "unsupported expert types gate=%s up=%s down=%s "
-             "(Flash ANE prefill supports IQ2_XXS/IQ2_XXS/(Q2_K|IQ2_XXS) "
-             "and Q4_K/Q4_K/Q4_K)",
+             "(Flash ANE prefill supports IQ2_XXS/IQ2_XXS/(Q2_K|IQ2_XXS), "
+             "Q4_K/Q4_K/Q4_K and MXFP4/MXFP4/MXFP4)",
              tensor_type_name(layer->ffn_gate_exps->type),
              tensor_type_name(layer->ffn_up_exps->type),
              tensor_type_name(layer->ffn_down_exps->type));

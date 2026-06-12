@@ -1322,4 +1322,11 @@ int ds4_gpu_dense_backend_kind(void);
 /* Token-count cutoff below which the dense W8A8 path falls back to NAX/fp16. */
 uint64_t ds4_gpu_dense_i8_min_tokens_public(void);
 
+/* Metal recommendedMaxWorkingSetSize (GPU wired-memory budget); 0 if no device.
+ * Raise the OS cap with: sudo sysctl iogpu.wired_limit_mb=<MB>. */
+uint64_t ds4_gpu_recommended_working_set_bytes(void);
+
+/* Total installed physical RAM (hw.memsize); 0 if unavailable. */
+uint64_t ds4_gpu_system_memory_bytes(void);
+
 #endif
