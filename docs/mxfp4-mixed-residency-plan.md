@@ -524,3 +524,45 @@ Interpretation:
 - GPU-owned high-residency backing is eliminated for the short >12 t/s target.
   The only fast memory backing seen so far is the OS file cache serving
   decode-miss reads while the Metal working set stays near the 32 GB class.
+
+### 2026-06-12 - Step 10 MXFP4 record-table argument-buffer probe
+
+Prototype:
+
+- `DS4_FLASH_MOE_RECORD_TABLE=1` keeps the full 90 GB per-slot allocation.
+- At slot-bank allocation time, each layer builds one Metal argument buffer
+  mapping slot id -> full expert-record buffer.
+- Decode uses new MXFP4 selected-slot kernels:
+  `kernel_mul_mv_id_mxfp4_record_table_pair_swiglu_f32` and
+  `kernel_mul_mv_id_mxfp4_record_table_sum6_f32`.
+- The routed kernel binds one small table buffer plus the usual activation,
+  selected-id, and weight buffers. It does not bind the huge mixed layer bank,
+  and it does not bind six/eighteen active expert buffers.
+
+Validation:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_RECORD_TABLE=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+| config | decode layout | tok16 hit | prefill | generation |
+|---|---:|---:|---:|---:|
+| full 90 GB per-slot + record-table argument buffer | 168 slots / 89.95 GiB, total 100.9 GiB | 72.9% | 5.15 t/s | 4.16 t/s |
+
+Interpretation:
+
+- Mechanically works and selects the intended path, but it is slower than the
+  previous full per-slot record-buffer path (5.27 t/s) and far below the 32 GB
+  control.
+- The likely remaining cost is Metal's indirect-resource/argument-buffer
+  validation or GPU pointer indirection across the full table. This means the
+  "bind one table, index records in-kernel" approach does not recover the
+  selected-id mixed-bank speed.
+- Treat record-table/argument-buffer full-residency as negative unless a future
+  Metal trace proves a different bottleneck.

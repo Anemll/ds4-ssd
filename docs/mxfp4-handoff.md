@@ -449,3 +449,11 @@ Metal trace split and final slots6 negatives:
   This answers the low-RAM concern: high RAM in Metal-owned backing buffers is
   real but toxic. The fast backing source is the OS file cache with a small
   Metal L1, not a ds4/Metal-owned 90 GB L2.
+- Prototype `DS4_FLASH_MOE_RECORD_TABLE=1`: full 90 GB per-slot allocation,
+  one per-layer Metal argument buffer maps slot id -> full expert record, and
+  MXFP4 kernels index selected slots through that table. This avoids both the
+  huge mixed-layer bind and the six/eighteen active-buffer binds. Result on
+  `--ssd-cache 90GB --ctx 32768 -n 16`: total Metal footprint 100.9 GiB,
+  tok16 hit 72.9%, `prefill: 5.15 t/s`, `generation: 4.16 t/s`. Negative;
+  argument-buffer/indirect-resource table decode is slower than the prior
+  full per-slot record path and far below the 32 GB control.
