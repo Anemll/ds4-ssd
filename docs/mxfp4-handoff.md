@@ -457,3 +457,11 @@ Metal trace split and final slots6 negatives:
   tok16 hit 72.9%, `prefill: 5.15 t/s`, `generation: 4.16 t/s`. Negative;
   argument-buffer/indirect-resource table decode is slower than the prior
   full per-slot record path and far below the 32 GB control.
+- Regular mixed-L1 decode prefetch
+  (`DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB
+  DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=6
+  DS4_FLASH_MOE_DECODE_PREFETCH_SCRATCH_ONLY=0`): explicit 90 GB prefill,
+  59-slot / 31.59 GiB decode L1, router-prefetch/direct-slot-pread enabled,
+  tok16 hit 62.6%, `prefill: 6.31 t/s`, `generation: 3.76 t/s`. Negative;
+  it disrupts the grouped selected-id hot path and should not be retried for
+  the short >12 t/s target.

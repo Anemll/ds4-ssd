@@ -566,3 +566,25 @@ Interpretation:
   selected-id mixed-bank speed.
 - Treat record-table/argument-buffer full-residency as negative unless a future
   Metal trace proves a different bottleneck.
+
+### 2026-06-12 - Step 11 regular L1 decode-prefetch probe
+
+Tested regular mixed-L1 decode prefetch, distinct from the eliminated L2
+prefetch path:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=6 \
+DS4_FLASH_MOE_DECODE_PREFETCH_SCRATCH_ONLY=0 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result: prefill `6.31 t/s`, generation `3.76 t/s`, tok16 hit `62.6%`.
+
+Interpretation: regular decode prefetch is negative for the short target. It
+turns on direct slot preads and router prefetch, but loses the fast grouped
+selected-id execution shape often enough that it is much slower than the plain
+32 GB mixed L1.
