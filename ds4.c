@@ -17769,8 +17769,13 @@ static bool metal_graph_flash_moe_compute_independent_slots6_grouped(
         !flash_moe_independent_slots6_grouped_enabled()) {
         return false;
     }
-    if (layer->ffn_gate_exps->type != DS4_TENSOR_IQ2_XXS ||
-        layer->ffn_down_exps->type != DS4_TENSOR_Q2_K) {
+    const bool q2_slots6_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_IQ2_XXS &&
+        layer->ffn_down_exps->type == DS4_TENSOR_Q2_K;
+    const bool mxfp4_slots6_path =
+        layer->ffn_gate_exps->type == DS4_TENSOR_MXFP4 &&
+        layer->ffn_down_exps->type == DS4_TENSOR_MXFP4;
+    if (!q2_slots6_path && !mxfp4_slots6_path) {
         return false;
     }
     if (!g->flash_decode_ids_valid[il]) return false;
@@ -17800,7 +17805,7 @@ static bool metal_graph_flash_moe_compute_independent_slots6_grouped(
         if (!logged_slots6) {
             fprintf(stderr,
                     "ds4: Flash-MoE separate slot buffers using grouped slots6 decode path "
-                    "(direct 6-buffer gate/up, baseline down unless explicitly enabled)\n");
+                    "(direct 6-buffer gate/up and grouped down)\n");
             logged_slots6 = 1;
         }
         ok = ds4_gpu_routed_moe_one_slots6_tensor(g->routed_out,
