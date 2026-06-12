@@ -3576,3 +3576,65 @@ Working model, two distinct cliffs by machine class:
   miss IO dominates everything; install-path, realloc, and bank warmth are all
   irrelevant because ~50%+ of misses go to true SSD reads either way. The only
   effective lever is keeping the bank small (DS4_SSD_CACHE_AUTO_PCT default 20).
+
+## Cliff FIXED: auto decode-bank shrink after prefill (2026-06-11, M3U 96GB)
+
+Direct M3U 96 GB repro and fix (MXFP4 package, 14-token cold prompt, n=16,
+temp 0, iostat -d -w 3 over disk11 = SN8100 sidecar SSD):
+
+| --ssd-cache | prefill bank | decode bank | decode t/s | disk11 during run |
+|---|---|---|---|---|
+| 48GB (before) | 89 / 47.7 GiB | 89 / 47.7 GiB | **0.24** | sustained ~610 MB/s |
+| 32GB | 59 / 31.6 GiB | 59 / 31.6 GiB | 2.70 | low |
+| 48GB (after fix) | 89 / 47.7 GiB | **31 / 16.6 GiB** | **3.23** | (predicted idle) |
+
+Decisive points:
+- Both 32 and 48 GiB banks sit far under the 84 GiB GPU working-set budget
+  (Total resident 58.6 vs 42.6 GiB), so the cliff is NOT a Metal residency
+  overflow. And iostat shows the sidecar SSD read at ~610 MB/s *throughout the
+  48 GiB run including decode* — the GPU is waiting on real SSD misses, not
+  stalling on Metal buffer coherency / didModifyRange. This rules out the
+  "per-layer Metal allocation / Metal-buffer-region-changed" hypothesis: it is
+  genuinely the wired bank evicting the file cache (page-cache squeeze).
+
+Fix (production version of next-step #1): keep the requested bank for prefill,
+shrink it to a small decode bank after prefill so the file cache repopulates.
+- `flash_moe_decode_slot_bank_target(g)` resolves a decode slot count:
+  `DS4_FLASH_MOE_DECODE_SLOT_BANK=<slots>` (=0 opts out) wins; else
+  `DS4_FLASH_MOE_DECODE_SSD_CACHE=<size>`; else an automatic target that fires
+  only when sidecar > RAM AND the current bank ≥ 44 GiB, sized to
+  `DS4_SSD_CACHE_AUTO_PCT`% (20) of RAM-after-dense-context.
+- `metal_graph_flash_moe_shrink_slot_banks_after_prefill()` synchronizes, frees
+  the big banks, retargets both `g->flash_slot_bank` and the (non-const) sidecar
+  `slot_bank`, reallocs the smaller banks, and the existing post-prefill cache
+  reset clears the now-smaller working set. The slot index arrays were sized for
+  the original larger bank, so the smaller stride only under-uses them.
+- Wired into `metal_graph_flash_moe_reset_slot_cache_after_prefill` so it covers
+  full-prefill, KV-payload-load, and resume-prefill hooks; supersedes same-size
+  `REALLOC_SLOT_BANK_AFTER_PREFILL`. Idempotent across server turns (31 slots is
+  below the 44 GiB gate, so no re-shrink). Output stays bit-coherent.
+
+Verification: bare `--ssd-cache 48GB` auto-shrinks 89→31 (3.23 t/s); bare
+`--ssd-cache 32GB` is below the gate and unchanged (2.70 t/s, identical to the
+pre-fix baseline). Memory-rich machines (sidecar ≤ RAM) never trigger it.
+
+Follow-up experiments (M3U 96GB, 48GB bank shrunk to 31, 11-tok prompt, n=48,
+temp 0, all outputs bit-identical):
+- **Prefill overflow clamp**: explicit `--ssd-cache` is now clamped at resolve
+  time so bank+dense+context ≤ `DS4_SSD_CACHE_MAX_PCT`% (default 85) of
+  physical RAM — an oversized request can no longer swap the machine during
+  prefill before the shrink runs. `--ssd-cache 80GB` → clamp to 70.6 GiB →
+  131 slots prefill (4.9 t/s) → shrink 131→31 → 2.74 t/s decode. End-to-end
+  safe at any requested size.
+- **Decode-time LRU warming** (`DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS`,
+  next-step #2): the slot bank is already an LRU cache (`flash_slot_age`), but
+  max-loads=0 disables decode installs, so the post-shrink bank stays empty.
+  Sweep: max-loads 0 → 3.98 t/s, 2 → 3.88, 6 → 3.87. **No benefit** — the file
+  cache serves misses at RAM speed post-shrink, so installs are pure overhead.
+  Default stays 0.
+- **Post-shrink decode-bank size**: shrink target min (6 slots / 3.2 GiB) →
+  3.72 t/s vs 31 slots / 16.6 GiB → 3.98. Flat within noise: with the bank
+  empty and never warming, its size only trades wired GiB against ~8% of
+  sidecar cache coverage — invisible either way. The auto target (20%) is fine;
+  per-layer or LRU-based shrink sizing would add complexity for no measurable
+  gain in this regime.

@@ -85,23 +85,59 @@ Mitigations landed:
 
 Practical settings:
 - M5 Max 128 GB: `--ssd-cache auto` or `--moe-slot-bank 32..48`.
-- M3U 96 GB: `--ssd-cache 16GB..24GB` (predicted 6-8 t/s decode; 32 GB
-  measured 5.67). Avoid 48 GB+.
+- M3U 96 GB: any `--ssd-cache` is now decode-safe — banks ≥44 GiB auto-shrink
+  for decode (see below). `--ssd-cache 48GB` measured **3.2 t/s** decode (was
+  0.24); `32GB` left as-is at 2.7 t/s.
 - `iogpu.wired_limit_mb`: only for models that FIT in RAM; irrelevant here.
+
+## DECODE CLIFF — FIXED (2026-06-11): auto decode-bank shrink
+
+The page-cache-squeeze cliff is fixed in production. Confirmed on the 96 GB M3U
+with iostat: `--ssd-cache 48GB` decode = 0.24 t/s with the sidecar SSD read at a
+sustained ~610 MB/s *during decode* (every miss a real SSD read — the wired
+47.7 GiB bank had evicted the file cache). Both configs sat far under the
+84 GiB GPU working-set budget (58.6 vs 42.6 GiB), so this is not a Metal
+residency/coherency stall — it is genuine miss IO.
+
+Fix (`metal_graph_flash_moe_*` in `ds4.c`): keep the requested bank for prefill,
+then **shrink the slot bank after prefill** to a small decode bank so the OS
+file cache repopulates and serves misses at RAM speed. Free + retarget
+(`g->flash_slot_bank` and the sidecar `slot_bank`) + realloc + cache-reset; the
+slot index arrays are allocated for the original (larger) bank so a smaller
+stride only under-uses them. Prefill is unaffected by bank size, so nothing is
+lost. This is the shrinking version of `REALLOC_SLOT_BANK_AFTER_PREFILL`.
+
+- **Automatic**, fires only in the RAM-limited regime (sidecar > physical RAM)
+  AND only for banks ≥ 44 GiB (the cliff-warning threshold). Memory-rich
+  machines and already-small banks are untouched. Target = the same size
+  `--ssd-cache auto` would pick: `DS4_SSD_CACHE_AUTO_PCT`% (default 20) of RAM
+  left after dense+context. On the M3U, 48 GiB → 31 slots / 16.6 GiB decode.
+- Knobs: `DS4_FLASH_MOE_DECODE_SLOT_BANK=<slots>` forces an exact decode bank
+  (`=0` opts out / keeps the big bank); `DS4_FLASH_MOE_DECODE_SSD_CACHE=<size>`
+  sets it by byte budget (e.g. `20GB`). Either overrides the automatic target.
+- Measured (M3U 96 GB, 14-tok cold prompt, n=16): `48GB` 0.24 → **3.23 t/s**
+  (89→31 slots), beating the plain `32GB` run (2.70). Output bit-coherent.
+- **Prefill overflow clamp**: explicit `--ssd-cache` is clamped at startup so
+  bank+dense+context ≤ `DS4_SSD_CACHE_MAX_PCT`% (default 85) of RAM —
+  `--ssd-cache 80GB` on the M3U clamps to 70.6 GiB, prefills fine, shrinks
+  131→31, decodes 2.74 t/s. Any requested size is now safe end-to-end.
+- Negative results (so nobody re-runs them): decode-time LRU bank warming
+  (`max-loads` 2/6) and a smaller post-shrink bank (6 slots) are both flat vs
+  the defaults — post-shrink decode is file-cache-served and insensitive to
+  decode-bank size. All variants bit-identical output.
 
 ## Next iteration candidates (in rough value order)
 
-1. **Bank-release-after-prefill (production fix for the cliff).** Big banks
-   help prefill streaming and never hurt it; they only strangle decode.
-   Prototype: after prefill completes, free/shrink the slot bank to a small
-   decode bank (~32 slots), letting the file cache repopulate. This is the
-   production version of `DS4_FLASH_MOE_REALLOC_SLOT_BANK_AFTER_PREFILL`,
-   but shrinking instead of same-size recreate. Would make `--ssd-cache 48GB`
-   safe: large for prefill, small for decode.
-2. **Decode-time bank warming** (`max-loads` defaults): with max-loads=0 the
-   bank never warms during decode; misses re-read the same experts from disk
-   forever on decode-heavy sessions. Cheap experiment:
-   `DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS=2..6`.
+1. ~~**Bank-release-after-prefill**~~ — **DONE** (see "DECODE CLIFF — FIXED"
+   above). Remaining polish: a decode-time iostat A/B confirming the disk goes
+   idle post-shrink (predicted), and a server multi-turn check that the shrunk
+   bank stays put across turns (it does — sidecar slot_bank is retargeted, so
+   later prefills/shrinks are idempotent at 31 slots).
+2. ~~**Decode-time bank warming**~~ — **TESTED, NO WIN** (M3U, post-shrink):
+   max-loads 0/2/6 → 3.98/3.88/3.87 t/s. Post-shrink misses are served by the
+   file cache at RAM speed, so installs are pure overhead. Default stays 0.
+   Re-test only on a machine where decode misses hit true SSD even after the
+   shrink.
 3. **M3U bank sweep** (16/24/32 GB) to pin its decode optimum.
 4. **mul_mv pair/pair_swiglu fused decode kernels for MXFP4** — q4_k has
    them, mxfp4 uses plain mv. Only worth it once decode stops being IO-bound

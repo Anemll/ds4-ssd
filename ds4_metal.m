@@ -771,7 +771,7 @@ static void ds4_gpu_print_ane_prefill_stats(void) {
     }
 }
 
-static uint64_t ds4_gpu_system_memory_bytes(void) {
+uint64_t ds4_gpu_system_memory_bytes(void) {
     uint64_t bytes = 0;
     size_t len = sizeof(bytes);
     if (sysctlbyname("hw.memsize", &bytes, &len, NULL, 0) != 0) return 0;
