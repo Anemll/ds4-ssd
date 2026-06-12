@@ -4,6 +4,8 @@ set -e
 REPO="antirez/deepseek-v4-gguf"
 SIDECAR_REPO="anemll/dsv4-iq2xxs-expert-major"
 SIDECAR_DIR_NAME="dsv4-iq2xxs-expert-major"
+MXFP4_REPO="anemll/DSv4-Flash-MXFP4-native-flash"
+MXFP4_DIR_NAME="DSv4-Flash-MXFP4-native-flash"
 HUIHUI_REPO="huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF"
 Q2_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf"
 Q2_IMATRIX_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf"
@@ -23,6 +25,11 @@ case "$SIDECAR_OUT_DIR" in
     /*) ;;
     *) SIDECAR_OUT_DIR="$ROOT/$SIDECAR_OUT_DIR" ;;
 esac
+MXFP4_OUT_DIR=${DS4_MXFP4_DIR:-"$ROOT/models/$MXFP4_DIR_NAME"}
+case "$MXFP4_OUT_DIR" in
+    /*) ;;
+    *) MXFP4_OUT_DIR="$ROOT/$MXFP4_OUT_DIR" ;;
+esac
 TOKEN=${HF_TOKEN:-}
 MODEL_REPO=$REPO
 
@@ -38,6 +45,7 @@ Usage:
   ./download_model.sh mtp [--token TOKEN]
   ./download_model.sh huihui-iq2xxs [--token TOKEN]
   ./download_model.sh sidecar [--token TOKEN]
+  ./download_model.sh mxfp4 [--token TOKEN]
 
 Targets:
   *** PREFERRED GGUF FILES: USE THE IMATRIX VERSIONS BELOW ***
@@ -74,6 +82,14 @@ Targets:
        SSD-streaming sidecar package from $SIDECAR_REPO.
        Downloads dense/model-dense.gguf plus routed-expert sidecar files.
 
+  mxfp4
+       Native MXFP4 SSD-streaming package from $MXFP4_REPO.
+       About 156 GB on disk: Q8_0/F16 dense GGUF plus bit-exact native
+       MXFP4 routed-expert sidecar (manifest.json + layer_*.bin).
+       Recommended SSD-streaming package; runs on 96 GB+ machines with
+       --ssd-cache (the slot bank auto-shrinks after prefill on
+       RAM-limited machines, so any --ssd-cache size is safe).
+
 Options:
   --token TOKEN  Hugging Face token. Otherwise HF_TOKEN or the local HF token
                  cache is used if present.
@@ -85,6 +101,9 @@ Environment:
   DS4_SIDECAR_DIR
                  Directory used for the downloaded SSD sidecar package.
                  Default: ./models/$SIDECAR_DIR_NAME
+
+  DS4_MXFP4_DIR  Directory used for the downloaded MXFP4 package.
+                 Default: ./models/$MXFP4_DIR_NAME
 
 After q2-imatrix/q4-imatrix/q2/q4/huihui-iq2xxs downloads the script updates:
   ./ds4flash.gguf -> <download directory>/<selected model>
@@ -120,6 +139,7 @@ case "$MODEL" in
         MODEL_FILE=$HUIHUI_IQ2XXS_FILE
         ;;
     sidecar) MODEL_FILE= ;;
+    mxfp4) MODEL_FILE= ;;
     -h|--help|help)
         usage
         exit 0
@@ -217,8 +237,44 @@ download_sidecar() {
     echo "  make sidecar-smoke"
 }
 
+download_mxfp4() {
+    if ! command -v hf >/dev/null 2>&1; then
+        echo "The MXFP4 package is a multi-file Hugging Face repo." >&2
+        echo "Install the Hugging Face CLI first: https://huggingface.co/docs/huggingface_hub/guides/cli" >&2
+        exit 1
+    fi
+
+    mkdir -p "$MXFP4_OUT_DIR"
+
+    echo "Downloading native MXFP4 SSD-streaming package (about 156 GB)"
+    echo "from https://huggingface.co/$MXFP4_REPO"
+    echo "to $MXFP4_OUT_DIR"
+    echo "If the download stops, run the same command again to resume it."
+
+    if [ -n "$TOKEN" ]; then
+        HF_TOKEN=$TOKEN hf download "$MXFP4_REPO" --local-dir "$MXFP4_OUT_DIR"
+    else
+        hf download "$MXFP4_REPO" --local-dir "$MXFP4_OUT_DIR"
+    fi
+
+    echo
+    echo "Run it with SSD streaming:"
+    echo "  ./ds4 -m \"$MXFP4_OUT_DIR\" --ssd-cache auto -p 'Hello'"
+    echo
+    echo "Or with an explicit slot-bank budget (any size is safe; on RAM-limited"
+    echo "machines the bank auto-shrinks after prefill for decode):"
+    echo "  ./ds4 -m \"$MXFP4_OUT_DIR\" --ssd-cache 32GB -p 'Hello'"
+}
+
 if [ "$MODEL" = "sidecar" ]; then
     download_sidecar
+    echo
+    echo "Done."
+    exit 0
+fi
+
+if [ "$MODEL" = "mxfp4" ]; then
+    download_mxfp4
     echo
     echo "Done."
     exit 0
