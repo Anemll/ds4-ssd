@@ -23,6 +23,7 @@ void ds4_gpu_cleanup(void);
 int ds4_gpu_mpp_nax_supported(void);
 
 ds4_gpu_tensor *ds4_gpu_tensor_alloc(uint64_t bytes);
+ds4_gpu_tensor *ds4_gpu_tensor_alloc_untracked(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc_managed(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_view(const ds4_gpu_tensor *base, uint64_t offset, uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_size,
@@ -933,6 +934,51 @@ int ds4_gpu_routed_moe_one_slots6_tensor(
         ds4_gpu_tensor       *gate_slots[6],
         ds4_gpu_tensor       *up_slots[6],
         ds4_gpu_tensor       *down_slots[6],
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_slots6_record_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *slot_records[6],
+        uint64_t                gate_offset,
+        uint64_t                up_offset,
+        uint64_t                down_offset,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_slots6_chunked_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *gate_chunks[4],
+        ds4_gpu_tensor       *up_chunks[4],
+        ds4_gpu_tensor       *down_chunks[4],
+        uint32_t                chunk_count,
+        const uint32_t          chunk_ids[6],
+        const uint32_t          local_slots[6],
+        uint64_t                slot_stride,
         uint32_t                gate_type,
         uint32_t                down_type,
         uint64_t                gate_row_bytes,

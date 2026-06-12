@@ -386,6 +386,12 @@ mixed decode L1, CPU L2 captured 1951 resident records, `prefill: 2.22 t/s`,
 killed after more than 12 minutes. CPU-backed L2 promotion/copy is therefore
 not a viable path for the short 90 GB target.
 
+An async L2-backed decode-prefetch variant
+(`DECODE_PREFETCH_MAX_LOADS=6`, direct slot prefetch on) still produced
+`generation: 0.22 t/s` after capturing the same 1951 records. The failure is
+not just synchronous promotion; CPU-L2 record copies are the wrong hot-path
+shape here.
+
 Six-slot baselines:
 
 - `DS4_FLASH_MOE_DECODE_SLOT_BANK=6 DS4_FLASH_MOE_SIX_SLOT_BASELINE=1`
@@ -405,8 +411,29 @@ Chunked mixed no-copy probe is also negative:
   89.95 GiB bank split into 3 chunks, `generation: 5.48 t/s`.
 - `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=84`: full bank split
   into 2 chunks, `generation: 4.41 t/s`.
+- `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=56
+  DS4_FLASH_MOE_CHUNKED_SLOTS6_GROUPED=1`: uses the grouped slots6 decode path
+  over active chunk views instead of per-chunk routed-MoE calls, `generation:
+  6.18 t/s`.
 
 Chunking avoids both the giant full-layer bind and L2 copies, but multiple
 chunk dispatches plus accumulation still lose badly to the attached 32 GB
-control (12.71 t/s). Treat chunked mixed as eliminated for the short 90 GB
-target.
+control (12.71 t/s). Removing that accumulation with chunked-slots6 only moves
+the path into the same ~6 t/s class as per-slot grouped. Treat chunked mixed as
+eliminated for the short 90 GB target.
+
+Metal trace split and final slots6 negatives:
+
+- Metal System Trace, 6-token decode, Instruments-overhead only: 90 GB trace
+  peaked at 116.8 GiB Metal allocation vs 58.4 GiB for 32 GB, so this is not a
+  low-RAM artifact. ds4 GPU intervals were 1.10 s vs 0.96 s, but command-buffer
+  encoder time was 1.18 s vs 0.58 s. The remaining full-90 cost is mostly
+  CPU/driver resource binding/validation, not GPU kernel execution.
+- Forced 32 GB mixed bank through slots6
+  (`DS4_FLASH_MOE_MIXED_SLOTS6_GROUPED=1`): 4.95 t/s versus the attached normal
+  32 GB control at 12.71 t/s. The fast shape is the mixed-bank selected-id
+  kernel, not slots6 active-buffer binding.
+- Prototype `DS4_FLASH_MOE_CHUNKED_BANK_SLOTS6=1`: full 90 GB split into
+  56-slot chunks, chunk id + local slot map in-kernel. Binding all chunks gave
+  0.18 t/s; compacting to active chunks gave 4.72 t/s. Negative; do not pursue
+  slots6-shaped full-residency variants for the >12 t/s target.

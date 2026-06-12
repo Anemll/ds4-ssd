@@ -392,12 +392,15 @@ Result:
 | config | prefill bank | decode bank | L2 capture | prefill | generation |
 |---|---:|---:|---:|---:|---:|
 | 90 GB + 32 GB L1 + CPU L2, topk84 | 168 slots / 89.95 GiB | 59 slots / 31.59 GiB | 1951 records | 2.22 t/s | 0.22 t/s |
+| same + `DECODE_PREFETCH_MAX_LOADS=6`, direct L2-backed prefetch | 168 slots / 89.95 GiB | 59 slots / 31.59 GiB | 1951 records | 2.23 t/s | 0.22 t/s |
 
 Interpretation:
 
 - Forcing the large bank to become a real populated L2 makes RAM use meaningful,
   but the decode path collapses. CPU-backed promotion/copy on the decode miss
   path is not viable for this workload.
+- Overlapping CPU-L2 copies through the decode-prefetch machinery does not help;
+  the result is still 0.22 t/s.
 - A default-length run of the same config captured 2032 records and was killed
   after more than 12 minutes without reaching the final summary. That is enough
   to classify it as negative for the short workflow.
@@ -432,6 +435,7 @@ layer bank.
 |---|---:|---:|---:|---:|
 | `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=56` | 3 | 56 slots | 4.85 t/s | 5.48 t/s |
 | `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=84` | 2 | 84 slots | 6.53 t/s | 4.41 t/s |
+| `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=56 DS4_FLASH_MOE_CHUNKED_SLOTS6_GROUPED=1` | 3 | 56 slots | 6.41 t/s | 6.18 t/s |
 
 Interpretation:
 
@@ -439,4 +443,47 @@ Interpretation:
   not recover 32 GB speed. Smaller chunks pay multiple routed-MoE dispatches
   and output accumulation; larger chunks reduce dispatch count but reintroduce
   larger-buffer overhead.
+- The grouped chunked-slots6 variant removes the multi-dispatch accumulation
+  penalty and still only reaches the same ~6 t/s class as per-slot grouped
+  decode. Active-buffer binding/view validation remains the ceiling.
 - Candidate D is negative for the short 90 GB target.
+
+### 2026-06-12 - Step 8 Metal trace and chunk-bank slots6 probe
+
+Metal System Trace export, 6-token decode, Instruments-overhead numbers only:
+
+| trace | Metal allocation peak | command-buffer encoder time | ds4 GPU intervals |
+|---|---:|---:|---:|
+| 90 GB per-slot / record path | 116.8 GiB | 1.18 s | 1.10 s |
+| 32 GB mixed bank | 58.4 GiB | 0.58 s | 0.96 s |
+
+Interpretation: the trace does allocate high memory; the low-RAM concern was
+specific to the first empty-L2 diagnostic. The 90 GB trace adds only about 15%
+GPU interval time but about 2x command-buffer encoder time, so the remaining
+cost is mostly CPU/driver resource binding and validation, not a GPU kernel that
+loops over all 168 slots.
+
+Diagnostic 32 GB A/B:
+
+| config | generation |
+|---|---:|
+| attached 32 GB control, normal mixed-bank selected-id path | 12.71 t/s |
+| `DS4_FLASH_MOE_MIXED_SLOTS6_GROUPED=1`, 32 GB | 4.95 t/s |
+
+Forcing the normally fast 32 GB bank through the slots6 active-buffer path drops
+it into the same slow class as full-90 per-slot/chunked slots6. The fast path is
+specifically the mixed-bank selected-id kernel shape.
+
+Prototype: `DS4_FLASH_MOE_CHUNKED_BANK_SLOTS6=1` keeps the full 168-slot /
+89.95 GiB bank split into 56-slot mixed chunks, passes chunk id + local slot for
+each of the six active experts, and avoids constructing six active views.
+
+| config | chunk binding | prefill | generation |
+|---|---|---:|---:|
+| chunk-bank slots6 v1 | bind all 3 chunks | 6.40 t/s | 0.18 t/s |
+| chunk-bank slots6 compact | bind only active chunks | 5.58 t/s | 4.72 t/s |
+
+Result: negative. Binding all chunks recreates the original big-bank validation
+cliff. Compact active-chunk binding works but is still slower than ordinary
+chunked slots6 (6.18 t/s) and far below the 32 GB control. Treat slots6-shaped
+full-residency paths as eliminated for the >12 t/s target.
