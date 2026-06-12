@@ -24345,6 +24345,57 @@ static bool metal_graph_encode_layer_batch(
 }
 
 /* Execute one Metal decode token and read back logits. */
+/* Periodic decode-time slot-bank residency stats:
+ * DS4_FLASH_MOE_RESIDENCY_STATS=<N> prints every N decode tokens (unset/0 =
+ * off). Makes bank fill, the post-prefill decode shrink, and eviction churn
+ * visible without waiting for the teardown stats line: `slots=` is the live
+ * bank size (drops when the decode shrink fires), `resident=` is filled slots
+ * (physical pages actually committed), and the windowed hit rate shows
+ * whether decode is served from the bank or from misses. */
+static void metal_graph_flash_moe_residency_stats_tick(ds4_gpu_graph *g) {
+    static bool init;
+    static uint32_t every;
+    static uint64_t tokens, last_hits, last_misses;
+    if (!init) {
+        init = true;
+        const char *env = getenv("DS4_FLASH_MOE_RESIDENCY_STATS");
+        if (env && env[0]) {
+            char *end = NULL;
+            errno = 0;
+            long v = strtol(env, &end, 10);
+            if (errno == 0 && end != env && v > 0) every = (uint32_t)v;
+        }
+    }
+    if (every == 0 || !g || !g->flash_moe || g->flash_slot_bank == 0) return;
+    tokens++;
+    if (tokens % every) return;
+    uint64_t resident = 0;
+    uint32_t min_slots = 0, max_slots = 0;
+    metal_graph_flash_moe_slot_occupancy(g, &resident, &min_slots, &max_slots);
+    const uint64_t total = (uint64_t)DS4_N_LAYER * g->flash_slot_bank;
+    const uint64_t dh = g->flash_hits - last_hits;
+    const uint64_t dm = g->flash_misses - last_misses;
+    last_hits = g->flash_hits;
+    last_misses = g->flash_misses;
+    fprintf(stderr,
+            "ds4: Flash-MoE residency @tok %" PRIu64 ": slots=%u resident=%" PRIu64
+            "/%" PRIu64 " (%.1f%%) per-layer min/avg/max %u/%.1f/%u "
+            "bank-resident=%.2f GiB window hits=%" PRIu64 " misses=%" PRIu64
+            " (hit %.1f%%)\n",
+            tokens,
+            g->flash_slot_bank,
+            resident,
+            total,
+            total ? 100.0 * (double)resident / (double)total : 0.0,
+            min_slots,
+            DS4_N_LAYER ? (double)resident / (double)DS4_N_LAYER : 0.0,
+            max_slots,
+            (double)resident * (double)g->flash_moe->max_expert_stride / 1073741824.0,
+            dh,
+            dm,
+            (dh + dm) ? 100.0 * (double)dh / (double)(dh + dm) : 0.0);
+}
+
 static bool metal_graph_eval_token_raw_swa(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -24354,6 +24405,7 @@ static bool metal_graph_eval_token_raw_swa(
         float                 *logits) {
     const bool profile = getenv("DS4_METAL_GRAPH_TOKEN_PROFILE") != NULL;
     const double t0 = profile ? now_sec() : 0.0;
+    metal_graph_flash_moe_residency_stats_tick(g);
 
     /* Decode extends the context one token at a time; grow the compressed caches
      * to cover this position before opening the command batch (no-op until a
