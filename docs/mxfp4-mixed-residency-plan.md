@@ -728,6 +728,7 @@ Validation on the current, already-bench-warmed machine:
 |---|---:|---:|---:|
 | current 32 GB re-anchor | 59 slots / 31.59 GiB | 5.58 t/s | 10.67 t/s |
 | 90 GB + prefill/decode L1 cap | 59 slots / 31.59 GiB | 6.78 t/s | 10.92 t/s |
+| 90 GB + prefill/decode L1 cap, long cooldown | 59 slots / 31.59 GiB | 5.75 t/s | 10.45 t/s |
 
 Interpretation:
 

@@ -502,9 +502,10 @@ Metal trace split and final slots6 negatives:
   prefill, so prefill and decode share the 59-slot / 31.59 GiB mixed selected-id
   L1 and skip the shrink/reset. On the current warmed machine this produced
   `prefill: 6.78 t/s`, `generation: 10.92 t/s`; the immediately preceding
-  plain 32 GB re-anchor was `10.67 t/s`. This confirms it matches the fast L1
-  shape, but it intentionally leaves RAM use low and does not solve high
-  Metal-owned 90 GB residency.
+  plain 32 GB re-anchor was `10.67 t/s`. A later long-cooldown run was
+  `prefill: 5.75 t/s`, `generation: 10.45 t/s`. This confirms it matches the
+  fast L1 shape, but it intentionally leaves RAM use low and does not solve
+  high Metal-owned 90 GB residency.
 - OS-cache-only follow-ups are also negative so far: prefill/decode L1 cap plus
   `DS4_FLASH_MOE_XLAYER_TOPK=84` generated `10.30 t/s`, and a local
   `F_RDADVISE` xlayer84 prototype generated `10.67 t/s` while slowing prefill
