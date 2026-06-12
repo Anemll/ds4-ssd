@@ -588,3 +588,47 @@ Interpretation: regular decode prefetch is negative for the short target. It
 turns on direct slot preads and router prefetch, but loses the fast grouped
 selected-id execution shape often enough that it is much slower than the plain
 32 GB mixed L1.
+
+### 2026-06-12 - Step 12 full-90 separate-family selected-id probe
+
+Re-anchored the current tree against the attached 32 GB command shape:
+
+```bash
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 32GB --ctx 32768 \
+  -p "What is Apple Neural Engine?"
+```
+
+Result on this sample: prefill `6.38 t/s`, generation `9.74 t/s`.
+The attached user run remains the higher reference at `12.71 t/s`; this
+confirms the exact number is sensitive to output/cache/thermal state, but the
+fast shape is still the 32 GB mixed selected-id path.
+
+Tested the untried family-split mixed-bank variant:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS=1 \
+DS4_FLASH_MOE_MIXED_SLOT_BANK=0 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+This keeps the full 168-slot / 89.95 GiB cache request, disables the auto
+per-slot large-bank guard, and uses the existing selected-id grouped kernels
+with real gate/up/down family buffers instead of one huge mixed layer buffer.
+
+Result: layout `separate families`, total footprint `100.9GB`, tok16 hit
+`62.7%`, prefill `5.41 t/s`, generation `0.17 t/s`.
+
+Interpretation:
+
+- This is a real high-RAM run, not the low-RAM L1 shrink. It allocated the full
+  90 GB Flash-MoE bank plus dense/context.
+- Splitting the full mixed layer buffer into three family buffers while keeping
+  selected-id kernels does not recover 32 GB speed. It falls back into the old
+  full-bank cliff class.
+- The result rules out the simplest "smaller bound MTLBuffer but same kernel"
+  theory. The remaining fast source is still the OS file cache plus a moderate
+  Metal L1, not any full 90 GB Metal-owned residency tested so far.

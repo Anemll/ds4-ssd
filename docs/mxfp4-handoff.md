@@ -465,3 +465,17 @@ Metal trace split and final slots6 negatives:
   tok16 hit 62.6%, `prefill: 6.31 t/s`, `generation: 3.76 t/s`. Negative;
   it disrupts the grouped selected-id hot path and should not be retried for
   the short >12 t/s target.
+- Full-90 separate-family selected-id probe
+  (`DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS=1
+  DS4_FLASH_MOE_MIXED_SLOT_BANK=0`): explicit 90 GB allocated as real
+  gate/up/down family buffers, layout `separate families`, total footprint
+  `100.9GB`, tok16 hit 62.7%, `prefill: 5.41 t/s`, `generation: 0.17 t/s`.
+  Negative; simply replacing the huge mixed layer buffer/view with three
+  family buffers does not recover the 32 GB selected-id speed and should not be
+  retried for the short target.
+- Current-tree exact 32 GB re-anchor with the attached command shape
+  (`--ssd-cache 32GB --ctx 32768 -p "What is Apple Neural Engine?"`) produced
+  `prefill: 6.38 t/s`, `generation: 9.74 t/s` on this sample. The attached
+  user run remains the higher observed reference at `generation: 12.71 t/s`;
+  treat the 32 GB selected-id path as the reference shape, with exact t/s
+  sensitive to sample/cache/thermal state.
