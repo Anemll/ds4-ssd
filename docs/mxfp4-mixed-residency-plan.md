@@ -362,3 +362,81 @@ Interpretation:
   and retain/promote from a separate larger backing cache only when it replaces
   true SSD reads. Do not put the full 90 GB working set directly on the decode
   hot path.
+
+### 2026-06-12 - Step 6 L1/L2 and six-slot baselines
+
+User noticed that the first L1/L2 diagnostic was not really using high memory.
+That was correct:
+
+- `DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB DS4_FLASH_MOE_DECODE_L2=1`
+  captured `0` resident prefill slots because the default prefill slot-cache
+  policy is `slot-cache-topk=0`. The run generated 6.04 t/s, but it was an
+  empty-L2 overhead test, not a full high-memory residency test.
+- The CPU-L2 miss path was adjusted so an L2 miss can still read directly into
+  the Metal L1 slot. That removes one avoidable scratch -> L1 copy on misses,
+  but it does not solve the fundamental L2 cost.
+
+Corrected high-RAM L1/L2 test:
+
+```bash
+DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_DECODE_L2=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+| config | prefill bank | decode bank | L2 capture | prefill | generation |
+|---|---:|---:|---:|---:|---:|
+| 90 GB + 32 GB L1 + CPU L2, topk84 | 168 slots / 89.95 GiB | 59 slots / 31.59 GiB | 1951 records | 2.22 t/s | 0.22 t/s |
+
+Interpretation:
+
+- Forcing the large bank to become a real populated L2 makes RAM use meaningful,
+  but the decode path collapses. CPU-backed promotion/copy on the decode miss
+  path is not viable for this workload.
+- A default-length run of the same config captured 2032 records and was killed
+  after more than 12 minutes without reaching the final summary. That is enough
+  to classify it as negative for the short workflow.
+
+Six-slot baselines requested by the user:
+
+| config | decode bank | reuse policy | generation |
+|---|---:|---|---:|
+| `DS4_FLASH_MOE_DECODE_SLOT_BANK=6 DS4_FLASH_MOE_SIX_SLOT_BASELINE=1` | 6 slots / 3.21 GiB | always reload active experts into slots 0..5 | 6.85 t/s |
+| `DS4_FLASH_MOE_DECODE_SLOT_BANK=6` | 6 slots / 3.21 GiB | normal LRU reuse | 9.11 t/s |
+| attached 32 GB control | 59 slots / 31.59 GiB | normal LRU reuse | 12.71 t/s |
+
+Interpretation:
+
+- "Just six active slots" is not the hidden fast path. No-reuse six-slot decode
+  is too miss-heavy, and even normal six-slot LRU trails the 32 GB bank.
+- The 32 GB result is fast because it combines the mixed-bank grouped compute
+  path with enough per-layer temporal reuse to avoid most repeated installs.
+- Current evidence rules out CPU-L2 promotion and active staging for the short
+  90 GB target. Any useful high-memory design must avoid both large-buffer
+  binding and per-token/per-miss full-record copies on the hot path.
+
+### 2026-06-12 - Step 7 chunked mixed no-copy probe
+
+Re-tested Candidate D because no result was recorded in this plan. This keeps
+the full 168-slot / 89.95 GiB logical bank and splits each layer into smaller
+mixed expert-major buffers, then dispatches only chunks containing active
+experts. It avoids CPU/GPU L2 copies and avoids binding the full 2.14 GiB
+layer bank.
+
+| config | chunks | chunk size | prefill | generation |
+|---|---:|---:|---:|---:|
+| `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=56` | 3 | 56 slots | 4.85 t/s | 5.48 t/s |
+| `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=84` | 2 | 84 slots | 6.53 t/s | 4.41 t/s |
+
+Interpretation:
+
+- Chunking is mechanically correct and uses the full 90 GB bank, but it does
+  not recover 32 GB speed. Smaller chunks pay multiple routed-MoE dispatches
+  and output accumulation; larger chunks reduce dispatch count but reintroduce
+  larger-buffer overhead.
+- Candidate D is negative for the short 90 GB target.

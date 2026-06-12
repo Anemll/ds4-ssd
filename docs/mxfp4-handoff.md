@@ -360,3 +360,53 @@ This is not a true 90 GB L2 yet: the shrink resets the slot cache, so decode
 hit rate is the 59-slot L1 hit rate. But it gets explicit 90 GB requests back
 to 32 GB-class decode speed and gives the next prototype a clean base: add a
 separate L2/promotion path only for cases where it avoids true SSD reads.
+
+## UPDATE (2026-06-12): L1/L2 and six-slot baselines are negative
+
+User noticed correctly that the first CPU-L2 run had low RAM use. Cause:
+default prefill uses `slot-cache-topk=0`, so the 90 GB prefill bank was not
+populated before the shrink. That run (`DECODE_L2=1`, 32 GB L1) captured
+`0` L2 records and generated 6.04 t/s; treat it only as an empty-L2 overhead
+check, not as a high-residency test.
+
+Corrected high-RAM L1/L2 test:
+
+```bash
+DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_DECODE_L2=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result: 168-slot / 89.95 GiB mixed prefill bank -> 59-slot / 31.59 GiB
+mixed decode L1, CPU L2 captured 1951 resident records, `prefill: 2.22 t/s`,
+`generation: 0.22 t/s`. A default-length version captured 2032 records and was
+killed after more than 12 minutes. CPU-backed L2 promotion/copy is therefore
+not a viable path for the short 90 GB target.
+
+Six-slot baselines:
+
+- `DS4_FLASH_MOE_DECODE_SLOT_BANK=6 DS4_FLASH_MOE_SIX_SLOT_BASELINE=1`
+  forces no slot reuse and reloads the active six experts into slots 0..5 every
+  layer: 6.85 t/s.
+- `DS4_FLASH_MOE_DECODE_SLOT_BANK=6` with normal LRU reuse: 9.11 t/s.
+- Attached user 32 GB control, same workflow shape: 12.71 t/s.
+
+Conclusion: the 32 GB speed comes from the mixed-bank grouped compute path plus
+enough temporal slot reuse. "Just six slots" is too miss-heavy, and CPU-L2
+promotion makes the decode hot path worse. Do not re-run CPU-L2, GPU-L2,
+active staging, or six-slot no-reuse unless the workload changes radically.
+
+Chunked mixed no-copy probe is also negative:
+
+- `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=56`: full 168-slot /
+  89.95 GiB bank split into 3 chunks, `generation: 5.48 t/s`.
+- `DS4_FLASH_MOE_CHUNKED_MIXED=1 DS4_FLASH_MOE_CHUNK_SLOTS=84`: full bank split
+  into 2 chunks, `generation: 4.41 t/s`.
+
+Chunking avoids both the giant full-layer bind and L2 copies, but multiple
+chunk dispatches plus accumulation still lose badly to the attached 32 GB
+control (12.71 t/s). Treat chunked mixed as eliminated for the short 90 GB
+target.
