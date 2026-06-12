@@ -2605,6 +2605,11 @@ typedef struct {
 struct ds4_flash_moe_sidecar {
     char *dir;
     uint32_t slot_bank;
+    /* True when slot_bank came from --ssd-cache auto. The automatic
+     * decode-bank shrink only applies then; an explicit --ssd-cache size or
+     * --moe-slot-bank count is honored literally (the user said what they
+     * meant), with the cliff warning but no silent override. */
+    bool slot_bank_auto;
     uint32_t n_layer;
     uint32_t n_expert;
     uint64_t max_expert_stride;
@@ -3610,6 +3615,7 @@ static bool ds4_flash_moe_resolve_ssd_cache_slots(
     }
 
     sidecar->slot_bank = best;
+    sidecar->slot_bank_auto = auto_budget;
     *slot_bank_io = best;
     fprintf(stderr,
             "ds4: --ssd-cache %s resolved Flash-MoE slot bank: slots=%u "
@@ -11386,6 +11392,7 @@ static int flash_moe_cache_io_split(void);
 static bool flash_moe_pread_split(int fd, uint64_t offset, uint8_t *dst,
                                   uint64_t bytes, int want);
 static uint32_t flash_moe_decode_prefetch_max_loads(void);
+static uint32_t flash_moe_decode_slot_bank_target(const ds4_gpu_graph *g);
 
 static bool metal_graph_flash_moe_prepare_slot_bank_owner(
         ds4_gpu_tensor *tensor,
@@ -11871,6 +11878,27 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     "32/48/64 or use --ssd-cache auto.\n",
                     g->flash_slot_bank,
                     (double)warn_bank_bytes / 1073741824.0);
+        }
+    }
+
+    {
+        /* Announce the planned decode-bank shrink up front so an explicit
+         * --ssd-cache size being repurposed as "prefill budget" is never a
+         * surprise discovered from memory graphs. */
+        const uint32_t decode_slots = flash_moe_decode_slot_bank_target(g);
+        if (decode_slots != 0 && decode_slots < g->flash_slot_bank) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE bank plan: %u slots (%.2f GiB) for prefill; after the "
+                    "first prefill the decode bank shrinks to %u slots (%.2f GiB) so the OS "
+                    "file cache can serve decode-miss reads. "
+                    "DS4_FLASH_MOE_DECODE_SLOT_BANK=0 keeps the full bank (decode collapses "
+                    "when the sidecar is larger than RAM); =<slots> or "
+                    "DS4_FLASH_MOE_DECODE_SSD_CACHE=<size> picks your own decode bank.\n",
+                    g->flash_slot_bank,
+                    (double)warn_bank_bytes / 1073741824.0,
+                    decode_slots,
+                    (double)decode_slots * (double)DS4_N_LAYER *
+                        (double)g->flash_moe->max_expert_stride / 1073741824.0);
         }
     }
 
@@ -16087,10 +16115,15 @@ static uint32_t flash_moe_decode_slot_bank_target(const ds4_gpu_graph *g) {
      * 96 GiB M3U at a 48 GiB bank). Shrink the decode bank to the same target
      * --ssd-cache auto would pick: DS4_SSD_CACHE_AUTO_PCT% (default 20) of the
      * RAM left after dense + context. On memory-rich machines (sidecar fits in
-     * RAM) the bank coexists with the cache, so leave it alone. Opt out with
-     * DS4_FLASH_MOE_DECODE_SLOT_BANK=0; this fires only when --ssd-cache / the
-     * resolved bank is large enough that the shrink target is actually smaller.
+     * RAM) the bank coexists with the cache, so leave it alone.
+     *
+     * ONLY applies when the bank size came from --ssd-cache auto. An explicit
+     * --ssd-cache <size> or --moe-slot-bank <N> is honored literally through
+     * decode — the user said what they meant; they get the cliff warning, not
+     * a silent override. Opt in to a decode shrink with an explicit size via
+     * DS4_FLASH_MOE_DECODE_SLOT_BANK / DS4_FLASH_MOE_DECODE_SSD_CACHE above.
      */
+    if (!g->flash_moe->slot_bank_auto) return 0;
     const uint64_t ram = ds4_gpu_system_memory_bytes();
     uint64_t sidecar_full = 0;
     if (ram == 0 ||
