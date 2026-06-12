@@ -256,3 +256,61 @@ Interpretation:
   - B: mixed 32 GB L1 plus high-memory per-slot L2 promotion;
   - C: active six-expert staging into a tiny mixed bank before the existing
     mixed-bank kernel.
+
+### 2026-06-12 - Step 4 mixed-residency probes after user pushback
+
+User correctly pointed out that the 90 GB path was still slower than the 32 GB
+bank, so the target is not merely "above 5 t/s"; it is preserving useful extra
+residency without losing the 32 GB decode speed.
+
+Additional controlled runs, current binary after Candidate A, same prompt and
+deterministic decode:
+
+| config | ctx | layout | tok64 residency | tok64 hit | generation | interpretation |
+|---|---:|---|---:|---:|---:|---|
+| 90 GB | 4096 | `per-slot-auto` | tok16 1763/7224 | tok16 62.7% | 5.47 t/s | matched no-staging reference |
+| 90 GB + active staging prototype | 4096 | per-slot storage -> 6-slot staged bank | tok16 1763/7224 | tok16 62.7% | 5.16 t/s | negative; copy/stage loses |
+| 90 GB + lazy per-slot | 4096 | `per-slot-auto-lazy` | tok16 1763/7224 | tok16 62.7% | 5.56 t/s | tiny positive, not enough |
+| 90 GB + lazy per-slot | 32768 | `per-slot-auto-lazy` | 3779/7224 | 85.4% | 6.01 t/s | still behind 32 GB |
+| 32 GB | 32768 | mixed `slot-bank` | 2535/2537 | 77.3% | 7.48 t/s | current-binary fast reference |
+| 40 GB | 32768 | mixed `slot-bank` | 3078/3182 | 80.2% | 7.15 t/s | more hits, slower than 32 GB |
+
+Active staging details:
+
+- A narrow env-gated prototype copied the six active per-slot experts for each
+  layer into six-slot family staging banks, remapped selected IDs to `0..5`,
+  and ran the existing banked MoE path.
+- It was correct on the smoke output but slower than the existing grouped
+  slots6 per-slot path, so the scaffold was removed instead of committed.
+- The result argues that adding a per-token copy layer is not the right way to
+  recover the 32 GB speed.
+
+Lazy per-slot details:
+
+- `DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1` keeps the 168-slot logical capacity
+  but allocates Metal buffers only for slots actually installed.
+- It reduces upfront allocation (`0.0GB allocated, 89.9GB planned`) and gives a
+  small short-run lift, but the long run remains ~20% slower than 32 GB while
+  achieving the same 85.4% tok64 hit rate as the full 90 GB per-slot path.
+- This suggests the residual cost is not only cold unused Metal allocation.
+
+40 GB mixed-bank probe:
+
+- 40 GB stays below the 44 GiB auto-split threshold and therefore uses the fast
+  mixed expert-major bank.
+- It improves tok64 hit rate over 32 GB (80.2% vs 77.3%) but still loses
+  generation throughput (7.15 vs 7.48 t/s). The speed/residency optimum is
+  already bending down by 40 GB on this prompt.
+
+Updated conclusion:
+
+- Extra 90 GB residency is real, but the saved misses do not pay for the extra
+  decode overhead on this short-context workload.
+- Candidate C is negative. Lazy allocation is also not sufficient.
+- A production "mixed" solution likely needs a policy change, not just a
+  kernel/dispatch shape change: decode should probably keep a moderate fast
+  mixed bank (near 32 GB on this machine/prompt) and use additional memory only
+  where it demonstrably reduces true SSD misses on longer or colder workloads.
+  The next implementation should be explicit about that tradeoff, e.g. an
+  auto-tuned decode bank cap or a real two-tier L1/L2 design with promotion
+  only when L2 hits replace true disk reads.

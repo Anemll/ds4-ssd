@@ -276,3 +276,46 @@ Negative / no-longer-needed:
 - Instruments Metal System Trace is no longer required to decide the root
   cause, though it could still quantify encode vs driver time on the legacy
   mixed-bank path if someone wants a postmortem.
+
+## UPDATE (2026-06-12): 90 GB is fixed, but still slower than the 32 GB optimum
+
+User pushback was right: the per-slot-auto fix solved the catastrophic 90 GB
+decode cliff and met the >5 t/s target, but it did **not** solve the stronger
+goal of making high-residency 90 GB decode as fast as the 32 GB mixed bank.
+
+Current M5 Max 128 GB controls, same prompt, `--ctx 32768 -n 64 --temp 0`:
+
+| config | layout | tok64 residency | tok64 hit | generation |
+|---|---|---:|---:|---:|
+| 90 GB | `per-slot-auto` / grouped MXFP4 slots6 | 3779/7224 | 85.4% | ~6.0-6.2 t/s |
+| 90 GB + lazy per-slot | `per-slot-auto-lazy` | 3779/7224 | 85.4% | 6.01 t/s |
+| 40 GB | mixed `slot-bank` | 3078/3182 | 80.2% | 7.15 t/s |
+| 32 GB | mixed `slot-bank` | 2535/2537 | 77.3% | 7.48 t/s |
+
+Negative experiments added to the "do not re-run casually" list:
+
+- MXFP4 grouped `slots6` per-slot decode is correct and a small win over
+  fallback (`90GB -n64`: 6.18 vs 6.02 t/s), but it does not close the gap to
+  32 GB mixed (`7.4+ t/s`).
+- Active six-expert staging prototype (90 GB per-slot storage -> tiny staged
+  bank -> existing banked MoE) was correct but slower: 5.16 t/s at
+  `--ctx 4096 -n 16` vs 5.47 t/s matched no-staging. The copy layer loses.
+  The scaffold was removed; result is recorded in
+  `docs/mxfp4-mixed-residency-plan.md`.
+- `DS4_FLASH_MOE_PER_SLOT_LAZY_ALLOC=1` reduces upfront Metal allocation and
+  gives only a tiny short-run lift (5.56 vs 5.47 t/s at `--ctx 4096 -n 16`);
+  long run remains slower than 32 GB (6.01 t/s at `--ctx 32768 -n 64`).
+- 40 GB mixed improves hit rate over 32 GB but is already slower. The
+  speed/residency optimum on this prompt is near 32 GB, not "as large as
+  possible".
+
+Updated direction:
+
+- Treat the remaining problem as a policy/working-set tradeoff, not just a
+  missing kernel. Extra 90 GB residency is real, but on this short prompt the
+  saved misses do not pay for the larger decode working set.
+- The next credible mixed solution should keep decode on a moderate fast mixed
+  bank (around the measured optimum) and use extra memory only when it replaces
+  true SSD reads: e.g. an auto-tuned decode bank cap, or a real two-tier
+  mixed-L1 / large-L2 cache with promotion. Do not resurrect active staging
+  unless a new workload proves the copy cost is cheaper than true disk misses.
