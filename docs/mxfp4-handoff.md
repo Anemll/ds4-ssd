@@ -182,3 +182,33 @@ iostat -d -w 5   # sustained 300+ MB/s during decode = cache squeeze
   runs, never bench in parallel.
 - The first run after a cache-polluting run is penalized while the page
   cache repopulates; trust the second run at a given config.
+
+## BREAKTHROUGH (2026-06-12): the warm-big-bank cliff is O(bank) in routed_moe, NOT miss IO
+
+User pushback forced a re-test that overturned the cache-squeeze-only model:
+
+- 90 GB bank, warm, 80% hit rate, only ~26 misses/token (~330 MB IO): 0.22 t/s.
+- 20 GB bank, ~229 misses/token (~2.9 GB IO): 3.6-10 t/s.
+  9x LESS IO but 30x SLOWER => IO volume cannot be the warm-regime mechanism.
+- DS4_FLASH_MOE_DID_MODIFY_RANGE=0 A/B at 90 GB: identical 0.22 t/s
+  (didModifyRange is a no-op on shared buffers; neither missing nor harmful).
+- DS4_METAL_DECODE_STAGE_PROFILE=1 localizes it completely:
+  routed_moe = 80.4 ms/layer at 90 GB vs 4.1 ms/layer at 20 GB (19x), all
+  other stages flat. 80.4 x 43 = 3.5 s of the 4.5 s token. Matches the old
+  slot225 finding (x6.7) - same mechanism, quant- and machine-independent.
+- Cache squeeze remains real but only for the COLD regime (258 misses/token,
+  iostat-confirmed disk-bound). Two mechanisms, not one.
+
+Leads for the O(bank) routed_moe cost (next session, in order):
+1. ICB replay encode calls [enc useResource:] per entry incl. the layer's
+   mixed bank buffer (ds4_metal.m ~17313-17322, ~17686-17701). Driver
+   validation of a 2.14 GB freshly-CPU-written wired buffer per layer per
+   token would scale with bank bytes. Test: disable ICB replay at 90 GB
+   (ds4_gpu_flash_moe_icb_replay_enabled env) and compare.
+2. Hazard tracking: bank buffers are default-tracked; CPU writes + GPU reads
+   on a huge tracked buffer may serialize. Test: allocate banks with
+   MTLResourceHazardTrackingModeUntracked (fences already exist via
+   ds4_gpu_synchronize at install boundaries).
+3. First-GPU-touch page validation of CPU-written pages in the wired bank.
+   Test: GPU-blit a dummy read over installed slots right after install,
+   off the critical path.
