@@ -632,3 +632,49 @@ Interpretation:
 - The result rules out the simplest "smaller bound MTLBuffer but same kernel"
   theory. The remaining fast source is still the OS file cache plus a moderate
   Metal L1, not any full 90 GB Metal-owned residency tested so far.
+
+### 2026-06-12 - Step 13 shrink-carry L1 seed probe
+
+Tested whether a 90 GB prefill bank can seed a 32 GB decode L1 without keeping
+the full 90 GB bank in the decode hot path.
+
+First run:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_SHRINK_CARRY=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result: `preserved=0/0`, prefill `5.66 t/s`, generation `5.03 t/s`. This was
+not a real carry test because normal short prefill still leaves the resident
+slot cache empty.
+
+Corrected run:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_SHRINK_CARRY=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result: 168-slot / 89.95 GiB prefill bank shrunk to 59-slot / 31.59 GiB decode
+L1, `preserved=1922/1951`, tok16 resident `2476/2537`, tok16 hit `75.7%`,
+prefill `2.27 t/s`, generation `3.99 t/s`.
+
+Interpretation:
+
+- The carry mechanism works mechanically when prefill slot-cache installs are
+  forced.
+- It is still negative for the short target: prefill install overhead is large,
+  and decode remains well below both the attached 32 GB reference and the plain
+  fast-L1 shrink path.
+- Do not use prefill top-k slot-cache installs plus shrink-carry as the 90 GB
+  solution for short decode.

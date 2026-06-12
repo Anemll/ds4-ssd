@@ -479,3 +479,12 @@ Metal trace split and final slots6 negatives:
   user run remains the higher observed reference at `generation: 12.71 t/s`;
   treat the 32 GB selected-id path as the reference shape, with exact t/s
   sensitive to sample/cache/thermal state.
+- Shrink-carry L1 seed probe
+  (`DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB DS4_FLASH_MOE_SHRINK_CARRY=1`):
+  without forced prefill slot-cache installs it preserved `0/0` records and
+  generated `5.03 t/s`. Corrected with
+  `DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84`, it preserved `1922/1951` records
+  into the 59-slot / 31.59 GiB decode L1, reached tok16 hit 75.7%, and still
+  generated only `3.99 t/s` after prefill slowed to `2.27 t/s`. Negative; a
+  90 GB prefill bank can seed the smaller L1 mechanically, but not profitably
+  for the short target.
