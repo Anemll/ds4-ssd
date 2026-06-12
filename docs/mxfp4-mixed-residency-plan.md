@@ -739,3 +739,14 @@ Interpretation:
 - The result was below the attached 12.71 t/s 32 GB control, but the immediate
   32 GB re-anchor was also below it. Treat this as current machine state, not
   proof that the policy cannot reach the attached 32 GB number after cooldown.
+
+Follow-up OS-cache-only attempts were negative:
+
+| config | prefill | generation | interpretation |
+|---|---:|---:|---|
+| prefill/decode L1 cap + `DS4_FLASH_MOE_XLAYER_TOPK=84` | 5.64 t/s | 10.30 t/s | extra buffered cross-layer reads slow prefill and do not lift decode |
+| local `F_RDADVISE` xlayer84 prototype | 4.37 t/s | 10.67 t/s | advisory calls avoid CPU buffer copies but still slow prefill and do not improve generation |
+
+The `F_RDADVISE` hook was reverted and not committed. These results make the
+OS-cache-L2 idea narrower: simply asking prefill to warm many more expert
+records is not enough for the short target.

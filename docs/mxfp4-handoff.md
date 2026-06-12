@@ -505,3 +505,9 @@ Metal trace split and final slots6 negatives:
   plain 32 GB re-anchor was `10.67 t/s`. This confirms it matches the fast L1
   shape, but it intentionally leaves RAM use low and does not solve high
   Metal-owned 90 GB residency.
+- OS-cache-only follow-ups are also negative so far: prefill/decode L1 cap plus
+  `DS4_FLASH_MOE_XLAYER_TOPK=84` generated `10.30 t/s`, and a local
+  `F_RDADVISE` xlayer84 prototype generated `10.67 t/s` while slowing prefill
+  to `4.37 t/s`. The RDADVISE hook was reverted and not committed. Do not
+  re-run broad xlayer top-k or RDADVISE page-cache warmups for the short target
+  without a more selective policy.
