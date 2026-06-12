@@ -411,12 +411,16 @@ Six-slot baselines requested by the user:
 |---|---:|---|---:|
 | `DS4_FLASH_MOE_DECODE_SLOT_BANK=6 DS4_FLASH_MOE_SIX_SLOT_BASELINE=1` | 6 slots / 3.21 GiB | always reload active experts into slots 0..5 | 6.85 t/s |
 | `DS4_FLASH_MOE_DECODE_SLOT_BANK=6` | 6 slots / 3.21 GiB | normal LRU reuse | 9.11 t/s |
+| `DS4_FLASH_MOE_DECODE_SSD_CACHE=36GB` | 67 slots / 35.87 GiB | normal LRU reuse | 10.36 t/s |
 | attached 32 GB control | 59 slots / 31.59 GiB | normal LRU reuse | 12.71 t/s |
 
 Interpretation:
 
 - "Just six active slots" is not the hidden fast path. No-reuse six-slot decode
   is too miss-heavy, and even normal six-slot LRU trails the 32 GB bank.
+- Raising the fast L1 above 32 GB does not help on this prompt. The 36 GB
+  point has a similar steady-state hit rate to 32 GB but remains around
+  10.36 t/s, still below the attached 32 GB control.
 - The 32 GB result is fast because it combines the mixed-bank grouped compute
   path with enough per-layer temporal reuse to avoid most repeated installs.
 - Current evidence rules out CPU-L2 promotion and active staging for the short
@@ -487,3 +491,36 @@ Result: negative. Binding all chunks recreates the original big-bank validation
 cliff. Compact active-chunk binding works but is still slower than ordinary
 chunked slots6 (6.18 t/s) and far below the 32 GB control. Treat slots6-shaped
 full-residency paths as eliminated for the >12 t/s target.
+
+### 2026-06-12 - Step 9 corrected high-memory GPU-L2 probe
+
+The first GPU-L2 log was not a useful-residency test: it allocated the high
+memory layout but reported `preserved L1=0 L2=0/0` because the short prompt did
+not populate the prefill slot cache. Re-ran with explicit prefill cache fill:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+DS4_FLASH_MOE_GPU_L2=1 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+| config | decode layout | preserved after prefill | tok16 L1 hit | prefill | generation |
+|---|---:|---:|---:|---:|---:|
+| 90 GB split GPU-L2, topk84 | 59-slot L1 / 109-slot GPU L2, total 89.95 GiB bank | L1=1922, L2=29/1951 | 75.7% | 2.12 t/s | 0.10 t/s |
+
+Interpretation:
+
+- This is the high-RAM case the low-memory concern asked for: total Metal bank
+  allocation remains 89.95 GiB, with dense/context total at 100.9 GiB.
+- It is dramatically slower than both the 32 GB control and the shrink-only L1.
+  Even when the routed kernel binds only the 59-slot L1, retaining the large
+  Metal L2 plus doing per-miss GPU blits/writebacks destroys decode throughput.
+- GPU-owned high-residency backing is eliminated for the short >12 t/s target.
+  The only fast memory backing seen so far is the OS file cache serving
+  decode-miss reads while the Metal working set stays near the 32 GB class.

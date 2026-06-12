@@ -398,12 +398,15 @@ Six-slot baselines:
   forces no slot reuse and reloads the active six experts into slots 0..5 every
   layer: 6.85 t/s.
 - `DS4_FLASH_MOE_DECODE_SLOT_BANK=6` with normal LRU reuse: 9.11 t/s.
+- `DS4_FLASH_MOE_DECODE_SSD_CACHE=36GB` gives a 67-slot / 35.87 GiB L1 with
+  normal LRU reuse: 10.36 t/s. The larger L1 does not beat the 32 GB class.
 - Attached user 32 GB control, same workflow shape: 12.71 t/s.
 
 Conclusion: the 32 GB speed comes from the mixed-bank grouped compute path plus
 enough temporal slot reuse. "Just six slots" is too miss-heavy, and CPU-L2
 promotion makes the decode hot path worse. Do not re-run CPU-L2, GPU-L2,
-active staging, or six-slot no-reuse unless the workload changes radically.
+active staging, six-slot no-reuse, or larger-L1 sweeps unless the workload
+changes radically.
 
 Chunked mixed no-copy probe is also negative:
 
@@ -437,3 +440,12 @@ Metal trace split and final slots6 negatives:
   56-slot chunks, chunk id + local slot map in-kernel. Binding all chunks gave
   0.18 t/s; compacting to active chunks gave 4.72 t/s. Negative; do not pursue
   slots6-shaped full-residency variants for the >12 t/s target.
+- Corrected high-memory GPU-L2 test
+  (`DS4_FLASH_MOE_PREFILL_SLOT_CACHE_TOPK=84
+  DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB DS4_FLASH_MOE_GPU_L2=1`): 168-slot
+  prefill split into 59-slot L1 + 109-slot GPU L2, total bank still 89.95 GiB
+  and total Metal footprint 100.9 GiB. It preserved 1922 records in L1 and 29
+  in L2 after prefill, reached tok16 L1 hit 75.7%, and generated only 0.10 t/s.
+  This answers the low-RAM concern: high RAM in Metal-owned backing buffers is
+  real but toxic. The fast backing source is the OS file cache with a small
+  Metal L1, not a ds4/Metal-owned 90 GB L2.
