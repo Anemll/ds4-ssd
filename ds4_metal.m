@@ -6021,6 +6021,63 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
     }
 }
 
+ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map,
+                                         uint64_t    map_size,
+                                         uint64_t    offset,
+                                         uint64_t    bytes) {
+    if (!g_initialized && !ds4_gpu_init()) return NULL;
+    if (!map || bytes == 0 || offset > map_size || bytes > map_size - offset) {
+        return NULL;
+    }
+
+    const long page_long = sysconf(_SC_PAGESIZE);
+    const uint64_t page = page_long > 0 ? (uint64_t)page_long : 16384u;
+    const uint64_t page_offset = offset & ~(page - 1u);
+    const uint64_t leading = offset - page_offset;
+    if (leading > UINT64_MAX - bytes) return NULL;
+    const uint64_t wrap_bytes = leading + bytes;
+    if (page_offset > map_size || wrap_bytes > map_size - page_offset) {
+        return NULL;
+    }
+    if (page_offset > (uint64_t)UINTPTR_MAX ||
+        leading > (uint64_t)NSUIntegerMax ||
+        wrap_bytes > (uint64_t)NSUIntegerMax) {
+        return NULL;
+    }
+
+    const uint64_t max_buffer = (uint64_t)[g_device maxBufferLength];
+    if (max_buffer != 0 && wrap_bytes > max_buffer) {
+        fprintf(stderr,
+                "ds4: Metal mmap tensor %.2f MiB exceeds maxBufferLength %.2f MiB\n",
+                wrap_bytes / 1024.0 / 1024.0,
+                max_buffer / 1024.0 / 1024.0);
+        return NULL;
+    }
+
+    const uintptr_t addr = (uintptr_t)map;
+    if (page_offset > (uint64_t)(UINTPTR_MAX - addr)) return NULL;
+
+    @autoreleasepool {
+        DS4MetalTensor *view = [DS4MetalTensor new];
+        view.buffer = [g_device newBufferWithBytesNoCopy:(void *)(addr + (uintptr_t)page_offset)
+                                                  length:(NSUInteger)wrap_bytes
+                                                 options:MTLResourceStorageModeShared
+                                             deallocator:nil];
+        if (!view.buffer) {
+            fprintf(stderr,
+                    "ds4: Metal could not wrap mmap tensor range %.2f..%.2f GiB\n",
+                    offset / 1073741824.0,
+                    (offset + bytes) / 1073741824.0);
+            return NULL;
+        }
+        view.buffer.label = @"ds4_mmap_view";
+        view.offset = leading;
+        view.bytes = bytes;
+        view.owner = 0;
+        return (__bridge_retained ds4_gpu_tensor *)view;
+    }
+}
+
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor) {
     if (!tensor) return;
     @autoreleasepool {

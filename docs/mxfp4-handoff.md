@@ -512,3 +512,79 @@ Metal trace split and final slots6 negatives:
   to `4.37 t/s`. The RDADVISE hook was reverted and not committed. Do not
   re-run broad xlayer top-k or RDADVISE page-cache warmups for the short target
   without a more selective policy.
+
+## UPDATE (2026-06-12): 90 GB explicit decode now auto-selects direct mmap active records
+
+Fixed the strict target. A large MXFP4 slot bank (`slot_bank > 128`, e.g.
+`--ssd-cache 90GB` -> 168 slots) now auto-selects a direct sidecar-mmap decode
+path instead of allocating/binding the old 90 GiB mixed Metal bank.
+
+What changed:
+
+- Large MXFP4 banks auto-enable direct mmap decode unless
+  `DS4_FLASH_MOE_DIRECT_MMAP_AUTO=0` or
+  `DS4_FLASH_MOE_DISABLE_DIRECT_MMAP_AUTO=1` is set.
+- If the sidecar was loaded before final `--ssd-cache` sizing and mmap is off,
+  the graph late-mmaps the already-open layer files when direct mmap is chosen.
+- Decode uses active slots6 record buffers: six cached no-copy full expert
+  record views per layer/token, with gate/up/down offsets handled in-kernel.
+  This avoids the old 18 family-buffer direct path and the giant mixed-bank
+  resource bind.
+- Direct active-record mode prewarms all `43 * 256 = 11008` record views by
+  default for short-decode stability. Disable with
+  `DS4_FLASH_MOE_DIRECT_MMAP_PREWARM_VIEWS=0`.
+- Fallback knobs: `DS4_FLASH_MOE_DIRECT_MMAP_FAMILY_SLOTS6=1` restores the
+  older 18-family-buffer path; `DS4_FLASH_MOE_DIRECT_MMAP_RECORD_SLOTS6=0`
+  disables the record path when direct slots6 was explicitly requested.
+
+Validated with the exact handoff command, no direct env:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 ./ds4 \
+  -m ~/Models/DSv4-Flash-MXFP4-native-flash --ssd-cache 90GB \
+  --ctx 4096 -n 16 --temp 0 -p "What is Apple Neural Engine"
+```
+
+Result:
+
+- Auto logs: late mmap `137.06 GiB`, direct read-only sidecar mmap,
+  `slots=256`, `gpu-bank=0.0GB`, `11008 record views` prewarmed.
+- Residency: tok16 `11008/11008 (100.0%)`, `bank-resident=137.06 GiB`.
+- Throughput: `prefill: 6.99 t/s`, `generation: 13.77 t/s`.
+
+Validated with the stricter attached-style shape, also no direct env:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 ./ds4 \
+  -m ~/Models/DSv4-Flash-MXFP4-native-flash --ssd-cache 90GB \
+  --ctx 32768 -n 16 --temp 0 -p "What is Apple Neural Engine"
+```
+
+Result: same auto direct-record path, tok16 `100.0%` logical residency,
+`prefill: 5.80 t/s`, `generation: 13.43 t/s`. This beats the attached warmed
+32 GB control (`12.71 t/s`) and the original 90 GB warm-bank baseline
+(`0.22-0.28 t/s`).
+
+Fresh local 32 GB re-anchors in the same session were cold/miss-heavy
+(`1.58 t/s`, then `3.84 t/s`; tok16 hit only `62.6%`), so keep the attached
+warmed 32 GB run as the stricter reference.
+
+Important interpretation for the RAM-use question:
+
+- The winning high-residency source is the OS file cache/read-only sidecar mmap,
+  not a 90 GiB ds4/Metal-owned allocation.
+- Low ds4 private/wired RAM is expected. Activity Monitor may not show a huge
+  ds4 resident allocation because the useful residency is file-backed cache.
+- Full Metal-owned high-RAM variants remain negative: GPU-L2, full per-slot
+  record table, chunked slots6, and full parent direct mmap buffers all lost.
+
+New negatives/partials to avoid re-running:
+
+- Full direct mmap parent layer buffers:
+  `--ssd-cache 90GB --ctx 4096 -n 16` -> `generation: 0.08 t/s`.
+- Active direct mmap slots6 with uncached family views:
+  `generation: 4.83 t/s`.
+- Cached family views: `12.31 t/s` on the original short shape but only
+  `11.50-11.87 t/s` on `--ctx 32768 -n 16`.
+- Direct record slots6 without prewarm: `12.40 t/s` on `--ctx 32768 -n 16`,
+  clears 12 but remains below the attached 32 GB control.

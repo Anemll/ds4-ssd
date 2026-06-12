@@ -28,6 +28,8 @@ ds4_gpu_tensor *ds4_gpu_tensor_alloc_managed(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_view(const ds4_gpu_tensor *base, uint64_t offset, uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_size,
                                           uint64_t offset, uint64_t bytes);
+ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map, uint64_t map_size,
+                                         uint64_t offset, uint64_t bytes);
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
@@ -100,6 +102,10 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map,
                                           uint64_t    model_size,
                                           uint64_t    offset,
                                           uint64_t    bytes);
+ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map,
+                                         uint64_t    map_size,
+                                         uint64_t    offset,
+                                         uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
 int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity);
 int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor);

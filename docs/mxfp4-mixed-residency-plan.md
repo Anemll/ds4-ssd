@@ -751,3 +751,91 @@ Follow-up OS-cache-only attempts were negative:
 The `F_RDADVISE` hook was reverted and not committed. These results make the
 OS-cache-L2 idea narrower: simply asking prefill to warm many more expert
 records is not enough for the short target.
+
+### 2026-06-12 - Step 15 direct mmap active-record solution
+
+User pushback on low RAM use led to a first-principles split:
+
+- High ds4/Metal-owned RAM has been toxic for decode because any large bound
+  bank or large indirect-resource table pays driver/validation cost.
+- The fast high-residency backing source is the macOS file cache and read-only
+  sidecar mmap, not a 90 GiB shared Metal allocation.
+- The hot Metal resource set must stay tiny: bind only the six active experts.
+
+Implemented direct mmap active-record decode:
+
+- `ds4_gpu_mmap_tensor_view()` wraps arbitrary sidecar mmap ranges as no-copy
+  Metal buffers with page-aligned bases and tensor offsets.
+- Large MXFP4 slot banks now auto-select direct mmap decode when the resolved
+  slot bank is >128 slots. Opt out with
+  `DS4_FLASH_MOE_DIRECT_MMAP_AUTO=0`.
+- Auto direct mode late-mmaps the sidecar if load-time mmap was off because
+  `--ssd-cache` sizing had not been resolved yet.
+- Decode uses active slots6 record buffers by default: six cached full expert
+  record views per layer/token, with family offsets handled in-kernel. This
+  reduces the active direct mmap path from 18 family-buffer bindings to six
+  record-buffer bindings.
+- Direct active-record mode prewarms all 43 * 256 = 11008 record views by
+  default for short-decode stability. Opt out with
+  `DS4_FLASH_MOE_DIRECT_MMAP_PREWARM_VIEWS=0`.
+- Comparison fallback: `DS4_FLASH_MOE_DIRECT_MMAP_FAMILY_SLOTS6=1` restores
+  the older 18-family-buffer direct path.
+
+Negative/partial prototypes on the way:
+
+| config | command shape | prefill | generation | interpretation |
+|---|---|---:|---:|---|
+| full direct mmap parent layer buffers | `--ssd-cache 90GB --ctx 4096 -n 16` | 0.87 t/s | 0.08 t/s | negative; binding full file-backed layer buffers recreates the giant-resource validation cliff |
+| active direct mmap slots6, uncached family views | `--ssd-cache 90GB --ctx 4096 -n 16` | 5.40 t/s | 4.83 t/s | partial; per-token no-copy view creation too expensive |
+| cached active family views | `--ssd-cache 90GB --ctx 4096 -n 16` | 6.96 t/s | 12.31 t/s | clears original short target but not the stricter 32 GB-style run |
+| cached active family views | `--ssd-cache 90GB --ctx 32768 -n 16` | 5.46 t/s | 11.50 t/s | below attached 32 GB control |
+| cached family views + prewarm | `--ssd-cache 90GB --ctx 32768 -n 16` | 6.01 t/s | 11.87 t/s | still below target/control |
+| direct record slots6, no prewarm | `--ssd-cache 90GB --ctx 32768 -n 16` | 5.86 t/s | 12.40 t/s | clears 12, but below attached 32 GB 12.71 |
+
+Validated solution, no direct env required:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 4096 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+- Auto logs: late mmap `137.06 GiB`, direct read-only sidecar mmap,
+  `slots=256`, `gpu-bank=0.0GB`, `11008 record views` prewarmed.
+- Residency: tok16 `11008/11008 (100.0%)`, `bank-resident=137.06 GiB`.
+- Throughput: `prefill: 6.99 t/s`, `generation: 13.77 t/s`.
+
+Strict attached-style validation:
+
+```bash
+DS4_FLASH_MOE_RESIDENCY_STATS=8 \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 -n 16 --temp 0 \
+  -p "What is Apple Neural Engine"
+```
+
+Result:
+
+- Same auto direct-record path and full logical/file-backed residency.
+- Throughput: `prefill: 5.80 t/s`, `generation: 13.43 t/s`.
+- This beats both the original 90 GB warm-bank baseline (`0.22-0.28 t/s`) and
+  the attached 32 GB reference (`12.71 t/s`).
+
+Fresh 32 GB re-anchors in the same session were cold/miss-heavy, so do not use
+them as the fast-control ceiling: first run `1.58 t/s`, immediate rerun
+`3.84 t/s`, tok16 hit only `62.6%`. Keep the attached warmed 32 GB result
+(`12.71 t/s`) as the stricter comparison reference.
+
+Interpretation:
+
+- The solution is mixed in the useful sense: high residency is owned by the OS
+  page cache/file-backed mmap, while the Metal hot set stays six small active
+  record buffers per layer.
+- Low app/private RAM is expected and desirable here. Activity Monitor may not
+  show a 90 GiB ds4 allocation because the winning residency is file cache, not
+  wired ds4/Metal memory.
+- Do not resurrect full Metal-owned L2, record-table argument buffers, chunked
+  slots6, or full parent direct mmap buffers for this short target.
