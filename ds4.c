@@ -9822,6 +9822,7 @@ typedef struct {
     ds4_gpu_tensor *flash_up_bank[DS4_MAX_LAYER];
     ds4_gpu_tensor *flash_down_bank[DS4_MAX_LAYER];
     bool flash_per_slot_buffers;
+    bool flash_per_slot_buffers_auto;
     bool flash_per_slot_lazy_alloc;
     bool flash_per_expert_buffers;
     ds4_gpu_tensor *flash_expert_bank[DS4_MAX_LAYER][DS4_MAX_EXPERT];
@@ -11378,7 +11379,8 @@ static bool metal_graph_alloc(
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
 static int get_prefill_dedup_prefetch(void);
 static int get_prefill_slot_cache_topk(uint32_t slot_bank);
-static void metal_graph_log_prefill_compute_once(uint32_t slot_bank,
+static void metal_graph_log_prefill_compute_once(const ds4_gpu_graph *g,
+                                                 uint32_t slot_bank,
                                                  const ds4_layer_weights *layer);
 static bool flash_moe_mixed_slot_bank_enabled(void);
 static bool flash_moe_layer_slot_slab_enabled(void);
@@ -11387,6 +11389,7 @@ static bool flash_moe_slot_bank_touch_pages_enabled(void);
 static bool flash_moe_baked_slot_decode_enabled(void);
 static bool flash_moe_per_expert_buffers_enabled(void);
 static bool flash_moe_per_slot_buffers_enabled(void);
+static bool flash_moe_auto_per_slot_buffers_enabled(const ds4_flash_moe_sidecar *sidecar);
 static bool flash_moe_per_slot_lazy_alloc_enabled(void);
 static int flash_moe_cache_io_split(void);
 static bool flash_moe_pread_split(int fd, uint64_t offset, uint8_t *dst,
@@ -11858,7 +11861,17 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
             (g->flash_mixed_slot_bank ? "mixed expert-major" : "separate families"));
     const uint64_t warn_slot_bank_bytes = 44ull * 1024ull * 1024ull * 1024ull;
     const uint64_t warn_bank_bytes = lazy_per_slot ? planned_bank_bytes : total_bank_bytes;
-    if (g->flash_slot_bank > 128u || warn_bank_bytes >= warn_slot_bank_bytes) {
+    if ((g->flash_slot_bank > 128u || warn_bank_bytes >= warn_slot_bank_bytes) &&
+        g->flash_per_slot_buffers) {
+        fprintf(stderr,
+                "ds4: Flash-MoE large-bank decode guard: slots=%u gpu-bank=%.2f GiB "
+                "uses split per-slot buffers%s, avoiding per-dispatch binding of the "
+                "full mixed layer bank. Set DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS=1 "
+                "to A/B the legacy mixed-bank path.\n",
+                g->flash_slot_bank,
+                (double)warn_bank_bytes / 1073741824.0,
+                g->flash_per_slot_buffers_auto ? " (auto)" : "");
+    } else if (g->flash_slot_bank > 128u || warn_bank_bytes >= warn_slot_bank_bytes) {
         if (DS4_MODEL_VARIANT == DS4_VARIANT_PRO) {
             fprintf(stderr,
                     "ds4: warning: very large Pro Flash-MoE slot bank can collapse decode throughput "
@@ -11928,7 +11941,10 @@ static bool metal_graph_enable_flash_moe(
     if (DS4_N_EXPERT > DS4_MAX_EXPERT) return false;
 
     const bool per_expert = flash_moe_per_expert_buffers_enabled();
-    const bool per_slot = !per_expert && flash_moe_per_slot_buffers_enabled();
+    const bool per_slot_env = flash_moe_per_slot_buffers_enabled();
+    const bool per_slot_auto =
+        !per_expert && !per_slot_env && flash_moe_auto_per_slot_buffers_enabled(sidecar);
+    const bool per_slot = !per_expert && (per_slot_env || per_slot_auto);
     const bool per_slot_lazy = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
     const uint32_t effective_slot_bank = per_expert ? DS4_N_EXPERT : sidecar->slot_bank;
     const uint64_t layer_slots = (uint64_t)DS4_N_LAYER * effective_slot_bank;
@@ -11941,6 +11957,7 @@ static bool metal_graph_enable_flash_moe(
     g->flash_moe = sidecar;
     g->flash_slot_bank = effective_slot_bank;
     g->flash_per_slot_buffers = per_slot;
+    g->flash_per_slot_buffers_auto = per_slot_auto;
     g->flash_per_slot_lazy_alloc = per_slot_lazy;
     g->flash_per_expert_buffers = per_expert;
     g->flash_mixed_slot_bank = !g->flash_per_expert_buffers &&
@@ -12067,7 +12084,7 @@ static bool metal_graph_enable_flash_moe(
 
     /* Resolved prefill compute path (routed/dense + precision), printed right
      * here alongside the slot-bank line so it shows at startup. */
-    metal_graph_log_prefill_compute_once(g->flash_slot_bank, layer);
+    metal_graph_log_prefill_compute_once(g, g->flash_slot_bank, layer);
 
     /* Diagnostic for M5 fast path + current prefetch depth (matches anemll-llama pipeline depth) */
     {
@@ -12906,6 +12923,31 @@ static bool flash_moe_per_expert_buffers_enabled(void) {
 static bool flash_moe_per_slot_buffers_enabled(void) {
     return env_flag_enabled("DS4_FLASH_MOE_PER_SLOT_BUFFERS") ||
            env_flag_enabled("DS4_FLASH_MOE_SEPARATE_SLOT_BUFFERS");
+}
+
+static bool flash_moe_auto_per_slot_buffers_enabled(const ds4_flash_moe_sidecar *sidecar) {
+    if (!sidecar || sidecar->slot_bank == 0) return false;
+    if (env_flag_enabled("DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS") ||
+        env_flag_enabled("DS4_FLASH_MOE_FORCE_MIXED_SLOT_BANK")) {
+        return false;
+    }
+    const char *auto_env = getenv("DS4_FLASH_MOE_AUTO_PER_SLOT_BUFFERS");
+    if (auto_env && auto_env[0] && atoi(auto_env) == 0) return false;
+
+    uint64_t total = 0;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+        if (layer->expert_stride > UINT64_MAX / (uint64_t)sidecar->slot_bank) {
+            return false;
+        }
+        const uint64_t layer_bytes =
+            (uint64_t)sidecar->slot_bank * layer->expert_stride;
+        if (total > UINT64_MAX - layer_bytes) return false;
+        total += layer_bytes;
+    }
+
+    const uint64_t split_threshold = 44ull * 1024ull * 1024ull * 1024ull;
+    return total >= split_threshold;
 }
 
 static bool flash_moe_per_slot_lazy_alloc_enabled(void) {
@@ -25404,6 +25446,7 @@ static bool metal_graph_prefill_batch_row_logits(
 /* One-time banner naming the resolved prefill compute path (routed experts +
  * dense projections, with precision), printed like the other startup lines. */
 static void metal_graph_log_prefill_compute_once(
+        const ds4_gpu_graph *g,
         uint32_t slot_bank,
         const ds4_layer_weights *layer) {
     static bool logged = false;
@@ -25492,9 +25535,10 @@ static void metal_graph_log_prefill_compute_once(
     const int  pread_thr    = ds4_flash_prefill_reader_threads();
     const int  readahead    = ds4_flash_prefill_readahead();
     const int  bank_pf      = get_prefill_dedup_prefetch();
-    const bool per_expert   = flash_moe_per_expert_buffers_enabled();
-    const bool per_slot     = !per_expert && flash_moe_per_slot_buffers_enabled();
-    const bool lazy_per_slot = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
+    const bool per_expert   = g && g->flash_per_expert_buffers;
+    const bool per_slot     = g && g->flash_per_slot_buffers;
+    const bool auto_per_slot = g && g->flash_per_slot_buffers_auto;
+    const bool lazy_per_slot = per_slot && g->flash_per_slot_lazy_alloc;
     const bool decode_router_prefetch =
         !per_expert &&
         flash_moe_decode_prefetch_enabled() &&
@@ -25532,7 +25576,9 @@ static void metal_graph_log_prefill_compute_once(
             flash_moe_reset_slot_cache_after_prefill_enabled() ? "on" : "off",
             flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off",
             per_expert ? "per-expert-full" :
-            (lazy_per_slot ? "per-slot-lazy" : (per_slot ? "per-slot" : "slot-bank")),
+            (lazy_per_slot ?
+             (auto_per_slot ? "per-slot-auto-lazy" : "per-slot-lazy") :
+             (per_slot ? (auto_per_slot ? "per-slot-auto" : "per-slot") : "slot-bank")),
             slot_bank);
 }
 

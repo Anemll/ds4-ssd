@@ -176,8 +176,10 @@ iostat -d -w 5   # sustained 300+ MB/s during decode = cache squeeze
 - `routed_expert_row_bytes_for_type` and the ANE-prefill row-bytes helper
   both assumed 256-elem blocks; MXFP4 is 32 (fixed, but watch for other
   QK_K assumptions when adding formats).
-- Slot-bank allocation is one Metal buffer per LAYER ("mixed expert-major"),
-  not per expert; per-expert/per-slot buffers are opt-in diagnostic modes.
+- Small slot banks still use one Metal buffer per LAYER ("mixed expert-major").
+  Large banks (>=44 GiB capacity) now auto-split into per-slot buffers to avoid
+  the warm O(bank) routed_moe cliff. `DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS=1`
+  restores the legacy mixed-bank path for A/B only.
 - M5 Max thermals + concurrent runs invalidate benchmarks; cooldown between
   runs, never bench in parallel.
 - The first run after a cache-polluting run is penalized while the page
@@ -219,7 +221,7 @@ Update (negatives, all at 90 GB warm bank, baseline 0.22-0.26 t/s):
   Swap/pressure/page-fault-in-kernel theory dead.
 - didModifyRange on/off: flat. ICB useResource: path default-off, never ran.
 So the O(bank) routed_moe cost is NOT: miss IO, page cache, wiring, swap,
-didModify, or ICB. Remaining suspects for next session:
+didModify, or ICB. Suspects entering the next session were:
 1. Per-dispatch driver cost of binding the per-layer mixed-bank buffer
    (2.14 GB at 168 slots vs 0.26 GB at 44) — setBuffer/commit-time page-table
    work proportional to buffer size, 43 binds/token. Test: allocate the bank
@@ -229,5 +231,48 @@ didModify, or ICB. Remaining suspects for next session:
    kernels for any loop bounded by slot_bank rather than n_active experts.
 3. Decisive instrument: Instruments "Metal System Trace" on a 6-token decode
    at 90 GB vs 20 GB — splits routed_moe 80 ms into encode/driver/GPU-exec.
-Quick env A/B available: per-slot buffer mode at 90 GB
-(flash_moe_per_slot_buffers_enabled env) — if fast, suspect #1 confirmed.
+Result: suspect #1 was confirmed and fixed below. Do not re-run the eliminated
+dead ends above.
+
+## FIXED (2026-06-12): warm-big-bank routed_moe cliff avoided by split per-slot buffers
+
+The first remaining suspect was correct. The huge mixed per-layer buffer is the
+warm-regime cliff: binding a 2.14 GiB layer bank per layer/token makes
+`routed_moe` scale with bank capacity. Splitting the bank into per-slot expert
+buffers removes the giant bind from the decode dispatch path.
+
+Validation on M5 Max 128 GB, explicit `--ssd-cache 90GB`, `--ctx 4096 -n 16`,
+prompt `What is Apple Neural Engine`, one run at a time:
+
+- Baseline from the handoff: mixed 90 GB warm bank = 0.22-0.28 t/s generation.
+- Diagnostic A/B:
+  `DS4_FLASH_MOE_RESIDENCY_STATS=8 DS4_FLASH_MOE_PER_SLOT_BUFFERS=1 ./ds4 ... --ssd-cache 90GB ...`
+  => 5.32 t/s generation, 5.75 t/s prefill. Same 168-slot / 89.95 GiB logical
+  bank; residency at tok16 was 1763/7224 slots (21.95 GiB resident), hit 62.7%.
+- Production validation after the fix, no per-slot env:
+  `DS4_FLASH_MOE_RESIDENCY_STATS=8 ./ds4 ... --ssd-cache 90GB ...`
+  => `resident=per-slot-auto`, 5.95 t/s generation, 7.38 t/s prefill. This
+  beats the >5 t/s target while honoring the explicit 90 GB bank through decode.
+- Small-bank smoke after the fix:
+  `DS4_FLASH_MOE_RESIDENCY_STATS=8 ./ds4 ... --ssd-cache 20GB ...`
+  => `resident=slot-bank`, 7.62 t/s generation, 7.46 t/s prefill. The
+  auto-split threshold leaves the fast mixed 20 GB path alone.
+
+Implementation:
+
+- `ds4.c` now auto-selects per-slot expert buffers when the requested Flash-MoE
+  bank capacity is >=44 GiB and per-expert/per-slot modes were not explicitly
+  requested. Small banks keep the mixed expert-major layer buffer.
+- New kill switches for A/B: `DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS=1`
+  or `DS4_FLASH_MOE_FORCE_MIXED_SLOT_BANK=1`.
+- Startup logs now report `resident=per-slot-auto` and print a large-bank
+  decode guard instead of the old page-cache-only warning when the split is
+  active.
+
+Negative / no-longer-needed:
+
+- The banked decode-kernel loop-bound suspect did not need a fix for the
+  target: per-slot split alone moves 90 GB from ~0.25 t/s to ~6 t/s.
+- Instruments Metal System Trace is no longer required to decide the root
+  cause, though it could still quantify encode vs driver time on the legacy
+  mixed-bank path if someone wants a postmortem.
