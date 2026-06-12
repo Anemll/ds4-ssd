@@ -11484,6 +11484,13 @@ static bool flash_moe_chunked_mixed_enabled(void);
 static uint32_t flash_moe_chunked_mixed_slots(uint32_t slot_bank);
 static bool flash_moe_decode_bank_shrink_requested(void);
 static bool flash_moe_fast_decode_l1_enabled(void);
+static bool flash_moe_prefill_decode_l1_enabled(void);
+static uint64_t flash_moe_decode_l1_budget_bytes(void);
+static uint32_t flash_moe_decode_slot_bank_for_budget(
+        const ds4_flash_moe_sidecar *sidecar,
+        uint32_t                     min_slots,
+        uint32_t                     cur,
+        uint64_t                     budget);
 static bool flash_moe_decode_l2_enabled(void);
 static bool flash_moe_shrink_carry_enabled(void);
 static bool flash_moe_mixed_slots6_grouped_enabled(void);
@@ -12296,7 +12303,27 @@ static bool metal_graph_enable_flash_moe(
         flash_moe_auto_per_slot_buffers_enabled(sidecar);
     const bool per_slot = !per_expert && (per_slot_env || per_slot_auto);
     const bool per_slot_lazy = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
-    const uint32_t effective_slot_bank = per_expert ? DS4_N_EXPERT : sidecar->slot_bank;
+    const uint32_t requested_slot_bank = per_expert ? DS4_N_EXPERT : sidecar->slot_bank;
+    uint32_t effective_slot_bank = requested_slot_bank;
+    if (!per_expert && !per_slot && flash_moe_prefill_decode_l1_enabled()) {
+        const uint64_t budget = flash_moe_decode_l1_budget_bytes();
+        const uint32_t capped =
+            flash_moe_decode_slot_bank_for_budget(sidecar,
+                                                  active_expert_used,
+                                                  requested_slot_bank,
+                                                  budget);
+        if (capped != 0 && capped < requested_slot_bank) {
+            effective_slot_bank = capped;
+            ((ds4_flash_moe_sidecar *)sidecar)->slot_bank = capped;
+            fprintf(stderr,
+                    "ds4: Flash-MoE prefill/decode L1 cap: requested %u slots, "
+                    "using %u slots (%.2f GiB budget) before prefill; "
+                    "extra --ssd-cache budget is left for the OS file cache\n",
+                    requested_slot_bank,
+                    capped,
+                    (double)budget / 1073741824.0);
+        }
+    }
     const uint64_t layer_slots = (uint64_t)DS4_N_LAYER * effective_slot_bank;
     if (layer_slots > SIZE_MAX / sizeof(int32_t) ||
         layer_slots > SIZE_MAX / sizeof(uint64_t) ||
@@ -13357,6 +13384,30 @@ static bool flash_moe_fast_decode_l1_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_POLICY_DECODE_L1");
 }
 
+static bool flash_moe_prefill_decode_l1_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_PREFILL_DECODE_L1") ||
+           env_flag_enabled("DS4_FLASH_MOE_PREFILL_FAST_L1") ||
+           env_flag_enabled("DS4_FLASH_MOE_L1_FROM_PREFILL");
+}
+
+static uint64_t flash_moe_decode_l1_budget_bytes(void) {
+    uint64_t budget = 32ull * 1024ull * 1024ull * 1024ull;
+    const char *envs[] = {
+        "DS4_FLASH_MOE_DECODE_SSD_CACHE",
+        "DS4_FLASH_MOE_FAST_DECODE_SSD_CACHE",
+        "DS4_FLASH_MOE_DECODE_L1_SSD_CACHE",
+    };
+    for (size_t i = 0; i < sizeof(envs) / sizeof(envs[0]); i++) {
+        const char *env = getenv(envs[i]);
+        if (!env || !env[0]) continue;
+        uint64_t parsed = 0;
+        if (ds4_parse_u64_suffix(env, &parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    return budget;
+}
+
 static bool flash_moe_decode_l2_enabled(void) {
     return env_flag_enabled("DS4_FLASH_MOE_DECODE_L2") ||
            env_flag_enabled("DS4_FLASH_MOE_L2_CACHE");
@@ -13410,7 +13461,8 @@ static bool flash_moe_decode_bank_shrink_requested(void) {
         return ds4_parse_u64_suffix(gb_env, &budget) && budget > 0;
     }
 
-    return flash_moe_fast_decode_l1_enabled();
+    return flash_moe_fast_decode_l1_enabled() ||
+           flash_moe_prefill_decode_l1_enabled();
 }
 
 static bool flash_moe_did_modify_range_enabled(void) {
@@ -17281,15 +17333,7 @@ static uint32_t flash_moe_decode_slot_bank_target(const ds4_gpu_graph *g) {
     }
 
     if (flash_moe_fast_decode_l1_enabled()) {
-        uint64_t budget = 32ull * 1024ull * 1024ull * 1024ull;
-        const char *fast_env = getenv("DS4_FLASH_MOE_FAST_DECODE_SSD_CACHE");
-        if (!fast_env || !fast_env[0]) fast_env = getenv("DS4_FLASH_MOE_DECODE_L1_SSD_CACHE");
-        if (fast_env && fast_env[0]) {
-            uint64_t parsed = 0;
-            if (ds4_parse_u64_suffix(fast_env, &parsed) && parsed > 0) {
-                budget = parsed;
-            }
-        }
+        uint64_t budget = flash_moe_decode_l1_budget_bytes();
         return flash_moe_decode_slot_bank_for_budget(g->flash_moe,
                                                      min_slots,
                                                      cur,

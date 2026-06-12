@@ -678,3 +678,64 @@ Interpretation:
   fast-L1 shrink path.
 - Do not use prefill top-k slot-cache installs plus shrink-carry as the 90 GB
   solution for short decode.
+
+### 2026-06-12 - Step 14 pair-SwiGLU and prefill-L1 policy probes
+
+Re-tested the existing opt-in MXFP4 pair-SwiGLU selected-id kernel and a local
+"true fused" rewrite of the same idea.
+
+Results:
+
+| config | command shape | generation | interpretation |
+|---|---|---:|---|
+| 90 GB + 32 GB decode L1 | `--ctx 32768 -n 64 --temp 0` | 7.72 t/s | current controlled baseline |
+| same + existing `DS4_METAL_ENABLE_MXFP4_PAIR_SWIGLU=1` | `--ctx 32768 -n 64 --temp 0` | 8.24 t/s | small controlled lift |
+| same + local true fused pair loop | `--ctx 32768 -n 64 --temp 0` | 7.89 t/s | worse than existing opt-in; reverted |
+| 90 GB + 32 GB decode L1 | attached default-length shape | 11.54 t/s | current-machine near-miss |
+| same + existing pair-SwiGLU opt-in | attached default-length shape | 10.79 t/s | negative on this workflow |
+
+Interpretation:
+
+- The naive true-fused gate/up loop increased register pressure enough to lose
+  to the older opt-in kernel, so it was reverted instead of committed.
+- The existing pair-SwiGLU opt-in can help a controlled short run, but it did
+  not help the attached default-length workflow. Do not default it for the
+  short >12 t/s target based on current evidence.
+
+Implemented a new env-gated policy prototype:
+
+```bash
+DS4_FLASH_MOE_PREFILL_DECODE_L1=1 \
+DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB \
+./ds4 -m ~/Models/DSv4-Flash-MXFP4-native-flash \
+  --ssd-cache 90GB --ctx 32768 \
+  -p "What is Apple Neural Engine?"
+```
+
+Behavior:
+
+- The CLI still resolves the explicit `--ssd-cache 90GB` request to 168 slots.
+- Before allocating Flash-MoE banks, the graph caps the actual Metal slot bank
+  to the requested decode-L1 budget: 59 slots / 31.59 GiB for `32GB`.
+- Prefill and decode therefore share the same mixed selected-id L1; there is no
+  post-prefill shrink and no slot-cache reset.
+- The remaining explicit cache budget is intentionally left to the OS file
+  cache rather than ds4/Metal-owned buffers.
+
+Validation on the current, already-bench-warmed machine:
+
+| config | allocated bank | prefill | generation |
+|---|---:|---:|---:|
+| current 32 GB re-anchor | 59 slots / 31.59 GiB | 5.58 t/s | 10.67 t/s |
+| 90 GB + prefill/decode L1 cap | 59 slots / 31.59 GiB | 6.78 t/s | 10.92 t/s |
+
+Interpretation:
+
+- This confirms the policy can make an explicit 90 GB request behave like the
+  measured-fast 32 GB mixed-bank path without the shrink/reset penalty.
+- It does **not** satisfy the high-RAM residency version of the goal. RAM use is
+  low by design because every high-Metal-residency attempt so far has been
+  toxic for short decode.
+- The result was below the attached 12.71 t/s 32 GB control, but the immediate
+  32 GB re-anchor was also below it. Treat this as current machine state, not
+  proof that the policy cannot reach the attached 32 GB number after cooldown.

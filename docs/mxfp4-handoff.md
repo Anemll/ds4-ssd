@@ -488,3 +488,20 @@ Metal trace split and final slots6 negatives:
   generated only `3.99 t/s` after prefill slowed to `2.27 t/s`. Negative; a
   90 GB prefill bank can seed the smaller L1 mechanically, but not profitably
   for the short target.
+- Pair-SwiGLU follow-up: the existing opt-in
+  `DS4_METAL_ENABLE_MXFP4_PAIR_SWIGLU=1` gave a small controlled `-n64` lift
+  on 90 GB + 32 GB decode L1 (`7.72 -> 8.24 t/s` in the earlier run), but it
+  was negative on the attached default-length workflow in the current bench
+  state (`11.54 -> 10.79 t/s`). A local "true fused" MXFP4 pair loop was also
+  tested and reverted because it was slower than the existing opt-in (`7.89`
+  t/s on the same controlled shape). Do not default pair-SwiGLU for the short
+  >12 t/s target without a new cooled A/B.
+- New speed-policy prototype:
+  `DS4_FLASH_MOE_PREFILL_DECODE_L1=1 DS4_FLASH_MOE_DECODE_SSD_CACHE=32GB`
+  makes an explicit `--ssd-cache 90GB` request cap the actual Metal bank before
+  prefill, so prefill and decode share the 59-slot / 31.59 GiB mixed selected-id
+  L1 and skip the shrink/reset. On the current warmed machine this produced
+  `prefill: 6.78 t/s`, `generation: 10.92 t/s`; the immediately preceding
+  plain 32 GB re-anchor was `10.67 t/s`. This confirms it matches the fast L1
+  shape, but it intentionally leaves RAM use low and does not solve high
+  Metal-owned 90 GB residency.
