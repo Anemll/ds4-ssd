@@ -66,8 +66,3 @@ static bool metal_graph_capture_prefix1_index_state(ds4_gpu_graph *g, uint32_t i
            ds4_gpu_tensor_copy(g->spec_prefix1_index_state_score[il], 0,
                                  g->layer_index_state_score[il], 0, bytes) != 0;
 }
-
-static uint32_t metal_graph_decode_indexer_top_k(const ds4_gpu_graph *g) {
-    (void)g;
-    return DS4_N_INDEXER_TOP_K;
-}

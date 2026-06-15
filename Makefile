@@ -147,6 +147,7 @@ endif
 DS4_INCLUDED_SRCS = \
 	ds4_metal_diagnostics.c \
 	ds4_metal_mtp.c \
+	ssd/ssd_flash_moe_sidecar.c \
 	ssd/ssd_flash_moe_streaming.c \
 	ssd/ssd_flash_moe_allocation.c \
 	ssd/ssd_flash_moe_runtime.c \
