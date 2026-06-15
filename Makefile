@@ -70,6 +70,12 @@ tests/ane_ds4_mlp_i8i8_precision_smoke: tests/ane_ds4_mlp_i8i8_precision_smoke.m
 ane-smoke: tests/ane_ds4_mlp_i8i8_precision_smoke
 	./tests/ane_ds4_mlp_i8i8_precision_smoke
 
+tests/mxfp4_native_probe: tests/mxfp4_native_probe.m metal/mxfp4_common.h metal/mxfp4_native.metal
+	$(CC) -fobjc-arc -O2 -I. -o $@ tests/mxfp4_native_probe.m -framework Foundation -framework Metal -framework QuartzCore
+
+mxfp4-native-probe: tests/mxfp4_native_probe
+	./tests/mxfp4_native_probe
+
 sidecar-smoke: ds4
 	DS4_METAL_PREFILL_CHUNK=4096 ./tests/sidecar_smoke.sh
 

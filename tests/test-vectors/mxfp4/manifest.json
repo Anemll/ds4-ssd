@@ -1,0 +1,27 @@
+{
+  "block_count": 16,
+  "block_elems": 32,
+  "ggml_block_bytes": 17,
+  "descriptions": [
+    "e=0 zero-decode",
+    "e=127 scale 1.0",
+    "e=254 max scale",
+    "e=1 min nonzero",
+    "all nibbles 0..15 twice",
+    "asymmetric order check",
+    "random 0",
+    "random 1",
+    "random 2",
+    "random 3",
+    "random 4",
+    "random 5",
+    "random 6",
+    "random 7",
+    "random 8",
+    "random 9"
+  ],
+  "nibble_orders": {
+    "blocks_ggml.bin": "split-half (qs[j] lo=elem j, hi=elem j+16)",
+    "plane_data.bin": "sequential-pair (byte b: lo=elem 2b, hi=elem 2b+1)"
+  }
+}

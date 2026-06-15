@@ -21,6 +21,10 @@ typedef struct ds4_gpu_tensor ds4_gpu_tensor;
 int ds4_gpu_init(void);
 void ds4_gpu_cleanup(void);
 int ds4_gpu_mpp_nax_supported(void);
+/* Optional native MXFP4 (MPP 4.1 scale-plane matmul2d, macOS 27 + M5).
+ * _requested = DS4_MXFP4_NATIVE=1 opt-in; _has = definitive pipeline probe. */
+int ds4_gpu_mxfp4_native_requested(void);
+int ds4_gpu_has_native_mxfp4(void);
 
 ds4_gpu_tensor *ds4_gpu_tensor_alloc(uint64_t bytes);
 ds4_gpu_tensor *ds4_gpu_tensor_alloc_untracked(uint64_t bytes);

@@ -24,3 +24,4 @@ fp4_samples/
 /resident_variant_sweep_*.csv
 /COMPARE_*.log
 tests/ane_ds4_mlp_i8i8_precision_smoke
+tests/mxfp4_native_probe

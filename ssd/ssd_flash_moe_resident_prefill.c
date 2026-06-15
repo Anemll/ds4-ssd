@@ -37,7 +37,17 @@ static int flash_moe_run_mpp_int8_safe_tensor(
     if (mid_is_f16) *mid_is_f16 = false;
     if (n_tokens == 0) return 0;
 
-    if ((n_tokens % mpp_m_tile) == 0 || flash_moe_mpp_partial_tiles_allowed()) {
+    /* The MPP 4.1 native-MXFP4 arm handles partial 64-row tiles correctly
+     * (matmul2d clamps to tensor extents; validated down to m=1 with full
+     * reference checks + poisoned padding in tests/mxfp4_native_probe).
+     * The split-with-ALU-tail workaround below exists for the legacy
+     * i8/h_h MPP kernels only, where partial tiles miscalculated. */
+    const bool mxfp4_native_partial_ok =
+        gate_type == DS4_TENSOR_MXFP4 && down_type == DS4_TENSOR_MXFP4 &&
+        ds4_gpu_mxfp4_native_requested() && ds4_gpu_has_native_mxfp4();
+
+    if ((n_tokens % mpp_m_tile) == 0 || mxfp4_native_partial_ok ||
+        flash_moe_mpp_partial_tiles_allowed()) {
         return ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(out,
                                                                       gate,
                                                                       up,

@@ -181,6 +181,14 @@ static id<MTLComputePipelineState> g_mpp_dequant_gud_i8_pipeline;
 /* Fused-dequant NAX int8 matmul (weights dequantized into threadgroup per K-tile,
  * no global int8 weight round-trip); see metal/nax_fused.metal. */
 static id<MTLLibrary>              g_nax_fused_library;
+/* Optional native-MXFP4 (MPP 4.1 / macOS 27 scale-plane matmul2d) library.
+ * Use is gated by DS4_MXFP4_NATIVE (default off); the matmul pipeline only
+ * builds on a macOS 27 toolchain + scale-plane-capable GPU (M5).  The plane
+ * repack kernel builds everywhere (MSL 4.0).  See metal/mxfp4_native.metal +
+ * docs/mxfp4-native-sidecar-plan.md "MPP 4.1 readiness scaffolding". */
+static id<MTLLibrary>              g_mxfp4_native_library;
+static id<MTLComputePipelineState> g_mxfp4_repack_planes_pipeline;
+static id<MTLComputePipelineState> g_mxfp4_native_matmul_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_n128_pipeline;
@@ -5874,6 +5882,13 @@ int ds4_gpu_init(void) {
 
         ds4_ane_mlp_int8w_quant_stats_reset();
         g_initialized = 1;
+
+        if (ds4_gpu_mxfp4_native_requested()) {
+            fprintf(stderr, "ds4: DS4_MXFP4_NATIVE=1: native MXFP4 %s\n",
+                    ds4_gpu_has_native_mxfp4()
+                        ? "available (MPP 4.1 scale-plane matmul2d)"
+                        : "NOT available on this OS/toolchain/GPU; fallback paths stay active");
+        }
     }
 
     return 1;
@@ -6558,6 +6573,9 @@ void ds4_gpu_cleanup(void) {
         g_mpp_dequant_q2_k_i8_counted_pipeline = nil;
         g_mpp_dequant_gud_i8_pipeline = nil;
         g_nax_fused_library = nil;
+        g_mxfp4_native_library = nil;
+        g_mxfp4_repack_planes_pipeline = nil;
+        g_mxfp4_native_matmul_n64_pipeline = nil;
         g_mpp_iq2_fused_pipeline = nil;
         g_mpp_iq2_fused_n64_pipeline = nil;
         g_mpp_iq2_fused_n128_pipeline = nil;
@@ -27349,6 +27367,166 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_attn_out_low_i8_pipeline = ds4_gpu_make_mpp_pipeline(g_nax_fused_library, @"ds4_attn_out_low_i8_fused");
 }
 
+/* MTLLanguageVersion4_1 is declared in the macOS 27 SDK; the numeric fallback
+ * keeps builds on older SDKs working (use is runtime-gated by @available). */
+#define DS4_MTL_LANGUAGE_VERSION_4_1 ((MTLLanguageVersion)((4 << 16) + 1))
+
+static NSString *ds4_gpu_read_metal_source(const char *env_override,
+                                           NSString   *rel_path) {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    if (env_override) {
+        const char *p = getenv(env_override);
+        if (p && p[0]) [paths addObject:[NSString stringWithUTF8String:p]];
+    }
+    [paths addObject:rel_path];
+    [paths addObject:[@"./" stringByAppendingString:rel_path]];
+    for (NSString *path in paths) {
+        if (![fm fileExistsAtPath:path]) continue;
+        NSString *src = [NSString stringWithContentsOfFile:path
+                                                  encoding:NSUTF8StringEncoding
+                                                     error:NULL];
+        if (src) return src;
+    }
+    return nil;
+}
+
+/* Build the optional native-MXFP4 library (docs/mxfp4-native-sidecar-plan.md,
+ * "MPP 4.1 readiness scaffolding").  Separate MTLLanguageVersion4_1 library on
+ * macOS 27 — the scale-plane matmul2d needs the 4.1 tensor_blockwise headers;
+ * on macOS 26 it falls back to 4_0, which compiles only the plane-repack
+ * kernel (the native section is #if-guarded by __HAVE_TENSOR_MULTIPLANE__).
+ * Source = metal/mxfp4_common.h PREPENDED to metal/mxfp4_native.metal because
+ * newLibraryWithSource: cannot resolve local #includes.  Idempotent;
+ * non-fatal: callers must treat nil pipelines as "native path unavailable". */
+static void ds4_gpu_ensure_mxfp4_native_library(void) {
+    static bool tried = false;
+    if (tried) return;
+    tried = true;
+    if (!g_device) return;
+    NSString *hdr = ds4_gpu_read_metal_source("DS4_METAL_MXFP4_COMMON_SOURCE",
+                                              @"metal/mxfp4_common.h");
+    NSString *body = ds4_gpu_read_metal_source("DS4_METAL_MXFP4_NATIVE_SOURCE",
+                                               @"metal/mxfp4_native.metal");
+    if (!hdr || !body) {
+        fprintf(stderr, "ds4: MXFP4 native metal sources not found (metal/mxfp4_common.h + metal/mxfp4_native.metal)\n");
+        return;
+    }
+    NSString *src = [NSString stringWithFormat:@"%@\n%@", hdr, body];
+    MTLCompileOptions *opts = [MTLCompileOptions new];
+    bool lang41 = false;
+    if (@available(macOS 27.0, *)) {
+        opts.languageVersion = DS4_MTL_LANGUAGE_VERSION_4_1;
+        lang41 = true;
+    } else {
+        opts.languageVersion = MTLLanguageVersion4_0;
+    }
+    NSError *err = nil;
+    g_mxfp4_native_library = [g_device newLibraryWithSource:src options:opts error:&err];
+    if (!g_mxfp4_native_library && lang41) {
+        /* macOS 27 host with a pre-4.1 Metal toolchain: retry repack-only. */
+        opts.languageVersion = MTLLanguageVersion4_0;
+        err = nil;
+        lang41 = false;
+        g_mxfp4_native_library = [g_device newLibraryWithSource:src options:opts error:&err];
+    }
+    if (!g_mxfp4_native_library) {
+        fprintf(stderr, "ds4: MXFP4 native library compile failed: %s\n",
+                [[err localizedDescription] UTF8String]);
+        return;
+    }
+    g_mxfp4_repack_planes_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_repack_planes");
+    g_mxfp4_native_matmul_n64_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_native_matmul_n64");
+    fprintf(stderr, "ds4: MXFP4 native library (MSL %s): repack=%s scale-plane matmul=%s\n",
+            lang41 ? "4.1" : "4.0",
+            g_mxfp4_repack_planes_pipeline ? "ok" : "MISSING",
+            g_mxfp4_native_matmul_n64_pipeline ? "ok" : "unavailable (needs macOS 27 toolchain + M5)");
+}
+
+/* Native-MXFP4 opt-in (default off): DS4_MXFP4_NATIVE=1. */
+int ds4_gpu_mxfp4_native_requested(void) {
+    return ds4_gpu_env_flag_enabled("DS4_MXFP4_NATIVE");
+}
+
+/* Definitive native-MXFP4 probe (plan item 4): true only when the MPP 4.1
+ * scale-plane matmul pipeline actually built on this OS/toolchain/GPU.
+ * Cheap after the first call; safe to call from backend selection. */
+int ds4_gpu_has_native_mxfp4(void) {
+    if (!g_device) return 0;
+    ds4_gpu_ensure_mxfp4_native_library();
+    return g_mxfp4_native_matmul_n64_pipeline != nil;
+}
+
+/* Encode the one-time MXFP4 plane repack: ggml 17 B split-half blocks at
+ * (src + src_off) -> FP4 seq-pair data plane at (dst + data_off) + E8M0
+ * scale plane at (dst + scales_off), for one [rows][depth] weight matrix.
+ * data plane = rows*depth/2 bytes, scale plane = rows*depth/32 bytes. */
+static int ds4_gpu_encode_mxfp4_repack_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        uint32_t             rows,
+        uint32_t             depth) {
+    if (!cb || !src || !dst || rows == 0 || depth == 0 || (depth % 32u) != 0) return 0;
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_repack_planes_pipeline) return 0;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mxfp4_repack_planes_pipeline];
+    [enc setBuffer:src offset:src_off atIndex:0];
+    [enc setBuffer:dst offset:data_off atIndex:1];
+    [enc setBuffer:dst offset:scales_off atIndex:2];
+    const uint32_t zero = 0;
+    [enc setBytes:&rows length:sizeof(rows) atIndex:3];
+    [enc setBytes:&depth length:sizeof(depth) atIndex:4];
+    [enc setBytes:&zero length:sizeof(zero) atIndex:5];
+    [enc setBytes:&zero length:sizeof(zero) atIndex:6];
+    [enc setBytes:&zero length:sizeof(zero) atIndex:7];
+    [enc dispatchThreadgroups:MTLSizeMake((depth / 32u + 63u) / 64u, rows, 1)
+         threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+/* Encode the native scale-plane matmul: c[m][n] f32 = a[m][k] f16 x MXFP4
+ * weight planes (data at w+data_off, scales at w+scales_off), weights [n][k].
+ * MPP clamps to tensor extents (probe-verified), so partial 64-row m tiles
+ * are safe. */
+static int ds4_gpu_encode_mxfp4_native_matmul(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        a,
+        NSUInteger           a_off,
+        id<MTLBuffer>        w,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        c,
+        NSUInteger           c_off,
+        uint32_t             m,
+        uint32_t             n,
+        uint32_t             k) {
+    if (!cb || !a || !w || !c || m == 0 || n == 0 || k == 0 || (k % 32u) != 0) return 0;
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_native_matmul_n64_pipeline) return 0;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mxfp4_native_matmul_n64_pipeline];
+    [enc setBuffer:a offset:a_off atIndex:0];
+    [enc setBuffer:w offset:data_off atIndex:1];
+    [enc setBuffer:c offset:c_off atIndex:2];
+    [enc setBytes:&m length:sizeof(m) atIndex:3];
+    [enc setBytes:&n length:sizeof(n) atIndex:4];
+    [enc setBytes:&k length:sizeof(k) atIndex:5];
+    [enc setBuffer:w offset:scales_off atIndex:6];
+    const NSUInteger tew = g_mxfp4_native_matmul_n64_pipeline.threadExecutionWidth;
+    [enc dispatchThreadgroups:MTLSizeMake((n + 63u) / 64u, (m + 63u) / 64u, 1)
+         threadsPerThreadgroup:MTLSizeMake(tew * 4u, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
 /* Indexer score NAX matmul opt-in (M5+; default off). Targets the long-context
  * prefill-slope dominator (the per-head Q.K index score matrix). */
 static int ds4_gpu_indexer_nax_enabled(void) {
@@ -29684,25 +29862,48 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         !down_bank || !weights || n_tokens == 0) {
         return 0;
     }
-    if (gate_type != DS4_METAL_TENSOR_IQ2_XXS ||
-        (down_type != DS4_METAL_TENSOR_Q2_K &&
-         down_type != DS4_METAL_TENSOR_IQ2_XXS) ||
-        expert_in_dim != 4096u ||
+    /* Native-MXFP4 arm (MPP 4.1 scale-plane matmul2d): opt-in via
+     * DS4_MXFP4_NATIVE=1 + runtime probe; consumes the streamed ggml blocks
+     * via a per-call plane repack instead of the dequant-to-i8/f16 staging
+     * passes.  See docs/mxfp4-native-sidecar-plan.md "Phase 4.1b" Arm A. */
+    const bool use_fp4_native =
+        gate_type == DS4_METAL_TENSOR_MXFP4 &&
+        down_type == DS4_METAL_TENSOR_MXFP4 &&
+        ds4_gpu_mxfp4_native_requested() &&
+        ds4_gpu_has_native_mxfp4();
+    if (!use_fp4_native &&
+        (gate_type != DS4_METAL_TENSOR_IQ2_XXS ||
+         (down_type != DS4_METAL_TENSOR_Q2_K &&
+          down_type != DS4_METAL_TENSOR_IQ2_XXS))) {
+        return 0;
+    }
+    if (expert_in_dim != 4096u ||
         expert_mid_dim != 2048u ||
         out_dim != 4096u) {
         return 0;
     }
 
-    const uint64_t gate_iq2_row_bytes = (uint64_t)(expert_in_dim / 256u) * 66u;
-    const uint64_t down_iq2_row_bytes = (uint64_t)(expert_mid_dim / 256u) * 66u;
-    const uint64_t down_q2_row_bytes = (uint64_t)(expert_mid_dim / 256u) * 84u;
-    const uint64_t expected_down_row_bytes =
-        down_type == DS4_METAL_TENSOR_IQ2_XXS ? down_iq2_row_bytes : down_q2_row_bytes;
-    if (gate_row_bytes != gate_iq2_row_bytes ||
-        down_row_bytes != expected_down_row_bytes ||
-        gate_expert_bytes != gate_row_bytes * expert_mid_dim ||
-        down_expert_bytes != down_row_bytes * out_dim) {
-        return 0;
+    if (use_fp4_native) {
+        const uint64_t gate_fp4_row_bytes = (uint64_t)(expert_in_dim / 32u) * 17u;
+        const uint64_t down_fp4_row_bytes = (uint64_t)(expert_mid_dim / 32u) * 17u;
+        if (gate_row_bytes != gate_fp4_row_bytes ||
+            down_row_bytes != down_fp4_row_bytes ||
+            gate_expert_bytes != gate_row_bytes * expert_mid_dim ||
+            down_expert_bytes != down_row_bytes * out_dim) {
+            return 0;
+        }
+    } else {
+        const uint64_t gate_iq2_row_bytes = (uint64_t)(expert_in_dim / 256u) * 66u;
+        const uint64_t down_iq2_row_bytes = (uint64_t)(expert_mid_dim / 256u) * 66u;
+        const uint64_t down_q2_row_bytes = (uint64_t)(expert_mid_dim / 256u) * 84u;
+        const uint64_t expected_down_row_bytes =
+            down_type == DS4_METAL_TENSOR_IQ2_XXS ? down_iq2_row_bytes : down_q2_row_bytes;
+        if (gate_row_bytes != gate_iq2_row_bytes ||
+            down_row_bytes != expected_down_row_bytes ||
+            gate_expert_bytes != gate_row_bytes * expert_mid_dim ||
+            down_expert_bytes != down_row_bytes * out_dim) {
+            return 0;
+        }
     }
 
     @autoreleasepool {
@@ -29726,7 +29927,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         const uint64_t gate_i32_bytes = (uint64_t)n_tokens * expert_mid_dim * sizeof(int32_t);
         const uint64_t out_i32_bytes = (uint64_t)n_tokens * out_dim * sizeof(int32_t);
         const bool no_int8_paths = ds4_gpu_no_int8_paths_enabled();
-        if (no_int8_paths && !ds4_gpu_resident_nax_half_safe(n_tokens)) {
+        if (!use_fp4_native &&
+            no_int8_paths && !ds4_gpu_resident_nax_half_safe(n_tokens)) {
             return 0;
         }
         const char *i8_i8_env = getenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL");
@@ -29820,7 +30022,19 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
                                                        &g_mpp_prefill_down_i8_bytes,
                                                        (NSUInteger)down_i8_bytes,
                                                        "ds4_mpp_prefill_down_i8");
-        if (use_h_h) {
+        if (use_fp4_native) {
+            /* Planes live inside the i8 scratch buffers (data at 0, scales at
+             * rows*k/2; 17/32 of the i8 footprint).  Only x/mid need f16. */
+            scratch_ok = scratch_ok &&
+                         ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_x_half_buffer,
+                                                       &g_mpp_prefill_x_half_bytes,
+                                                       (NSUInteger)x_half_bytes,
+                                                       "ds4_mpp_prefill_x_half") &&
+                         ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_mid_half_buffer,
+                                                       &g_mpp_prefill_mid_half_bytes,
+                                                       (NSUInteger)(mid_bytes / 2u),
+                                                       "ds4_mpp_prefill_mid_half");
+        } else if (use_h_h) {
             scratch_ok = scratch_ok &&
                          ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_x_half_buffer,
                                                        &g_mpp_prefill_x_half_bytes,
@@ -29877,7 +30091,85 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
 
         const uint32_t x_elems = n_tokens * expert_in_dim;
         int ok = 0;
-        if (use_h_h) {
+        if (use_fp4_native) {
+            /* MPP 4.1 native scale-plane MXFP4: repack the streamed ggml
+             * blocks into FP4+E8M0 planes (packed into the i8 scratch
+             * buffers: data plane at 0, scale plane at rows*k/2), then
+             * matmul2d consumes the planes directly -- no dequant pass, no
+             * int8 rescale (FP4 decode is exact, so swiglu scale = 1.0). */
+            const NSUInteger gate_scales_off =
+                (NSUInteger)expert_in_dim * expert_mid_dim / 2u;
+            const NSUInteger down_scales_off =
+                (NSUInteger)expert_mid_dim * out_dim / 2u;
+            const uint32_t mid_elems = n_tokens * expert_mid_dim;
+            static int s_fp4_native_logged = 0;
+            if (!s_fp4_native_logged) {
+                s_fp4_native_logged = 1;
+                fprintf(stderr,
+                        "ds4: [mxfp4-native] MPP 4.1 scale-plane prefill arm engaged (first group n_tokens=%u)\n",
+                        n_tokens);
+            }
+            ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                               xbuf,
+                                               ds4_gpu_tensor_offset(x),
+                                               g_mpp_prefill_x_half_buffer,
+                                               0,
+                                               x_elems) &&
+                 ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                    gate_bankbuf,
+                                                    ds4_gpu_tensor_offset(gate_bank),
+                                                    g_mpp_prefill_gate_i8_buffer,
+                                                    0,
+                                                    gate_scales_off,
+                                                    expert_mid_dim,
+                                                    expert_in_dim) &&
+                 ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                    up_bankbuf,
+                                                    ds4_gpu_tensor_offset(up_bank),
+                                                    g_mpp_prefill_up_i8_buffer,
+                                                    0,
+                                                    gate_scales_off,
+                                                    expert_mid_dim,
+                                                    expert_in_dim) &&
+                 ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                    down_bankbuf,
+                                                    ds4_gpu_tensor_offset(down_bank),
+                                                    g_mpp_prefill_down_i8_buffer,
+                                                    0,
+                                                    down_scales_off,
+                                                    out_dim,
+                                                    expert_mid_dim) &&
+                 ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                                    g_mpp_prefill_x_half_buffer, 0,
+                                                    g_mpp_prefill_gate_i8_buffer,
+                                                    0, gate_scales_off,
+                                                    gatebuf, ds4_gpu_tensor_offset(gate),
+                                                    n_tokens, expert_mid_dim, expert_in_dim) &&
+                 ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                                    g_mpp_prefill_x_half_buffer, 0,
+                                                    g_mpp_prefill_up_i8_buffer,
+                                                    0, gate_scales_off,
+                                                    upbuf, ds4_gpu_tensor_offset(up),
+                                                    n_tokens, expert_mid_dim, expert_in_dim) &&
+                 ds4_gpu_encode_mpp_swiglu_weight(cb,
+                                                  gatebuf, ds4_gpu_tensor_offset(gate),
+                                                  upbuf, ds4_gpu_tensor_offset(up),
+                                                  midbuf, ds4_gpu_tensor_offset(mid),
+                                                  weightsbuf, ds4_gpu_tensor_offset(weights),
+                                                  expert_mid_dim, n_tokens, clamp, 1.0f) &&
+                 ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                               midbuf,
+                                               ds4_gpu_tensor_offset(mid),
+                                               g_mpp_prefill_mid_half_buffer,
+                                               0,
+                                               mid_elems) &&
+                 ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                                    g_mpp_prefill_mid_half_buffer, 0,
+                                                    g_mpp_prefill_down_i8_buffer,
+                                                    0, down_scales_off,
+                                                    outbuf, ds4_gpu_tensor_offset(out),
+                                                    n_tokens, out_dim, expert_mid_dim);
+        } else if (use_h_h) {
             /* half x half matmul2d (non-int8): activations -> f16, experts
              * dequant -> f16 weight bank, gate/up via h_h_f, down via f_h_f
              * (mid is f32 from swiglu). No int8 rescale -- f16 dequant bakes
