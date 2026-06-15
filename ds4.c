@@ -1739,6 +1739,7 @@ static bool ds4_env_flag_on(const char *name) {
     const char *env = getenv(name);
     return env && env[0] && atoi(env) != 0;
 }
+#endif
 
 static bool ds4_parse_u64_suffix(const char *s, uint64_t *out) {
     if (!s || !out) return false;
@@ -1773,6 +1774,7 @@ static bool ds4_parse_u64_suffix(const char *s, uint64_t *out) {
     return true;
 }
 
+#ifndef DS4_NO_GPU
 static bool ds4_str_contains_cstr(ds4_str s, const char *needle) {
     const size_t n = strlen(needle);
     if (n == 0 || s.len < n) return false;
@@ -2003,6 +2005,52 @@ static bool accelerator_cache_model_tensors(ds4_backend backend, const ds4_model
     return true;
 }
 #endif
+#endif
+
+#ifdef DS4_NO_GPU
+static bool env_flag_enabled(const char *name) {
+    const char *env = getenv(name);
+    return env && env[0] && atoi(env) != 0;
+}
+
+static void ds4_setenv_override(const char *name, const char *value) {
+    if (setenv(name, value, 1) != 0) {
+        fprintf(stderr, "ds4: warning: failed to set %s=%s\n", name, value);
+    }
+}
+
+static bool ds4_no_int8_paths_enabled(void) {
+    return env_flag_enabled("DS4_NO_INT8");
+}
+
+static bool backend_diagnostic_logs_suppressed(void) {
+    if (env_flag_enabled("DS4_AGENT_ALLOW_BACKEND_STATS")) return false;
+    return env_flag_enabled("DS4_AGENT_SUPPRESS_BACKEND_LOGS");
+}
+
+static bool backend_stats_logs_enabled(void) {
+    if (backend_diagnostic_logs_suppressed()) return false;
+    return env_flag_enabled("DS4_AGENT_ALLOW_BACKEND_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_PROFILE") ||
+           env_flag_enabled("DS4_FLASH_MOE_STAGE_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_HYBRID_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_STATS") ||
+           env_flag_enabled("DS4_FLASH_MOE_ANE_STATS") ||
+           env_flag_enabled("DS4_RESIDENT_MOE_MPP_STATS") ||
+           env_flag_enabled("DS4_METAL_GRAPH_PREFILL_PROFILE") ||
+           env_flag_enabled("DS4_METAL_GRAPH_PREFILL_SPLIT_PROFILE");
+}
+
+static void ds4_apply_no_int8_paths(void) {
+    static bool announced = false;
+    ds4_setenv_override("DS4_NO_INT8", "1");
+    if (!announced && !backend_diagnostic_logs_suppressed()) {
+        fprintf(stderr, "ds4: --no-int8 active: disabled int8 CPU paths where available\n");
+        announced = true;
+    }
+}
 #endif
 
 /* Return the in-place tensor payload inside the mapped GGUF. */
