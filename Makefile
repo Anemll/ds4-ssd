@@ -144,7 +144,20 @@ cuda-regression: tests/cuda_long_context_smoke
 	./tests/cuda_long_context_smoke
 endif
 
-ds4.o: ds4.c ds4.h ds4_gpu.h ds4_profile.h
+DS4_INCLUDED_SRCS = \
+	ds4_metal_diagnostics.c \
+	ds4_metal_mtp.c \
+	ssd/ssd_flash_moe_streaming.c \
+	ssd/ssd_flash_moe_allocation.c \
+	ssd/ssd_flash_moe_runtime.c \
+	ssd/ssd_flash_moe_resident_prefill.c \
+	ssd/ssd_flash_moe_slot_cache.c \
+	ssd/ssd_flash_moe_decode.c \
+	ssd/ssd_flash_moe_prefill.c \
+	ssd/ssd_flash_moe_diagnostics.c \
+	ssd/ssd_flash_moe_mxfp4_slots6.c
+
+ds4.o: ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h ds4_profile.h
 	$(CC) $(CFLAGS) -c -o $@ ds4.c
 
 ds4_profile.o: ds4_profile.c ds4_profile.h
@@ -180,7 +193,7 @@ rax.o: rax.c rax.h rax_malloc.h
 linenoise.o: linenoise.c linenoise.h
 	$(CC) $(CFLAGS) -c -o $@ linenoise.c
 
-ds4_cpu.o: ds4.c ds4.h ds4_gpu.h
+ds4_cpu.o: ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h
 	$(CC) $(CFLAGS) -DDS4_NO_GPU -c -o $@ ds4.c
 
 ds4_cli_cpu.o: ds4_cli.c ds4.h linenoise.h
