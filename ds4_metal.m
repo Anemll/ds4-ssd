@@ -188,7 +188,10 @@ static id<MTLLibrary>              g_nax_fused_library;
  * docs/mxfp4-native-sidecar-plan.md "MPP 4.1 readiness scaffolding". */
 static id<MTLLibrary>              g_mxfp4_native_library;
 static id<MTLComputePipelineState> g_mxfp4_repack_planes_pipeline;
+static id<MTLComputePipelineState> g_mxfp4_repack_selected_planes_pipeline;
+static id<MTLComputePipelineState> g_mxfp4_copy_selected_planes_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_native_matmul_n64_pipeline;
+static id<MTLComputePipelineState> g_mxfp4_native_matmul_selected_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_n64_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_n128_pipeline;
@@ -1141,6 +1144,7 @@ static void ds4_gpu_model_buffer_cache_clear(void) {
 @property(nonatomic, assign) uint64_t offset;
 @property(nonatomic, assign) uint64_t bytes;
 @property(nonatomic, assign) uint8_t owner;
+@property(nonatomic, assign) uint8_t mxfp4_plane_split;
 @end
 
 @implementation DS4MetalTensor
@@ -2676,6 +2680,75 @@ static int ds4_gpu_encode_cpy_f32_f16_1d(
         id<MTLBuffer>        dst,
         NSUInteger           dst_off,
         uint32_t             n);
+
+static int ds4_gpu_encode_mxfp4_repack_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        uint32_t             rows,
+        uint32_t             depth);
+
+static int ds4_gpu_encode_mxfp4_repack_selected_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             route,
+        uint32_t             rows,
+        uint32_t             depth,
+        uint32_t             slot_stride);
+
+static int ds4_gpu_encode_mxfp4_copy_selected_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_data_off,
+        NSUInteger           src_scales_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             route,
+        uint32_t             rows,
+        uint32_t             depth,
+        uint32_t             slot_stride);
+
+static int ds4_gpu_encode_mxfp4_native_matmul(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        a,
+        NSUInteger           a_off,
+        id<MTLBuffer>        w,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        c,
+        NSUInteger           c_off,
+        uint32_t             m,
+        uint32_t             n,
+        uint32_t             k);
+
+static int ds4_gpu_encode_mxfp4_native_matmul_selected(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        a,
+        NSUInteger           a_off,
+        id<MTLBuffer>        w,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        c,
+        NSUInteger           c_off,
+        uint32_t             m,
+        uint32_t             n,
+        uint32_t             k,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             slot_stride,
+        uint32_t             route);
 
 static int ds4_gpu_encode_cpy_f32_f16_2d(
         id<MTLCommandBuffer> cb,
@@ -6007,6 +6080,7 @@ ds4_gpu_tensor *ds4_gpu_tensor_view(const ds4_gpu_tensor *base, uint64_t offset,
         view.offset = absolute_offset;
         view.bytes = bytes;
         view.owner = 0;
+        view.mxfp4_plane_split = base_obj.mxfp4_plane_split;
         return (__bridge_retained ds4_gpu_tensor *)view;
     }
 }
@@ -6115,6 +6189,7 @@ void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor) {
         obj.offset = 0;
         obj.bytes = 0;
         obj.owner = 0;
+        obj.mxfp4_plane_split = 0;
     }
 }
 
@@ -6122,6 +6197,18 @@ uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor) {
     if (!tensor) return 0;
     const DS4MetalTensor *obj = ds4_gpu_tensor_const_obj(tensor);
     return obj.bytes;
+}
+
+void ds4_gpu_tensor_set_mxfp4_plane_split(ds4_gpu_tensor *tensor, int enabled) {
+    if (!tensor) return;
+    DS4MetalTensor *obj = ds4_gpu_tensor_obj(tensor);
+    obj.mxfp4_plane_split = enabled ? 1u : 0u;
+}
+
+int ds4_gpu_tensor_mxfp4_plane_split(const ds4_gpu_tensor *tensor) {
+    if (!tensor) return 0;
+    const DS4MetalTensor *obj = ds4_gpu_tensor_const_obj(tensor);
+    return obj.mxfp4_plane_split != 0;
 }
 
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor) {
@@ -6575,7 +6662,10 @@ void ds4_gpu_cleanup(void) {
         g_nax_fused_library = nil;
         g_mxfp4_native_library = nil;
         g_mxfp4_repack_planes_pipeline = nil;
+        g_mxfp4_repack_selected_planes_pipeline = nil;
+        g_mxfp4_copy_selected_planes_pipeline = nil;
         g_mxfp4_native_matmul_n64_pipeline = nil;
+        g_mxfp4_native_matmul_selected_n64_pipeline = nil;
         g_mpp_iq2_fused_pipeline = nil;
         g_mpp_iq2_fused_n64_pipeline = nil;
         g_mpp_iq2_fused_n128_pipeline = nil;
@@ -19489,6 +19579,317 @@ int ds4_gpu_moe_sum_experts_tensor(
     }
 }
 
+static int ds4_gpu_mxfp4_native_decode_available(
+        uint32_t gate_type,
+        uint32_t down_type,
+        uint64_t gate_row_bytes,
+        uint64_t down_row_bytes,
+        uint32_t expert_in_dim,
+        uint32_t expert_mid_dim,
+        uint32_t out_dim) {
+    (void)out_dim;
+    if (gate_type != DS4_METAL_TENSOR_MXFP4 ||
+        down_type != DS4_METAL_TENSOR_MXFP4 ||
+        !ds4_gpu_mxfp4_native_requested() ||
+        !ds4_gpu_has_native_mxfp4()) {
+        return 0;
+    }
+    if (expert_in_dim == 0 || expert_mid_dim == 0 ||
+        (expert_in_dim % 32u) != 0 ||
+        (expert_mid_dim % 32u) != 0) {
+        return 0;
+    }
+    const uint64_t expected_gate_row = (uint64_t)(expert_in_dim / 32u) * 17u;
+    const uint64_t expected_down_row = (uint64_t)(expert_mid_dim / 32u) * 17u;
+    return gate_row_bytes == expected_gate_row &&
+           down_row_bytes == expected_down_row;
+}
+
+static int ds4_gpu_mxfp4_native_decode_ensure_scratch(
+        uint32_t expert_in_dim,
+        uint32_t expert_mid_dim,
+        uint32_t out_dim) {
+    const uint64_t x_half_bytes = (uint64_t)expert_in_dim * sizeof(uint16_t);
+    const uint64_t mid_half_bytes = (uint64_t)expert_mid_dim * sizeof(uint16_t);
+    const uint64_t gate_plane_bytes = (uint64_t)expert_mid_dim * expert_in_dim;
+    const uint64_t down_plane_bytes = (uint64_t)out_dim * expert_mid_dim;
+    if (x_half_bytes > NSUIntegerMax ||
+        mid_half_bytes > NSUIntegerMax ||
+        gate_plane_bytes > NSUIntegerMax ||
+        down_plane_bytes > NSUIntegerMax) {
+        return 0;
+    }
+    return ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_x_half_buffer,
+                                         &g_mpp_prefill_x_half_bytes,
+                                         (NSUInteger)x_half_bytes,
+                                         "ds4_mxfp4_decode_x_half") &&
+           ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_mid_half_buffer,
+                                         &g_mpp_prefill_mid_half_bytes,
+                                         (NSUInteger)mid_half_bytes,
+                                         "ds4_mxfp4_decode_mid_half") &&
+           ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_gate_i8_buffer,
+                                         &g_mpp_prefill_gate_i8_bytes,
+                                         (NSUInteger)gate_plane_bytes,
+                                         "ds4_mxfp4_decode_gate_planes") &&
+           ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_up_i8_buffer,
+                                         &g_mpp_prefill_up_i8_bytes,
+                                         (NSUInteger)gate_plane_bytes,
+                                         "ds4_mxfp4_decode_up_planes") &&
+           ds4_gpu_ensure_scratch_buffer(&g_mpp_prefill_down_i8_buffer,
+                                         &g_mpp_prefill_down_i8_bytes,
+                                         (NSUInteger)down_plane_bytes,
+                                         "ds4_mxfp4_decode_down_planes");
+}
+
+static void ds4_gpu_mxfp4_native_decode_log_once(const char *path, int plane_split) {
+    static int logged_repack = 0;
+    static int logged_plane = 0;
+    int *logged = plane_split ? &logged_plane : &logged_repack;
+    if (!*logged) {
+        *logged = 1;
+        fprintf(stderr,
+                "ds4: [mxfp4-native] MPP 4.1 scale-plane decode arm engaged (%s, %s)\n",
+                path ? path : "decode",
+                plane_split ? "plane-sidecar/no-repack" : "repack-per-use");
+    }
+}
+
+static int ds4_gpu_encode_mxfp4_native_decode_route(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        x_half,
+        id<MTLBuffer>        gate_src,
+        NSUInteger           gate_src_off,
+        id<MTLBuffer>        up_src,
+        NSUInteger           up_src_off,
+        id<MTLBuffer>        down_src,
+        NSUInteger           down_src_off,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             route,
+        uint64_t             gate_slot_stride,
+        uint64_t             down_slot_stride,
+        int                  plane_split,
+        id<MTLBuffer>        gate,
+        NSUInteger           gate_off,
+        id<MTLBuffer>        up,
+        NSUInteger           up_off,
+        id<MTLBuffer>        mid,
+        NSUInteger           mid_off,
+        id<MTLBuffer>        weights,
+        NSUInteger           weights_off,
+        id<MTLBuffer>        down_dst,
+        NSUInteger           down_dst_off,
+        uint32_t             expert_in_dim,
+        uint32_t             expert_mid_dim,
+        uint32_t             out_dim,
+        float                clamp) {
+    if (!cb || !x_half || !gate_src || !up_src || !down_src ||
+        !gate || !up || !mid || !weights || !down_dst ||
+        expert_in_dim == 0 || expert_mid_dim == 0 || out_dim == 0) {
+        return 0;
+    }
+    const NSUInteger gate_scales_off =
+        (NSUInteger)((uint64_t)expert_in_dim * expert_mid_dim / 2u);
+    const NSUInteger down_scales_off =
+        (NSUInteger)((uint64_t)expert_mid_dim * out_dim / 2u);
+    int ok = 0;
+    const int selected_plane_split = plane_split && selected;
+    const int direct_plane_split = plane_split && !selected;
+    if (plane_split) {
+        if (selected) {
+            if (gate_slot_stride == 0 || down_slot_stride == 0 ||
+                gate_slot_stride > UINT32_MAX ||
+                down_slot_stride > UINT32_MAX) {
+                return 0;
+            }
+            if (gate_src_off > NSUIntegerMax - gate_scales_off ||
+                up_src_off > NSUIntegerMax - gate_scales_off ||
+                down_src_off > NSUIntegerMax - down_scales_off) {
+                return 0;
+            }
+            ok = 1;
+        } else {
+            ok = 1;
+        }
+    } else if (selected) {
+        if (gate_slot_stride == 0 || down_slot_stride == 0 ||
+            gate_slot_stride > UINT32_MAX ||
+            down_slot_stride > UINT32_MAX) {
+            return 0;
+        }
+        ok = ds4_gpu_encode_mxfp4_repack_selected_planes(cb,
+                                                         gate_src,
+                                                         gate_src_off,
+                                                         g_mpp_prefill_gate_i8_buffer,
+                                                         0,
+                                                         gate_scales_off,
+                                                         selected,
+                                                         selected_off,
+                                                         route,
+                                                         expert_mid_dim,
+                                                         expert_in_dim,
+                                                         (uint32_t)gate_slot_stride) &&
+             ds4_gpu_encode_mxfp4_repack_selected_planes(cb,
+                                                         up_src,
+                                                         up_src_off,
+                                                         g_mpp_prefill_up_i8_buffer,
+                                                         0,
+                                                         gate_scales_off,
+                                                         selected,
+                                                         selected_off,
+                                                         route,
+                                                         expert_mid_dim,
+                                                         expert_in_dim,
+                                                         (uint32_t)gate_slot_stride) &&
+             ds4_gpu_encode_mxfp4_repack_selected_planes(cb,
+                                                         down_src,
+                                                         down_src_off,
+                                                         g_mpp_prefill_down_i8_buffer,
+                                                         0,
+                                                         down_scales_off,
+                                                         selected,
+                                                         selected_off,
+                                                         route,
+                                                         out_dim,
+                                                         expert_mid_dim,
+                                                         (uint32_t)down_slot_stride);
+    } else {
+        ok = ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                gate_src,
+                                                gate_src_off,
+                                                g_mpp_prefill_gate_i8_buffer,
+                                                0,
+                                                gate_scales_off,
+                                                expert_mid_dim,
+                                                expert_in_dim) &&
+             ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                up_src,
+                                                up_src_off,
+                                                g_mpp_prefill_up_i8_buffer,
+                                                0,
+                                                gate_scales_off,
+                                                expert_mid_dim,
+                                                expert_in_dim) &&
+             ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                down_src,
+                                                down_src_off,
+                                                g_mpp_prefill_down_i8_buffer,
+                                                0,
+                                                down_scales_off,
+                                                out_dim,
+                                                expert_mid_dim);
+    }
+    if (!ok) return 0;
+    if (direct_plane_split &&
+        (gate_src_off > NSUIntegerMax - gate_scales_off ||
+         up_src_off > NSUIntegerMax - gate_scales_off ||
+         down_src_off > NSUIntegerMax - down_scales_off)) {
+        return 0;
+    }
+
+    if (selected_plane_split) {
+        static int logged_selected_no_copy = 0;
+        if (!logged_selected_no_copy) {
+            logged_selected_no_copy = 1;
+            fprintf(stderr,
+                    "ds4: [mxfp4-native] selected-slot decode uses direct plane matmul "
+                    "(no selected plane copy)\n");
+        }
+        return ds4_gpu_encode_mxfp4_native_matmul_selected(cb,
+                                                           x_half, 0,
+                                                           gate_src,
+                                                           gate_src_off,
+                                                           gate_src_off + gate_scales_off,
+                                                           gate, gate_off,
+                                                           1, expert_mid_dim, expert_in_dim,
+                                                           selected,
+                                                           selected_off,
+                                                           (uint32_t)gate_slot_stride,
+                                                           route) &&
+               ds4_gpu_encode_mxfp4_native_matmul_selected(cb,
+                                                           x_half, 0,
+                                                           up_src,
+                                                           up_src_off,
+                                                           up_src_off + gate_scales_off,
+                                                           up, up_off,
+                                                           1, expert_mid_dim, expert_in_dim,
+                                                           selected,
+                                                           selected_off,
+                                                           (uint32_t)gate_slot_stride,
+                                                           route) &&
+               ds4_gpu_encode_moe_swiglu_weight(cb,
+                                                gate, gate_off,
+                                                up, up_off,
+                                                mid, mid_off,
+                                                weights, weights_off,
+                                                expert_mid_dim,
+                                                1,
+                                                clamp,
+                                                false) &&
+               ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                             mid,
+                                             mid_off,
+                                             g_mpp_prefill_mid_half_buffer,
+                                             0,
+                                             expert_mid_dim) &&
+               ds4_gpu_encode_mxfp4_native_matmul_selected(cb,
+                                                           g_mpp_prefill_mid_half_buffer, 0,
+                                                           down_src,
+                                                           down_src_off,
+                                                           down_src_off + down_scales_off,
+                                                           down_dst, down_dst_off,
+                                                           1, out_dim, expert_mid_dim,
+                                                           selected,
+                                                           selected_off,
+                                                           (uint32_t)down_slot_stride,
+                                                           route);
+    }
+
+    id<MTLBuffer> gate_w = direct_plane_split ? gate_src : g_mpp_prefill_gate_i8_buffer;
+    id<MTLBuffer> up_w = direct_plane_split ? up_src : g_mpp_prefill_up_i8_buffer;
+    id<MTLBuffer> down_w = direct_plane_split ? down_src : g_mpp_prefill_down_i8_buffer;
+    const NSUInteger gate_data_off = direct_plane_split ? gate_src_off : 0;
+    const NSUInteger up_data_off = direct_plane_split ? up_src_off : 0;
+    const NSUInteger down_data_off = direct_plane_split ? down_src_off : 0;
+    const NSUInteger gate_scale_off = direct_plane_split ? gate_src_off + gate_scales_off : gate_scales_off;
+    const NSUInteger up_scale_off = direct_plane_split ? up_src_off + gate_scales_off : gate_scales_off;
+    const NSUInteger down_scale_off = direct_plane_split ? down_src_off + down_scales_off : down_scales_off;
+
+    return ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                             x_half, 0,
+                                             gate_w,
+                                             gate_data_off, gate_scale_off,
+                                             gate, gate_off,
+                                             1, expert_mid_dim, expert_in_dim) &&
+           ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                             x_half, 0,
+                                             up_w,
+                                             up_data_off, up_scale_off,
+                                             up, up_off,
+                                             1, expert_mid_dim, expert_in_dim) &&
+           ds4_gpu_encode_moe_swiglu_weight(cb,
+                                            gate, gate_off,
+                                            up, up_off,
+                                            mid, mid_off,
+                                            weights, weights_off,
+                                            expert_mid_dim,
+                                            1,
+                                            clamp,
+                                            false) &&
+           ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                         mid,
+                                         mid_off,
+                                         g_mpp_prefill_mid_half_buffer,
+                                         0,
+                                         expert_mid_dim) &&
+           ds4_gpu_encode_mxfp4_native_matmul(cb,
+                                             g_mpp_prefill_mid_half_buffer, 0,
+                                             down_w,
+                                             down_data_off, down_scale_off,
+                                             down_dst, down_dst_off,
+                                             1, out_dim, expert_mid_dim);
+}
+
 static int ds4_gpu_encode_get_rows_i32_token_rows(
         id<MTLCommandBuffer> cb,
         id<MTLBuffer>        table,
@@ -20534,6 +20935,10 @@ int ds4_gpu_routed_moe_one_banked_tensor(
         const uint64_t gate_inner = ds4_gpu_tensor_offset(gate_bank);
         const uint64_t up_inner = ds4_gpu_tensor_offset(up_bank);
         const uint64_t down_inner = ds4_gpu_tensor_offset(down_bank);
+        const int native_plane_split =
+            ds4_gpu_tensor_mxfp4_plane_split(gate_bank) &&
+            ds4_gpu_tensor_mxfp4_plane_split(up_bank) &&
+            ds4_gpu_tensor_mxfp4_plane_split(down_bank);
 
         const uint32_t n_tokens = 1;
         const uint32_t pair_rows = n_tokens * n_expert;
@@ -20543,6 +20948,96 @@ int ds4_gpu_routed_moe_one_banked_tensor(
                                               &g_moe_down_scratch_bytes,
                                               (NSUInteger)down_scratch_bytes,
                                               "ds4_moe_down_scratch"))) {
+            return 0;
+        }
+
+        if (ds4_gpu_mxfp4_native_decode_available(gate_type,
+                                                  down_type,
+                                                  gate_row_bytes,
+                                                  down_row_bytes,
+                                                  expert_in_dim,
+                                                  expert_mid_dim,
+                                                  out_dim) &&
+            gate_slot_stride <= UINT32_MAX &&
+            down_slot_stride <= UINT32_MAX) {
+            if (!ds4_gpu_mxfp4_native_decode_ensure_scratch(expert_in_dim,
+                                                            expert_mid_dim,
+                                                            out_dim)) {
+                return 0;
+            }
+            int owned = 0;
+            id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+            if (!cb) return 0;
+            id<MTLBuffer> down_dst =
+                n_expert == 1 ? outbuf : (expertsbuf ? expertsbuf : g_moe_down_scratch_buffer);
+            NSUInteger down_dst_base =
+                n_expert == 1 ? ds4_gpu_tensor_offset(out) :
+                (expertsbuf ? ds4_gpu_tensor_offset(experts) : 0);
+            const NSUInteger gate_base_off = ds4_gpu_tensor_offset(gate);
+            const NSUInteger up_base_off = ds4_gpu_tensor_offset(up);
+            const NSUInteger mid_base_off = ds4_gpu_tensor_offset(mid);
+            const NSUInteger weights_base_off = ds4_gpu_tensor_offset(weights);
+            const NSUInteger selected_base_off = ds4_gpu_tensor_offset(selected);
+            const uint64_t mid_row_bytes = (uint64_t)expert_mid_dim * sizeof(float);
+            const uint64_t out_row_bytes = (uint64_t)out_dim * sizeof(float);
+            int ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                                   xbuf,
+                                                   ds4_gpu_tensor_offset(x),
+                                                   g_mpp_prefill_x_half_buffer,
+                                                   0,
+                                                   expert_in_dim);
+            for (uint32_t k = 0; ok && k < n_expert; k++) {
+                const NSUInteger row_mid_off =
+                    (NSUInteger)((uint64_t)k * mid_row_bytes);
+                const NSUInteger row_out_off =
+                    (NSUInteger)((uint64_t)k * out_row_bytes);
+                ok = ds4_gpu_encode_mxfp4_native_decode_route(
+                         cb,
+                         g_mpp_prefill_x_half_buffer,
+                         gate_buf,
+                         (NSUInteger)gate_inner,
+                         up_buf,
+                         (NSUInteger)up_inner,
+                         down_buf,
+                         (NSUInteger)down_inner,
+                         selectedbuf,
+                         selected_base_off,
+                         k,
+                         gate_slot_stride,
+                         down_slot_stride,
+                         native_plane_split,
+                         gatebuf,
+                         gate_base_off + row_mid_off,
+                         upbuf,
+                         up_base_off + row_mid_off,
+                         midbuf,
+                         mid_base_off + row_mid_off,
+                         weightsbuf,
+                         weights_base_off + (NSUInteger)((uint64_t)k * sizeof(float)),
+                         down_dst,
+                         down_dst_base + (n_expert == 1 ? 0 : row_out_off),
+                         expert_in_dim,
+                         expert_mid_dim,
+                         out_dim,
+                         clamp);
+            }
+            if (ok && n_expert > 1) {
+                ok = ds4_gpu_encode_moe_sum_experts(cb,
+                                                    down_dst,
+                                                    down_dst_base,
+                                                    outbuf,
+                                                    ds4_gpu_tensor_offset(out),
+                                                    out_dim,
+                                                    n_expert,
+                                                    n_tokens);
+            }
+            if (!ok) return 0;
+            ds4_gpu_mxfp4_native_decode_log_once("banked", native_plane_split);
+            if (!ds4_gpu_finish_command_buffer(cb, owned, "native MXFP4 banked routed tensor MoE")) return 0;
+            return 1;
+        }
+        if (native_plane_split) {
+            fprintf(stderr, "ds4: MXFP4_NATIVE plane-split banked decode cannot use legacy block kernels\n");
             return 0;
         }
 
@@ -20801,21 +21296,29 @@ int ds4_gpu_routed_moe_one_slots6_tensor(
         !gate_slots || !up_slots || !down_slots || n_expert != 6) {
         return 0;
     }
-    id<MTLComputePipelineState> pair_swiglu_pipeline = nil;
-    id<MTLComputePipelineState> down_slots6_pipeline = nil;
-    if (gate_type == DS4_METAL_TENSOR_IQ2_XXS &&
-        down_type == DS4_METAL_TENSOR_Q2_K) {
-        pair_swiglu_pipeline = g_moe_mul_mv_slots6_iq2_xxs_pair_swiglu_pipeline;
-        down_slots6_pipeline = g_moe_mul_mv_slots6_q2_k_pipeline;
-    } else if (gate_type == DS4_METAL_TENSOR_MXFP4 &&
-               down_type == DS4_METAL_TENSOR_MXFP4) {
-        pair_swiglu_pipeline = g_moe_mul_mv_slots6_mxfp4_pair_swiglu_pipeline;
-        down_slots6_pipeline = g_moe_mul_mv_slots6_mxfp4_pipeline;
-    }
-    if (!pair_swiglu_pipeline || !down_slots6_pipeline) {
+    if ((expert_in_dim % 256u) != 0 || (expert_mid_dim % 256u) != 0) return 0;
+    const int native_possible =
+        ds4_gpu_mxfp4_native_decode_available(gate_type,
+                                              down_type,
+                                              gate_row_bytes,
+                                              down_row_bytes,
+                                              expert_in_dim,
+                                              expert_mid_dim,
+                                              out_dim);
+        id<MTLComputePipelineState> pair_swiglu_pipeline = nil;
+        id<MTLComputePipelineState> down_slots6_pipeline = nil;
+        if (gate_type == DS4_METAL_TENSOR_IQ2_XXS &&
+            down_type == DS4_METAL_TENSOR_Q2_K) {
+            pair_swiglu_pipeline = g_moe_mul_mv_slots6_iq2_xxs_pair_swiglu_pipeline;
+            down_slots6_pipeline = g_moe_mul_mv_slots6_q2_k_pipeline;
+        } else if (gate_type == DS4_METAL_TENSOR_MXFP4 &&
+                   down_type == DS4_METAL_TENSOR_MXFP4) {
+            pair_swiglu_pipeline = g_moe_mul_mv_slots6_mxfp4_pair_swiglu_pipeline;
+            down_slots6_pipeline = g_moe_mul_mv_slots6_mxfp4_pipeline;
+        }
+    if (!native_possible && (!pair_swiglu_pipeline || !down_slots6_pipeline)) {
         return 0;
     }
-    if ((expert_in_dim % 256u) != 0 || (expert_mid_dim % 256u) != 0) return 0;
 
     const uint64_t gate_expert_bytes = (uint64_t)expert_mid_dim * gate_row_bytes;
     const uint64_t down_expert_bytes = (uint64_t)out_dim * down_row_bytes;
@@ -20858,19 +21361,23 @@ int ds4_gpu_routed_moe_one_slots6_tensor(
         NSUInteger up_slot_offsets[6] = { 0, 0, 0, 0, 0, 0 };
         NSUInteger down_slot_offsets[6] = { 0, 0, 0, 0, 0, 0 };
 
-        if (!xbuf || !gatebuf || !upbuf || !midbuf || !outbuf || !weightsbuf ||
-            (!direct_down_sum && !expertsbuf) ||
-            ds4_gpu_tensor_bytes(x) < x_bytes ||
-            ds4_gpu_tensor_bytes(gate) < mid_bytes ||
-            ds4_gpu_tensor_bytes(up) < mid_bytes ||
-            ds4_gpu_tensor_bytes(mid) < mid_bytes ||
-            ds4_gpu_tensor_bytes(out) < out_bytes ||
-            (!direct_down_sum && ds4_gpu_tensor_bytes(experts) < experts_bytes) ||
-            ds4_gpu_tensor_bytes(weights) < (uint64_t)n_expert * sizeof(float)) {
-            fprintf(stderr, "ds4: Metal slots6 routed tensor MoE received undersized buffers\n");
-            return 0;
-        }
+            const int native_experts_ok =
+                expertsbuf && ds4_gpu_tensor_bytes(experts) >= experts_bytes;
+            if (!xbuf || !gatebuf || !upbuf || !midbuf || !outbuf || !weightsbuf ||
+                (!native_possible && !direct_down_sum && !expertsbuf) ||
+                ds4_gpu_tensor_bytes(x) < x_bytes ||
+                ds4_gpu_tensor_bytes(gate) < mid_bytes ||
+                ds4_gpu_tensor_bytes(up) < mid_bytes ||
+                ds4_gpu_tensor_bytes(mid) < mid_bytes ||
+                ds4_gpu_tensor_bytes(out) < out_bytes ||
+                (!native_possible && !direct_down_sum &&
+                 ds4_gpu_tensor_bytes(experts) < experts_bytes) ||
+                ds4_gpu_tensor_bytes(weights) < (uint64_t)n_expert * sizeof(float)) {
+                fprintf(stderr, "ds4: Metal slots6 routed tensor MoE received undersized buffers\n");
+                return 0;
+            }
 
+        int native_plane_split = 1;
         for (uint32_t i = 0; i < 6; i++) {
             if (!gate_slots[i] || !up_slots[i] || !down_slots[i] ||
                 ds4_gpu_tensor_bytes(gate_slots[i]) < gate_expert_bytes ||
@@ -20888,13 +21395,101 @@ int ds4_gpu_routed_moe_one_slots6_tensor(
             if (!gate_slot_bufs[i] || !up_slot_bufs[i] || !down_slot_bufs[i]) {
                 return 0;
             }
+            native_plane_split =
+                native_plane_split &&
+                ds4_gpu_tensor_mxfp4_plane_split(gate_slots[i]) &&
+                ds4_gpu_tensor_mxfp4_plane_split(up_slots[i]) &&
+                ds4_gpu_tensor_mxfp4_plane_split(down_slots[i]);
+        }
+
+            const uint32_t n_tokens = 1;
+            if (native_possible) {
+                if (!native_experts_ok &&
+                    !ds4_gpu_ensure_scratch_buffer(&g_moe_down_scratch_buffer,
+                                                   &g_moe_down_scratch_bytes,
+                                                   (NSUInteger)experts_bytes,
+                                                   "ds4_mxfp4_decode_slots6_down")) {
+                    return 0;
+                }
+                if (!ds4_gpu_mxfp4_native_decode_ensure_scratch(expert_in_dim,
+                                                                expert_mid_dim,
+                                                                out_dim)) {
+                    return 0;
+                }
+                int owned = 0;
+                id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+                if (!cb) return 0;
+                id<MTLBuffer> down_dst = native_experts_ok ? expertsbuf : g_moe_down_scratch_buffer;
+                const NSUInteger down_dst_base = native_experts_ok ? ds4_gpu_tensor_offset(experts) : 0;
+            const NSUInteger gate_base_off = ds4_gpu_tensor_offset(gate);
+            const NSUInteger up_base_off = ds4_gpu_tensor_offset(up);
+            const NSUInteger mid_base_off = ds4_gpu_tensor_offset(mid);
+            const NSUInteger weights_base_off = ds4_gpu_tensor_offset(weights);
+            int ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                                   xbuf,
+                                                   ds4_gpu_tensor_offset(x),
+                                                   g_mpp_prefill_x_half_buffer,
+                                                   0,
+                                                   expert_in_dim);
+            for (uint32_t k = 0; ok && k < n_expert; k++) {
+                const NSUInteger row_mid_off =
+                    (NSUInteger)((uint64_t)k * mid_row_bytes);
+                const NSUInteger row_out_off =
+                    (NSUInteger)((uint64_t)k * out_row_bytes);
+                ok = ds4_gpu_encode_mxfp4_native_decode_route(
+                         cb,
+                         g_mpp_prefill_x_half_buffer,
+                         gate_slot_bufs[k],
+                         gate_slot_offsets[k],
+                         up_slot_bufs[k],
+                         up_slot_offsets[k],
+                         down_slot_bufs[k],
+                         down_slot_offsets[k],
+                         nil,
+                         0,
+                         k,
+                         0,
+                         0,
+                         native_plane_split,
+                         gatebuf,
+                         gate_base_off + row_mid_off,
+                         upbuf,
+                         up_base_off + row_mid_off,
+                         midbuf,
+                         mid_base_off + row_mid_off,
+                         weightsbuf,
+                         weights_base_off + (NSUInteger)((uint64_t)k * sizeof(float)),
+                         down_dst,
+                         down_dst_base + row_out_off,
+                         expert_in_dim,
+                         expert_mid_dim,
+                         out_dim,
+                         clamp);
+            }
+            if (ok) {
+                ok = ds4_gpu_encode_moe_sum_experts(cb,
+                                                    down_dst,
+                                                    down_dst_base,
+                                                    outbuf,
+                                                    ds4_gpu_tensor_offset(out),
+                                                    out_dim,
+                                                    n_expert,
+                                                    n_tokens);
+            }
+            if (!ok) return 0;
+            ds4_gpu_mxfp4_native_decode_log_once("slots6", native_plane_split);
+            if (!ds4_gpu_finish_command_buffer(cb, owned, "native MXFP4 slots6 routed tensor MoE")) return 0;
+            return 1;
+        }
+        if (native_plane_split) {
+            fprintf(stderr, "ds4: MXFP4_NATIVE plane-split slots6 decode cannot use legacy block kernels\n");
+            return 0;
         }
 
         const uint32_t gate_nr0 = ds4_gpu_routed_mv_nr0(gate_type);
         const uint32_t down_nr0 = ds4_gpu_routed_mv_nr0(down_type);
         if (gate_nr0 == 0 || down_nr0 == 0) return 0;
 
-        const uint32_t n_tokens = 1;
         ds4_gpu_mul_mv_id_args gate_args =
             ds4_gpu_make_mul_mv_id_args(expert_in_dim, expert_mid_dim, 1,
                                           gate_row_bytes, gate_expert_bytes,
@@ -21051,13 +21646,24 @@ int ds4_gpu_routed_moe_one_slots6_record_tensor(
     if (!out || !gate || !up || !mid || !x || !weights || !slot_records ||
         n_expert != 6 ||
         gate_type != DS4_METAL_TENSOR_MXFP4 ||
-        down_type != DS4_METAL_TENSOR_MXFP4 ||
-        !g_moe_mul_mv_slots6_mxfp4_record_pair_swiglu_pipeline ||
-        !g_moe_mul_mv_slots6_mxfp4_record_sum6_pipeline ||
-        getenv("DS4_FLASH_MOE_SLOTS6_DISABLE_DOWN_SUM6") != NULL) {
+        down_type != DS4_METAL_TENSOR_MXFP4) {
         return 0;
     }
     if ((expert_in_dim % 256u) != 0 || (expert_mid_dim % 256u) != 0) return 0;
+    const int native_possible =
+        ds4_gpu_mxfp4_native_decode_available(gate_type,
+                                              down_type,
+                                              gate_row_bytes,
+                                              down_row_bytes,
+                                              expert_in_dim,
+                                              expert_mid_dim,
+                                              out_dim);
+    if (!native_possible &&
+        (!g_moe_mul_mv_slots6_mxfp4_record_pair_swiglu_pipeline ||
+         !g_moe_mul_mv_slots6_mxfp4_record_sum6_pipeline ||
+         getenv("DS4_FLASH_MOE_SLOTS6_DISABLE_DOWN_SUM6") != NULL)) {
+        return 0;
+    }
 
     const uint64_t gate_expert_bytes = (uint64_t)expert_mid_dim * gate_row_bytes;
     const uint64_t down_expert_bytes = (uint64_t)out_dim * down_row_bytes;
@@ -21102,6 +21708,7 @@ int ds4_gpu_routed_moe_one_slots6_record_tensor(
             fprintf(stderr, "ds4: Metal slots6 record routed tensor MoE received undersized buffers\n");
             return 0;
         }
+        int native_plane_split = 1;
         for (uint32_t i = 0; i < 6; i++) {
             if (!slot_records[i] ||
                 ds4_gpu_tensor_bytes(slot_records[i]) < record_needed) {
@@ -21111,13 +21718,98 @@ int ds4_gpu_routed_moe_one_slots6_record_tensor(
             slot_bufs[i] = ds4_gpu_tensor_buffer(slot_records[i]);
             slot_offsets[i] = ds4_gpu_tensor_offset(slot_records[i]);
             if (!slot_bufs[i]) return 0;
+            native_plane_split =
+                native_plane_split &&
+                ds4_gpu_tensor_mxfp4_plane_split(slot_records[i]);
+        }
+
+        const uint32_t n_tokens = 1;
+        if (native_possible) {
+            const uint64_t experts_bytes = (uint64_t)n_expert * out_bytes;
+            if (experts_bytes > NSUIntegerMax ||
+                !ds4_gpu_ensure_scratch_buffer(&g_moe_down_scratch_buffer,
+                                               &g_moe_down_scratch_bytes,
+                                               (NSUInteger)experts_bytes,
+                                               "ds4_mxfp4_decode_record_down")) {
+                return 0;
+            }
+            if (!ds4_gpu_mxfp4_native_decode_ensure_scratch(expert_in_dim,
+                                                            expert_mid_dim,
+                                                            out_dim)) {
+                return 0;
+            }
+            int owned = 0;
+            id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+            if (!cb) return 0;
+            const NSUInteger gate_base_off = ds4_gpu_tensor_offset(gate);
+            const NSUInteger up_base_off = ds4_gpu_tensor_offset(up);
+            const NSUInteger mid_base_off = ds4_gpu_tensor_offset(mid);
+            const NSUInteger weights_base_off = ds4_gpu_tensor_offset(weights);
+            int ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                                   xbuf,
+                                                   ds4_gpu_tensor_offset(x),
+                                                   g_mpp_prefill_x_half_buffer,
+                                                   0,
+                                                   expert_in_dim);
+            for (uint32_t k = 0; ok && k < n_expert; k++) {
+                const NSUInteger row_mid_off =
+                    (NSUInteger)((uint64_t)k * mid_row_bytes);
+                const NSUInteger row_out_off =
+                    (NSUInteger)((uint64_t)k * out_bytes);
+                ok = ds4_gpu_encode_mxfp4_native_decode_route(
+                         cb,
+                         g_mpp_prefill_x_half_buffer,
+                         slot_bufs[k],
+                         slot_offsets[k] + (NSUInteger)gate_offset,
+                         slot_bufs[k],
+                         slot_offsets[k] + (NSUInteger)up_offset,
+                         slot_bufs[k],
+                         slot_offsets[k] + (NSUInteger)down_offset,
+                         nil,
+                         0,
+                         k,
+                         0,
+                         0,
+                         native_plane_split,
+                         gatebuf,
+                         gate_base_off + row_mid_off,
+                         upbuf,
+                         up_base_off + row_mid_off,
+                         midbuf,
+                         mid_base_off + row_mid_off,
+                         weightsbuf,
+                         weights_base_off + (NSUInteger)((uint64_t)k * sizeof(float)),
+                         g_moe_down_scratch_buffer,
+                         row_out_off,
+                         expert_in_dim,
+                         expert_mid_dim,
+                         out_dim,
+                         clamp);
+            }
+            if (ok) {
+                ok = ds4_gpu_encode_moe_sum_experts(cb,
+                                                    g_moe_down_scratch_buffer,
+                                                    0,
+                                                    outbuf,
+                                                    ds4_gpu_tensor_offset(out),
+                                                    out_dim,
+                                                    n_expert,
+                                                    n_tokens);
+            }
+            if (!ok) return 0;
+            ds4_gpu_mxfp4_native_decode_log_once("slots6-record", native_plane_split);
+            if (!ds4_gpu_finish_command_buffer(cb, owned, "native MXFP4 slots6 record routed tensor MoE")) return 0;
+            return 1;
+        }
+        if (native_plane_split) {
+            fprintf(stderr, "ds4: MXFP4_NATIVE plane-split record decode cannot use legacy block kernels\n");
+            return 0;
         }
 
         const uint32_t gate_nr0 = ds4_gpu_routed_mv_nr0(gate_type);
         const uint32_t down_nr0 = ds4_gpu_routed_mv_nr0(down_type);
         if (gate_nr0 == 0 || down_nr0 == 0) return 0;
 
-        const uint32_t n_tokens = 1;
         ds4_gpu_mul_mv_id_args gate_args =
             ds4_gpu_make_mul_mv_id_args(expert_in_dim, expert_mid_dim, 1,
                                           gate_row_bytes, gate_expert_bytes,
@@ -21389,14 +22081,25 @@ int ds4_gpu_routed_moe_one_slots6_chunked_tensor(
         chunk_count > DS4_GPU_SLOTS6_CHUNKED_MAX ||
         slot_stride == 0 ||
         gate_type != DS4_METAL_TENSOR_MXFP4 ||
-        down_type != DS4_METAL_TENSOR_MXFP4 ||
-        !g_moe_mul_mv_slots6_mxfp4_chunked_pair_swiglu_pipeline ||
-        !g_moe_mul_mv_slots6_mxfp4_chunked_sum6_pipeline ||
-        g_quality_mode ||
-        getenv("DS4_FLASH_MOE_SLOTS6_DISABLE_DOWN_SUM6") != NULL) {
+        down_type != DS4_METAL_TENSOR_MXFP4) {
         return 0;
     }
     if ((expert_in_dim % 256u) != 0 || (expert_mid_dim % 256u) != 0) return 0;
+    const int native_possible =
+        ds4_gpu_mxfp4_native_decode_available(gate_type,
+                                              down_type,
+                                              gate_row_bytes,
+                                              down_row_bytes,
+                                              expert_in_dim,
+                                              expert_mid_dim,
+                                              out_dim);
+    if (!native_possible &&
+        (!g_moe_mul_mv_slots6_mxfp4_chunked_pair_swiglu_pipeline ||
+         !g_moe_mul_mv_slots6_mxfp4_chunked_sum6_pipeline ||
+         g_quality_mode ||
+         getenv("DS4_FLASH_MOE_SLOTS6_DISABLE_DOWN_SUM6") != NULL)) {
+        return 0;
+    }
 
     const uint64_t gate_expert_bytes = (uint64_t)expert_mid_dim * gate_row_bytes;
     const uint64_t down_expert_bytes = (uint64_t)out_dim * down_row_bytes;
@@ -21444,6 +22147,7 @@ int ds4_gpu_routed_moe_one_slots6_chunked_tensor(
             return 0;
         }
 
+        int native_plane_split = 1;
         for (uint32_t i = 0; i < DS4_GPU_SLOTS6_CHUNKED_MAX; i++) {
             const uint32_t src = (i < chunk_count) ? i : 0;
             if (!gate_chunks[src] || !up_chunks[src] || !down_chunks[src]) return 0;
@@ -21454,6 +22158,13 @@ int ds4_gpu_routed_moe_one_slots6_chunked_tensor(
             up_chunk_offs[i] = ds4_gpu_tensor_offset(up_chunks[src]);
             down_chunk_offs[i] = ds4_gpu_tensor_offset(down_chunks[src]);
             if (!gate_chunk_bufs[i] || !up_chunk_bufs[i] || !down_chunk_bufs[i]) return 0;
+            if (i < chunk_count) {
+                native_plane_split =
+                    native_plane_split &&
+                    ds4_gpu_tensor_mxfp4_plane_split(gate_chunks[i]) &&
+                    ds4_gpu_tensor_mxfp4_plane_split(up_chunks[i]) &&
+                    ds4_gpu_tensor_mxfp4_plane_split(down_chunks[i]);
+            }
             if (i < chunk_count && chunk_used[i]) {
                 if ((uint64_t)max_local_slot[i] > UINT64_MAX / slot_stride) return 0;
                 const uint64_t slot_off = (uint64_t)max_local_slot[i] * slot_stride;
@@ -21468,11 +22179,103 @@ int ds4_gpu_routed_moe_one_slots6_chunked_tensor(
             }
         }
 
+        const uint32_t n_tokens = 1;
+            if (native_possible) {
+            const uint64_t experts_bytes = (uint64_t)n_expert * out_bytes;
+            if (experts_bytes > NSUIntegerMax ||
+                !ds4_gpu_ensure_scratch_buffer(&g_moe_down_scratch_buffer,
+                                               &g_moe_down_scratch_bytes,
+                                               (NSUInteger)experts_bytes,
+                                               "ds4_mxfp4_decode_chunked_down")) {
+                return 0;
+            }
+            if (!ds4_gpu_mxfp4_native_decode_ensure_scratch(expert_in_dim,
+                                                            expert_mid_dim,
+                                                            out_dim)) {
+                return 0;
+            }
+            int owned = 0;
+            id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+            if (!cb) return 0;
+            const NSUInteger gate_base_off = ds4_gpu_tensor_offset(gate);
+            const NSUInteger up_base_off = ds4_gpu_tensor_offset(up);
+            const NSUInteger mid_base_off = ds4_gpu_tensor_offset(mid);
+            const NSUInteger weights_base_off = ds4_gpu_tensor_offset(weights);
+            int ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                                   xbuf,
+                                                   ds4_gpu_tensor_offset(x),
+                                                   g_mpp_prefill_x_half_buffer,
+                                                   0,
+                                                   expert_in_dim);
+            for (uint32_t k = 0; ok && k < n_expert; k++) {
+                const uint32_t chunk = chunk_ids[k];
+                const uint64_t slot_off64 = (uint64_t)local_slots[k] * slot_stride;
+                if (slot_off64 > NSUIntegerMax ||
+                    gate_chunk_offs[chunk] > NSUIntegerMax - (NSUInteger)slot_off64 ||
+                    up_chunk_offs[chunk] > NSUIntegerMax - (NSUInteger)slot_off64 ||
+                    down_chunk_offs[chunk] > NSUIntegerMax - (NSUInteger)slot_off64) {
+                    ok = 0;
+                    break;
+                }
+                const NSUInteger slot_off = (NSUInteger)slot_off64;
+                const NSUInteger row_mid_off =
+                    (NSUInteger)((uint64_t)k * mid_row_bytes);
+                const NSUInteger row_out_off =
+                    (NSUInteger)((uint64_t)k * out_bytes);
+                ok = ds4_gpu_encode_mxfp4_native_decode_route(
+                         cb,
+                         g_mpp_prefill_x_half_buffer,
+                         gate_chunk_bufs[chunk],
+                         gate_chunk_offs[chunk] + slot_off,
+                         up_chunk_bufs[chunk],
+                         up_chunk_offs[chunk] + slot_off,
+                         down_chunk_bufs[chunk],
+                         down_chunk_offs[chunk] + slot_off,
+                         nil,
+                         0,
+                         k,
+                         0,
+                         0,
+                         native_plane_split,
+                         gatebuf,
+                         gate_base_off + row_mid_off,
+                         upbuf,
+                         up_base_off + row_mid_off,
+                         midbuf,
+                         mid_base_off + row_mid_off,
+                         weightsbuf,
+                         weights_base_off + (NSUInteger)((uint64_t)k * sizeof(float)),
+                         g_moe_down_scratch_buffer,
+                         row_out_off,
+                         expert_in_dim,
+                         expert_mid_dim,
+                         out_dim,
+                         clamp);
+            }
+            if (ok) {
+                ok = ds4_gpu_encode_moe_sum_experts(cb,
+                                                    g_moe_down_scratch_buffer,
+                                                    0,
+                                                    outbuf,
+                                                    ds4_gpu_tensor_offset(out),
+                                                    out_dim,
+                                                    n_expert,
+                                                    n_tokens);
+            }
+            if (!ok) return 0;
+            ds4_gpu_mxfp4_native_decode_log_once("slots6-chunked", native_plane_split);
+            if (!ds4_gpu_finish_command_buffer(cb, owned, "native MXFP4 chunked slots6 routed tensor MoE")) return 0;
+            return 1;
+        }
+        if (native_plane_split) {
+            fprintf(stderr, "ds4: MXFP4_NATIVE plane-split chunked decode cannot use legacy block kernels\n");
+            return 0;
+        }
+
         const uint32_t gate_nr0 = ds4_gpu_routed_mv_nr0(gate_type);
         const uint32_t down_nr0 = ds4_gpu_routed_mv_nr0(down_type);
         if (gate_nr0 == 0 || down_nr0 == 0) return 0;
 
-        const uint32_t n_tokens = 1;
         ds4_gpu_mul_mv_id_args gate_args =
             ds4_gpu_make_mul_mv_id_args(expert_in_dim, expert_mid_dim, 1,
                                           gate_row_bytes, gate_expert_bytes,
@@ -21648,7 +22451,113 @@ static int ds4_gpu_routed_moe_one_banked_tensor_slotwise_impl(
         const uint64_t gate_inner = ds4_gpu_tensor_offset(gate_bank);
         const uint64_t up_inner = ds4_gpu_tensor_offset(up_bank);
         const uint64_t down_inner = ds4_gpu_tensor_offset(down_bank);
+        const int native_plane_split =
+            ds4_gpu_tensor_mxfp4_plane_split(gate_bank) &&
+            ds4_gpu_tensor_mxfp4_plane_split(up_bank) &&
+            ds4_gpu_tensor_mxfp4_plane_split(down_bank);
         const uint32_t n_tokens = 1;
+
+        if (ds4_gpu_mxfp4_native_decode_available(gate_type,
+                                                  down_type,
+                                                  gate_row_bytes,
+                                                  down_row_bytes,
+                                                  expert_in_dim,
+                                                  expert_mid_dim,
+                                                  out_dim) &&
+            gate_slot_stride <= UINT32_MAX &&
+            down_slot_stride <= UINT32_MAX) {
+            if (!ds4_gpu_mxfp4_native_decode_ensure_scratch(expert_in_dim,
+                                                            expert_mid_dim,
+                                                            out_dim)) {
+                return 0;
+            }
+            int owned = 0;
+            id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+            if (!cb) return 0;
+
+            const NSUInteger x_off = ds4_gpu_tensor_offset(x);
+            const NSUInteger gate_base_off = ds4_gpu_tensor_offset(gate);
+            const NSUInteger up_base_off = ds4_gpu_tensor_offset(up);
+            const NSUInteger mid_base_off = ds4_gpu_tensor_offset(mid);
+            const NSUInteger out_off = ds4_gpu_tensor_offset(out);
+            const NSUInteger selected_base_off = baked_slot_ids ? 0 : ds4_gpu_tensor_offset(selected);
+            const NSUInteger weights_base_off = ds4_gpu_tensor_offset(weights);
+            const NSUInteger experts_base_off = expertsbuf ? ds4_gpu_tensor_offset(experts) : 0;
+            int ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
+                                                   xbuf,
+                                                   x_off,
+                                                   g_mpp_prefill_x_half_buffer,
+                                                   0,
+                                                   expert_in_dim);
+            for (uint32_t k = 0; ok && k < n_expert; k++) {
+                const int32_t baked_slot = baked_slot_ids ? baked_slot_ids[k] : 0;
+                const NSUInteger row_mid_off =
+                    (NSUInteger)((uint64_t)k * mid_row_bytes);
+                const NSUInteger row_out_off =
+                    (NSUInteger)((uint64_t)k * out_row_bytes);
+                const NSUInteger gate_src_off =
+                    (NSUInteger)(gate_inner +
+                                 (baked_slot_ids ? (uint64_t)baked_slot * gate_slot_stride : 0));
+                const NSUInteger up_src_off =
+                    (NSUInteger)(up_inner +
+                                 (baked_slot_ids ? (uint64_t)baked_slot * gate_slot_stride : 0));
+                const NSUInteger down_src_off =
+                    (NSUInteger)(down_inner +
+                                 (baked_slot_ids ? (uint64_t)baked_slot * down_slot_stride : 0));
+                id<MTLBuffer> down_dst = n_expert == 1 ? outbuf : expertsbuf;
+                const NSUInteger down_dst_off =
+                    n_expert == 1 ? out_off : experts_base_off + row_out_off;
+                ok = ds4_gpu_encode_mxfp4_native_decode_route(
+                         cb,
+                         g_mpp_prefill_x_half_buffer,
+                         gate_buf,
+                         gate_src_off,
+                         up_buf,
+                         up_src_off,
+                         down_buf,
+                         down_src_off,
+                         baked_slot_ids ? nil : selectedbuf,
+                         selected_base_off,
+                         k,
+                         gate_slot_stride,
+                         down_slot_stride,
+                         native_plane_split,
+                         gatebuf,
+                         gate_base_off + row_mid_off,
+                         upbuf,
+                         up_base_off + row_mid_off,
+                         midbuf,
+                         mid_base_off + row_mid_off,
+                         weightsbuf,
+                         weights_base_off + (NSUInteger)((uint64_t)k * sizeof(float)),
+                         down_dst,
+                         down_dst_off,
+                         expert_in_dim,
+                         expert_mid_dim,
+                         out_dim,
+                         clamp);
+            }
+            if (ok && n_expert > 1) {
+                ok = ds4_gpu_encode_moe_sum_experts(cb,
+                                                    expertsbuf,
+                                                    experts_base_off,
+                                                    outbuf,
+                                                    out_off,
+                                                    out_dim,
+                                                    n_expert,
+                                                    n_tokens);
+            }
+            if (!ok) return 0;
+            ds4_gpu_mxfp4_native_decode_log_once(
+                    baked_slot_ids ? "slotwise-baked" : "slotwise",
+                    native_plane_split);
+            if (!ds4_gpu_finish_command_buffer(cb, owned, "native MXFP4 slotwise routed tensor MoE")) return 0;
+            return 1;
+        }
+        if (native_plane_split) {
+            fprintf(stderr, "ds4: MXFP4_NATIVE plane-split slotwise decode cannot use legacy block kernels\n");
+            return 0;
+        }
 
         const uint32_t gate_nr0 = ds4_gpu_routed_mv_nr0(gate_type);
         const uint32_t down_nr0 = ds4_gpu_routed_mv_nr0(down_type);
@@ -27437,12 +28346,21 @@ static void ds4_gpu_ensure_mxfp4_native_library(void) {
     }
     g_mxfp4_repack_planes_pipeline =
         ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_repack_planes");
+    g_mxfp4_repack_selected_planes_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_repack_selected_planes");
+    g_mxfp4_copy_selected_planes_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_copy_selected_planes");
     g_mxfp4_native_matmul_n64_pipeline =
         ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_native_matmul_n64");
-    fprintf(stderr, "ds4: MXFP4 native library (MSL %s): repack=%s scale-plane matmul=%s\n",
+    g_mxfp4_native_matmul_selected_n64_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_native_matmul_selected_n64");
+    fprintf(stderr, "ds4: MXFP4 native library (MSL %s): repack=%s selected-repack=%s selected-plane-copy=%s scale-plane matmul=%s selected-matmul=%s\n",
             lang41 ? "4.1" : "4.0",
             g_mxfp4_repack_planes_pipeline ? "ok" : "MISSING",
-            g_mxfp4_native_matmul_n64_pipeline ? "ok" : "unavailable (needs macOS 27 toolchain + M5)");
+            g_mxfp4_repack_selected_planes_pipeline ? "ok" : "MISSING",
+            g_mxfp4_copy_selected_planes_pipeline ? "ok" : "MISSING",
+            g_mxfp4_native_matmul_n64_pipeline ? "ok" : "unavailable (needs macOS 27 toolchain + M5)",
+            g_mxfp4_native_matmul_selected_n64_pipeline ? "ok" : "unavailable");
 }
 
 /* Native-MXFP4 opt-in (default off): DS4_MXFP4_NATIVE=1. */
@@ -27492,6 +28410,83 @@ static int ds4_gpu_encode_mxfp4_repack_planes(
     return 1;
 }
 
+static int ds4_gpu_encode_mxfp4_repack_selected_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             route,
+        uint32_t             rows,
+        uint32_t             depth,
+        uint32_t             slot_stride) {
+    if (!cb || !src || !dst || !selected || rows == 0 || depth == 0 ||
+        (depth % 32u) != 0 || slot_stride == 0) {
+        return 0;
+    }
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_repack_selected_planes_pipeline) return 0;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mxfp4_repack_selected_planes_pipeline];
+    [enc setBuffer:src offset:src_off atIndex:0];
+    [enc setBuffer:dst offset:data_off atIndex:1];
+    [enc setBuffer:dst offset:scales_off atIndex:2];
+    [enc setBuffer:selected offset:selected_off atIndex:3];
+    [enc setBytes:&rows length:sizeof(rows) atIndex:4];
+    [enc setBytes:&depth length:sizeof(depth) atIndex:5];
+    [enc setBytes:&slot_stride length:sizeof(slot_stride) atIndex:6];
+    [enc setBytes:&route length:sizeof(route) atIndex:7];
+    [enc dispatchThreadgroups:MTLSizeMake((depth / 32u + 63u) / 64u, rows, 1)
+         threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+static int ds4_gpu_encode_mxfp4_copy_selected_planes(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_data_off,
+        NSUInteger           src_scales_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             route,
+        uint32_t             rows,
+        uint32_t             depth,
+        uint32_t             slot_stride) {
+    if (!cb || !src || !dst || !selected || rows == 0 || depth == 0 ||
+        (depth % 32u) != 0 || slot_stride == 0) {
+        return 0;
+    }
+    const uint64_t data_bytes = (uint64_t)rows * depth / 2u;
+    const uint64_t scale_bytes = (uint64_t)rows * (depth / 32u);
+    const uint64_t total_bytes = data_bytes + scale_bytes;
+    if (total_bytes == 0 || total_bytes > UINT32_MAX) return 0;
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_copy_selected_planes_pipeline) return 0;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mxfp4_copy_selected_planes_pipeline];
+    [enc setBuffer:src offset:src_data_off atIndex:0];
+    [enc setBuffer:src offset:src_scales_off atIndex:1];
+    [enc setBuffer:dst offset:data_off atIndex:2];
+    [enc setBuffer:dst offset:scales_off atIndex:3];
+    [enc setBuffer:selected offset:selected_off atIndex:4];
+    [enc setBytes:&rows length:sizeof(rows) atIndex:5];
+    [enc setBytes:&depth length:sizeof(depth) atIndex:6];
+    [enc setBytes:&slot_stride length:sizeof(slot_stride) atIndex:7];
+    [enc setBytes:&route length:sizeof(route) atIndex:8];
+    const NSUInteger tew = g_mxfp4_copy_selected_planes_pipeline.threadExecutionWidth;
+    [enc dispatchThreads:MTLSizeMake((NSUInteger)total_bytes, 1, 1)
+   threadsPerThreadgroup:MTLSizeMake(tew * 4u, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
 /* Encode the native scale-plane matmul: c[m][n] f32 = a[m][k] f16 x MXFP4
  * weight planes (data at w+data_off, scales at w+scales_off), weights [n][k].
  * MPP clamps to tensor extents (probe-verified), so partial 64-row m tiles
@@ -27521,6 +28516,48 @@ static int ds4_gpu_encode_mxfp4_native_matmul(
     [enc setBytes:&k length:sizeof(k) atIndex:5];
     [enc setBuffer:w offset:scales_off atIndex:6];
     const NSUInteger tew = g_mxfp4_native_matmul_n64_pipeline.threadExecutionWidth;
+    [enc dispatchThreadgroups:MTLSizeMake((n + 63u) / 64u, (m + 63u) / 64u, 1)
+         threadsPerThreadgroup:MTLSizeMake(tew * 4u, 1, 1)];
+    ds4_gpu_end_compute_encoder(cb, enc);
+    return 1;
+}
+
+static int ds4_gpu_encode_mxfp4_native_matmul_selected(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        a,
+        NSUInteger           a_off,
+        id<MTLBuffer>        w,
+        NSUInteger           data_off,
+        NSUInteger           scales_off,
+        id<MTLBuffer>        c,
+        NSUInteger           c_off,
+        uint32_t             m,
+        uint32_t             n,
+        uint32_t             k,
+        id<MTLBuffer>        selected,
+        NSUInteger           selected_off,
+        uint32_t             slot_stride,
+        uint32_t             route) {
+    if (!cb || !a || !w || !c || !selected ||
+        m == 0 || n == 0 || k == 0 || (k % 32u) != 0 ||
+        slot_stride == 0) {
+        return 0;
+    }
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_native_matmul_selected_n64_pipeline) return 0;
+    id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+    [enc setComputePipelineState:g_mxfp4_native_matmul_selected_n64_pipeline];
+    [enc setBuffer:a offset:a_off atIndex:0];
+    [enc setBuffer:w offset:data_off atIndex:1];
+    [enc setBuffer:c offset:c_off atIndex:2];
+    [enc setBytes:&m length:sizeof(m) atIndex:3];
+    [enc setBytes:&n length:sizeof(n) atIndex:4];
+    [enc setBytes:&k length:sizeof(k) atIndex:5];
+    [enc setBuffer:w offset:scales_off atIndex:6];
+    [enc setBuffer:selected offset:selected_off atIndex:7];
+    [enc setBytes:&slot_stride length:sizeof(slot_stride) atIndex:8];
+    [enc setBytes:&route length:sizeof(route) atIndex:9];
+    const NSUInteger tew = g_mxfp4_native_matmul_selected_n64_pipeline.threadExecutionWidth;
     [enc dispatchThreadgroups:MTLSizeMake((n + 63u) / 64u, (m + 63u) / 64u, 1)
          threadsPerThreadgroup:MTLSizeMake(tew * 4u, 1, 1)];
     ds4_gpu_end_compute_encoder(cb, enc);
@@ -29871,6 +30908,11 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         down_type == DS4_METAL_TENSOR_MXFP4 &&
         ds4_gpu_mxfp4_native_requested() &&
         ds4_gpu_has_native_mxfp4();
+    const bool use_fp4_native_plane_split =
+        use_fp4_native &&
+        ds4_gpu_tensor_mxfp4_plane_split(gate_bank) &&
+        ds4_gpu_tensor_mxfp4_plane_split(up_bank) &&
+        ds4_gpu_tensor_mxfp4_plane_split(down_bank);
     if (!use_fp4_native &&
         (gate_type != DS4_METAL_TENSOR_IQ2_XXS ||
          (down_type != DS4_METAL_TENSOR_Q2_K &&
@@ -30106,49 +31148,71 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
             if (!s_fp4_native_logged) {
                 s_fp4_native_logged = 1;
                 fprintf(stderr,
-                        "ds4: [mxfp4-native] MPP 4.1 scale-plane prefill arm engaged (first group n_tokens=%u)\n",
+                        "ds4: [mxfp4-native] MPP 4.1 scale-plane prefill arm engaged (%s, first group n_tokens=%u)\n",
+                        use_fp4_native_plane_split ? "plane-sidecar/no-repack" : "repack-per-use",
                         n_tokens);
+            }
+            const NSUInteger gate_data_off = ds4_gpu_tensor_offset(gate_bank);
+            const NSUInteger up_data_off = ds4_gpu_tensor_offset(up_bank);
+            const NSUInteger down_data_off = ds4_gpu_tensor_offset(down_bank);
+            if (use_fp4_native_plane_split &&
+                (gate_data_off > NSUIntegerMax - gate_scales_off ||
+                 up_data_off > NSUIntegerMax - gate_scales_off ||
+                 down_data_off > NSUIntegerMax - down_scales_off)) {
+                return 0;
             }
             ok = ds4_gpu_encode_cpy_f32_f16_1d(cb,
                                                xbuf,
                                                ds4_gpu_tensor_offset(x),
                                                g_mpp_prefill_x_half_buffer,
                                                0,
-                                               x_elems) &&
-                 ds4_gpu_encode_mxfp4_repack_planes(cb,
-                                                    gate_bankbuf,
-                                                    ds4_gpu_tensor_offset(gate_bank),
-                                                    g_mpp_prefill_gate_i8_buffer,
-                                                    0,
-                                                    gate_scales_off,
-                                                    expert_mid_dim,
-                                                    expert_in_dim) &&
-                 ds4_gpu_encode_mxfp4_repack_planes(cb,
-                                                    up_bankbuf,
-                                                    ds4_gpu_tensor_offset(up_bank),
-                                                    g_mpp_prefill_up_i8_buffer,
-                                                    0,
-                                                    gate_scales_off,
-                                                    expert_mid_dim,
-                                                    expert_in_dim) &&
-                 ds4_gpu_encode_mxfp4_repack_planes(cb,
-                                                    down_bankbuf,
-                                                    ds4_gpu_tensor_offset(down_bank),
-                                                    g_mpp_prefill_down_i8_buffer,
-                                                    0,
-                                                    down_scales_off,
-                                                    out_dim,
-                                                    expert_mid_dim) &&
+                                               x_elems);
+            if (ok && !use_fp4_native_plane_split) {
+                ok = ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                        gate_bankbuf,
+                                                        gate_data_off,
+                                                        g_mpp_prefill_gate_i8_buffer,
+                                                        0,
+                                                        gate_scales_off,
+                                                        expert_mid_dim,
+                                                        expert_in_dim) &&
+                     ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                        up_bankbuf,
+                                                        up_data_off,
+                                                        g_mpp_prefill_up_i8_buffer,
+                                                        0,
+                                                        gate_scales_off,
+                                                        expert_mid_dim,
+                                                        expert_in_dim) &&
+                     ds4_gpu_encode_mxfp4_repack_planes(cb,
+                                                        down_bankbuf,
+                                                        down_data_off,
+                                                        g_mpp_prefill_down_i8_buffer,
+                                                        0,
+                                                        down_scales_off,
+                                                        out_dim,
+                                                        expert_mid_dim);
+            }
+            id<MTLBuffer> gate_w = use_fp4_native_plane_split ? gate_bankbuf : g_mpp_prefill_gate_i8_buffer;
+            id<MTLBuffer> up_w = use_fp4_native_plane_split ? up_bankbuf : g_mpp_prefill_up_i8_buffer;
+            id<MTLBuffer> down_w = use_fp4_native_plane_split ? down_bankbuf : g_mpp_prefill_down_i8_buffer;
+            const NSUInteger gate_w_data_off = use_fp4_native_plane_split ? gate_data_off : 0;
+            const NSUInteger up_w_data_off = use_fp4_native_plane_split ? up_data_off : 0;
+            const NSUInteger down_w_data_off = use_fp4_native_plane_split ? down_data_off : 0;
+            const NSUInteger gate_w_scale_off = use_fp4_native_plane_split ? gate_data_off + gate_scales_off : gate_scales_off;
+            const NSUInteger up_w_scale_off = use_fp4_native_plane_split ? up_data_off + gate_scales_off : gate_scales_off;
+            const NSUInteger down_w_scale_off = use_fp4_native_plane_split ? down_data_off + down_scales_off : down_scales_off;
+            ok = ok &&
                  ds4_gpu_encode_mxfp4_native_matmul(cb,
                                                     g_mpp_prefill_x_half_buffer, 0,
-                                                    g_mpp_prefill_gate_i8_buffer,
-                                                    0, gate_scales_off,
+                                                    gate_w,
+                                                    gate_w_data_off, gate_w_scale_off,
                                                     gatebuf, ds4_gpu_tensor_offset(gate),
                                                     n_tokens, expert_mid_dim, expert_in_dim) &&
                  ds4_gpu_encode_mxfp4_native_matmul(cb,
                                                     g_mpp_prefill_x_half_buffer, 0,
-                                                    g_mpp_prefill_up_i8_buffer,
-                                                    0, gate_scales_off,
+                                                    up_w,
+                                                    up_w_data_off, up_w_scale_off,
                                                     upbuf, ds4_gpu_tensor_offset(up),
                                                     n_tokens, expert_mid_dim, expert_in_dim) &&
                  ds4_gpu_encode_mpp_swiglu_weight(cb,
@@ -30165,8 +31229,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
                                                mid_elems) &&
                  ds4_gpu_encode_mxfp4_native_matmul(cb,
                                                     g_mpp_prefill_mid_half_buffer, 0,
-                                                    g_mpp_prefill_down_i8_buffer,
-                                                    0, down_scales_off,
+                                                    down_w,
+                                                    down_w_data_off, down_w_scale_off,
                                                     outbuf, ds4_gpu_tensor_offset(out),
                                                     n_tokens, out_dim, expert_mid_dim);
         } else if (use_h_h) {

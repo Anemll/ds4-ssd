@@ -1,6 +1,6 @@
 // Standalone validation probe for the native-MXFP4 (MPP 4.1) stack:
-//   1. GPU plane repack (ggml block_mxfp4 split-half -> seq-pair data plane +
-//      E8M0 scale plane) vs a CPU reference repack: byte-exact.
+//   1. GPU plane repack (direct + selected-slot variants) vs a CPU reference
+//      repack: byte-exact.
 //   2. Native scale-plane matmul2d vs a CPU reference dequant+GEMM: relRMS.
 //   3. Tail behavior: m not a multiple of the 64-row tile, with poisoned
 //      output padding (documents whether MPP clamps to tensor extents).
@@ -136,11 +136,25 @@ int main(void) {
             [device newComputePipelineStateWithFunction:
                 [lib newFunctionWithName:@"kernel_dsv4_mxfp4_repack_planes"] error:&err];
         if (!repack) { fprintf(stderr, "FAIL: repack pipeline\n"); return 1; }
+        id<MTLComputePipelineState> repackSelected =
+            [device newComputePipelineStateWithFunction:
+                [lib newFunctionWithName:@"kernel_dsv4_mxfp4_repack_selected_planes"] error:&err];
+        if (!repackSelected) { fprintf(stderr, "FAIL: selected repack pipeline\n"); return 1; }
+        id<MTLComputePipelineState> copySelected =
+            [device newComputePipelineStateWithFunction:
+                [lib newFunctionWithName:@"kernel_dsv4_mxfp4_copy_selected_planes"] error:&err];
+        if (!copySelected) { fprintf(stderr, "FAIL: selected plane copy pipeline\n"); return 1; }
         id<MTLFunction> mmfn = [lib newFunctionWithName:@"kernel_dsv4_mxfp4_native_matmul_n64"];
         id<MTLComputePipelineState> mm =
             mmfn ? [device newComputePipelineStateWithFunction:mmfn error:&err] : nil;
-        printf("library: MSL %s, repack ok, native matmul %s\n",
-               lang41 ? "4.1" : "4.0", mm ? "ok" : "UNAVAILABLE");
+        id<MTLFunction> mmSelectedFn =
+            [lib newFunctionWithName:@"kernel_dsv4_mxfp4_native_matmul_selected_n64"];
+        id<MTLComputePipelineState> mmSelected =
+            mmSelectedFn ? [device newComputePipelineStateWithFunction:mmSelectedFn error:&err] : nil;
+        printf("library: MSL %s, repack ok, selected repack ok, selected plane copy ok, native matmul %s, selected matmul %s\n",
+               lang41 ? "4.1" : "4.0",
+               mm ? "ok" : "UNAVAILABLE",
+               mmSelected ? "ok" : "UNAVAILABLE");
 
         srand(42);
         const int kb_per_row = k / QK;
@@ -207,9 +221,133 @@ int main(void) {
             printf("repack: byte-exact over %zu blocks (incl. e=0/127 edges)\n", n_blocks);
         }
 
+        // ---- 1b. selected-slot repack + byte-exact check.  Decode slotwise
+        // paths keep slot ids in a GPU tensor; this exercises that no-readback
+        // source selection.
+        {
+            const uint32_t slots = 3;
+            const uint32_t selected_slot = 2;
+            const uint32_t route = 0;
+            const size_t slot_stride = n_blocks * sizeof(block_mxfp4);
+            uint8_t *bank = malloc((size_t)slots * slot_stride);
+            for (size_t i = 0; i < (size_t)slots * slot_stride; i++) {
+                bank[i] = (uint8_t)(0xA5u ^ (uint8_t)i);
+            }
+            memcpy(bank + (size_t)selected_slot * slot_stride, W, slot_stride);
+            int32_t selected_ids[1] = { (int32_t)selected_slot };
+            id<MTLBuffer> bBank = [device newBufferWithBytes:bank
+                                                       length:(size_t)slots * slot_stride
+                                                      options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bSelected = [device newBufferWithBytes:selected_ids
+                                                          length:sizeof(selected_ids)
+                                                         options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bSelData = [device newBufferWithLength:(size_t)n * k / 2
+                                                         options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bSelScale = [device newBufferWithLength:(size_t)n * kb_per_row
+                                                          options:MTLResourceStorageModeShared];
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:repackSelected];
+            [enc setBuffer:bBank offset:0 atIndex:0];
+            [enc setBuffer:bSelData offset:0 atIndex:1];
+            [enc setBuffer:bSelScale offset:0 atIndex:2];
+            [enc setBuffer:bSelected offset:0 atIndex:3];
+            uint32_t rows = (uint32_t)n, depth = (uint32_t)k;
+            uint32_t stride = (uint32_t)slot_stride;
+            [enc setBytes:&rows length:4 atIndex:4];
+            [enc setBytes:&depth length:4 atIndex:5];
+            [enc setBytes:&stride length:4 atIndex:6];
+            [enc setBytes:&route length:4 atIndex:7];
+            [enc dispatchThreads:MTLSizeMake(kb_per_row, n, 1)
+                threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+
+            const uint8_t *gd = bSelData.contents, *gs = bSelScale.contents;
+            size_t bad = 0;
+            for (int r = 0; r < n && bad < 8; r++) {
+                for (int b = 0; b < kb_per_row && bad < 8; b++) {
+                    const block_mxfp4 *blk = W + (size_t)r * kb_per_row + b;
+                    uint8_t ref[16]; ref_repack_block(blk, ref);
+                    if (memcmp(gd + ((size_t)r * k / 2 + (size_t)b * 16), ref, 16) ||
+                        gs[(size_t)r * kb_per_row + b] != blk->e) {
+                        fprintf(stderr, "selected repack mismatch at row %d block %d\n", r, b);
+                        bad++;
+                    }
+                }
+            }
+            free(bank);
+            if (bad) { fprintf(stderr, "FAIL: selected repack\n"); return 1; }
+            printf("selected repack: byte-exact for selected slot %u\n", selected_slot);
+        }
+
+        // ---- 1c. selected-slot plane copy + byte-exact check.  Native
+        // plane-split sidecars already store the data/scale planes, so decode
+        // only needs to select and copy those planes without nibble repacking.
+        {
+            const uint32_t slots = 3;
+            const uint32_t selected_slot = 2;
+            const uint32_t route = 0;
+            const size_t data_bytes = (size_t)n * k / 2;
+            const size_t scale_bytes = (size_t)n * kb_per_row;
+            const size_t slot_stride = data_bytes + scale_bytes;
+            uint8_t *bank = malloc((size_t)slots * slot_stride);
+            for (size_t i = 0; i < (size_t)slots * slot_stride; i++) {
+                bank[i] = (uint8_t)(0x5Au ^ (uint8_t)i);
+            }
+            memcpy(bank + (size_t)selected_slot * slot_stride,
+                   bData.contents,
+                   data_bytes);
+            memcpy(bank + (size_t)selected_slot * slot_stride + data_bytes,
+                   bScale.contents,
+                   scale_bytes);
+            int32_t selected_ids[1] = { (int32_t)selected_slot };
+            id<MTLBuffer> bPlaneBank = [device newBufferWithBytes:bank
+                                                            length:(size_t)slots * slot_stride
+                                                           options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bSelected = [device newBufferWithBytes:selected_ids
+                                                          length:sizeof(selected_ids)
+                                                         options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bCopyData = [device newBufferWithLength:data_bytes
+                                                           options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bCopyScale = [device newBufferWithLength:scale_bytes
+                                                            options:MTLResourceStorageModeShared];
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:copySelected];
+            [enc setBuffer:bPlaneBank offset:0 atIndex:0];
+            [enc setBuffer:bPlaneBank offset:data_bytes atIndex:1];
+            [enc setBuffer:bCopyData offset:0 atIndex:2];
+            [enc setBuffer:bCopyScale offset:0 atIndex:3];
+            [enc setBuffer:bSelected offset:0 atIndex:4];
+            uint32_t rows = (uint32_t)n, depth = (uint32_t)k;
+            uint32_t stride = (uint32_t)slot_stride;
+            [enc setBytes:&rows length:4 atIndex:5];
+            [enc setBytes:&depth length:4 atIndex:6];
+            [enc setBytes:&stride length:4 atIndex:7];
+            [enc setBytes:&route length:4 atIndex:8];
+            [enc dispatchThreads:MTLSizeMake(data_bytes + scale_bytes, 1, 1)
+            threadsPerThreadgroup:MTLSizeMake(copySelected.threadExecutionWidth * 4u, 1, 1)];
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+            if (memcmp(bCopyData.contents, bData.contents, data_bytes) ||
+                memcmp(bCopyScale.contents, bScale.contents, scale_bytes)) {
+                fprintf(stderr, "FAIL: selected plane copy mismatch\n");
+                return 1;
+            }
+            printf("selected plane copy: byte-exact for selected slot %u\n", selected_slot);
+            free(bank);
+        }
+
         if (!mm) {
             printf("native matmul unavailable on this OS/toolchain/GPU — repack-only PASS\n");
             return 0;
+        }
+        if (!mmSelected) {
+            fprintf(stderr, "FAIL: selected native matmul pipeline\n");
+            return 1;
         }
 
         // ---- 2. native matmul vs CPU reference (m multiple of 64)
@@ -253,6 +391,80 @@ int main(void) {
             printf("native matmul m=%d n=%d k=%d: relRMS %.3e, max abs diff %.3e%s\n",
                    m, n, k, relrms, maxabs, badc ? " (NON-FINITE OUTPUTS)" : "");
             if (badc || relrms > 1e-4) { fprintf(stderr, "FAIL: native matmul\n"); return 1; }
+        }
+
+        // ---- 2b. selected-slot native matmul vs CPU reference.  This is the
+        // no-copy decode path: MPP reads FP4/scales directly from selected slot.
+        {
+            const uint32_t slots = 3;
+            const uint32_t selected_slot = 2;
+            const uint32_t route = 0;
+            const size_t data_bytes = (size_t)n * k / 2;
+            const size_t scale_bytes = (size_t)n * kb_per_row;
+            const size_t slot_stride = data_bytes + scale_bytes;
+            uint8_t *bank = malloc((size_t)slots * slot_stride);
+            for (size_t i = 0; i < (size_t)slots * slot_stride; i++) {
+                bank[i] = (uint8_t)(0x3Cu ^ (uint8_t)i);
+            }
+            memcpy(bank + (size_t)selected_slot * slot_stride,
+                   bData.contents,
+                   data_bytes);
+            memcpy(bank + (size_t)selected_slot * slot_stride + data_bytes,
+                   bScale.contents,
+                   scale_bytes);
+            int32_t selected_ids[1] = { (int32_t)selected_slot };
+            id<MTLBuffer> bPlaneBank = [device newBufferWithBytes:bank
+                                                            length:(size_t)slots * slot_stride
+                                                           options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bSelected = [device newBufferWithBytes:selected_ids
+                                                          length:sizeof(selected_ids)
+                                                         options:MTLResourceStorageModeShared];
+            memset(bC.contents, 0x7f, (size_t)m_pad * n * 4);
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:mmSelected];
+            [enc setBuffer:bA offset:0 atIndex:0];
+            [enc setBuffer:bPlaneBank offset:0 atIndex:1];
+            [enc setBuffer:bC offset:0 atIndex:2];
+            uint32_t um = m, un = n, uk = k;
+            uint32_t stride = (uint32_t)slot_stride;
+            [enc setBytes:&um length:4 atIndex:3];
+            [enc setBytes:&un length:4 atIndex:4];
+            [enc setBytes:&uk length:4 atIndex:5];
+            [enc setBuffer:bPlaneBank offset:data_bytes atIndex:6];
+            [enc setBuffer:bSelected offset:0 atIndex:7];
+            [enc setBytes:&stride length:4 atIndex:8];
+            [enc setBytes:&route length:4 atIndex:9];
+            NSUInteger tew = mmSelected.threadExecutionWidth;
+            [enc dispatchThreadgroups:MTLSizeMake((n + 63) / 64, (m + 63) / 64, 1)
+                threadsPerThreadgroup:MTLSizeMake(tew * 4, 1, 1)];
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+
+            const float *C = bC.contents;
+            double se = 0, sr = 0; double maxabs = 0; int badc = 0;
+            for (int mi = 0; mi < m; mi++) {
+                for (int ni = 0; ni < n; ni++) {
+                    double ref = 0;
+                    const block_mxfp4 *rb = W + (size_t)ni * kb_per_row;
+                    for (int kk = 0; kk < k; kk++)
+                        ref += (double)f16_bits_to_f32(A[(size_t)mi * k + kk]) * wval(rb, kk);
+                    double g = C[(size_t)mi * n + ni];
+                    if (!isfinite(g)) badc++;
+                    double d = g - ref;
+                    se += d * d; sr += ref * ref;
+                    if (fabs(d) > maxabs) maxabs = fabs(d);
+                }
+            }
+            relrms = sqrt(se / (sr > 0 ? sr : 1));
+            printf("selected native matmul slot=%u: relRMS %.3e, max abs diff %.3e%s\n",
+                   selected_slot, relrms, maxabs, badc ? " (NON-FINITE OUTPUTS)" : "");
+            free(bank);
+            if (badc || relrms > 1e-4) {
+                fprintf(stderr, "FAIL: selected native matmul\n");
+                return 1;
+            }
         }
 
         // ---- 3. partial/small-m probe: every m below or across the 64-row

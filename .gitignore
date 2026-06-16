@@ -16,7 +16,9 @@
 /profile_runs/
 .*.swp
 .DS_Store
-fp4_samples/
+fp4_samples/*
+!fp4_samples/
+!fp4_samples/convert_sidecar_to_native_mxfp4.py
 
 # Build artifacts / bench outputs
 /ds4-agent

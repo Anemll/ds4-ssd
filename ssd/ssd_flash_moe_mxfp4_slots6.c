@@ -20,6 +20,16 @@ static bool flash_moe_direct_mmap_bank_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_ACTIVE_MMAP_SLOTS6");
 }
 
+static bool flash_moe_layer_is_q2_slots6(const ds4_layer_weights *layer) {
+    return layer &&
+           layer->ffn_gate_exps &&
+           layer->ffn_up_exps &&
+           layer->ffn_down_exps &&
+           layer->ffn_gate_exps->type == DS4_TENSOR_IQ2_XXS &&
+           layer->ffn_up_exps->type == DS4_TENSOR_IQ2_XXS &&
+           layer->ffn_down_exps->type == DS4_TENSOR_Q2_K;
+}
+
 static bool flash_moe_direct_mmap_auto_enabled(const ds4_flash_moe_sidecar *sidecar,
                                                const ds4_layer_weights     *layer) {
     const char *env = getenv("DS4_FLASH_MOE_DIRECT_MMAP_AUTO");
@@ -29,11 +39,13 @@ static bool flash_moe_direct_mmap_auto_enabled(const ds4_flash_moe_sidecar *side
         return false;
     }
     const bool forced = env && env[0] && atoi(env) != 0;
-    if (!sidecar || (!forced && sidecar->slot_bank <= 128u)) return false;
+    if (!sidecar) return false;
     if (!layer || !layer->ffn_gate_exps || !layer->ffn_up_exps ||
         !layer->ffn_down_exps) {
         return false;
     }
+    if (flash_moe_layer_is_q2_slots6(layer)) return true;
+    if (!forced && sidecar->slot_bank <= 128u) return false;
     return layer->ffn_gate_exps->type == DS4_TENSOR_MXFP4 &&
            layer->ffn_up_exps->type == DS4_TENSOR_MXFP4 &&
            layer->ffn_down_exps->type == DS4_TENSOR_MXFP4;
@@ -215,6 +227,9 @@ static bool metal_graph_flash_moe_mxfp4_record_table_slots6(
         logged_record_table = 1;
     }
     const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    if (flash_layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE]) {
+        return false;
+    }
     return ds4_gpu_routed_moe_one_record_table_tensor(
                g->routed_out,
                g->routed_gate,

@@ -1535,6 +1535,39 @@ static bool metal_graph_flash_moe_compute_grouped_banked(
         uint32_t                   out_dim,
         uint32_t                   active_expert_used) {
     if (!g || !layer || il >= DS4_N_LAYER) return false;
+    const ds4_flash_moe_layer_sidecar *flash_layer =
+        g->flash_moe ? &g->flash_moe->layer[il] : NULL;
+    if (flash_layer &&
+        flash_layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+        g->flash_decode_ids_valid[il]) {
+        return ds4_gpu_routed_moe_one_banked_tensor_slotwise_baked(
+                   g->routed_out,
+                   g->routed_gate,
+                   g->routed_up,
+                   g->routed_mid,
+                   g->routed_down,
+                   g->flash_gate_bank[il],
+                   g->flash_up_bank[il],
+                   g->flash_down_bank[il],
+                   g->flash_slot_bank,
+                   layer->ffn_gate_exps->type,
+                   layer->ffn_down_exps->type,
+                   gate_expert_bytes,
+                   gate_slot_stride,
+                   gate_row_bytes,
+                   down_expert_bytes,
+                   down_slot_stride,
+                   down_row_bytes,
+                   expert_in_dim,
+                   expert_mid_dim,
+                   out_dim,
+                   il,
+                   g->flash_decode_slot_ids[il],
+                   g->router_weights,
+                   active_expert_used,
+                   DS4_SWIGLU_CLAMP_EXP,
+                   g->ffn_norm) != 0;
+    }
     return ds4_gpu_routed_moe_one_banked_tensor(g->routed_out,
                                                 g->routed_gate,
                                                 g->routed_up,
@@ -1590,6 +1623,9 @@ static bool metal_graph_flash_moe_compute_active_staged(
     }
 
     const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    if (flash_layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE]) {
+        return false;
+    }
     for (uint32_t k = 0; k < active_expert_used; k++) {
         const int32_t slot = g->flash_decode_slot_ids[il][k];
         if (slot < 0 || slot >= (int32_t)g->flash_slot_bank ||

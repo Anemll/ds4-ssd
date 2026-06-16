@@ -101,10 +101,20 @@ static bool ds4_no_int8_paths_enabled(void) {
 static bool backend_diagnostic_logs_suppressed(void);
 static bool backend_stats_logs_enabled(void);
 
-static bool ane_output_proj_enabled_for_run(void) {
+static bool flash_moe_graph_uses_mxfp4_plane_split(const ds4_gpu_graph *g) {
+    return g && g->flash_moe &&
+           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
+           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+}
+
+static bool ane_output_proj_enabled_for_run(const ds4_gpu_graph *g) {
     if (ds4_no_int8_paths_enabled()) return false;
     if (!env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ")) return false;
-    if (env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") &&
+    const bool routed_ane_prefill_active =
+        env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") &&
+        !flash_moe_graph_uses_mxfp4_plane_split(g);
+    if (routed_ane_prefill_active &&
         !env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_FORCE") &&
         !env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ_WITH_ROUTED")) {
         static bool warned = false;
@@ -765,6 +775,79 @@ static bool flash_moe_per_slot_buffers_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_SEPARATE_SLOT_BUFFERS");
 }
 
+static bool flash_moe_sidecar_all_mxfp4(const ds4_flash_moe_sidecar *sidecar) {
+    if (!sidecar) return false;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+        for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+            if (!layer->present[fam] || layer->family_type[fam] != DS4_TENSOR_MXFP4) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static bool flash_moe_sidecar_all_mxfp4_block(const ds4_flash_moe_sidecar *sidecar) {
+    if (!flash_moe_sidecar_all_mxfp4(sidecar)) return false;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+        for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+            if (layer->family_mxfp4_plane_split[fam]) return false;
+        }
+    }
+    return true;
+}
+
+static bool flash_moe_auto_per_slot_policy_allows(const ds4_flash_moe_sidecar *sidecar) {
+    const char *policy = getenv("DS4_FLASH_MOE_AUTO_PER_SLOT_POLICY");
+    if (!policy || !policy[0]) policy = "all";
+    if (!strcasecmp(policy, "0") || !strcasecmp(policy, "off") ||
+        !strcasecmp(policy, "false") || !strcasecmp(policy, "none")) {
+        return false;
+    }
+    if (!strcasecmp(policy, "1") || !strcasecmp(policy, "on") ||
+        !strcasecmp(policy, "true") || !strcasecmp(policy, "all")) {
+        return true;
+    }
+    if (!strcasecmp(policy, "mxfp4") || !strcasecmp(policy, "mxfp4-any")) {
+        return flash_moe_sidecar_all_mxfp4(sidecar);
+    }
+    if (!strcasecmp(policy, "mxfp4-block") ||
+        !strcasecmp(policy, "mxfp4_interleaved") ||
+        !strcasecmp(policy, "mxfp4-interleaved")) {
+        return flash_moe_sidecar_all_mxfp4_block(sidecar);
+    }
+    static bool warned = false;
+    if (!warned) {
+        fprintf(stderr,
+                "ds4: warning: unknown DS4_FLASH_MOE_AUTO_PER_SLOT_POLICY=%s "
+                "(expected all, mxfp4, mxfp4-block, or off); using all\n",
+                policy);
+        warned = true;
+    }
+    return true;
+}
+
+static uint64_t flash_moe_auto_per_slot_threshold_bytes(void) {
+    const uint64_t default_threshold = 44ull * 1024ull * 1024ull * 1024ull;
+    const char *env = getenv("DS4_FLASH_MOE_AUTO_PER_SLOT_THRESHOLD");
+    if (!env || !env[0]) env = getenv("DS4_FLASH_MOE_AUTO_PER_SLOT_THRESHOLD_BYTES");
+    if (env && env[0]) {
+        uint64_t parsed = 0;
+        if (ds4_parse_u64_suffix(env, &parsed) && parsed != 0) return parsed;
+        static bool warned = false;
+        if (!warned) {
+            fprintf(stderr,
+                    "ds4: warning: invalid DS4_FLASH_MOE_AUTO_PER_SLOT_THRESHOLD=%s "
+                    "(use bytes or K/M/G suffix, e.g. 44GB); using 44GB\n",
+                    env);
+            warned = true;
+        }
+    }
+    return default_threshold;
+}
+
 static bool flash_moe_auto_per_slot_buffers_enabled(const ds4_flash_moe_sidecar *sidecar) {
     if (!sidecar || sidecar->slot_bank == 0) return false;
     if (env_flag_enabled("DS4_FLASH_MOE_DISABLE_AUTO_PER_SLOT_BUFFERS") ||
@@ -773,6 +856,7 @@ static bool flash_moe_auto_per_slot_buffers_enabled(const ds4_flash_moe_sidecar 
     }
     const char *auto_env = getenv("DS4_FLASH_MOE_AUTO_PER_SLOT_BUFFERS");
     if (auto_env && auto_env[0] && atoi(auto_env) == 0) return false;
+    if (!flash_moe_auto_per_slot_policy_allows(sidecar)) return false;
 
     uint64_t total = 0;
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
@@ -786,7 +870,7 @@ static bool flash_moe_auto_per_slot_buffers_enabled(const ds4_flash_moe_sidecar 
         total += layer_bytes;
     }
 
-    const uint64_t split_threshold = 44ull * 1024ull * 1024ull * 1024ull;
+    const uint64_t split_threshold = flash_moe_auto_per_slot_threshold_bytes();
     return total >= split_threshold;
 }
 

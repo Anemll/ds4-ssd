@@ -263,10 +263,40 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL fill batch_routed_out il=%u n_tokens=%u\n", il, n_tokens);
     }
 
+    const bool plane_split_prefill =
+        g && g->flash_moe && il < DS4_N_LAYER &&
+        g->flash_moe->layer[il].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+        g->flash_moe->layer[il].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
+        g->flash_moe->layer[il].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+    const bool native_plane_prefill =
+        plane_split_prefill &&
+        ds4_gpu_mxfp4_native_requested() &&
+        ds4_gpu_has_native_mxfp4();
+    if (plane_split_prefill && !native_plane_prefill) {
+        static bool warned_native_plane_prefill = false;
+        if (!warned_native_plane_prefill) {
+            fprintf(stderr,
+                    "ds4: MXFP4_NATIVE plane-split prefill requires native MXFP4; "
+                    "legacy block prefill paths are disabled for this sidecar\n");
+            warned_native_plane_prefill = true;
+        }
+        ok = false;
+    }
+
     const bool ane_prefill_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool ane_prefill_supported =
         flash_moe_ane_prefill_tensor_types_supported(layer);
-    const bool try_ane_prefill = ane_prefill_requested && ane_prefill_supported;
+    const bool try_ane_prefill =
+        !plane_split_prefill && ane_prefill_requested && ane_prefill_supported;
+    if (plane_split_prefill && ane_prefill_requested && backend_logs) {
+        static bool warned_plane_split_ane_prefill = false;
+        if (!warned_plane_split_ane_prefill) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE prefill disabled for MXFP4_NATIVE "
+                    "plane-split sidecar; using native MXFP4 MPP prefill\n");
+            warned_plane_split_ane_prefill = true;
+        }
+    }
     if (ane_prefill_requested && !ane_prefill_supported && backend_logs) {
         static bool warned_unsupported_flash_ane = false;
         if (!warned_unsupported_flash_ane) {
@@ -280,7 +310,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             warned_unsupported_flash_ane = true;
         }
     }
-    const bool try_mpp_int8_prefill = flash_moe_mpp_int8_prefill_enabled();
+    const bool try_mpp_int8_prefill =
+        native_plane_prefill || flash_moe_mpp_int8_prefill_enabled();
     const bool hybrid_prefill =
         try_ane_prefill && try_mpp_int8_prefill && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     /* Relaxed for ANE-only async exploration. */

@@ -263,6 +263,9 @@ What landed:
     17 B split-half blocks -> seq-pair FP4 data plane + E8M0 scale plane.
     Same total bytes. Multi-expert via gid.z + per-expert strides; two-pointer
     plane views per plan item 3.
+  - `kernel_dsv4_mxfp4_repack_selected_planes` (any MSL): per-route repack from
+    GPU-resident selected slot IDs, so decode can consume slot banks without CPU
+    selected-ID readback.
   - `kernel_dsv4_mxfp4_native_matmul_n64` (4.1 only): raw-pointer scale-plane
     matmul2d, NT=64, transpose_right, float dst — exactly the guide's
     validated recipe.
@@ -272,9 +275,10 @@ What landed:
   `ds4_gpu_mxfp4_native_requested()` = `DS4_MXFP4_NATIVE=1` opt-in; startup
   log line when the gate is set. Exported in `ds4_gpu.h`.
 - Tests: `make mxfp4-native-probe` (standalone, no model needed) — GPU repack
-  byte-exact vs CPU reference over 8192 blocks incl. e=0/127 edges; native
-  matmul relRMS **1.24e-07** vs CPU dequant+GEMM; tail probe; bench mode
-  (`MXFP4_PROBE_BENCH=1`). `tests/gen_mxfp4_golden.py` emits
+  byte-exact vs CPU reference over 8192 blocks incl. e=0/127 edges; selected
+  slot repack byte-exact; native matmul relRMS **1.24e-07** vs CPU
+  dequant+GEMM; tail probe; bench mode (`MXFP4_PROBE_BENCH=1`).
+  `tests/gen_mxfp4_golden.py` emits
   layout-parameterized golden vectors (both nibble orders, E8M0 edges incl.
   the e=254 f32-overflow-to-inf case) to `tests/test-vectors/mxfp4/`.
 
@@ -295,9 +299,7 @@ unscaled-FP4 class from the guide.
   correct results and writes zero bytes past `m` rows. No padding logic
   needed in the dispatch path.
 - The smoke `DS4_MXFP4_NATIVE=1 ./ds4 -m <pkg> ...` prints
-  `MXFP4 native library (MSL 4.1): repack=ok scale-plane matmul=ok` and runs
-  the unchanged pipeline (gate only enables availability, nothing consumes it
-  yet).
+  `MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok scale-plane matmul=ok`.
 
 ## Phase 4.1b — integration plan: SSD-streaming-optimized consumption
 
@@ -364,8 +366,35 @@ the split-with-ALU-tail workaround remains for the legacy i8/h_h kernels,
 whose historical partial-tile miscalculation is NOT shared by matmul2d, which
 clamps to tensor extents). DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES is no longer
 needed and should NOT be set globally (it re-exposes the legacy bug on
-iq2/q2k packages). Engage log:
-`ds4: [mxfp4-native] MPP 4.1 scale-plane prefill arm engaged`.
+	iq2/q2k packages). Engage log:
+	`ds4: [mxfp4-native] MPP 4.1 scale-plane prefill arm engaged`.
+
+### Decode per-use native arm landed (2026-06-15)
+
+`DS4_MXFP4_NATIVE=1` now also covers MXFP4/MXFP4 decode paths when the MPP 4.1
+probe passes. This is still Arm A style repack-per-use: ggml 17 B blocks remain
+the resident/slot-bank format, each selected route repacks gate/up/down into the
+shared scratch planes, then runs three native scale-plane matmuls plus the
+existing weighted SwiGLU/sum.
+
+Covered entry points:
+
+- `ds4_gpu_routed_moe_one_banked_tensor`
+- `ds4_gpu_routed_moe_one_slots6_tensor`
+- `ds4_gpu_routed_moe_one_slots6_record_tensor`
+- `ds4_gpu_routed_moe_one_slots6_chunked_tensor`
+- `ds4_gpu_routed_moe_one_banked_tensor_slotwise_impl` (regular and baked)
+
+`kernel_dsv4_mxfp4_repack_selected_planes` handles GPU-selected slot IDs for the
+banked/slotwise paths. Direct slots6/record/chunked paths pass explicit family
+buffers and offsets. The argument-buffer record-table decode path is still the
+legacy LUT path; native decode is not wired through that indirection.
+
+Engage log:
+`ds4: [mxfp4-native] MPP 4.1 scale-plane decode arm engaged (<path>, repack-per-use)`.
+Arm B/repack-at-install is still future work: once installed banks are stored in
+plane-split layout, decode must read the plane layout directly instead of
+running the per-use repack.
 
 Kernel-level 4-arm benchmark (`MXFP4_PROBE_BENCH=1 ./tests/mxfp4_native_probe`,
 m=128, 50 iters, base M5 — NOT the guide's M5 Max):

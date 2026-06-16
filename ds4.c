@@ -2646,7 +2646,10 @@ typedef struct {
     uint64_t map_size;
     uint64_t family_offset[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_bytes[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_plane_data_bytes[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_plane_scale_bytes[DS4_FLASH_FAMILY_COUNT];
     uint32_t family_type[DS4_FLASH_FAMILY_COUNT];
+    bool family_mxfp4_plane_split[DS4_FLASH_FAMILY_COUNT];
     uint64_t expert_stride;
     bool present[DS4_FLASH_FAMILY_COUNT];
 } ds4_flash_moe_layer_sidecar;
@@ -11059,6 +11062,9 @@ static bool metal_graph_encode_decode_layer(
             (g->flash_mixed_slot_bank && flash_layer) ? flash_layer->expert_stride : gate_expert_bytes;
         const uint64_t down_slot_stride =
             (g->flash_mixed_slot_bank && flash_layer) ? flash_layer->expert_stride : down_expert_bytes;
+        const bool flash_mxfp4_plane_split =
+            flash_layer &&
+            flash_layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE];
         if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
             decode_debug_stage = g->flash_per_expert_buffers ?
                 "flash_moe.per_expert_slots6" : "flash_moe.per_slot_slots6";
@@ -11197,7 +11203,8 @@ static bool metal_graph_encode_decode_layer(
                            (uint32_t)routed_out_dim)) {
             decode_debug_stage = metal_graph_flash_moe_direct_mmap_slots6_active(g) ?
                 "flash_moe.direct_mmap_slots6" : "flash_moe.mixed_slots6";
-        } else if (flash_moe_baked_slot_decode_enabled()) {
+        } else if ((flash_mxfp4_plane_split && g->flash_decode_ids_valid[il]) ||
+                   flash_moe_baked_slot_decode_enabled()) {
             decode_debug_stage = "flash_moe.slotwise_baked";
             if (!g->flash_decode_ids_valid[il]) {
                 ok = false;
@@ -13858,7 +13865,7 @@ static bool metal_graph_encode_layer_attention_batch(
      * boundary before FFN and has shown a large serial join cost in the full
      * ANE stack.  Falls back to the GPU path if the ANE worker can't start. */
     ds4_gpu_oproj_ane_job *oproj_job = NULL;
-    if (ok && ane_output_proj_enabled_for_run() &&
+    if (ok && ane_output_proj_enabled_for_run(g) &&
         !metal_graph_directional_steering_attn_enabled(g)) {
         oproj_job = ds4_gpu_oproj_ane_async_start_tensor(
             g->batch_heads, g->batch_attn_out,
@@ -15748,11 +15755,22 @@ static void metal_graph_log_prefill_compute_once(
     if (logged) return;
     logged = true;
 
+    const bool plane_split_prefill =
+        g && g->flash_moe &&
+        g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+        g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
+        g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+    const bool native_plane_prefill =
+        plane_split_prefill &&
+        ds4_gpu_mxfp4_native_requested() &&
+        ds4_gpu_has_native_mxfp4();
     const bool try_ane_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool try_ane =
+        !plane_split_prefill &&
         try_ane_requested &&
         flash_moe_ane_prefill_tensor_types_supported(layer);
-    const bool try_mpp = flash_moe_mpp_int8_prefill_enabled();
+    const bool try_mpp =
+        native_plane_prefill || flash_moe_mpp_int8_prefill_enabled();
     const bool no_int8 = ds4_no_int8_paths_enabled();
     const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     const bool resident_ane_hybrid_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
@@ -15785,6 +15803,8 @@ static void metal_graph_log_prefill_compute_once(
 	                "per-expert GPU gather/scatter cold tail" :
 	                "grouped GPU/ALU skip-mask cold tail");
         routed = resident_routed;
+    } else if (native_plane_prefill) {
+        routed = "MPP 4.1 native MXFP4 (plane-sidecar/no-repack)";
     } else if (hybrid) {
         routed = "ANE i8i8 (W8A8) + GPU MPP-int8/NAX (W8A8) hybrid";
     } else if (try_ane) {
@@ -19891,7 +19911,20 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         *out = NULL;
         return 1;
     }
-    if (e->flash_moe) ds4_flash_moe_sidecar_log_loaded(e->flash_moe);
+    if (e->flash_moe) {
+        ds4_flash_moe_sidecar_log_loaded(e->flash_moe);
+        const bool flash_mxfp4_plane_split =
+            e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+            e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
+            e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+        if (flash_mxfp4_plane_split &&
+            env_flag_enabled("DS4_FLASH_MOE_ANE_OUTPUT_PROJ")) {
+            ds4_setenv_override("DS4_FLASH_MOE_ANE_OUTPUT_PROJ", "0");
+            fprintf(stderr,
+                    "ds4: ANE O-proj disabled for MXFP4_NATIVE plane-split sidecar; "
+                    "using plane-safe native MXFP4 routed paths\n");
+        }
+    }
     flash_moe_weights = e->flash_moe;
 #endif
     weights_bind(&e->weights, &e->model, flash_moe_weights);
@@ -20225,7 +20258,12 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
          * 43 layers and creates the shared fp16w ctx so the first prefill
          * doesn't include the ~4 s of init in its timer. */
         {
-            if (ane_output_proj_enabled_for_run()) {
+            const bool _oproj_plane_split =
+                e->flash_moe &&
+                e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
+                e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
+                e->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+            if (!_oproj_plane_split && ane_output_proj_enabled_for_run(NULL)) {
                 const double prewarm_t0 = now_sec();
                 uint32_t prewarmed = 0;
                 const uint64_t in_dim      = (uint64_t)DS4_N_HEAD_DIM * (DS4_N_HEAD / DS4_N_OUT_GROUP);

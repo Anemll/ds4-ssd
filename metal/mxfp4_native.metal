@@ -71,6 +71,73 @@ kernel void kernel_dsv4_mxfp4_repack_planes(
     (dst_scales + gid.z * scale_estride)[row * kBlocks + kb] = blk->e;
 }
 
+kernel void kernel_dsv4_mxfp4_repack_selected_planes(
+        device const uchar *src         [[buffer(0)]],  // slot bank, ggml blocks
+        device uchar       *dst_data    [[buffer(1)]],  // [rows][k/2] seq-pair
+        device uchar       *dst_scales  [[buffer(2)]],  // [rows][k/32] E8M0
+        device const int   *selected    [[buffer(3)]],  // slot id per route
+        constant uint      &rows        [[buffer(4)]],
+        constant uint      &depth       [[buffer(5)]],  // k, multiple of 32
+        constant uint      &slot_stride [[buffer(6)]],  // bytes between slots
+        constant uint      &route       [[buffer(7)]],
+        uint2 gid [[thread_position_in_grid]])
+{
+    const uint kb  = gid.x;
+    const uint row = gid.y;
+    const uint kBlocks = depth / DS4_MXFP4_QK;
+    if (kb >= kBlocks || row >= rows) return;
+
+    const int slot_i = selected[route];
+    if (slot_i < 0) return;
+    const uint slot = (uint)slot_i;
+    device const uchar *expert = src + slot * slot_stride;
+    device const ds4mx_block *blk = (device const ds4mx_block *)expert
+                                  + row * kBlocks + kb;
+    device uchar *data = dst_data + row * (depth / 2u) + kb * 16u;
+    device const uchar *qs = blk->qs;
+
+    for (uint i = 0; i < 8u; i++) {
+        data[i] = (qs[2u*i] & 0x0Fu) | ((qs[2u*i + 1u] & 0x0Fu) << 4u);
+    }
+    for (uint i = 8u; i < 16u; i++) {
+        const uint j = 2u*i - 16u;
+        data[i] = (qs[j] >> 4u) | (qs[j + 1u] & 0xF0u);
+    }
+
+    dst_scales[row * kBlocks + kb] = blk->e;
+}
+
+kernel void kernel_dsv4_mxfp4_copy_selected_planes(
+        device const uchar *src_data    [[buffer(0)]],  // slot bank data planes
+        device const uchar *src_scales  [[buffer(1)]],  // slot bank scale planes
+        device uchar       *dst_data    [[buffer(2)]],  // [rows][k/2] seq-pair
+        device uchar       *dst_scales  [[buffer(3)]],  // [rows][k/32] E8M0
+        device const int   *selected    [[buffer(4)]],  // slot id per route
+        constant uint      &rows        [[buffer(5)]],
+        constant uint      &depth       [[buffer(6)]],  // k, multiple of 32
+        constant uint      &slot_stride [[buffer(7)]],  // bytes between slots
+        constant uint      &route       [[buffer(8)]],
+        uint gid [[thread_position_in_grid]])
+{
+    const uint data_bytes = rows * (depth / 2u);
+    const uint scale_bytes = rows * (depth / DS4_MXFP4_QK);
+    const uint total_bytes = data_bytes + scale_bytes;
+    if (gid >= total_bytes) return;
+
+    const int slot_i = selected[route];
+    if (slot_i < 0) return;
+    const uint slot = (uint)slot_i;
+    device const uchar *expert_data = src_data + slot * slot_stride;
+    device const uchar *expert_scales = src_scales + slot * slot_stride;
+
+    if (gid < data_bytes) {
+        dst_data[gid] = expert_data[gid];
+    } else {
+        const uint scale_gid = gid - data_bytes;
+        dst_scales[scale_gid] = expert_scales[scale_gid];
+    }
+}
+
 // ---------------------------------------------------------------------------
 // MPP 4.0 fallback arm + benchmark references (compile on macOS 26 too).
 //
@@ -228,6 +295,32 @@ kernel void kernel_dsv4_mxfp4_native_matmul_n64(
         uint2 tgid [[threadgroup_position_in_grid]])
 {
     ds4mx::scaled_matmul_tile<64>(a, weights, scales, c, m, n, k, tgid);
+}
+
+kernel void kernel_dsv4_mxfp4_native_matmul_selected_n64(
+        device half        *a           [[buffer(0)]],
+        device uchar       *weights     [[buffer(1)]],
+        device float       *c           [[buffer(2)]],
+        constant uint      &m           [[buffer(3)]],
+        constant uint      &n           [[buffer(4)]],
+        constant uint      &k           [[buffer(5)]],
+        device const uchar *scales      [[buffer(6)]],
+        device const int   *selected    [[buffer(7)]],
+        constant uint      &slot_stride [[buffer(8)]],
+        constant uint      &route       [[buffer(9)]],
+        uint2 tgid [[threadgroup_position_in_grid]])
+{
+    const int slot_i = selected[route];
+    if (slot_i < 0) return;
+    const uint slot = uint(slot_i);
+    ds4mx::scaled_matmul_tile<64>(a,
+                                  weights + slot * slot_stride,
+                                  scales + slot * slot_stride,
+                                  c,
+                                  m,
+                                  n,
+                                  k,
+                                  tgid);
 }
 
 // Benchmark reference: raw FP4 matmul WITHOUT the scale plane.  Not

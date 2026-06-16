@@ -36,6 +36,8 @@ ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map, uint64_t map_size,
                                          uint64_t offset, uint64_t bytes);
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
+void ds4_gpu_tensor_set_mxfp4_plane_split(ds4_gpu_tensor *tensor, int enabled);
+int ds4_gpu_tensor_mxfp4_plane_split(const ds4_gpu_tensor *tensor);
 void *ds4_gpu_tensor_contents(ds4_gpu_tensor *tensor);
 int ds4_gpu_tensor_touch_pages(ds4_gpu_tensor *tensor, uint64_t page_bytes);
 int ds4_gpu_tensor_fill_f32(ds4_gpu_tensor *tensor, float value, uint64_t count);

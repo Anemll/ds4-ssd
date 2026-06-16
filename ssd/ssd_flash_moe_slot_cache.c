@@ -503,6 +503,7 @@ static bool metal_graph_flash_moe_shrink_slot_banks_carry(
         ds4_gpu_tensor *new_mixed =
             metal_graph_flash_moe_alloc_slot_bank_tensor(mixed_bytes);
         if (!new_mixed) return false;
+        metal_graph_flash_moe_tag_layer_storage(g, il, new_mixed);
         char label[64];
         snprintf(label, sizeof(label), "mixed-layer-%u-shrunk", il);
         if (!metal_graph_flash_moe_prepare_slot_bank_owner(
@@ -534,6 +535,7 @@ static bool metal_graph_flash_moe_shrink_slot_banks_carry(
                                                           new_down);
             return false;
         }
+        metal_graph_flash_moe_tag_layer_family_storage(g, il, new_gate, new_up, new_down);
 
         uint8_t *old_base = (uint8_t *)ds4_gpu_tensor_contents(old_mixed);
         if (!old_base && n_selected != 0) {
@@ -679,6 +681,8 @@ static bool metal_graph_flash_moe_shrink_slot_banks_gpu_l2(
             ds4_gpu_tensor_free(new_l1);
             return false;
         }
+        metal_graph_flash_moe_tag_layer_storage(g, il, new_l1);
+        metal_graph_flash_moe_tag_layer_storage(g, il, new_l2);
 
         char label[80];
         snprintf(label, sizeof(label), "split-l1-layer-%u", il);
@@ -723,6 +727,7 @@ static bool metal_graph_flash_moe_shrink_slot_banks_gpu_l2(
             ds4_gpu_tensor_free(new_l2);
             return false;
         }
+        metal_graph_flash_moe_tag_layer_family_storage(g, il, new_gate, new_up, new_down);
 
         ds4_flash_moe_carry_slot selected[DS4_MAX_EXPERT];
         memset(selected, 0, sizeof(selected));

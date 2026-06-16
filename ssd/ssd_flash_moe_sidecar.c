@@ -157,11 +157,16 @@ static int flash_moe_family_id(const char *family) {
     return -1;
 }
 
-static uint32_t flash_moe_quant_type_id(const char *quant) {
+static uint32_t flash_moe_quant_type_id(const char *quant, bool *mxfp4_plane_split) {
+    if (mxfp4_plane_split) *mxfp4_plane_split = false;
     if (!strcmp(quant, "IQ2_XXS")) return DS4_TENSOR_IQ2_XXS;
     if (!strcmp(quant, "Q2_K")) return DS4_TENSOR_Q2_K;
     if (!strcmp(quant, "Q4_K")) return DS4_TENSOR_Q4_K;
     if (!strcmp(quant, "MXFP4")) return DS4_TENSOR_MXFP4;
+    if (!strcmp(quant, "MXFP4_NATIVE")) {
+        if (mxfp4_plane_split) *mxfp4_plane_split = true;
+        return DS4_TENSOR_MXFP4;
+    }
     fprintf(stderr, "ds4: Flash-MoE sidecar has unsupported routed quant type: %s\n", quant);
     return UINT32_MAX;
 }
@@ -246,6 +251,7 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
     char *family = NULL;
     char *file = NULL;
     char *quant = NULL;
+    char *storage_layout = NULL;
     bool expert_major = true;
     if (!flash_moe_json_u64(obj, end, "layer", &layer_u64) ||
         !flash_moe_json_string(obj, end, "tensor_family", &family) ||
@@ -257,18 +263,77 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
         free(family);
         free(file);
         free(quant);
+        free(storage_layout);
         return false;
     }
     (void)flash_moe_json_u64(obj, end, "expert_stride", &stride);
     (void)flash_moe_json_bool(obj, end, "expert_major", &expert_major);
+    (void)flash_moe_json_string(obj, end, "storage_layout", &storage_layout);
     const int fam = flash_moe_family_id(family);
-    const uint32_t type = flash_moe_quant_type_id(quant);
+    bool mxfp4_plane_split = false;
+    const uint32_t type = flash_moe_quant_type_id(quant, &mxfp4_plane_split);
     if (layer_u64 >= DS4_N_LAYER || fam < 0 || !expert_major || bytes == 0 ||
         type == UINT32_MAX || !flash_moe_expected_shape((uint32_t)fam, shape)) {
         free(family);
         free(file);
         free(quant);
+        free(storage_layout);
         return false;
+    }
+    if (mxfp4_plane_split &&
+        (!storage_layout || strcmp(storage_layout, "mxfp4_plane_split_v1") != 0)) {
+        fprintf(stderr,
+                "ds4: Flash-MoE MXFP4_NATIVE entry requires storage_layout=mxfp4_plane_split_v1\n");
+        free(family);
+        free(file);
+        free(quant);
+        free(storage_layout);
+        return false;
+    }
+    uint64_t plane_data_bytes = 0;
+    uint64_t plane_scale_bytes = 0;
+    if (mxfp4_plane_split) {
+        if ((shape[0] % 32u) != 0 ||
+            shape[1] > UINT64_MAX / (shape[0] / 2u)) {
+            free(family);
+            free(file);
+            free(quant);
+            free(storage_layout);
+            return false;
+        }
+        plane_data_bytes = shape[1] * (shape[0] / 2u);
+        plane_scale_bytes = shape[1] * (shape[0] / 32u);
+        if (plane_data_bytes > UINT64_MAX - plane_scale_bytes ||
+            bytes != plane_data_bytes + plane_scale_bytes) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE MXFP4_NATIVE entry has invalid plane geometry\n");
+            free(family);
+            free(file);
+            free(quant);
+            free(storage_layout);
+            return false;
+        }
+        uint64_t manifest_plane_data = 0;
+        uint64_t manifest_plane_scale = 0;
+        uint64_t manifest_plane_data_off = 0;
+        uint64_t manifest_plane_scale_off = 0;
+        if (offset > UINT64_MAX - plane_data_bytes ||
+            (flash_moe_json_u64(obj, end, "plane_data_bytes", &manifest_plane_data) &&
+             manifest_plane_data != plane_data_bytes) ||
+            (flash_moe_json_u64(obj, end, "plane_scale_bytes", &manifest_plane_scale) &&
+             manifest_plane_scale != plane_scale_bytes) ||
+            (flash_moe_json_u64(obj, end, "plane_data_offset", &manifest_plane_data_off) &&
+             manifest_plane_data_off != offset) ||
+            (flash_moe_json_u64(obj, end, "plane_scale_offset", &manifest_plane_scale_off) &&
+             manifest_plane_scale_off != offset + plane_data_bytes)) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE MXFP4_NATIVE entry plane fields do not match deterministic layout\n");
+            free(family);
+            free(file);
+            free(quant);
+            free(storage_layout);
+            return false;
+        }
     }
 
     ds4_flash_moe_layer_sidecar *layer = &ctx->sidecar->layer[layer_u64];
@@ -276,6 +341,7 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
         free(family);
         free(file);
         free(quant);
+        free(storage_layout);
         return false;
     }
     if (!layer->path) {
@@ -288,18 +354,23 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
             free(family);
             free(file);
             free(quant);
+            free(storage_layout);
             return false;
         }
     }
     layer->family_offset[fam] = offset;
     layer->family_bytes[fam] = bytes;
+    layer->family_plane_data_bytes[fam] = plane_data_bytes;
+    layer->family_plane_scale_bytes[fam] = plane_scale_bytes;
     layer->family_type[fam] = type;
+    layer->family_mxfp4_plane_split[fam] = mxfp4_plane_split;
     layer->present[fam] = true;
     if (stride != 0) {
         if (layer->expert_stride != 0 && layer->expert_stride != stride) {
             free(family);
             free(file);
             free(quant);
+            free(storage_layout);
             return false;
         }
         layer->expert_stride = stride;
@@ -308,6 +379,7 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
     free(family);
     free(file);
     free(quant);
+    free(storage_layout);
     return true;
 }
 
@@ -438,16 +510,22 @@ static bool ds4_flash_moe_sidecar_open(
         (disable_direct_mmap_auto_env && disable_direct_mmap_auto_env[0] &&
          atoi(disable_direct_mmap_auto_env) != 0) ||
         (force_mixed_env && force_mixed_env[0] && atoi(force_mixed_env) != 0);
+    const bool direct_mmap_auto_q2_slots6 =
+        !direct_mmap_auto_disabled &&
+        s->layer[0].family_type[DS4_FLASH_FAMILY_GATE] == DS4_TENSOR_IQ2_XXS &&
+        s->layer[0].family_type[DS4_FLASH_FAMILY_UP] == DS4_TENSOR_IQ2_XXS &&
+        s->layer[0].family_type[DS4_FLASH_FAMILY_DOWN] == DS4_TENSOR_Q2_K;
     const bool direct_mmap_auto_large_mxfp4 =
         !direct_mmap_auto_disabled &&
         slot_bank > 128u &&
         s->layer[0].family_type[DS4_FLASH_FAMILY_GATE] == DS4_TENSOR_MXFP4 &&
         s->layer[0].family_type[DS4_FLASH_FAMILY_UP] == DS4_TENSOR_MXFP4 &&
         s->layer[0].family_type[DS4_FLASH_FAMILY_DOWN] == DS4_TENSOR_MXFP4;
-    if (direct_mmap_auto_large_mxfp4) {
+    if (direct_mmap_auto_q2_slots6 || direct_mmap_auto_large_mxfp4) {
         s->expert_mmap = true;
     }
 
+    bool sidecar_has_mxfp4_plane_split = false;
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
         ds4_flash_moe_layer_sidecar *layer = &s->layer[il];
         const uint64_t expected_width[DS4_FLASH_FAMILY_COUNT] = {
@@ -480,8 +558,32 @@ static bool ds4_flash_moe_sidecar_open(
                 ds4_flash_moe_sidecar_close(s);
                 return false;
             }
+            if (layer->family_mxfp4_plane_split[fam]) {
+                const uint64_t plane_data = expected_rows[fam] * (expected_width[fam] / 2u);
+                const uint64_t plane_scale = expected_rows[fam] * (expected_width[fam] / 32u);
+                if (layer->family_type[fam] != DS4_TENSOR_MXFP4 ||
+                    layer->family_plane_data_bytes[fam] != plane_data ||
+                    layer->family_plane_scale_bytes[fam] != plane_scale ||
+                    plane_data > UINT64_MAX - plane_scale ||
+                    layer->family_bytes[fam] != plane_data + plane_scale) {
+                    fprintf(stderr, "ds4: Flash-MoE sidecar layer %u has invalid MXFP4_NATIVE plane geometry\n", il);
+                    free(sidecar_dir);
+                    ds4_flash_moe_sidecar_close(s);
+                    return false;
+                }
+                sidecar_has_mxfp4_plane_split = true;
+            }
             const uint64_t end = layer->family_offset[fam] + layer->family_bytes[fam];
             if (end > min_stride) min_stride = end;
+        }
+        if (layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] !=
+                layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] ||
+            layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] !=
+                layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN]) {
+            fprintf(stderr, "ds4: Flash-MoE sidecar layer %u mixes MXFP4 storage layouts\n", il);
+            free(sidecar_dir);
+            ds4_flash_moe_sidecar_close(s);
+            return false;
         }
         if (layer->family_type[DS4_FLASH_FAMILY_GATE] !=
             layer->family_type[DS4_FLASH_FAMILY_UP]) {
@@ -552,6 +654,25 @@ static bool ds4_flash_moe_sidecar_open(
         }
     }
 
+    if (sidecar_has_mxfp4_plane_split) {
+        if (!ds4_gpu_mxfp4_native_requested()) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE sidecar uses MXFP4_NATIVE plane-split storage; "
+                    "set DS4_MXFP4_NATIVE=1\n");
+            free(sidecar_dir);
+            ds4_flash_moe_sidecar_close(s);
+            return false;
+        }
+        if (!ds4_gpu_init() || !ds4_gpu_has_native_mxfp4()) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE sidecar uses MXFP4_NATIVE plane-split storage, "
+                    "but native MXFP4 MPP 4.1 support is not available on this host\n");
+            free(sidecar_dir);
+            ds4_flash_moe_sidecar_close(s);
+            return false;
+        }
+    }
+
     free(sidecar_dir);
     *out = s;
     return true;
@@ -567,6 +688,11 @@ static void ds4_flash_moe_sidecar_log_loaded(const ds4_flash_moe_sidecar *s) {
             s->dir,
             s->slot_bank,
             (double)s->max_expert_stride / 1048576.0);
+    if (s->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE]) {
+        fprintf(stderr,
+                "ds4: Flash-MoE MXFP4 storage layout: mxfp4_plane_split_v1 "
+                "(native plane sidecar, no runtime repack on direct native paths)\n");
+    }
     if (s->expert_mmap) {
         fprintf(stderr,
                 "ds4: Flash-MoE expert mmap cache: on (%.2f GiB mapped); expert reads: pread\n",

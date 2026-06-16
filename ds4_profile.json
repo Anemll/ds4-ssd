@@ -166,7 +166,7 @@
       ]
     },
     {
-      "_comment": "M3 Ultra 96G — resident/full-model keeps the 1becf06 resident-memory growth block (2048) plus 16K prefill chunk. Re-baked 2026-06-02 on M3U/96G: resident GPU/ALU wins 1K-8K (255/299/335/324 t/s vs ANE 155/219/278/285), resident ANE wins the 16K full-chunk case (237 vs 196) and is roughly tied/slightly ahead at 32K (228 vs 226 on the generated 36.4K-token prompt). The resident table therefore routes tiny chunks to ANE, mid chunks to mulmm, and 16K-class chunks to ane_gpu; long prompts get ANE on full 16K chunks while their small tail stays on GPU/ALU. Do not force DS4_RESIDENT_MOE_BACKEND here: that env var has higher precedence and would bypass the table. Flash-MoE sidecar uses a separate sidecar_env so SSD slot-bank runs get GPU dedup + ANE/GPU overlap scheduler without inheriting resident-only knobs; the same M3U/96G sweep showed sidecar ANE wins from ~2K upward (8K 296 vs 253), while 512/1K remain GPU-favored and can be forced with DS4_FLASH_MOE_ANE_PREFILL=0 for short-prompt tests.",
+      "_comment": "M3 Ultra 96G — resident/full-model keeps the 1becf06 resident-memory growth block (2048) plus 16K prefill chunk. Re-baked 2026-06-02 on M3U/96G: resident GPU/ALU wins 1K-8K (255/299/335/324 t/s vs ANE 155/219/278/285), resident ANE wins the 16K full-chunk case (237 vs 196) and is roughly tied/slightly ahead at 32K (228 vs 226 on the generated 36.4K-token prompt). The resident table therefore routes tiny chunks to ANE, mid chunks to mulmm, and 16K-class chunks to ane_gpu; long prompts get ANE on full 16K chunks while their small tail stays on GPU/ALU. Do not force DS4_RESIDENT_MOE_BACKEND here: that env var has higher precedence and would bypass the table. Flash-MoE sidecar uses a separate sidecar_env so SSD slot-bank runs get GPU dedup + ANE/GPU overlap scheduler without inheriting resident-only knobs. 2026-06-15 Q2/IQ2 sidecar A/B vs antirez SSD streaming on this 96G M3U showed 16K sidecar ctx/prefill over-allocates decode memory and slows large banks; sidecar uses 4K ctx-grow/prefill for decode-footprint parity while ANE routing remains enabled.",
       "match": {
         "chip": "Apple M3 Ultra",
         "min_ram_gib": 96
@@ -188,8 +188,8 @@
       },
       "sidecar_env": {
         "DS4_CTX_GROW": "1",
-        "DS4_CTX_GROW_BLOCK": "16384",
-        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_CTX_GROW_BLOCK": "4096",
+        "DS4_METAL_PREFILL_CHUNK": "4096",
         "DS4_FLASH_MOE_SLOT_BANK_SLOTS": "96",
         "DS4_FLASH_MOE_MIXED_SLOT_BANK": "1",
         "DS4_FLASH_MOE_LAYER_SLOT_SLAB": "0",

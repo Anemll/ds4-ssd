@@ -591,15 +591,22 @@ New negatives/partials to avoid re-running:
 
 ## MPP 4.1 native MXFP4 — IMPLEMENTED, GATED (2026-06-12, branch `mxfp4-MPP4.1`, base M5 32 GiB / macOS 27.0)
 
-"Next iteration candidates" item 5 is done end to end (kernels + host gate +
-prefill integration), validated on the real package. Full detail:
-docs/mxfp4-native-sidecar-plan.md ("Phase 4.1a/4.1b" + "Arm A landed").
+"Next iteration candidates" item 5 is done end to end for prefill, and the
+decode per-use native arm is now wired. Full detail:
+docs/mxfp4-native-sidecar-plan.md ("Phase 4.1a/4.1b", "Arm A landed", and
+"Decode per-use native arm landed").
 
 - Enable: `DS4_MXFP4_NATIVE=1 DS4_FLASH_MOE_ANE_PREFILL=0
-  DS4_FLASH_MOE_MPP_INT8_PREFILL=1`. Default off; probe-gated
-  (`ds4_gpu_has_native_mxfp4()`); engage log `[mxfp4-native] ... arm engaged`.
+  DS4_FLASH_MOE_MPP_INT8_PREFILL=1` for native prefill; decode only needs
+  `DS4_MXFP4_NATIVE=1`. Default off; probe-gated
+  (`ds4_gpu_has_native_mxfp4()`); engage logs `[mxfp4-native] ... prefill arm
+  engaged` and `[mxfp4-native] ... decode arm engaged (..., repack-per-use)`.
 - Validate any box with `make mxfp4-native-probe`; kernel A/B with
   `MXFP4_PROBE_BENCH=1 ./tests/mxfp4_native_probe`.
+- Decode native coverage: banked, slots6, slots6-record, slots6-chunked, and
+  slotwise/baked slotwise. This is still repack-per-use from ggml slot-bank
+  blocks; the argument-buffer record-table path remains on the legacy LUT
+  decode path until Arm B/plane-bank work lands.
 - Kernel A/B (base M5, m=128, ms/matmul): native fp4+scale 0.328 (gate/up) /
   0.192 (down); raw-fp4-no-scale ref 0.155 / 0.145; resident-f16 h_h 0.228 /
   0.208; per-use dequant->half + h_h 0.354 / 0.350. Native beats the per-use
