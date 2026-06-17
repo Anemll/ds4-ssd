@@ -6870,6 +6870,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         };
         bool got_tool = false;
         bool malformed_tool = false;
+        bool stopped_eos = false;
         int generated = 0;
         double t0 = now_sec();
 
@@ -6881,7 +6882,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         while (generated < max_tokens && !worker_should_interrupt(w)) {
             int token = ds4_session_sample(w->session, cfg->gen.temperature, 0,
                                            cfg->gen.top_p, cfg->gen.min_p, &rng);
-            if (token == ds4_token_eos(w->engine)) break;
+            if (token == ds4_token_eos(w->engine)) {
+                stopped_eos = true;
+                break;
+            }
 
             if (ds4_session_eval(w->session, token, err, sizeof(err)) != 0) {
                 agent_dsml_parser_free(&dsml);
@@ -6914,6 +6918,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                 break;
             }
         }
+        const double decode_s = now_sec() - t0;
 
         agent_stream_text(&stream, NULL, 0, true);
         renderer_finish(&renderer);
@@ -6925,6 +6930,25 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         }
 
         ds4_tokens_push(&w->transcript, ds4_token_eos(w->engine));
+        const char *turn_stats_env = getenv("DS4_AGENT_TURN_STATS");
+        if (turn_stats_env && turn_stats_env[0] && atoi(turn_stats_env) != 0) {
+            const char *stop =
+                got_tool ? "tool" :
+                malformed_tool ? "malformed_tool" :
+                stopped_eos ? "eos" :
+                worker_should_interrupt(w) ? "interrupt" :
+                generated >= max_tokens ? "max_tokens" : "unknown";
+            fprintf(stderr,
+                    "ds4-agent: turn-stats round=%d generated=%d max=%d "
+                    "decode_s=%.6f gen_tps=%.3f ctx=%d stop=%s\n",
+                    tool_round,
+                    generated,
+                    max_tokens,
+                    decode_s,
+                    decode_s > 0.0 ? (double)generated / decode_s : 0.0,
+                    ds4_session_pos(w->session),
+                    stop);
+        }
 
         if (!got_tool && !malformed_tool) {
             agent_dsml_parser_free(&dsml);

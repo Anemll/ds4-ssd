@@ -293,7 +293,10 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         if (!warned_plane_split_ane_prefill) {
             fprintf(stderr,
                     "ds4: Flash-MoE ANE prefill disabled for MXFP4_NATIVE "
-                    "plane-split sidecar; using native MXFP4 MPP prefill\n");
+                    "plane-split sidecar; using native MXFP4 MPP prefill "
+                    "(set DS4_MXFP4_NATIVE_DEQUANT_PREFILL_EXPERIMENT=1 to "
+                    "try the diagnostic MPP/NAX dequant route; it may change "
+                    "routing/quality)\n");
             warned_plane_split_ane_prefill = true;
         }
     }

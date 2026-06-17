@@ -42,9 +42,13 @@ static int flash_moe_run_mpp_int8_safe_tensor(
      * reference checks + poisoned padding in tests/mxfp4_native_probe).
      * The split-with-ALU-tail workaround below exists for the legacy
      * i8/h_h MPP kernels only, where partial tiles miscalculated. */
+    const bool mxfp4_native_dequant_experiment =
+        env_flag_enabled("DS4_MXFP4_NATIVE_DEQUANT_PREFILL_EXPERIMENT") &&
+        flash_moe_mpp_int8_prefill_requested();
     const bool mxfp4_native_partial_ok =
         gate_type == DS4_TENSOR_MXFP4 && down_type == DS4_TENSOR_MXFP4 &&
-        ds4_gpu_mxfp4_native_requested() && ds4_gpu_has_native_mxfp4();
+        ds4_gpu_mxfp4_native_requested() && ds4_gpu_has_native_mxfp4() &&
+        !mxfp4_native_dequant_experiment;
 
     if ((n_tokens % mpp_m_tile) == 0 || mxfp4_native_partial_ok ||
         flash_moe_mpp_partial_tiles_allowed()) {

@@ -264,6 +264,38 @@ kernel void kernel_dsv4_mpp_dequant_mxfp4_transpose_i8(
     }
 }
 
+kernel void kernel_dsv4_mpp_dequant_mxfp4_planes_transpose_i8(
+        device const uchar *src [[buffer(0)]],
+        device char *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        constant float &qscale [[buffer(5)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_MXFP4;
+    const uint bytes_per_row = q_cols / 2u;
+    const uint data_bytes = q_rows * bytes_per_row;
+    device const uchar *data = src;
+    device const uchar *scales = src + data_bytes;
+
+    const uint segs_per_row = blocks_per_row * 2u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 2u;
+    const uint il = seg & 1u;
+    const float d = ds4_e8m0_to_float(scales[r * blocks_per_row + b]);
+    const uint col0 = b * QK_MXFP4 + il * 16u;
+    const uint row_data = r * bytes_per_row + b * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        const uint elem = il * 16u + j;
+        const uchar packed = data[row_data + (elem >> 1u)];
+        const uchar nib = (elem & 1u) ? (packed >> 4u) : (packed & 0x0Fu);
+        const float v = d * ds4_kvalues_mxfp4[nib];
+        dst[(col0 + j) * q_rows + r] = ds4_mpp_float_to_i8_scaled(v, qscale);
+    }
+}
+
 kernel void kernel_dsv4_mpp_dequant_iq2_xxs_transpose_i8_counted(
         device const block_iq2_xxs *src [[buffer(0)]],
         device char *dst [[buffer(1)]],
@@ -556,6 +588,36 @@ kernel void kernel_dsv4_ane_dequant_mxfp4_transpose_f16(
     const uint col0 = b * QK_MXFP4 + il * 16u;
     for (uint j = 0; j < 16u; j++) {
         dst[(col0 + j) * q_rows + r] = half(d * ds4_kvalues_mxfp4[(blk->qs[j] >> shift) & 0x0Fu]);
+    }
+}
+
+kernel void kernel_dsv4_ane_dequant_mxfp4_planes_transpose_f16(
+        device const uchar *src [[buffer(0)]],
+        device half *dst [[buffer(1)]],
+        constant uint &q_rows [[buffer(2)]],
+        constant uint &q_cols [[buffer(3)]],
+        constant uint &total [[buffer(4)]],
+        uint tid [[thread_position_in_grid]]) {
+    if (tid >= total) return;
+    const uint blocks_per_row = q_cols / QK_MXFP4;
+    const uint bytes_per_row = q_cols / 2u;
+    const uint data_bytes = q_rows * bytes_per_row;
+    device const uchar *data = src;
+    device const uchar *scales = src + data_bytes;
+
+    const uint segs_per_row = blocks_per_row * 2u;
+    const uint r = tid / segs_per_row;
+    const uint seg = tid - r * segs_per_row;
+    const uint b = seg / 2u;
+    const uint il = seg & 1u;
+    const float d = ds4_e8m0_to_float(scales[r * blocks_per_row + b]);
+    const uint col0 = b * QK_MXFP4 + il * 16u;
+    const uint row_data = r * bytes_per_row + b * 16u;
+    for (uint j = 0; j < 16u; j++) {
+        const uint elem = il * 16u + j;
+        const uchar packed = data[row_data + (elem >> 1u)];
+        const uchar nib = (elem & 1u) ? (packed >> 4u) : (packed & 0x0Fu);
+        dst[(col0 + j) * q_rows + r] = half(d * ds4_kvalues_mxfp4[nib]);
     }
 }
 

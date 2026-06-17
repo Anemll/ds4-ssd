@@ -15769,8 +15769,13 @@ static void metal_graph_log_prefill_compute_once(
         !plane_split_prefill &&
         try_ane_requested &&
         flash_moe_ane_prefill_tensor_types_supported(layer);
+    const bool mxfp4_native_dequant_experiment =
+        env_flag_enabled("DS4_MXFP4_NATIVE_DEQUANT_PREFILL_EXPERIMENT");
+    const bool mpp_w8a8_prefill =
+        mxfp4_native_dequant_experiment &&
+        flash_moe_mpp_int8_prefill_enabled();
     const bool try_mpp =
-        native_plane_prefill || flash_moe_mpp_int8_prefill_enabled();
+        native_plane_prefill || mpp_w8a8_prefill;
     const bool no_int8 = ds4_no_int8_paths_enabled();
     const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     const bool resident_ane_hybrid_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
@@ -15803,6 +15808,10 @@ static void metal_graph_log_prefill_compute_once(
 	                "per-expert GPU gather/scatter cold tail" :
 	                "grouped GPU/ALU skip-mask cold tail");
         routed = resident_routed;
+    } else if (native_plane_prefill && mpp_w8a8_prefill && no_int8) {
+        routed = "diagnostic NAX-half from MXFP4_NATIVE plane-sidecar";
+    } else if (native_plane_prefill && mpp_w8a8_prefill) {
+        routed = "diagnostic GPU MPP-int8 / NAX (W8A8) from MXFP4_NATIVE plane-sidecar";
     } else if (native_plane_prefill) {
         routed = "MPP 4.1 native MXFP4 (plane-sidecar/no-repack)";
     } else if (hybrid) {

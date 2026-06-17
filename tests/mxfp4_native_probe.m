@@ -42,7 +42,15 @@ static uint16_t f32_to_f16_bits(float f) {
     uint32_t sign = (bits >> 16) & 0x8000u;
     int32_t exp = (int32_t)((bits >> 23) & 0xffu) - 127 + 15;
     uint32_t mant = bits & 0x7fffffu;
-    if (exp <= 0) return (uint16_t)sign;
+    if (exp <= 0) {
+        if (exp < -10) return (uint16_t)sign;
+        mant |= 0x800000u;
+        const uint32_t shift = (uint32_t)(14 - exp);
+        uint32_t m = mant >> shift;
+        const uint32_t round = 1u << (shift - 1u);
+        if ((mant & round) && ((mant & (round - 1u)) || (m & 1u))) m++;
+        return (uint16_t)(sign | m);
+    }
     if (exp >= 31) return (uint16_t)(sign | 0x7c00u);
     uint32_t m = mant >> 13;
     if (mant & 0x1000u) m++;
@@ -89,6 +97,13 @@ static void ref_repack_block(const block_mxfp4 *blk, uint8_t *data16) {
 static float wval(const block_mxfp4 *row_blocks, int k) {
     const block_mxfp4 *blk = row_blocks + k / QK;
     return e8m0_to_float(blk->e) * kE2M1[nib_splithalf(blk->qs, k % QK)];
+}
+
+static int8_t quant_i8_ref(float v, float qscale) {
+    float scaled = v * qscale;
+    if (scaled < -128.0f) scaled = -128.0f;
+    if (scaled > 127.0f) scaled = 127.0f;
+    return (int8_t)rintf(scaled);
 }
 
 int main(void) {
@@ -155,6 +170,77 @@ int main(void) {
                lang41 ? "4.1" : "4.0",
                mm ? "ok" : "UNAVAILABLE",
                mmSelected ? "ok" : "UNAVAILABLE");
+
+        NSString *moeSrc = [NSString stringWithContentsOfFile:@"metal/moe.metal"
+                                                     encoding:NSUTF8StringEncoding error:NULL];
+        id<MTLLibrary> moeLib = nil;
+        id<MTLComputePipelineState> planeI8 = nil;
+        id<MTLComputePipelineState> planeF16 = nil;
+        if (moeSrc) {
+            NSRange marker = [moeSrc rangeOfString:@"struct ds4_metal_dsv4_moe_swiglu_weight_args"];
+            if (marker.location != NSNotFound) {
+                NSString *prefix = [moeSrc substringToIndex:marker.location];
+                moeSrc = [NSString stringWithFormat:
+                    @"#include <metal_stdlib>\nusing namespace metal;\n%@",
+                    prefix];
+            }
+            NSError *moeErr = nil;
+            moeLib = [device newLibraryWithSource:moeSrc options:opts error:&moeErr];
+            if (moeLib) {
+                planeI8 = [device newComputePipelineStateWithFunction:
+                    [moeLib newFunctionWithName:@"kernel_dsv4_mpp_dequant_mxfp4_planes_transpose_i8"] error:&moeErr];
+                planeF16 = [device newComputePipelineStateWithFunction:
+                    [moeLib newFunctionWithName:@"kernel_dsv4_ane_dequant_mxfp4_planes_transpose_f16"] error:&moeErr];
+            }
+        }
+        printf("moe plane dequant kernels: i8 %s, f16 %s\n",
+               planeI8 ? "ok" : "UNAVAILABLE",
+               planeF16 ? "ok" : "UNAVAILABLE");
+
+        NSString *mppSrc =
+            @"#include <metal_stdlib>\n"
+             "#include <MetalPerformancePrimitives/MetalPerformancePrimitives.h>\n"
+             "using namespace metal;\n"
+             "using namespace mpp::tensor_ops;\n"
+             "template <typename AT, typename BT, typename CT, int NT>\n"
+             "inline void ds4_mpp_run_tile_nt(device AT *A, device BT *B, device CT *C,\n"
+             "                                constant uint &M, constant uint &N, constant uint &K,\n"
+             "                                uint2 tgid) {\n"
+             "    constexpr auto desc = matmul2d_descriptor(64, NT, static_cast<int>(dynamic_extent));\n"
+             "    matmul2d<desc, execution_simdgroups<4>> op;\n"
+             "    auto tA = tensor(A, dextents<int32_t, 2>{(int32_t)K, (int32_t)M}, array<int32_t, 2>{1, (int32_t)K});\n"
+             "    auto tB = tensor(B, dextents<int32_t, 2>{(int32_t)N, (int32_t)K}, array<int32_t, 2>{1, (int32_t)N});\n"
+             "    auto tC = tensor(C, dextents<int32_t, 2>{(int32_t)N, (int32_t)M}, array<int32_t, 2>{1, (int32_t)N});\n"
+             "    auto mA = tA.slice(0, tgid.y * 64);\n"
+             "    auto mB = tB.slice(tgid.x * NT, 0);\n"
+             "    auto mC = tC.slice(tgid.x * NT, tgid.y * 64);\n"
+             "    op.run(mA, mB, mC);\n"
+             "}\n"
+             "kernel void ds4_mpp_h_h_f_n64(device half *A [[buffer(0)]], device half *B [[buffer(1)]], device float *C [[buffer(2)]],\n"
+             "                              constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]],\n"
+             "                              uint2 tgid [[threadgroup_position_in_grid]]) {\n"
+             "    ds4_mpp_run_tile_nt<half, half, float, 64>(A, B, C, M, N, K, tgid);\n"
+             "}\n"
+             "kernel void ds4_mpp_f_h_f_n64(device float *A [[buffer(0)]], device half *B [[buffer(1)]], device float *C [[buffer(2)]],\n"
+             "                              constant uint &M [[buffer(3)]], constant uint &N [[buffer(4)]], constant uint &K [[buffer(5)]],\n"
+             "                              uint2 tgid [[threadgroup_position_in_grid]]) {\n"
+             "    ds4_mpp_run_tile_nt<float, half, float, 64>(A, B, C, M, N, K, tgid);\n"
+             "}\n";
+        id<MTLComputePipelineState> mppHH = nil;
+        id<MTLComputePipelineState> mppFH = nil;
+        {
+            NSError *mppErr = nil;
+            id<MTLLibrary> mppLib = [device newLibraryWithSource:mppSrc options:opts error:&mppErr];
+            if (mppLib) {
+                mppHH = [device newComputePipelineStateWithFunction:
+                    [mppLib newFunctionWithName:@"ds4_mpp_h_h_f_n64"] error:&mppErr];
+                mppFH = [device newComputePipelineStateWithFunction:
+                    [mppLib newFunctionWithName:@"ds4_mpp_f_h_f_n64"] error:&mppErr];
+            }
+        }
+        printf("mpp h_h/f_h n64 kernels: %s/%s\n",
+               mppHH ? "ok" : "UNAVAILABLE",
+               mppFH ? "ok" : "UNAVAILABLE");
 
         srand(42);
         const int kb_per_row = k / QK;
@@ -339,6 +425,197 @@ int main(void) {
             }
             printf("selected plane copy: byte-exact for selected slot %u\n", selected_slot);
             free(bank);
+        }
+
+        // ---- 1d. Plane-split dequant kernels used by the MPP/NAX prefill arm.
+        // These consume the compact sidecar family layout [data][scale] and
+        // write the transposed layout expected by ds4_mpp_* matmul2d kernels:
+        // dst[k * rows + row].
+        if (!planeI8 || !planeF16) {
+            fprintf(stderr, "FAIL: moe plane dequant pipelines unavailable\n");
+            return 1;
+        }
+        {
+            const size_t data_bytes = (size_t)n * k / 2;
+            const size_t scale_bytes = (size_t)n * kb_per_row;
+            const size_t compact_bytes = data_bytes + scale_bytes;
+            uint8_t *compact = malloc(compact_bytes);
+            memcpy(compact, bData.contents, data_bytes);
+            memcpy(compact + data_bytes, bScale.contents, scale_bytes);
+            id<MTLBuffer> bCompact = [device newBufferWithBytes:compact
+                                                         length:compact_bytes
+                                                        options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bF16T = [device newBufferWithLength:(size_t)n * k * sizeof(uint16_t)
+                                                      options:MTLResourceStorageModeShared];
+            id<MTLBuffer> bI8T = [device newBufferWithLength:(size_t)n * k
+                                                     options:MTLResourceStorageModeShared];
+            memset(bF16T.contents, 0xCD, (size_t)n * k * sizeof(uint16_t));
+            memset(bI8T.contents, 0xCD, (size_t)n * k);
+
+            const uint32_t rows = (uint32_t)n;
+            const uint32_t cols = (uint32_t)k;
+            const uint32_t total = rows * (cols / 32u) * 2u;
+            const float qscale = 512.0f;
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:planeF16];
+            [enc setBuffer:bCompact offset:0 atIndex:0];
+            [enc setBuffer:bF16T offset:0 atIndex:1];
+            [enc setBytes:&rows length:4 atIndex:2];
+            [enc setBytes:&cols length:4 atIndex:3];
+            [enc setBytes:&total length:4 atIndex:4];
+            [enc dispatchThreadgroups:MTLSizeMake((total + 255u) / 256u, 1, 1)
+                threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+            [enc endEncoding];
+            enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:planeI8];
+            [enc setBuffer:bCompact offset:0 atIndex:0];
+            [enc setBuffer:bI8T offset:0 atIndex:1];
+            [enc setBytes:&rows length:4 atIndex:2];
+            [enc setBytes:&cols length:4 atIndex:3];
+            [enc setBytes:&total length:4 atIndex:4];
+            [enc setBytes:&qscale length:sizeof(qscale) atIndex:5];
+            [enc dispatchThreadgroups:MTLSizeMake((total + 255u) / 256u, 1, 1)
+                threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+
+            const uint16_t *f16t = bF16T.contents;
+            const int8_t *i8t = bI8T.contents;
+            size_t bad_f16 = 0, bad_i8 = 0;
+            for (int r = 0; r < n && (bad_f16 < 8 || bad_i8 < 8); r++) {
+                for (int kk = 0; kk < k && (bad_f16 < 8 || bad_i8 < 8); kk++) {
+                    const size_t idx = (size_t)kk * n + r;
+                    const float ref = wval(W + (size_t)r * kb_per_row, kk);
+                    const uint16_t want_h = f32_to_f16_bits(ref);
+                    const int8_t want_i8 = quant_i8_ref(ref, qscale);
+                    if (bad_f16 < 8 && f16t[idx] != want_h) {
+                        fprintf(stderr,
+                                "plane f16 mismatch row %d col %d: got %.8g want %.8g bits %04x/%04x\n",
+                                r, kk, f16_bits_to_f32(f16t[idx]), f16_bits_to_f32(want_h),
+                                f16t[idx], want_h);
+                        bad_f16++;
+                    }
+                    if (bad_i8 < 8 && i8t[idx] != want_i8) {
+                        fprintf(stderr,
+                                "plane i8 mismatch row %d col %d: got %d want %d ref %.8g\n",
+                                r, kk, (int)i8t[idx], (int)want_i8, ref);
+                        bad_i8++;
+                    }
+                }
+            }
+            free(compact);
+            if (bad_f16 || bad_i8) {
+                fprintf(stderr, "FAIL: plane dequant transpose (%zu f16, %zu i8 mismatches)\n",
+                        bad_f16, bad_i8);
+                return 1;
+            }
+            printf("plane dequant transpose: f16/i8 byte-exact over %zu values\n",
+                   (size_t)n * k);
+
+            if (mppHH) {
+                memset(bC.contents, 0x7f, (size_t)m_pad * n * 4);
+                id<MTLCommandBuffer> mmcb = [queue commandBuffer];
+                id<MTLComputeCommandEncoder> mmenc = [mmcb computeCommandEncoder];
+                [mmenc setComputePipelineState:mppHH];
+                [mmenc setBuffer:bA offset:0 atIndex:0];
+                [mmenc setBuffer:bF16T offset:0 atIndex:1];
+                [mmenc setBuffer:bC offset:0 atIndex:2];
+                uint32_t um = m, un = n, uk = k;
+                [mmenc setBytes:&um length:4 atIndex:3];
+                [mmenc setBytes:&un length:4 atIndex:4];
+                [mmenc setBytes:&uk length:4 atIndex:5];
+                NSUInteger tew = mppHH.threadExecutionWidth;
+                [mmenc dispatchThreadgroups:MTLSizeMake((n + 63) / 64, (m + 63) / 64, 1)
+                    threadsPerThreadgroup:MTLSizeMake(tew * 4, 1, 1)];
+                [mmenc endEncoding];
+                [mmcb commit];
+                [mmcb waitUntilCompleted];
+
+                const float *C = bC.contents;
+                double se = 0, sr = 0, maxabs = 0;
+                int badc = 0;
+                for (int mi = 0; mi < m; mi++) {
+                    for (int ni = 0; ni < n; ni++) {
+                        double ref = 0;
+                        const block_mxfp4 *rb = W + (size_t)ni * kb_per_row;
+                        for (int kk = 0; kk < k; kk++) {
+                            const double av = f16_bits_to_f32(A[(size_t)mi * k + kk]);
+                            const double wv = f16_bits_to_f32(f32_to_f16_bits(wval(rb, kk)));
+                            ref += av * wv;
+                        }
+                        const double g = C[(size_t)mi * n + ni];
+                        if (!isfinite(g)) badc++;
+                        const double d = g - ref;
+                        se += d * d;
+                        sr += ref * ref;
+                        if (fabs(d) > maxabs) maxabs = fabs(d);
+                    }
+                }
+                const double rel = sqrt(se / (sr > 0 ? sr : 1));
+                printf("plane dequant + ds4_mpp_h_h_f_n64: relRMS %.3e, max abs diff %.3e%s\n",
+                       rel, maxabs, badc ? " (NON-FINITE OUTPUTS)" : "");
+                if (badc || rel > 1e-3) {
+                    fprintf(stderr, "FAIL: plane dequant + MPP h_h matmul\n");
+                    return 1;
+                }
+            }
+
+            if (mppFH) {
+                float *Af = malloc((size_t)m * k * sizeof(float));
+                for (size_t ai = 0; ai < (size_t)m * k; ai++) {
+                    Af[ai] = ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
+                }
+                id<MTLBuffer> bAf = [device newBufferWithBytes:Af
+                                                        length:(size_t)m * k * sizeof(float)
+                                                       options:MTLResourceStorageModeShared];
+                memset(bC.contents, 0x7f, (size_t)m_pad * n * 4);
+                id<MTLCommandBuffer> mmcb = [queue commandBuffer];
+                id<MTLComputeCommandEncoder> mmenc = [mmcb computeCommandEncoder];
+                [mmenc setComputePipelineState:mppFH];
+                [mmenc setBuffer:bAf offset:0 atIndex:0];
+                [mmenc setBuffer:bF16T offset:0 atIndex:1];
+                [mmenc setBuffer:bC offset:0 atIndex:2];
+                uint32_t um = m, un = n, uk = k;
+                [mmenc setBytes:&um length:4 atIndex:3];
+                [mmenc setBytes:&un length:4 atIndex:4];
+                [mmenc setBytes:&uk length:4 atIndex:5];
+                NSUInteger tew = mppFH.threadExecutionWidth;
+                [mmenc dispatchThreadgroups:MTLSizeMake((n + 63) / 64, (m + 63) / 64, 1)
+                    threadsPerThreadgroup:MTLSizeMake(tew * 4, 1, 1)];
+                [mmenc endEncoding];
+                [mmcb commit];
+                [mmcb waitUntilCompleted];
+
+                const float *C = bC.contents;
+                double se = 0, sr = 0, maxabs = 0;
+                int badc = 0;
+                for (int mi = 0; mi < m; mi++) {
+                    for (int ni = 0; ni < n; ni++) {
+                        double ref = 0;
+                        const block_mxfp4 *rb = W + (size_t)ni * kb_per_row;
+                        for (int kk = 0; kk < k; kk++) {
+                            const double wv = f16_bits_to_f32(f32_to_f16_bits(wval(rb, kk)));
+                            ref += (double)Af[(size_t)mi * k + kk] * wv;
+                        }
+                        const double g = C[(size_t)mi * n + ni];
+                        if (!isfinite(g)) badc++;
+                        const double d = g - ref;
+                        se += d * d;
+                        sr += ref * ref;
+                        if (fabs(d) > maxabs) maxabs = fabs(d);
+                    }
+                }
+                const double rel = sqrt(se / (sr > 0 ? sr : 1));
+                printf("plane dequant + ds4_mpp_f_h_f_n64: relRMS %.3e, max abs diff %.3e%s\n",
+                       rel, maxabs, badc ? " (NON-FINITE OUTPUTS)" : "");
+                free(Af);
+                if (badc || rel > 1e-3) {
+                    fprintf(stderr, "FAIL: plane dequant + MPP f_h matmul\n");
+                    return 1;
+                }
+            }
         }
 
         if (!mm) {

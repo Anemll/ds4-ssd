@@ -18,6 +18,10 @@
 //       (DS4_MXFP4_HAS_NATIVE_SCALE_PLANE).  matmul2d consumes the FP4 data
 //       plane and the E8M0 scale plane together, natively; ~2.6x the
 //       dequant-to-half h_h_f rate measured on M5 (see MXFP4-MPP41-GUIDE).
+//   kernel_dsv4_mxfp4_plane_id_pair_swiglu_f32 /
+//   kernel_dsv4_mxfp4_plane_id_sum6_f32 - decode-shaped plane-layout matvec
+//       kernels for DSv4 top-6 routed MoE.  They avoid the native MPP matmul2d
+//       64-row tile floor that dominates single-token decode.
 //
 // Layout/perf decisions baked in (measured in the MetalFP41Probe project, do
 // not re-derive): NT=64 output tile (128 was ~2x slower), scaled right
@@ -135,6 +139,184 @@ kernel void kernel_dsv4_mxfp4_copy_selected_planes(
     } else {
         const uint scale_gid = gid - data_bytes;
         dst_scales[scale_gid] = expert_scales[scale_gid];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Decode-shaped plane-layout MXFP4 matvecs.
+//
+// These read the same plane-split layout as the MPP 4.1 native matmul arm, but
+// use a classic decode matvec shape: 2 rows per simdgroup, 2 simdgroups per
+// threadgroup.  The route dimension is fixed to DSv4's active top-6 experts.
+// Host gates these kernels on DS4_MXFP4_NATIVE=1, plane-split storage, and
+// n_expert == 6.
+// ---------------------------------------------------------------------------
+
+inline void ds4mx_plane_dot2_accum(
+        device const uchar *data,
+        device const uchar *scales,
+        device const float *x,
+        uint rows,
+        uint depth,
+        uint row0,
+        ushort tiisg,
+        thread float *sumf)
+{
+    const uint kBlocks = depth / DS4_MXFP4_QK;
+    const uint bytesPerRow = depth / 2u;
+    const ushort ix = tiisg / 2u;
+    const ushort it = tiisg & 1u;
+    const uint elemBase = uint(it) * 16u;
+    const uint byteBase = uint(it) * 8u;
+
+    for (uint ib = uint(ix); ib < kBlocks; ib += 16u) {
+        device const float4 *x4 =
+            (device const float4 *)(x + ib * DS4_MXFP4_QK + elemBase);
+        const float4 xv0 = x4[0];
+        const float4 xv1 = x4[1];
+        const float4 xv2 = x4[2];
+        const float4 xv3 = x4[3];
+
+        for (uint r = 0; r < 2u; r++) {
+            const uint row = row0 + r;
+            if (row >= rows) continue;
+            device const uchar *q = data + (ulong)row * bytesPerRow + ib * 16u;
+            const float scale = ds4mx_e8m0_to_float(scales[(ulong)row * kBlocks + ib]);
+            float4 acc = float4(0.0f);
+            const uchar q0 = q[byteBase + 0u];
+            const uchar q1 = q[byteBase + 1u];
+            const uchar q2 = q[byteBase + 2u];
+            const uchar q3 = q[byteBase + 3u];
+            const uchar q4 = q[byteBase + 4u];
+            const uchar q5 = q[byteBase + 5u];
+            const uchar q6 = q[byteBase + 6u];
+            const uchar q7 = q[byteBase + 7u];
+
+            acc[0] += xv0[0] * ds4mx_e2m1_lut_f32[q0 & 0x0Fu];
+            acc[1] += xv0[1] * ds4mx_e2m1_lut_f32[q0 >> 4u];
+            acc[2] += xv0[2] * ds4mx_e2m1_lut_f32[q1 & 0x0Fu];
+            acc[3] += xv0[3] * ds4mx_e2m1_lut_f32[q1 >> 4u];
+
+            acc[0] += xv1[0] * ds4mx_e2m1_lut_f32[q2 & 0x0Fu];
+            acc[1] += xv1[1] * ds4mx_e2m1_lut_f32[q2 >> 4u];
+            acc[2] += xv1[2] * ds4mx_e2m1_lut_f32[q3 & 0x0Fu];
+            acc[3] += xv1[3] * ds4mx_e2m1_lut_f32[q3 >> 4u];
+
+            acc[0] += xv2[0] * ds4mx_e2m1_lut_f32[q4 & 0x0Fu];
+            acc[1] += xv2[1] * ds4mx_e2m1_lut_f32[q4 >> 4u];
+            acc[2] += xv2[2] * ds4mx_e2m1_lut_f32[q5 & 0x0Fu];
+            acc[3] += xv2[3] * ds4mx_e2m1_lut_f32[q5 >> 4u];
+
+            acc[0] += xv3[0] * ds4mx_e2m1_lut_f32[q6 & 0x0Fu];
+            acc[1] += xv3[1] * ds4mx_e2m1_lut_f32[q6 >> 4u];
+            acc[2] += xv3[2] * ds4mx_e2m1_lut_f32[q7 & 0x0Fu];
+            acc[3] += xv3[3] * ds4mx_e2m1_lut_f32[q7 >> 4u];
+
+            sumf[r] += scale * (acc[0] + acc[1] + acc[2] + acc[3]);
+        }
+    }
+}
+
+kernel void kernel_dsv4_mxfp4_plane_id_pair_swiglu_f32(
+        device const float *x            [[buffer(0)]],  // [in_dim]
+        device const uchar *gate_data    [[buffer(1)]],
+        device const uchar *gate_scales  [[buffer(2)]],
+        device const uchar *up_data      [[buffer(3)]],
+        device const uchar *up_scales    [[buffer(4)]],
+        device const int   *selected     [[buffer(5)]],  // 6 slot ids
+        device const float *weights      [[buffer(6)]],  // 6 route weights
+        device float       *gate_out     [[buffer(7)]],  // [6][mid_dim]
+        device float       *up_out       [[buffer(8)]],  // [6][mid_dim]
+        device float       *mid          [[buffer(9)]],  // [6][mid_dim]
+        constant uint      &in_dim       [[buffer(10)]],
+        constant uint      &mid_dim      [[buffer(11)]],
+        constant uint      &slot_stride  [[buffer(12)]],
+        constant float     &clamp_value  [[buffer(13)]],
+        constant uint      &write_clamped[[buffer(14)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint route = tgpig.z;
+    if (route >= 6u) return;
+    const int slot_i = selected[route];
+    if (slot_i < 0) return;
+    const uint slot = uint(slot_i);
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+
+    device const uchar *gate_data_cur = gate_data + (ulong)slot * slot_stride;
+    device const uchar *gate_scales_cur = gate_scales + (ulong)slot * slot_stride;
+    device const uchar *up_data_cur = up_data + (ulong)slot * slot_stride;
+    device const uchar *up_scales_cur = up_scales + (ulong)slot * slot_stride;
+    float sumg[2] = { 0.0f, 0.0f };
+    float sumu[2] = { 0.0f, 0.0f };
+
+    ds4mx_plane_dot2_accum(gate_data_cur, gate_scales_cur, x,
+                           mid_dim, in_dim, row0, tiisg, sumg);
+    ds4mx_plane_dot2_accum(up_data_cur, up_scales_cur, x,
+                           mid_dim, in_dim, row0, tiisg, sumu);
+
+    const float route_weight = weights[route];
+    device float *gate_route = gate_out + (ulong)route * mid_dim;
+    device float *up_route = up_out + (ulong)route * mid_dim;
+    device float *mid_route = mid + (ulong)route * mid_dim;
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float gate_sum = simd_sum(sumg[r]);
+        const float up_sum = simd_sum(sumu[r]);
+        if (tiisg == 0 && row < mid_dim) {
+            float g = gate_sum;
+            float u = up_sum;
+            gate_route[row] = g;
+            up_route[row] = u;
+            if (clamp_value > 1.0e-6f) {
+                g = min(g, clamp_value);
+                u = clamp(u, -clamp_value, clamp_value);
+            }
+            if (write_clamped != 0u) {
+                gate_route[row] = g;
+                up_route[row] = u;
+            }
+            const float silu = g / (1.0f + exp(-g));
+            mid_route[row] = silu * u * route_weight;
+        }
+    }
+}
+
+kernel void kernel_dsv4_mxfp4_plane_id_sum6_f32(
+        device const uchar *down_data    [[buffer(0)]],
+        device const uchar *down_scales  [[buffer(1)]],
+        device const int   *selected     [[buffer(2)]],  // 6 slot ids
+        device const float *mid          [[buffer(3)]],  // [6][mid_dim]
+        device float       *out          [[buffer(4)]],  // [out_dim]
+        constant uint      &mid_dim      [[buffer(5)]],
+        constant uint      &out_dim      [[buffer(6)]],
+        constant uint      &slot_stride  [[buffer(7)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+    float sumf[2] = { 0.0f, 0.0f };
+
+    for (uint route = 0; route < 6u; route++) {
+        const int slot_i = selected[route];
+        if (slot_i < 0) continue;
+        const uint slot = uint(slot_i);
+        device const uchar *down_data_cur = down_data + (ulong)slot * slot_stride;
+        device const uchar *down_scales_cur = down_scales + (ulong)slot * slot_stride;
+        device const float *mid_route = mid + (ulong)route * mid_dim;
+        ds4mx_plane_dot2_accum(down_data_cur, down_scales_cur, mid_route,
+                               out_dim, mid_dim, row0, tiisg, sumf);
+    }
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float sum = simd_sum(sumf[r]);
+        if (tiisg == 0 && row < out_dim) {
+            out[row] = sum;
+        }
     }
 }
 

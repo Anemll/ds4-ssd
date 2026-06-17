@@ -23,6 +23,8 @@
 #include <string.h>
 #include <time.h>
 
+#define DS4_BENCH_METAL_RAW_WINDOW_CUSHION 128
+
 typedef struct {
     const char *model_path;
     const char *prompt_path;
@@ -99,7 +101,8 @@ static void usage(FILE *fp) {
         "Sweep:\n"
         "  --ctx-start N          First measured frontier. Default: 2048\n"
         "  --ctx-max N            Last measured frontier. Default: 32768\n"
-        "  --ctx-alloc N          Allocated context. Default: ctx-max + gen-tokens + 1\n"
+        "  --ctx-alloc N          Allocated context. Default: ctx-max + gen-tokens + 1,\n"
+        "                         plus an aligned Metal raw-window cushion when needed.\n"
         "  --step-mul F           Multiplicative step. Default: 1\n"
         "  --step-incr N          Linear step when --step-mul is 1. Default: 2048\n"
         "  --full-prefill-each-frontier\n"
@@ -409,11 +412,19 @@ static bench_config parse_options(int argc, char **argv) {
         fprintf(stderr, "ds4-bench: --step-incr must be positive when --step-mul is 1\n");
         exit(2);
     }
-    if (c.ctx_max > INT_MAX - c.gen_tokens - 1) {
+    const int raw_window_cushion =
+        c.backend == DS4_BACKEND_METAL ? DS4_BENCH_METAL_RAW_WINDOW_CUSHION : 0;
+    const int raw_align = c.backend == DS4_BACKEND_METAL ? 256 : 1;
+    if (c.ctx_max > INT_MAX - c.gen_tokens - 1 - raw_window_cushion - (raw_align - 1)) {
         fprintf(stderr, "ds4-bench: requested context is too large\n");
         exit(2);
     }
-    if (c.ctx_alloc == 0) c.ctx_alloc = c.ctx_max + c.gen_tokens + 1;
+    if (c.ctx_alloc == 0) {
+        c.ctx_alloc = c.ctx_max + c.gen_tokens + 1 + raw_window_cushion;
+        if (raw_align > 1) {
+            c.ctx_alloc = ((c.ctx_alloc + raw_align - 1) / raw_align) * raw_align;
+        }
+    }
     if (c.ctx_alloc <= c.ctx_max + c.gen_tokens) {
         fprintf(stderr, "ds4-bench: --ctx-alloc must be greater than ctx-max + gen-tokens\n");
         exit(2);
