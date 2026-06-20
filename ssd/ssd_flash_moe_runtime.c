@@ -945,6 +945,12 @@ static bool flash_moe_decode_l2_enabled(void) {
            env_flag_enabled("DS4_FLASH_MOE_L2_CACHE");
 }
 
+static bool flash_moe_decode_shared_l2_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_SHARED_L2") ||
+           env_flag_enabled("DS4_FLASH_MOE_DECODE_SHARED_L2") ||
+           env_flag_enabled("DS4_FLASH_MOE_SHARED_L2_CACHE");
+}
+
 static bool flash_moe_decode_gpu_l2_enabled(void) {
     return env_flag_enabled("DS4_FLASH_MOE_GPU_L2") ||
            env_flag_enabled("DS4_FLASH_MOE_DECODE_GPU_L2") ||
@@ -968,7 +974,8 @@ static bool flash_moe_chunked_slots6_grouped_enabled(void) {
 
 static bool flash_moe_chunked_bank_slots6_enabled(void) {
     return env_flag_enabled("DS4_FLASH_MOE_CHUNKED_BANK_SLOTS6") ||
-           env_flag_enabled("DS4_FLASH_MOE_CHUNKED_DIRECT_SLOTS6");
+           env_flag_enabled("DS4_FLASH_MOE_CHUNKED_DIRECT_SLOTS6") ||
+           env_flag_enabled("DS4_FLASH_MOE_SLOTWISE_DECODE");
 }
 
 static bool flash_moe_six_slot_baseline_enabled(void) {
@@ -1014,6 +1021,12 @@ static bool flash_moe_slotwise_decode_enabled(void) {
     const char *env = getenv("DS4_FLASH_MOE_SLOTWISE_DECODE");
     return env && env[0] && atoi(env) != 0;
 }
+
+static bool metal_graph_flash_moe_l2_store_l1_slot(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        int32_t        true_expert,
+        int32_t        l1_slot);
 
 static bool flash_moe_baked_slot_decode_enabled(void) {
     static int enabled = -1;
@@ -1533,6 +1546,362 @@ static bool metal_graph_flash_moe_mark_slot_modified(
                                   down_bytes) != 0;
 }
 
+static uint32_t metal_graph_flash_moe_shared_l2_slots_for_budget(
+        const ds4_gpu_graph *g,
+        uint64_t             budget,
+        uint32_t             fallback) {
+    if (!g || !g->flash_moe) return fallback;
+    const uint64_t stride = g->flash_moe->max_expert_stride;
+    if (budget == 0 || stride == 0) return fallback;
+    uint64_t slots = budget / stride;
+    if (slots == 0) slots = 1;
+    if (slots > UINT32_MAX) slots = UINT32_MAX;
+    return (uint32_t)slots;
+}
+
+static uint32_t metal_graph_flash_moe_shared_l2_configured_slots(
+        const ds4_gpu_graph *g,
+        uint32_t             fallback) {
+    const char *slots_env = getenv("DS4_FLASH_MOE_SHARED_L2_SLOTS");
+    if (slots_env && slots_env[0]) {
+        char *end = NULL;
+        errno = 0;
+        unsigned long v = strtoul(slots_env, &end, 10);
+        if (errno == 0 && end != slots_env && v > 0 && v <= UINT32_MAX) {
+            return (uint32_t)v;
+        }
+    }
+
+    const char *budget_envs[] = {
+        "DS4_FLASH_MOE_SHARED_L2_CACHE",
+        "DS4_FLASH_MOE_SHARED_L2_BYTES",
+        "DS4_FLASH_MOE_DECODE_SHARED_L2_CACHE",
+    };
+    for (size_t i = 0; i < sizeof(budget_envs) / sizeof(budget_envs[0]); i++) {
+        const char *env = getenv(budget_envs[i]);
+        if (!env || !env[0]) continue;
+        uint64_t budget = 0;
+        if (ds4_parse_u64_suffix(env, &budget) && budget > 0) {
+            return metal_graph_flash_moe_shared_l2_slots_for_budget(g, budget, fallback);
+        }
+    }
+    return fallback;
+}
+
+static uint64_t metal_graph_flash_moe_shared_l2_key_idx(
+        uint32_t il,
+        int32_t  expert) {
+    return (uint64_t)il * DS4_N_EXPERT + (uint32_t)expert;
+}
+
+static void metal_graph_flash_moe_shared_l2_free(ds4_gpu_graph *g) {
+    if (!g) return;
+    if (g->flash_shared_l2_slot_buf) {
+        for (uint32_t i = 0; i < g->flash_shared_l2_slot_bank; i++) {
+            free(g->flash_shared_l2_slot_buf[i]);
+        }
+    }
+    free(g->flash_shared_l2_slot_buf);
+    free(g->flash_shared_l2_slot_bytes);
+    free(g->flash_shared_l2_slot_layer);
+    free(g->flash_shared_l2_slot_expert);
+    free(g->flash_shared_l2_expert_to_slot);
+    free(g->flash_shared_l2_slot_age);
+    g->flash_shared_l2_slot_bank = 0;
+    g->flash_shared_l2_slot_buf = NULL;
+    g->flash_shared_l2_slot_bytes = NULL;
+    g->flash_shared_l2_slot_layer = NULL;
+    g->flash_shared_l2_slot_expert = NULL;
+    g->flash_shared_l2_expert_to_slot = NULL;
+    g->flash_shared_l2_slot_age = NULL;
+    g->flash_shared_l2_allocated_bytes = 0;
+    g->flash_shared_l2_capacity_bytes = 0;
+}
+
+static bool metal_graph_flash_moe_shared_l2_init(
+        ds4_gpu_graph *g,
+        uint32_t       slots) {
+    if (!g || !g->flash_moe || slots == 0) return false;
+    if (g->flash_shared_l2_slot_bank == slots &&
+        g->flash_shared_l2_slot_buf &&
+        g->flash_shared_l2_slot_layer &&
+        g->flash_shared_l2_slot_expert &&
+        g->flash_shared_l2_expert_to_slot &&
+        g->flash_shared_l2_slot_age) {
+        return true;
+    }
+
+    metal_graph_flash_moe_shared_l2_free(g);
+    if ((uint64_t)slots > SIZE_MAX / sizeof(g->flash_shared_l2_slot_buf[0]) ||
+        (uint64_t)slots > SIZE_MAX / sizeof(g->flash_shared_l2_slot_bytes[0]) ||
+        (uint64_t)slots > SIZE_MAX / sizeof(g->flash_shared_l2_slot_layer[0]) ||
+        (uint64_t)slots > SIZE_MAX / sizeof(g->flash_shared_l2_slot_expert[0]) ||
+        (uint64_t)slots > SIZE_MAX / sizeof(g->flash_shared_l2_slot_age[0]) ||
+        (uint64_t)DS4_N_LAYER * DS4_N_EXPERT >
+            SIZE_MAX / sizeof(g->flash_shared_l2_expert_to_slot[0])) {
+        return false;
+    }
+
+    g->flash_shared_l2_slot_bank = slots;
+    g->flash_shared_l2_slot_buf =
+        xcalloc((size_t)slots, sizeof(g->flash_shared_l2_slot_buf[0]));
+    g->flash_shared_l2_slot_bytes =
+        xcalloc((size_t)slots, sizeof(g->flash_shared_l2_slot_bytes[0]));
+    g->flash_shared_l2_slot_layer =
+        xmalloc((size_t)slots * sizeof(g->flash_shared_l2_slot_layer[0]));
+    g->flash_shared_l2_slot_expert =
+        xmalloc((size_t)slots * sizeof(g->flash_shared_l2_slot_expert[0]));
+    g->flash_shared_l2_slot_age =
+        xcalloc((size_t)slots, sizeof(g->flash_shared_l2_slot_age[0]));
+    g->flash_shared_l2_expert_to_slot =
+        xmalloc((size_t)DS4_N_LAYER * DS4_N_EXPERT *
+                sizeof(g->flash_shared_l2_expert_to_slot[0]));
+    if (!g->flash_shared_l2_slot_buf ||
+        !g->flash_shared_l2_slot_bytes ||
+        !g->flash_shared_l2_slot_layer ||
+        !g->flash_shared_l2_slot_expert ||
+        !g->flash_shared_l2_slot_age ||
+        !g->flash_shared_l2_expert_to_slot) {
+        metal_graph_flash_moe_shared_l2_free(g);
+        return false;
+    }
+    for (uint32_t i = 0; i < slots; i++) {
+        g->flash_shared_l2_slot_layer[i] = -1;
+        g->flash_shared_l2_slot_expert[i] = -1;
+    }
+    for (uint64_t i = 0; i < (uint64_t)DS4_N_LAYER * DS4_N_EXPERT; i++) {
+        g->flash_shared_l2_expert_to_slot[i] = -1;
+    }
+    if (g->flash_moe->max_expert_stride != 0 &&
+        (uint64_t)slots <= UINT64_MAX / g->flash_moe->max_expert_stride) {
+        g->flash_shared_l2_capacity_bytes =
+            (uint64_t)slots * g->flash_moe->max_expert_stride;
+    } else {
+        g->flash_shared_l2_capacity_bytes = UINT64_MAX;
+    }
+    fprintf(stderr,
+            "ds4: Flash-MoE shared-L2 cache enabled: slots=%u capacity=%.2f GiB "
+            "(CPU-backed global victim pool)\n",
+            slots,
+            (double)g->flash_shared_l2_capacity_bytes / 1073741824.0);
+    return true;
+}
+
+static uint32_t metal_graph_flash_moe_shared_l2_pick_slot(ds4_gpu_graph *g) {
+    for (uint32_t i = 0; i < g->flash_shared_l2_slot_bank; i++) {
+        if (g->flash_shared_l2_slot_layer[i] < 0) return i;
+    }
+    uint32_t slot = 0;
+    uint64_t oldest = UINT64_MAX;
+    for (uint32_t i = 0; i < g->flash_shared_l2_slot_bank; i++) {
+        if (g->flash_shared_l2_slot_age[i] < oldest) {
+            oldest = g->flash_shared_l2_slot_age[i];
+            slot = i;
+        }
+    }
+    return slot;
+}
+
+static bool metal_graph_flash_moe_shared_l2_store_record(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        int32_t        true_expert,
+        const uint8_t *src) {
+    if (!g || !g->flash_moe || !g->flash_shared_l2_slot_bank || !src ||
+        il >= DS4_N_LAYER ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+        return false;
+    }
+    const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    const uint64_t key = metal_graph_flash_moe_shared_l2_key_idx(il, true_expert);
+    uint32_t slot = UINT32_MAX;
+    const int32_t existing = g->flash_shared_l2_expert_to_slot[key];
+    if (existing >= 0 && existing < (int32_t)g->flash_shared_l2_slot_bank &&
+        g->flash_shared_l2_slot_layer[existing] == (int32_t)il &&
+        g->flash_shared_l2_slot_expert[existing] == true_expert) {
+        slot = (uint32_t)existing;
+    } else {
+        slot = metal_graph_flash_moe_shared_l2_pick_slot(g);
+    }
+
+    const int32_t old_layer = g->flash_shared_l2_slot_layer[slot];
+    const int32_t old_expert = g->flash_shared_l2_slot_expert[slot];
+    if (old_layer >= 0 && old_layer < (int32_t)DS4_N_LAYER &&
+        old_expert >= 0 && old_expert < (int32_t)DS4_N_EXPERT) {
+        const uint64_t old_key =
+            metal_graph_flash_moe_shared_l2_key_idx((uint32_t)old_layer, old_expert);
+        if (g->flash_shared_l2_expert_to_slot[old_key] == (int32_t)slot) {
+            g->flash_shared_l2_expert_to_slot[old_key] = -1;
+        }
+        if (old_layer != (int32_t)il || old_expert != true_expert) {
+            g->flash_shared_l2_evictions++;
+        }
+    }
+
+    if (g->flash_shared_l2_slot_bytes[slot] < layer->expert_stride) {
+        uint8_t *buf =
+            xrealloc(g->flash_shared_l2_slot_buf[slot], (size_t)layer->expert_stride);
+        g->flash_shared_l2_slot_buf[slot] = buf;
+        if (g->flash_shared_l2_allocated_bytes <=
+            UINT64_MAX - (layer->expert_stride - g->flash_shared_l2_slot_bytes[slot])) {
+            g->flash_shared_l2_allocated_bytes +=
+                layer->expert_stride - g->flash_shared_l2_slot_bytes[slot];
+        } else {
+            g->flash_shared_l2_allocated_bytes = UINT64_MAX;
+        }
+        g->flash_shared_l2_slot_bytes[slot] = layer->expert_stride;
+    }
+    memcpy(g->flash_shared_l2_slot_buf[slot], src, (size_t)layer->expert_stride);
+    g->flash_shared_l2_slot_layer[slot] = (int32_t)il;
+    g->flash_shared_l2_slot_expert[slot] = true_expert;
+    g->flash_shared_l2_expert_to_slot[key] = (int32_t)slot;
+    g->flash_shared_l2_slot_age[slot] = ++g->flash_age;
+    g->flash_shared_l2_installs++;
+    return true;
+}
+
+static bool metal_graph_flash_moe_shared_l2_lookup(
+        ds4_gpu_graph  *g,
+        uint32_t        il,
+        int32_t         true_expert,
+        const uint8_t **src_out) {
+    if (src_out) *src_out = NULL;
+    if (!g || !g->flash_shared_l2_slot_bank || il >= DS4_N_LAYER ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+        return false;
+    }
+    const uint64_t key = metal_graph_flash_moe_shared_l2_key_idx(il, true_expert);
+    const int32_t slot = g->flash_shared_l2_expert_to_slot[key];
+    if (slot < 0 || slot >= (int32_t)g->flash_shared_l2_slot_bank ||
+        g->flash_shared_l2_slot_layer[slot] != (int32_t)il ||
+        g->flash_shared_l2_slot_expert[slot] != true_expert ||
+        !g->flash_shared_l2_slot_buf[slot]) {
+        g->flash_shared_l2_misses++;
+        return false;
+    }
+    g->flash_shared_l2_slot_age[slot] = ++g->flash_age;
+    g->flash_shared_l2_hits++;
+    if (src_out) *src_out = g->flash_shared_l2_slot_buf[slot];
+    return true;
+}
+
+static bool metal_graph_flash_moe_shared_l2_store_l1_slot(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        int32_t        true_expert,
+        int32_t        l1_slot) {
+    if (!g || !g->flash_shared_l2_slot_bank || !g->flash_mixed_slot_bank ||
+        true_expert < 0 || l1_slot < 0) {
+        return false;
+    }
+    uint8_t *src = metal_graph_flash_moe_mixed_slot_ptr(g, il, l1_slot);
+    return src && metal_graph_flash_moe_shared_l2_store_record(g, il, true_expert, src);
+}
+
+static void metal_graph_flash_moe_store_evicted_l1_slot(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        int32_t        evicted,
+        int32_t        slot) {
+    if (!g || evicted < 0 || evicted >= (int32_t)DS4_N_EXPERT ||
+        slot < 0 || slot >= (int32_t)g->flash_slot_bank) {
+        return;
+    }
+    if (g->flash_shared_l2_slot_bank) {
+        (void)metal_graph_flash_moe_shared_l2_store_l1_slot(g, il, evicted, slot);
+    }
+    if (g->flash_l2_slot_bank) {
+        (void)metal_graph_flash_moe_l2_store_l1_slot(g, il, evicted, slot);
+    }
+}
+
+typedef struct {
+    uint32_t il;
+    uint32_t slot;
+    int32_t expert;
+    uint64_t age;
+} ds4_flash_moe_shared_l2_candidate;
+
+static int ds4_flash_moe_shared_l2_candidate_cmp(const void *a, const void *b) {
+    const ds4_flash_moe_shared_l2_candidate *ca =
+        (const ds4_flash_moe_shared_l2_candidate *)a;
+    const ds4_flash_moe_shared_l2_candidate *cb =
+        (const ds4_flash_moe_shared_l2_candidate *)b;
+    if (ca->age < cb->age) return 1;
+    if (ca->age > cb->age) return -1;
+    return 0;
+}
+
+static bool metal_graph_flash_moe_shared_l2_capture_before_shrink(
+        ds4_gpu_graph *g,
+        uint32_t       from_slots,
+        uint32_t       target_slots) {
+    if (!flash_moe_decode_shared_l2_enabled()) return true;
+    if (!g || !g->flash_moe || !g->flash_mixed_slot_bank ||
+        from_slots <= target_slots || g->flash_slot_bank != from_slots) {
+        return true;
+    }
+
+    const uint32_t fallback_slots =
+        from_slots > target_slots ? from_slots - target_slots : target_slots;
+    const uint32_t shared_slots =
+        metal_graph_flash_moe_shared_l2_configured_slots(g, fallback_slots);
+    if (!metal_graph_flash_moe_shared_l2_init(g, shared_slots)) return false;
+
+    const uint64_t max_candidates = (uint64_t)DS4_N_LAYER * from_slots;
+    if (max_candidates > SIZE_MAX / sizeof(ds4_flash_moe_shared_l2_candidate)) {
+        return false;
+    }
+    ds4_flash_moe_shared_l2_candidate *cand =
+        xmalloc((size_t)max_candidates * sizeof(cand[0]));
+    uint64_t n = 0;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        int32_t *slot_to_expert = flash_moe_slot_to_expert(g, il);
+        uint64_t *slot_age = flash_moe_slot_age(g, il);
+        for (uint32_t slot = 0; slot < from_slots; slot++) {
+            const int32_t expert = slot_to_expert[slot];
+            if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT) continue;
+            cand[n++] = (ds4_flash_moe_shared_l2_candidate){
+                .il = il,
+                .slot = slot,
+                .expert = expert,
+                .age = slot_age[slot],
+            };
+        }
+    }
+    qsort(cand,
+          (size_t)n,
+          sizeof(cand[0]),
+          ds4_flash_moe_shared_l2_candidate_cmp);
+
+    uint64_t captured = 0;
+    const uint64_t limit =
+        n < (uint64_t)g->flash_shared_l2_slot_bank ?
+        n : (uint64_t)g->flash_shared_l2_slot_bank;
+    for (uint64_t i = 0; i < limit; i++) {
+        uint8_t *src =
+            metal_graph_flash_moe_mixed_slot_ptr(g, cand[i].il, (int32_t)cand[i].slot);
+        if (!src) continue;
+        if (!metal_graph_flash_moe_shared_l2_store_record(g,
+                                                          cand[i].il,
+                                                          cand[i].expert,
+                                                          src)) {
+            free(cand);
+            return false;
+        }
+        captured++;
+    }
+    free(cand);
+    fprintf(stderr,
+            "ds4: Flash-MoE shared-L2 captured %" PRIu64
+            "/%" PRIu64 " hot resident prefill slots before decode shrink "
+            "(global slots=%u)\n",
+            captured,
+            n,
+            g->flash_shared_l2_slot_bank);
+    return true;
+}
+
 static uint64_t metal_graph_flash_moe_l2_idx(
         const ds4_gpu_graph *g,
         uint32_t             il,
@@ -2049,6 +2418,19 @@ typedef struct {
     double pread_t0_ms;
     double pread_t1_ms;
 } ds4_flash_decode_read_job;
+
+static bool ds4_flash_decode_read_job_set_memory_src_copy(
+        ds4_flash_decode_read_job *job,
+        const uint8_t             *src,
+        uint64_t                   bytes) {
+    if (!job || !src || bytes > SIZE_MAX) return false;
+    if (job->buf_owned) free(job->buf);
+    job->buf = xmalloc((size_t)bytes);
+    memcpy(job->buf, src, (size_t)bytes);
+    job->buf_owned = true;
+    job->memory_src = job->buf;
+    return true;
+}
 
 static void ds4_flash_decode_read_job_mark_complete(ds4_flash_decode_read_job *job) {
     if (!job) return;

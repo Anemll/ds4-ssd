@@ -10078,6 +10078,25 @@ static void request_ctx_span(char *buf, size_t len, int cached, int prompt) {
     snprintf(buf, len, "%d..%d:%d", cached, prompt, suffix);
 }
 
+static void server_runtime_status_suffix(server *s, char *buf, size_t len) {
+    if (len == 0) return;
+    buf[0] = '\0';
+    if (!s || !s->session) return;
+    ds4_runtime_status rt;
+    memset(&rt, 0, sizeof(rt));
+    if (ds4_session_runtime_status(s->session, &rt) == 0 || !rt.available) return;
+    if (rt.moe_slot_bank == 0 &&
+        rt.gpu_compressed_bytes == 0 &&
+        rt.system_compressed_bytes == 0) {
+        return;
+    }
+    snprintf(buf, len,
+             " slots=%u Cmp:GPU=%.1fGB Sys=%.1fGB",
+             rt.moe_slot_bank,
+             (double)rt.gpu_compressed_bytes / 1073741824.0,
+             (double)rt.system_compressed_bytes / 1073741824.0);
+}
+
 static void log_flags(char *buf, size_t len, bool responses_protocol,
                       bool tools, bool thinking,
                       bool dsml_start, bool dsml_end) {
@@ -10095,7 +10114,7 @@ static void log_flags(char *buf, size_t len, bool responses_protocol,
 #undef ADD_FLAG
 }
 
-static void log_decode_progress(req_kind kind, int prompt_tokens, int completion,
+static void log_decode_progress(server *s, req_kind kind, int prompt_tokens, int completion,
                                 bool responses_protocol,
                                 bool tools, bool thinking,
                                 bool dsml_start, bool dsml_end,
@@ -10114,8 +10133,10 @@ static void log_decode_progress(req_kind kind, int prompt_tokens, int completion
     char flags[80];
     log_flags(flags, sizeof(flags), responses_protocol,
               tools, thinking, dsml_start, dsml_end);
+    char rt[128];
+    server_runtime_status_suffix(s, rt, sizeof(rt));
     server_log(DS4_LOG_GENERATION,
-               "ds4-server: %s ctx=%s gen=%d%s%s decoding chunk=%.2f t/s avg=%.2f t/s %.3fs",
+               "ds4-server: %s ctx=%s gen=%d%s%s decoding chunk=%.2f t/s avg=%.2f t/s %.3fs%s",
                kind == REQ_CHAT ? "chat" : "completion",
                ctx,
                completion,
@@ -10123,7 +10144,8 @@ static void log_decode_progress(req_kind kind, int prompt_tokens, int completion
                flags,
                chunk_tps,
                avg_tps,
-               elapsed);
+               elapsed,
+               rt);
     *last_t = now;
     *last_completion = completion;
 }
@@ -10234,8 +10256,10 @@ static void server_progress_cb(void *ud, const char *event, int current, int tot
     log_flags(flags, sizeof(flags), p->responses_protocol,
               p->has_tools, false, false, false);
     const char *phase = p->phase ? p->phase : "prefill";
+    char rt[128];
+    server_runtime_status_suffix(p->srv, rt, sizeof(rt));
     server_log(DS4_LOG_PREFILL,
-               "ds4-server: %s ctx=%s%s%s %s chunk %d/%d (%.1f%%) chunk=%.2f t/s avg=%.2f t/s %.3fs",
+               "ds4-server: %s ctx=%s%s%s %s chunk %d/%d (%.1f%%) chunk=%.2f t/s avg=%.2f t/s %.3fs%s",
                p->kind == REQ_CHAT ? "chat" : "completion",
                p->ctx,
                flags[0] ? " " : "",
@@ -10246,7 +10270,8 @@ static void server_progress_cb(void *ud, const char *event, int current, int tot
                pct,
                chunk_tps,
                avg_tps,
-               elapsed);
+               elapsed,
+               rt);
     if (p->srv && current > p->cached_tokens) {
         kv_cache_maybe_store_continued(p->srv);
     }
@@ -11054,7 +11079,7 @@ static void generate_job(server *s, job *j) {
             }
 
             if (completion >= next_decode_log) {
-                log_decode_progress(j->req.kind, prompt_tokens, completion,
+                log_decode_progress(s, j->req.kind, prompt_tokens, completion,
                                     responses_protocol,
                                     j->req.has_tools,
                                     thinking.inside,
@@ -11101,7 +11126,7 @@ static void generate_job(server *s, job *j) {
     }
 
     if (completion > last_decode_log_completion) {
-        log_decode_progress(j->req.kind, prompt_tokens, completion,
+        log_decode_progress(s, j->req.kind, prompt_tokens, completion,
                             responses_protocol,
                             j->req.has_tools,
                             thinking.inside,

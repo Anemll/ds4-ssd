@@ -167,8 +167,15 @@ static bool metal_graph_flash_moe_install(
                                                            (int32_t)slot);
         wrote_from_gpu_l2 = wrote;
     }
-    if (g->flash_l2_slot_bank && evicted >= 0 && evicted < (int32_t)DS4_N_EXPERT) {
-        (void)metal_graph_flash_moe_l2_store_l1_slot(g, il, evicted, (int32_t)slot);
+    metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, (int32_t)slot);
+    if (!wrote && g->flash_shared_l2_slot_bank) {
+        const uint8_t *l2_src = NULL;
+        if (metal_graph_flash_moe_shared_l2_lookup(g, il, true_expert, &l2_src) && l2_src) {
+            wrote = metal_graph_flash_moe_write_slot_from_buf(g,
+                                                              il,
+                                                              (int32_t)slot,
+                                                              l2_src);
+        }
     }
     if (!wrote && g->flash_l2_slot_bank) {
         const uint8_t *l2_src = NULL;
@@ -488,6 +495,9 @@ static bool metal_graph_flash_moe_prefetch_slot_from_buf(
                                                         &evicted,
                                                         &miss);
     if (ok && miss) {
+        metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
+    }
+    if (ok && miss) {
         ok = metal_graph_flash_moe_upload_prefill_slot(g,
                                                        il,
                                                        true_expert,
@@ -631,6 +641,9 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                                                            &slot,
                                                            &evicted,
                                                            &miss);
+            if (ok && miss) {
+                metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
+            }
             if (ok && miss && pf->n_loads >= max_async_loads) {
                 g->flash_misses = misses_before_reserve;
                 pf->needs_sync_prepare = true;
@@ -658,10 +671,19 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
             job->offset = (uint64_t)true_ids[k] * layer->expert_stride;
             job->bytes = layer->expert_stride;
             job->io_split = flash_moe_cache_io_split();
+            if (g->flash_shared_l2_slot_bank) {
+                const uint8_t *l2_src = NULL;
+                if (metal_graph_flash_moe_shared_l2_lookup(g, il, true_ids[k], &l2_src) && l2_src) {
+                    ok = ds4_flash_decode_read_job_set_memory_src_copy(
+                            job, l2_src, layer->expert_stride);
+                }
+            }
             if (g->flash_l2_slot_bank) {
                 const uint8_t *l2_src = NULL;
-                if (metal_graph_flash_moe_l2_lookup(g, il, true_ids[k], &l2_src) && l2_src) {
-                    job->memory_src = l2_src;
+                if (ok && !job->memory_src &&
+                    metal_graph_flash_moe_l2_lookup(g, il, true_ids[k], &l2_src) && l2_src) {
+                    ok = ds4_flash_decode_read_job_set_memory_src_copy(
+                            job, l2_src, layer->expert_stride);
                 }
             }
             if (flash_moe_decode_prefetch_direct_slot_pread_enabled()) {
@@ -683,7 +705,7 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                     }
                 }
             }
-            if (!job->direct_record && !job->direct_slot && scratch_only) {
+            if (!job->direct_record && !job->direct_slot && !job->memory_src && scratch_only) {
                 if (li >= g->flash_decode_prefetch_scratch_slots ||
                     !g->flash_decode_prefetch_scratch ||
                     layer->expert_stride > g->flash_decode_prefetch_scratch_stride) {
@@ -693,7 +715,7 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                 job->buf = g->flash_decode_prefetch_scratch +
                            (uint64_t)li * g->flash_decode_prefetch_scratch_stride;
                 job->buf_owned = false;
-            } else if (!job->direct_record && !job->direct_slot) {
+            } else if (!job->direct_record && !job->direct_slot && !job->memory_src) {
                 job->buf = xmalloc((size_t)layer->expert_stride);
                 job->buf_owned = true;
             }
@@ -1422,7 +1444,7 @@ static bool metal_graph_flash_moe_async_start_loads(
                 }
             }
         }
-        if (!job->direct_record && !job->direct_slot) scratch_needed++;
+        if (!job->direct_record && !job->direct_slot && !job->memory_src) scratch_needed++;
     }
     if (scratch_needed > 0 &&
         !metal_graph_flash_moe_async_scratch_ensure(g,
@@ -1433,7 +1455,7 @@ static bool metal_graph_flash_moe_async_start_loads(
     for (uint32_t li = 0; li < n_loads; li++) {
         ds4_flash_decode_async_load *load = &loads[li];
         ds4_flash_decode_read_job *job = &load->job;
-        if (!job->direct_record && !job->direct_slot) {
+        if (!job->direct_record && !job->direct_slot && !job->memory_src) {
             job->buf = g->flash_async_handout_scratch +
                        (uint64_t)li * g->flash_async_handout_scratch_stride;
             job->buf_owned = false;
@@ -2273,6 +2295,7 @@ static bool metal_graph_flash_moe_decode_async_handout(
             ok = false;
             break;
         }
+        metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
         const uint32_t li = n_loads++;
         route_load_idx[k] = (int32_t)li;
         loads[li].expert = true_ids[k];
@@ -2282,6 +2305,20 @@ static bool metal_graph_flash_moe_decode_async_handout(
         job->fd = sidecar_layer->fd;
         job->offset = (uint64_t)true_ids[k] * sidecar_layer->expert_stride;
         job->bytes = sidecar_layer->expert_stride;
+        if (g->flash_shared_l2_slot_bank) {
+            const uint8_t *l2_src = NULL;
+            if (metal_graph_flash_moe_shared_l2_lookup(g, il, true_ids[k], &l2_src) && l2_src) {
+                ok = ds4_flash_decode_read_job_set_memory_src_copy(
+                        job, l2_src, sidecar_layer->expert_stride);
+            }
+        }
+        if (ok && !job->memory_src && g->flash_l2_slot_bank) {
+            const uint8_t *l2_src = NULL;
+            if (metal_graph_flash_moe_l2_lookup(g, il, true_ids[k], &l2_src) && l2_src) {
+                ok = ds4_flash_decode_read_job_set_memory_src_copy(
+                        job, l2_src, sidecar_layer->expert_stride);
+            }
+        }
     }
 
     if (ok) {

@@ -103,6 +103,16 @@ typedef struct {
     uint64_t cap;
 } ds4_session_snapshot;
 
+typedef struct {
+    bool available;
+    uint32_t moe_slot_bank;
+    uint32_t moe_slot_bank_capacity;
+    uint64_t gpu_compressed_bytes;
+    uint64_t task_compressed_bytes;
+    uint64_t system_compressed_bytes;
+    uint64_t system_compressor_bytes;
+} ds4_runtime_status;
+
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 void ds4_engine_close(ds4_engine *e);
 bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
@@ -198,6 +208,14 @@ void ds4_session_invalidate(ds4_session *s);
 void ds4_session_rewind(ds4_session *s, int pos);
 int ds4_session_pos(ds4_session *s);
 int ds4_session_ctx(ds4_session *s);
+int ds4_session_runtime_status(ds4_session *s, ds4_runtime_status *out);
+/* Dump the live Flash-MoE slot cache.  target_slots=0 uses
+ * DS4_FLASH_MOE_COMPRESSION_RECOVERY_SLOT_BANK, then the built-in recovery
+ * default.  Returns 0 on success, 1 on failure, 2 when no streaming MoE cache
+ * is active for this session. */
+int ds4_session_dump_moe_cache(ds4_session *s, uint32_t target_slots,
+                               uint32_t *before_slots, uint32_t *after_slots,
+                               char *err, size_t errlen);
 int ds4_engine_routed_quant_bits(ds4_engine *e);
 bool ds4_engine_has_mtp(ds4_engine *e);
 int ds4_engine_mtp_draft_tokens(ds4_engine *e);

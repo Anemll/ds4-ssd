@@ -72,6 +72,7 @@ typedef struct {
     int resident_ane_cache_layers;
     bool no_decode_split;
     bool non_interactive;
+    bool debug_status;
 } agent_config;
 
 typedef enum {
@@ -105,6 +106,10 @@ typedef struct {
     double tool_elapsed_s;
     size_t tool_bytes;
     int tool_lines;
+    bool debug_runtime;
+    uint32_t debug_moe_slots;
+    uint64_t debug_system_compressed_bytes;
+    uint64_t debug_gpu_compressed_bytes;
     char error[256];
 } agent_status;
 
@@ -132,6 +137,7 @@ typedef struct {
     bool initialized;
     bool queued_user_pending;
     bool save_requested;
+    bool moe_cache_dump_requested;
     int progress_base;
     double prefill_t0;
     double prefill_last_t;
@@ -499,6 +505,7 @@ static void usage(FILE *fp) {
         "                         without -p: read repeated prompts from stdin.\n"
         "  -sys, --system TEXT    Extra system prompt. Empty disables extra text.\n"
         "  --trace FILE           Write prompt, token, and DSML debug trace.\n"
+        "  --debug-status         Show live slots/compression in the footer.\n"
         "  --temp F               Sampling temperature. Default: 1\n"
         "  --top-p F              Nucleus sampling probability. Default: 1\n"
         "  --min-p F              Min-p sampling threshold. Default: 0.05\n"
@@ -660,6 +667,9 @@ static agent_config parse_options(int argc, char **argv) {
             c.gen.system = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--trace")) {
             c.gen.trace_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--debug-status") ||
+                   !strcmp(arg, "--status-debug")) {
+            c.debug_status = true;
         } else if (!strcmp(arg, "-m") || !strcmp(arg, "--model")) {
             c.engine.model_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp")) {
@@ -812,6 +822,8 @@ static agent_config parse_options(int argc, char **argv) {
 
     if (c.engine.directional_steering_file && !steering_scale_set)
         c.engine.directional_steering_ffn = 1.0f;
+    if (agent_parse_bool_default(getenv("DS4_AGENT_DEBUG_STATUS"), false))
+        c.debug_status = true;
     agent_setenv_default_or_die("DS4_METAL_RESUME_PREFILL_MIN", "256");
     c.engine.ctx_size = c.gen.ctx_size;
     ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4-agent");
@@ -1099,6 +1111,29 @@ static void agent_set_tool_status(agent_worker *w,
     w->status.tool_lines = lines < 0 ? 0 : lines;
     agent_wake_locked(w);
     pthread_mutex_unlock(&w->mu);
+}
+
+static bool agent_capture_runtime_status(agent_worker *w, ds4_runtime_status *rt) {
+    if (!rt) return false;
+    memset(rt, 0, sizeof(*rt));
+    if (!w || !w->cfg || !w->cfg->debug_status || !w->session) return false;
+    return ds4_session_runtime_status(w->session, rt) != 0 && rt->available;
+}
+
+static void agent_status_apply_runtime(agent_status *st,
+                                       bool have,
+                                       const ds4_runtime_status *rt) {
+    if (!st) return;
+    st->debug_runtime = have && rt && rt->available;
+    if (!st->debug_runtime) {
+        st->debug_moe_slots = 0;
+        st->debug_system_compressed_bytes = 0;
+        st->debug_gpu_compressed_bytes = 0;
+        return;
+    }
+    st->debug_moe_slots = rt->moe_slot_bank;
+    st->debug_system_compressed_bytes = rt->system_compressed_bytes;
+    st->debug_gpu_compressed_bytes = rt->gpu_compressed_bytes;
 }
 
 static void agent_set_error(agent_worker *w, const char *msg) {
@@ -3324,7 +3359,10 @@ static void worker_progress_cb(void *ud, const char *event, int current, int tot
         phase = "model views";
     }
     if (!prefill_event) return;
+    ds4_runtime_status rt;
+    const bool have_rt = agent_capture_runtime_status(w, &rt);
     pthread_mutex_lock(&w->mu);
+    agent_status_apply_runtime(&w->status, have_rt, &rt);
     int done = current - w->progress_base;
     if (done < 0) done = 0;
     if (done > w->status.prefill_total) done = w->status.prefill_total;
@@ -6687,7 +6725,10 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
         free(text);
 
         double dt = now_sec() - t0;
+        ds4_runtime_status rt;
+        const bool have_rt = agent_capture_runtime_status(w, &rt);
         pthread_mutex_lock(&w->mu);
+        agent_status_apply_runtime(&w->status, have_rt, &rt);
         w->status.generated = i + 1;
         w->status.gen_tps = dt > 0.0 ? (double)(i + 1) / dt : 0.0;
         agent_wake_locked(w);
@@ -6764,6 +6805,46 @@ static bool agent_worker_compact_if_needed(agent_worker *w, const char *reason,
  * Model Worker Thread
  * ============================================================================
  */
+
+static bool worker_take_moe_cache_dump_requested(agent_worker *w) {
+    pthread_mutex_lock(&w->mu);
+    bool requested = w->moe_cache_dump_requested;
+    w->moe_cache_dump_requested = false;
+    pthread_mutex_unlock(&w->mu);
+    return requested;
+}
+
+static bool worker_run_moe_cache_dump(agent_worker *w, const char *where,
+                                      agent_worker_state next_state) {
+    if (!worker_take_moe_cache_dump_requested(w)) return true;
+    agent_set_tool_status(w, "dump MoE cache", 0, 0, true, 0.0, 0, 0);
+    uint32_t before = 0, after = 0;
+    char err[160] = {0};
+    int rc = ds4_session_dump_moe_cache(w->session, 0, &before, &after,
+                                        err, sizeof(err));
+
+    ds4_runtime_status rt;
+    const bool have_rt = agent_capture_runtime_status(w, &rt);
+    pthread_mutex_lock(&w->mu);
+    agent_status_apply_runtime(&w->status, have_rt, &rt);
+    if (rc != 1) w->status.state = next_state;
+    agent_wake_locked(w);
+    pthread_mutex_unlock(&w->mu);
+
+    const char *label = where && where[0] ? where : "manual request";
+    if (rc == 0) {
+        agent_publishf(w, "\nMoE cache dump (%s): slots %u->%u\n",
+                       label, before, after);
+        return true;
+    }
+    if (rc == 2) {
+        agent_publishf(w, "\nMoE cache dump skipped (%s): %s\n",
+                       label, err[0] ? err : "not active");
+        return true;
+    }
+    agent_set_error(w, err[0] ? err : "MoE cache dump failed");
+    return false;
+}
 
 /* Run one user turn until the assistant stops or returns a tool call.  Tool
  * results are appended to the transcript and the loop continues, which gives
@@ -6847,6 +6928,9 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         ds4_session_set_progress(w->session, NULL, NULL);
         ds4_session_set_display_progress(w->session, NULL, NULL);
 
+        if (!worker_run_moe_cache_dump(w, "after prefill", AGENT_WORKER_GENERATING))
+            return 1;
+
         int max_tokens = cfg->gen.n_predict;
         int room = ds4_session_ctx(w->session) - ds4_session_pos(w->session);
         if (room <= 1) max_tokens = 0;
@@ -6880,6 +6964,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         pthread_mutex_unlock(&w->mu);
 
         while (generated < max_tokens && !worker_should_interrupt(w)) {
+            if (!worker_run_moe_cache_dump(w, "during decode", AGENT_WORKER_GENERATING)) {
+                agent_dsml_parser_free(&dsml);
+                return 1;
+            }
             int token = ds4_session_sample(w->session, cfg->gen.temperature, 0,
                                            cfg->gen.top_p, cfg->gen.min_p, &rng);
             if (token == ds4_token_eos(w->engine)) {
@@ -6903,7 +6991,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
             generated++;
 
             double dt = now_sec() - t0;
+            ds4_runtime_status rt;
+            const bool have_rt = agent_capture_runtime_status(w, &rt);
             pthread_mutex_lock(&w->mu);
+            agent_status_apply_runtime(&w->status, have_rt, &rt);
             w->status.generated = generated;
             w->status.gen_tps = dt > 0.0 ? (double)generated / dt : 0.0;
             agent_wake_locked(w);
@@ -7097,11 +7188,17 @@ static void *worker_main(void *arg) {
 
     while (true) {
         pthread_mutex_lock(&w->mu);
-        while (!w->stop && !w->cmd_text && !w->save_requested)
+        while (!w->stop && !w->cmd_text && !w->save_requested &&
+               !w->moe_cache_dump_requested)
             pthread_cond_wait(&w->cond, &w->mu);
         if (w->stop) {
             pthread_mutex_unlock(&w->mu);
             break;
+        }
+        if (!w->cmd_text && w->moe_cache_dump_requested) {
+            pthread_mutex_unlock(&w->mu);
+            worker_run_moe_cache_dump(w, "idle", AGENT_WORKER_IDLE);
+            continue;
         }
         if (!w->cmd_text && w->save_requested) {
             pthread_mutex_unlock(&w->mu);
@@ -7176,6 +7273,14 @@ static bool worker_submit(agent_worker *w, const char *text) {
 static void worker_interrupt(agent_worker *w) {
     pthread_mutex_lock(&w->mu);
     w->interrupt = true;
+    pthread_mutex_unlock(&w->mu);
+}
+
+static void worker_request_moe_cache_dump(agent_worker *w) {
+    pthread_mutex_lock(&w->mu);
+    w->moe_cache_dump_requested = true;
+    pthread_cond_signal(&w->cond);
+    agent_wake_locked(w);
     pthread_mutex_unlock(&w->mu);
 }
 
@@ -7362,12 +7467,32 @@ static void agent_format_bytes(size_t bytes, char *buf, size_t len) {
     }
 }
 
+static void build_status_debug_text(const agent_status *st, char *buf, size_t len) {
+    if (!st || !st->debug_runtime || st->debug_moe_slots == 0) {
+        if (len) buf[0] = '\0';
+        return;
+    }
+    snprintf(buf, len, "slot:%u | Cmp: GPU: %.1f  Sys: %.1f GB",
+             st->debug_moe_slots,
+             (double)st->debug_gpu_compressed_bytes / 1073741824.0,
+             (double)st->debug_system_compressed_bytes / 1073741824.0);
+}
+
 /* Build the one-line footer shown below the prompt.  It is intentionally compact
  * because linenoise redraws it on every progress update. */
 static void build_status_text(const agent_status *st, char *buf, size_t len) {
     char used[32], total_ctx[32];
     agent_format_ctx_size(st->ctx_used, used, sizeof(used));
     agent_format_ctx_size(st->ctx_size, total_ctx, sizeof(total_ctx));
+    char debug[128];
+    char prefix[192];
+    build_status_debug_text(st, debug, sizeof(debug));
+    if (debug[0]) {
+        snprintf(prefix, sizeof(prefix), "ctx %s/%s | %s",
+                 used, total_ctx, debug);
+    } else {
+        snprintf(prefix, sizeof(prefix), "ctx %s/%s", used, total_ctx);
+    }
 
     switch (st->state) {
     case AGENT_WORKER_PREFILL: {
@@ -7388,24 +7513,24 @@ static void build_status_text(const agent_status *st, char *buf, size_t len) {
         agent_progress_bar(done, total > 0 ? total : 1, bar, sizeof(bar),
                            stdout_is_tty(), st->prefill_ane);
         if (total > 0) {
-            snprintf(buf, len, "ctx %s/%s | %s %s %d/%d %.1f%% %.1f t/s%s",
-                     used, total_ctx, label, bar, done, total, pct,
+            snprintf(buf, len, "%s | %s %s %d/%d %.1f%% %.1f t/s%s",
+                     prefix, label, bar, done, total, pct,
                      st->prefill_tps, phase_elapsed);
         } else if (!strcmp(label, "starting")) {
-            snprintf(buf, len, "ctx %s/%s | starting", used, total_ctx);
+            snprintf(buf, len, "%s | starting", prefix);
         } else {
-            snprintf(buf, len, "ctx %s/%s | %s cached%s",
-                     used, total_ctx, label, phase_elapsed);
+            snprintf(buf, len, "%s | %s cached%s",
+                     prefix, label, phase_elapsed);
         }
         break;
     }
     case AGENT_WORKER_GENERATING:
-        snprintf(buf, len, "ctx %s/%s | generation %d tokens %.1f t/s",
-                 used, total_ctx, st->generated, st->gen_tps);
+        snprintf(buf, len, "%s | generation %d tokens %.1f t/s",
+                 prefix, st->generated, st->gen_tps);
         break;
     case AGENT_WORKER_COMPACTING:
-        snprintf(buf, len, "ctx %s/%s | COMPACTING summary %d tokens %.1f t/s",
-                 used, total_ctx, st->generated, st->gen_tps);
+        snprintf(buf, len, "%s | COMPACTING summary %d tokens %.1f t/s",
+                 prefix, st->generated, st->gen_tps);
         break;
     case AGENT_WORKER_TOOL: {
         char elapsed[48];
@@ -7420,33 +7545,33 @@ static void build_status_text(const agent_status *st, char *buf, size_t len) {
         if (st->tool_bytes || st->tool_lines) {
             char bytes[32];
             agent_format_bytes(st->tool_bytes, bytes, sizeof(bytes));
-            snprintf(buf, len, "ctx %s/%s | tool %s %d/%d %s %s %s %d lines",
-                     used, total_ctx, name, current, total, phase, elapsed,
+            snprintf(buf, len, "%s | tool %s %d/%d %s %s %s %d lines",
+                     prefix, name, current, total, phase, elapsed,
                      bytes, st->tool_lines);
         } else {
-            snprintf(buf, len, "ctx %s/%s | tool %s %d/%d %s %s",
-                     used, total_ctx, name, current, total, phase, elapsed);
+            snprintf(buf, len, "%s | tool %s %d/%d %s %s",
+                     prefix, name, current, total, phase, elapsed);
         }
         break;
     }
     case AGENT_WORKER_SAVING:
-        snprintf(buf, len, "ctx %s/%s | saving session", used, total_ctx);
+        snprintf(buf, len, "%s | saving session", prefix);
         break;
     case AGENT_WORKER_ERROR:
-        snprintf(buf, len, "ctx %s/%s | error: %s", used, total_ctx,
+        snprintf(buf, len, "%s | error: %s", prefix,
                  st->error[0] ? st->error : "unknown error");
         break;
     case AGENT_WORKER_STOPPED:
-        snprintf(buf, len, "ctx %s/%s | interrupted", used, total_ctx);
+        snprintf(buf, len, "%s | interrupted", prefix);
         break;
     default:
         if (st->last_completed_s > 0.0) {
             char elapsed[48];
             agent_format_elapsed(st->last_completed_s, elapsed, sizeof(elapsed));
-            snprintf(buf, len, "ctx %s/%s | completed in %s | idle",
-                     used, total_ctx, elapsed);
+            snprintf(buf, len, "%s | completed in %s | idle",
+                     prefix, elapsed);
         } else {
-            snprintf(buf, len, "ctx %s/%s | idle", used, total_ctx);
+            snprintf(buf, len, "%s | idle", prefix);
         }
         break;
     }
@@ -7505,6 +7630,7 @@ static void build_footer_text(const agent_status *st, const agent_prompt_queue *
     char status[512];
     build_status_text(st, status, sizeof(status));
     if (!queue || !queue->len) {
+        (void)cols;
         snprintf(buf, len, "%s", status);
         return;
     }
@@ -8352,6 +8478,7 @@ static void runtime_help(void) {
     puts("  Enter        Queue text while the agent is busy.");
     puts("  Ctrl+X       Edit the first queued prompt.");
     puts("  ESC          Interrupt and send queued prompt immediately.");
+    puts("  Ctrl+R       Dump Flash-MoE slot cache to the recovery slot bank.");
     puts("  Ctrl+D       Exit from an empty prompt.");
 }
 
@@ -8945,6 +9072,9 @@ static int run_agent(ds4_engine *engine, agent_config *cfg) {
 
         if (rc > 0 && (pfd[0].revents & POLLIN)) editor_read_stdin(&editor);
 
+        if (editor_take_queued_byte(&editor, 18)) { /* Ctrl+R */
+            worker_request_moe_cache_dump(&worker);
+        }
         if (queue.len && editor_take_queued_byte(&editor, 24)) { /* Ctrl+X */
             char *queued = agent_prompt_queue_pop(&queue);
             worker_set_queued_user_pending(&worker, queue.len > 0);

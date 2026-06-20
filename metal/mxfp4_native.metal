@@ -320,6 +320,154 @@ kernel void kernel_dsv4_mxfp4_plane_id_sum6_f32(
     }
 }
 
+struct ds4_metal_slots6_chunk_map {
+    uint32_t chunk[6];
+    uint32_t slot[6];
+    ulong slot_stride;
+};
+
+static inline device const uchar *ds4mx_slots6_chunk_select(
+        uint32_t chunk,
+        device const uchar *chunk0,
+        device const uchar *chunk1,
+        device const uchar *chunk2,
+        device const uchar *chunk3)
+{
+    switch (chunk) {
+    case 1: return chunk1;
+    case 2: return chunk2;
+    case 3: return chunk3;
+    default: return chunk0;
+    }
+}
+
+kernel void kernel_dsv4_mxfp4_plane_id_chunked_pair_swiglu_f32(
+        device const float *x            [[buffer(0)]],  // [in_dim]
+        constant ds4_metal_slots6_chunk_map &map [[buffer(1)]],
+        device const float *weights      [[buffer(2)]],  // 6 route weights
+        device float       *gate_out     [[buffer(3)]],  // [6][mid_dim]
+        device float       *up_out       [[buffer(4)]],  // [6][mid_dim]
+        device float       *mid          [[buffer(5)]],  // [6][mid_dim]
+        constant uint      &in_dim       [[buffer(6)]],
+        constant uint      &mid_dim      [[buffer(7)]],
+        constant float     &clamp_value  [[buffer(8)]],
+        constant uint      &write_clamped[[buffer(9)]],
+        device const uchar *gate_data0   [[buffer(10)]],
+        device const uchar *gate_data1   [[buffer(11)]],
+        device const uchar *gate_data2   [[buffer(12)]],
+        device const uchar *gate_data3   [[buffer(13)]],
+        device const uchar *gate_scales0 [[buffer(14)]],
+        device const uchar *gate_scales1 [[buffer(15)]],
+        device const uchar *gate_scales2 [[buffer(16)]],
+        device const uchar *gate_scales3 [[buffer(17)]],
+        device const uchar *up_data0     [[buffer(18)]],
+        device const uchar *up_data1     [[buffer(19)]],
+        device const uchar *up_data2     [[buffer(20)]],
+        device const uchar *up_data3     [[buffer(21)]],
+        device const uchar *up_scales0   [[buffer(22)]],
+        device const uchar *up_scales1   [[buffer(23)]],
+        device const uchar *up_scales2   [[buffer(24)]],
+        device const uchar *up_scales3   [[buffer(25)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint route = tgpig.z;
+    if (route >= 6u) return;
+    const uint chunk = map.chunk[route];
+    if (chunk >= 4u) return;
+    const uint slot = map.slot[route];
+    const ulong slot_off = (ulong)slot * map.slot_stride;
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+
+    device const uchar *gate_data_cur =
+        ds4mx_slots6_chunk_select(chunk, gate_data0, gate_data1, gate_data2, gate_data3) + slot_off;
+    device const uchar *gate_scales_cur =
+        ds4mx_slots6_chunk_select(chunk, gate_scales0, gate_scales1, gate_scales2, gate_scales3) + slot_off;
+    device const uchar *up_data_cur =
+        ds4mx_slots6_chunk_select(chunk, up_data0, up_data1, up_data2, up_data3) + slot_off;
+    device const uchar *up_scales_cur =
+        ds4mx_slots6_chunk_select(chunk, up_scales0, up_scales1, up_scales2, up_scales3) + slot_off;
+    float sumg[2] = { 0.0f, 0.0f };
+    float sumu[2] = { 0.0f, 0.0f };
+
+    ds4mx_plane_dot2_accum(gate_data_cur, gate_scales_cur, x,
+                           mid_dim, in_dim, row0, tiisg, sumg);
+    ds4mx_plane_dot2_accum(up_data_cur, up_scales_cur, x,
+                           mid_dim, in_dim, row0, tiisg, sumu);
+
+    const float route_weight = weights[route];
+    device float *gate_route = gate_out + (ulong)route * mid_dim;
+    device float *up_route = up_out + (ulong)route * mid_dim;
+    device float *mid_route = mid + (ulong)route * mid_dim;
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float gate_sum = simd_sum(sumg[r]);
+        const float up_sum = simd_sum(sumu[r]);
+        if (tiisg == 0 && row < mid_dim) {
+            float g = gate_sum;
+            float u = up_sum;
+            gate_route[row] = g;
+            up_route[row] = u;
+            if (clamp_value > 1.0e-6f) {
+                g = min(g, clamp_value);
+                u = clamp(u, -clamp_value, clamp_value);
+            }
+            if (write_clamped != 0u) {
+                gate_route[row] = g;
+                up_route[row] = u;
+            }
+            const float silu = g / (1.0f + exp(-g));
+            mid_route[row] = silu * u * route_weight;
+        }
+    }
+}
+
+kernel void kernel_dsv4_mxfp4_plane_id_chunked_sum6_f32(
+        constant ds4_metal_slots6_chunk_map &map [[buffer(0)]],
+        device const float *mid          [[buffer(1)]],  // [6][mid_dim]
+        device float       *out          [[buffer(2)]],  // [out_dim]
+        constant uint      &mid_dim      [[buffer(3)]],
+        constant uint      &out_dim      [[buffer(4)]],
+        device const uchar *down_data0   [[buffer(5)]],
+        device const uchar *down_data1   [[buffer(6)]],
+        device const uchar *down_data2   [[buffer(7)]],
+        device const uchar *down_data3   [[buffer(8)]],
+        device const uchar *down_scales0 [[buffer(9)]],
+        device const uchar *down_scales1 [[buffer(10)]],
+        device const uchar *down_scales2 [[buffer(11)]],
+        device const uchar *down_scales3 [[buffer(12)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+    float sumf[2] = { 0.0f, 0.0f };
+
+    for (uint route = 0; route < 6u; route++) {
+        const uint chunk = map.chunk[route];
+        if (chunk >= 4u) continue;
+        const uint slot = map.slot[route];
+        const ulong slot_off = (ulong)slot * map.slot_stride;
+        device const uchar *down_data_cur =
+            ds4mx_slots6_chunk_select(chunk, down_data0, down_data1, down_data2, down_data3) + slot_off;
+        device const uchar *down_scales_cur =
+            ds4mx_slots6_chunk_select(chunk, down_scales0, down_scales1, down_scales2, down_scales3) + slot_off;
+        device const float *mid_route = mid + (ulong)route * mid_dim;
+        ds4mx_plane_dot2_accum(down_data_cur, down_scales_cur, mid_route,
+                               out_dim, mid_dim, row0, tiisg, sumf);
+    }
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float sum = simd_sum(sumf[r]);
+        if (tiisg == 0 && row < out_dim) {
+            out[row] = sum;
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // MPP 4.0 fallback arm + benchmark references (compile on macOS 26 too).
 //

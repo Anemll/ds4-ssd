@@ -937,24 +937,84 @@ static void metal_graph_flash_moe_init_direct_mmap_identity(ds4_gpu_graph *g) {
     }
 }
 
+static bool flash_moe_shrink_vm_trace_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_SHRINK_VM_TRACE") ||
+           env_flag_enabled("DS4_FLASH_MOE_VM_TRACE");
+}
+
+static void metal_graph_flash_moe_vm_trace(
+        ds4_gpu_graph *g,
+        const char    *where) {
+    if (!flash_moe_shrink_vm_trace_enabled() || backend_diagnostic_logs_suppressed()) {
+        return;
+    }
+    uint64_t resident = 0;
+    uint32_t min_slots = 0, max_slots = 0;
+    if (g && g->flash_slot_bank) {
+        metal_graph_flash_moe_slot_occupancy(g, &resident, &min_slots, &max_slots);
+    }
+    ds4_gpu_vm_stats vm;
+    const int have_vm = ds4_gpu_get_vm_stats(&vm);
+    const uint64_t gpu_footprint = have_vm ?
+        vm.graphics_footprint + vm.graphics_nofootprint : 0;
+    const uint64_t gpu_compressed = have_vm ?
+        vm.graphics_footprint_compressed + vm.graphics_nofootprint_compressed : 0;
+    fprintf(stderr,
+            "ds4: Flash-MoE VM %s: slots=%u resident=%" PRIu64
+            " per-layer min/avg/max %u/%.1f/%u bank-live=%.2f GiB "
+            "gpu-footprint=%.2f GiB gpu-compressed=%.2f GiB "
+            "task-compressed=%.2f GiB phys=%.2f GiB decompressions=%" PRIu64
+            " mem-pressure=%u%% mem-free=%.2f GiB swap-used=%.2f/%.2f GiB\n",
+            where && where[0] ? where : "sample",
+            g ? g->flash_slot_bank : 0,
+            resident,
+            min_slots,
+            DS4_N_LAYER ? (double)resident / (double)DS4_N_LAYER : 0.0,
+            max_slots,
+            g ? (double)g->flash_per_expert_bank_bytes / 1073741824.0 : 0.0,
+            (double)gpu_footprint / 1073741824.0,
+            (double)gpu_compressed / 1073741824.0,
+            have_vm ? (double)vm.compressed / 1073741824.0 : 0.0,
+            have_vm ? (double)vm.phys_footprint / 1073741824.0 : 0.0,
+            have_vm ? vm.decompressions : 0,
+            have_vm ? vm.system_memory_pressure_pct : 0,
+            have_vm ? (double)vm.system_memory_free / 1073741824.0 : 0.0,
+            have_vm ? (double)vm.swap_used / 1073741824.0 : 0.0,
+            have_vm ? (double)vm.swap_total / 1073741824.0 : 0.0);
+}
+
+static bool flash_moe_purgeable_slot_release_enabled(void) {
+    return !env_flag_enabled("DS4_FLASH_MOE_DISABLE_PURGEABLE_RELEASE");
+}
+
+static void metal_graph_flash_moe_free_bank_tensor(ds4_gpu_tensor *tensor) {
+    if (!tensor) return;
+    if (flash_moe_purgeable_slot_release_enabled()) {
+        (void)ds4_gpu_tensor_make_purgeable_empty(tensor);
+    }
+    ds4_gpu_tensor_free(tensor);
+}
+
 static void metal_graph_flash_moe_free_slot_banks(ds4_gpu_graph *g) {
     if (!g) return;
+    metal_graph_flash_moe_vm_trace(g, "slot-bank cleanup/free begin");
+    ds4_gpu_flash_moe_replay_caches_clear();
     if (g->flash_moe) ds4_gpu_flash_slot_bank_residency_clear();
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
         for (uint32_t expert = 0; expert < DS4_N_EXPERT && expert < DS4_MAX_EXPERT; expert++) {
             metal_graph_flash_moe_free_expert_family_views(g, il, expert);
-            ds4_gpu_tensor_free(g->flash_expert_bank[il][expert]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_expert_bank[il][expert]);
             g->flash_expert_bank[il][expert] = NULL;
         }
-        ds4_gpu_tensor_free(g->flash_record_table[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_record_table[il]);
         g->flash_record_table[il] = NULL;
         for (uint32_t chunk = 0; chunk < DS4_FLASH_MOE_MAX_CHUNKS; chunk++) {
-            ds4_gpu_tensor_free(g->flash_chunk_weights[il][chunk]);
-            ds4_gpu_tensor_free(g->flash_chunk_slot_selected[il][chunk]);
-            ds4_gpu_tensor_free(g->flash_chunk_down_bank[il][chunk]);
-            ds4_gpu_tensor_free(g->flash_chunk_up_bank[il][chunk]);
-            ds4_gpu_tensor_free(g->flash_chunk_gate_bank[il][chunk]);
-            ds4_gpu_tensor_free(g->flash_chunk_mixed_bank[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_weights[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_slot_selected[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_down_bank[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_up_bank[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_gate_bank[il][chunk]);
+            metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_mixed_bank[il][chunk]);
             g->flash_chunk_weights[il][chunk] = NULL;
             g->flash_chunk_slot_selected[il][chunk] = NULL;
             g->flash_chunk_down_bank[il][chunk] = NULL;
@@ -962,30 +1022,30 @@ static void metal_graph_flash_moe_free_slot_banks(ds4_gpu_graph *g) {
             g->flash_chunk_gate_bank[il][chunk] = NULL;
             g->flash_chunk_mixed_bank[il][chunk] = NULL;
         }
-        ds4_gpu_tensor_free(g->flash_stage_down_bank[il]);
-        ds4_gpu_tensor_free(g->flash_stage_up_bank[il]);
-        ds4_gpu_tensor_free(g->flash_stage_gate_bank[il]);
-        ds4_gpu_tensor_free(g->flash_stage_mixed_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_stage_down_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_stage_up_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_stage_gate_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_stage_mixed_bank[il]);
         g->flash_stage_down_bank[il] = NULL;
         g->flash_stage_up_bank[il] = NULL;
         g->flash_stage_gate_bank[il] = NULL;
         g->flash_stage_mixed_bank[il] = NULL;
-        ds4_gpu_tensor_free(g->flash_down_bank[il]);
-        ds4_gpu_tensor_free(g->flash_up_bank[il]);
-        ds4_gpu_tensor_free(g->flash_gate_bank[il]);
-        ds4_gpu_tensor_free(g->flash_mixed_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_down_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_up_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_gate_bank[il]);
+        metal_graph_flash_moe_free_bank_tensor(g->flash_mixed_bank[il]);
         g->flash_down_bank[il] = NULL;
         g->flash_up_bank[il] = NULL;
         g->flash_gate_bank[il] = NULL;
         g->flash_mixed_bank[il] = NULL;
     }
-    ds4_gpu_tensor_free(g->flash_layer_slot_slab_bank);
+    metal_graph_flash_moe_free_bank_tensor(g->flash_layer_slot_slab_bank);
     g->flash_layer_slot_slab_bank = NULL;
     g->flash_layer_slot_slab_bytes = 0;
-    ds4_gpu_tensor_free(g->flash_stage_slot_selected);
+    metal_graph_flash_moe_free_bank_tensor(g->flash_stage_slot_selected);
     g->flash_stage_slot_selected = NULL;
     g->flash_stage_bank_bytes = 0;
-    ds4_gpu_tensor_free(g->flash_chunk_partial_out);
+    metal_graph_flash_moe_free_bank_tensor(g->flash_chunk_partial_out);
     g->flash_chunk_partial_out = NULL;
     g->flash_chunked_mixed_bank = false;
     g->flash_chunk_slots = 0;
@@ -993,6 +1053,7 @@ static void metal_graph_flash_moe_free_slot_banks(ds4_gpu_graph *g) {
     g->flash_chunked_bank_bytes = 0;
     g->flash_per_expert_bank_bytes = 0;
     metal_graph_flash_moe_gpu_l2_free(g);
+    metal_graph_flash_moe_vm_trace(g, "slot-bank cleanup/free end");
 }
 
 static bool metal_graph_flash_moe_alloc_slot_banks(
@@ -1795,6 +1856,7 @@ static bool metal_graph_enable_flash_moe(
 
     g->flash_moe = sidecar;
     g->flash_slot_bank = effective_slot_bank;
+    g->flash_slot_bank_capacity = effective_slot_bank;
     g->flash_per_slot_buffers = per_slot;
     g->flash_per_slot_buffers_auto = per_slot_auto;
     g->flash_per_slot_lazy_alloc = per_slot_lazy;

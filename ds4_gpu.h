@@ -35,6 +35,7 @@ ds4_gpu_tensor *ds4_gpu_model_tensor_view(const void *model_map, uint64_t model_
 ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map, uint64_t map_size,
                                          uint64_t offset, uint64_t bytes);
 void ds4_gpu_tensor_free(ds4_gpu_tensor *tensor);
+int ds4_gpu_tensor_make_purgeable_empty(ds4_gpu_tensor *tensor);
 uint64_t ds4_gpu_tensor_bytes(const ds4_gpu_tensor *tensor);
 void ds4_gpu_tensor_set_mxfp4_plane_split(ds4_gpu_tensor *tensor, int enabled);
 int ds4_gpu_tensor_mxfp4_plane_split(const ds4_gpu_tensor *tensor);
@@ -122,6 +123,28 @@ int ds4_gpu_cache_q8_f16_range(const void *model_map, uint64_t model_size, uint6
 int ds4_gpu_should_use_managed_kv_cache(uint64_t kv_cache_bytes, uint64_t context_bytes);
 void ds4_gpu_set_quality(bool quality);
 void ds4_gpu_print_memory_report(const char *label);
+typedef struct ds4_gpu_vm_stats {
+    uint64_t resident_size;
+    uint64_t phys_footprint;
+    uint64_t compressed;
+    uint64_t graphics_footprint;
+    uint64_t graphics_footprint_compressed;
+    uint64_t graphics_nofootprint;
+    uint64_t graphics_nofootprint_compressed;
+    uint64_t decompressions;
+    uint64_t system_memory_total;
+    uint64_t system_memory_free;
+    uint64_t system_memory_active;
+    uint64_t system_memory_wired;
+    uint64_t system_memory_compressed;
+    uint64_t system_memory_compressor;
+    uint64_t system_memory_pressure_bytes;
+    uint32_t system_memory_pressure_pct;
+    uint64_t swap_total;
+    uint64_t swap_used;
+} ds4_gpu_vm_stats;
+int ds4_gpu_get_vm_stats(ds4_gpu_vm_stats *stats);
+void ds4_gpu_flash_moe_replay_caches_clear(void);
 int ds4_gpu_mpp_int8_prefill_prewarm(void);
 /* Free the W8A8 repacked-int8 weight caches (prefill-only; dead weight during
  * decode). Called automatically at the first n_tok==1 matmul after prefill;

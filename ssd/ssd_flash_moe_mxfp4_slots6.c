@@ -73,6 +73,18 @@ static bool flash_moe_direct_mmap_prewarm_views_enabled(void) {
     return flash_moe_direct_mmap_record_slots6_enabled();
 }
 
+static bool flash_moe_chunked_split_slotwise_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_CHUNKED_SPLIT_SLOTWISE");
+    if (env && env[0]) return atoi(env) != 0;
+    return false;
+}
+
+static bool flash_moe_chunked_same_slotwise_enabled(void) {
+    const char *env = getenv("DS4_FLASH_MOE_CHUNKED_SAME_SLOTWISE");
+    if (env && env[0]) return atoi(env) != 0;
+    return false;
+}
+
 static bool metal_graph_flash_moe_mxfp4_direct_mmap_record_slots6(
         ds4_gpu_graph           *g,
         const ds4_layer_weights *layer,
@@ -176,6 +188,163 @@ static bool metal_graph_flash_moe_mxfp4_chunked_slots6(
     }
     if (compact_count == 0) return false;
 
+    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    if (compact_count == 1 && flash_moe_chunked_same_slotwise_enabled()) {
+        const uint32_t chunk = compact_chunks[0];
+        const uint32_t first_slot = chunk * g->flash_chunk_slots;
+        uint32_t chunk_slots = g->flash_slot_bank - first_slot;
+        if (chunk_slots > g->flash_chunk_slots) chunk_slots = g->flash_chunk_slots;
+        if (chunk_slots == 0) return false;
+        int32_t local_slot_ids[6] = { 0, 0, 0, 0, 0, 0 };
+        for (uint32_t k = 0; k < active_expert_used; k++) {
+            local_slot_ids[k] = (int32_t)local_slots[k];
+        }
+        static int logged_chunked_single_chunk_slotwise = 0;
+        if (!logged_chunked_single_chunk_slotwise) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE using same-chunk slotwise decode2 path "
+                    "(append-grown bank, local baked slots)\n");
+            logged_chunked_single_chunk_slotwise = 1;
+        }
+        return ds4_gpu_routed_moe_one_banked_tensor_slotwise_baked(
+                   g->routed_out,
+                   g->routed_gate,
+                   g->routed_up,
+                   g->routed_mid,
+                   g->routed_down,
+                   gate_chunks[0],
+                   up_chunks[0],
+                   down_chunks[0],
+                   chunk_slots,
+                   layer->ffn_gate_exps->type,
+                   layer->ffn_down_exps->type,
+                   (uint64_t)expert_mid_dim * gate_row_bytes,
+                   flash_layer->expert_stride,
+                   gate_row_bytes,
+                   (uint64_t)out_dim * down_row_bytes,
+                   flash_layer->expert_stride,
+                   down_row_bytes,
+                   expert_in_dim,
+                   expert_mid_dim,
+                   out_dim,
+                   il,
+                   local_slot_ids,
+                   g->router_weights,
+                   active_expert_used,
+                   DS4_SWIGLU_CLAMP_EXP,
+                   g->ffn_norm) != 0;
+    }
+
+    if (!flash_moe_chunked_split_slotwise_enabled()) {
+        static int logged_chunked_split_slots6 = 0;
+        if (!logged_chunked_split_slots6) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE using split-chunk slots6 decode path "
+                    "(append-grown bank, one command-buffer local slot map)\n");
+            logged_chunked_split_slots6 = 1;
+        }
+        return ds4_gpu_routed_moe_one_slots6_chunked_tensor(
+                   g->routed_out,
+                   g->routed_gate,
+                   g->routed_up,
+                   g->routed_mid,
+                   gate_chunks,
+                   up_chunks,
+                   down_chunks,
+                   compact_count,
+                   chunk_ids,
+                   local_slots,
+                   flash_layer->expert_stride,
+                   layer->ffn_gate_exps->type,
+                   layer->ffn_down_exps->type,
+                   gate_row_bytes,
+                   down_row_bytes,
+                   expert_in_dim,
+                   expert_mid_dim,
+                   out_dim,
+                   g->router_weights,
+                   active_expert_used,
+                   DS4_SWIGLU_CLAMP_EXP,
+                   g->ffn_norm) != 0;
+    }
+
+    if (g->flash_chunk_partial_out) {
+        static int logged_chunked_split_slotwise = 0;
+        if (!logged_chunked_split_slotwise) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE using split-chunk slotwise decode2 path "
+                    "(append-grown bank, zero-weight inactive local slots; forced)\n");
+            logged_chunked_split_slotwise = 1;
+        }
+        bool ok = true;
+        bool have_output = false;
+        for (uint32_t ci = 0; ok && ci < compact_count; ci++) {
+            const uint32_t chunk = compact_chunks[ci];
+            const uint32_t first_slot = chunk * g->flash_chunk_slots;
+            uint32_t chunk_slots = g->flash_slot_bank - first_slot;
+            if (chunk_slots > g->flash_chunk_slots) chunk_slots = g->flash_chunk_slots;
+            if (chunk_slots == 0 ||
+                !g->flash_chunk_slot_selected[il][chunk] ||
+                !g->flash_chunk_weights[il][chunk]) {
+                return false;
+            }
+
+            int32_t selected_ids[6] = { 0, 0, 0, 0, 0, 0 };
+            float selected_weights[6] = { 0, 0, 0, 0, 0, 0 };
+            for (uint32_t k = 0; k < active_expert_used; k++) {
+                if (chunk_ids[k] != ci) continue;
+                selected_ids[k] = (int32_t)local_slots[k];
+                selected_weights[k] = g->flash_decode_weights[il][k];
+            }
+            ok = ds4_gpu_tensor_write(g->flash_chunk_slot_selected[il][chunk],
+                                      0,
+                                      selected_ids,
+                                      sizeof(selected_ids)) != 0 &&
+                 ds4_gpu_tensor_write(g->flash_chunk_weights[il][chunk],
+                                      0,
+                                      selected_weights,
+                                      sizeof(selected_weights)) != 0;
+            if (!ok) break;
+
+            ds4_gpu_tensor *chunk_out =
+                have_output ? g->flash_chunk_partial_out : g->routed_out;
+            ok = ds4_gpu_routed_moe_one_banked_tensor_slotwise(
+                     chunk_out,
+                     g->routed_gate,
+                     g->routed_up,
+                     g->routed_mid,
+                     g->routed_down,
+                     gate_chunks[ci],
+                     up_chunks[ci],
+                     down_chunks[ci],
+                     chunk_slots,
+                     layer->ffn_gate_exps->type,
+                     layer->ffn_down_exps->type,
+                     (uint64_t)expert_mid_dim * gate_row_bytes,
+                     flash_layer->expert_stride,
+                     gate_row_bytes,
+                     (uint64_t)out_dim * down_row_bytes,
+                     flash_layer->expert_stride,
+                     down_row_bytes,
+                     expert_in_dim,
+                     expert_mid_dim,
+                     out_dim,
+                     g->flash_chunk_slot_selected[il][chunk],
+                     g->flash_chunk_weights[il][chunk],
+                     active_expert_used,
+                     DS4_SWIGLU_CLAMP_EXP,
+                     g->ffn_norm) != 0;
+            if (ok && have_output) {
+                ok = ds4_gpu_add_tensor(g->routed_out,
+                                        g->routed_out,
+                                        g->flash_chunk_partial_out,
+                                        out_dim) != 0;
+            }
+            if (ok) have_output = true;
+        }
+        if (ok && have_output) return true;
+    }
+
     static int logged_chunked_bank_slots6 = 0;
     if (!logged_chunked_bank_slots6) {
         fprintf(stderr,
@@ -183,7 +352,6 @@ static bool metal_graph_flash_moe_mxfp4_chunked_slots6(
                 "(full chunk buffers, local slot map in-kernel)\n");
         logged_chunked_bank_slots6 = 1;
     }
-    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
     return ds4_gpu_routed_moe_one_slots6_chunked_tensor(
                g->routed_out,
                g->routed_gate,

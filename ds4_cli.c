@@ -611,12 +611,15 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
 
     const double prefill_s = t_prefill1 - t_prefill0;
     const double decode_s = t_decode1 - t_decode0;
-    ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
-    ds4_log(stderr,
-            DS4_LOG_TIMING,
-            "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
-            prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
-            decode_s > 0.0 ? (double)generated / decode_s : 0.0);
+    if (getenv("DS4_AGENT_ALLOW_BACKEND_STATS")) {
+        fprintf(stderr, "ds4: ----------------------------------------\n");
+        fprintf(stderr,
+                "ds4: prefill: %.2f t/s, generation: %.2f t/s (%d tokens in %.3fs)\n",
+                prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
+                decode_s > 0.0 ? (double)generated / decode_s : 0.0,
+                generated,
+                decode_s);
+    }
 
     ds4_session_free(session);
     return 0;

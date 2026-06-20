@@ -258,18 +258,20 @@ static void metal_graph_flash_moe_trace_session_sync(
         uint32_t    resume_min) {
     if (!flash_moe_reset_slot_cache_after_prefill_enabled() &&
         !flash_moe_realloc_slot_bank_after_prefill_enabled() &&
+        !flash_moe_restore_slot_bank_after_prefill_enabled() &&
         !env_flag_enabled("DS4_SESSION_SYNC_TRACE")) {
         return;
     }
     fprintf(stderr,
-            "ds4: session sync path=%s checkpoint=%d prompt=%d suffix=%d resume-min=%u reset-after-prefill=%s realloc-after-prefill=%s\n",
+            "ds4: session sync path=%s checkpoint=%d prompt=%d suffix=%d resume-min=%u reset-after-prefill=%s realloc-after-prefill=%s restore-after-prefill=%s\n",
             path && path[0] ? path : "unknown",
             checkpoint_len,
             prompt_len,
             suffix,
             resume_min,
             flash_moe_reset_slot_cache_after_prefill_enabled() ? "on" : "off",
-            flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off");
+            flash_moe_realloc_slot_bank_after_prefill_enabled() ? "on" : "off",
+            flash_moe_restore_slot_bank_after_prefill_enabled() ? "on" : "off");
 }
 
 static bool metal_graph_prefill_verbose_trace_enabled(void) {
@@ -354,4 +356,3 @@ static void metal_graph_prefill_trace_ane_decision(
             t0 > 0.0 ? (now - t0) * 1000.0 : 0.0);
     if (n > 0) metal_graph_prefill_trace_emit(line, (size_t)n < sizeof(line) ? (size_t)n : strlen(line));
 }
-
