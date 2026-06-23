@@ -757,16 +757,45 @@ static void ds4_flash_moe_sidecar_log_loaded(const ds4_flash_moe_sidecar *s) {
             s->slot_bank,
             (double)s->max_expert_stride / 1048576.0);
     const uint32_t first_routed_layer = DS4_N_DENSE_LEAD;
-    const ds4_flash_moe_layer_sidecar *first =
-        first_routed_layer < DS4_N_LAYER ? &s->layer[first_routed_layer] : NULL;
-    if (flash_moe_layer_all_mxfp4_plane_split(first)) {
+    uint32_t routed_layers = 0;
+    uint32_t all_mxfp4_layers = 0;
+    uint32_t iq2_mxfp4_down_layers = 0;
+    uint32_t iq2_q2_down_layers = 0;
+    for (uint32_t il = first_routed_layer; il < DS4_N_LAYER; il++) {
+        const ds4_flash_moe_layer_sidecar *layer = &s->layer[il];
+        if (!layer->present[DS4_FLASH_FAMILY_GATE] &&
+            !layer->present[DS4_FLASH_FAMILY_UP] &&
+            !layer->present[DS4_FLASH_FAMILY_DOWN]) {
+            continue;
+        }
+        routed_layers++;
+        if (flash_moe_layer_all_mxfp4_plane_split(layer)) {
+            all_mxfp4_layers++;
+        } else if (flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(layer)) {
+            iq2_mxfp4_down_layers++;
+        } else if (flash_moe_layer_no_mxfp4_plane_split(layer) &&
+                   layer->family_type[DS4_FLASH_FAMILY_GATE] == DS4_TENSOR_IQ2_XXS &&
+                   layer->family_type[DS4_FLASH_FAMILY_UP] == DS4_TENSOR_IQ2_XXS &&
+                   layer->family_type[DS4_FLASH_FAMILY_DOWN] == DS4_TENSOR_Q2_K) {
+            iq2_q2_down_layers++;
+        }
+    }
+    if (routed_layers != 0 && all_mxfp4_layers == routed_layers) {
         fprintf(stderr,
                 "ds4: Flash-MoE MXFP4 storage layout: mxfp4_plane_split_v1 "
                 "(native plane sidecar, no runtime repack on direct native paths)\n");
-    } else if (flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(first)) {
+    } else if (routed_layers != 0 &&
+               iq2_mxfp4_down_layers == routed_layers) {
         fprintf(stderr,
                 "ds4: Flash-MoE routed experts: IQ2_XXS gate/up + "
                 "MXFP4_NATIVE down (down mxfp4_plane_split_v1)\n");
+    } else if (iq2_mxfp4_down_layers != 0 &&
+               iq2_mxfp4_down_layers + iq2_q2_down_layers == routed_layers) {
+        fprintf(stderr,
+                "ds4: Flash-MoE routed experts: IQ2_XXS gate/up + mixed down "
+                "(MXFP4_NATIVE plane-split layers=%u, Q2_K layers=%u)\n",
+                iq2_mxfp4_down_layers,
+                iq2_q2_down_layers);
     }
     if (s->expert_mmap) {
         fprintf(stderr,

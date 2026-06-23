@@ -11816,6 +11816,11 @@ static void usage(FILE *fp) {
         "  --moe-slot-bank N\n"
         "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
         "      Higher caches more experts; lower uses less RAM.\n"
+        "  --resident\n"
+        "      Flash-MoE sidecar resident mode: load every expert into a mixed\n"
+        "      all-expert slot bank. Implies --moe-mode slot-bank, defaults\n"
+        "      --moe-slot-bank to 256 when not set, disables direct mmap auto,\n"
+        "      preloads/touches the bank, and defaults DS4_MXFP4_NATIVE=1.\n"
         "  --ssd-cache BYTES|auto\n"
         "      Size the Flash-MoE slot bank from a cache budget such as 25GB.\n"
         "      auto uses available memory minus dense weights and context buffers,\n"
@@ -11891,6 +11896,8 @@ static void usage(FILE *fp) {
         "\n"
         "Normal server command:\n"
         "  ./ds4-server --ctx 100000 --kv-disk-dir /tmp/ds4-kv --kv-disk-space-mb 8192\n"
+        "Resident sidecar command:\n"
+        "  ./ds4-server -m /path/to/sidecar-package --resident --ctx 100000\n"
         "\n"
         "Notes:\n"
         "  Use /v1/chat/completions, /v1/responses, /v1/completions, or /v1/messages.\n"
@@ -11966,6 +11973,9 @@ static server_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
+            c.engine.moe_slot_bank_explicit = true;
+        } else if (!strcmp(arg, "--resident")) {
+            c.engine.resident = true;
         } else if (!strcmp(arg, "--ssd-cache")) {
             c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
@@ -12052,7 +12062,8 @@ static server_config parse_options(int argc, char **argv) {
         c.engine.directional_steering_ffn = 1.0f;
     }
     c.engine.ctx_size = c.ctx_size;
-    if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
+    if (!c.engine.resident &&
+        c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
         server_log(DS4_LOG_DEFAULT, "ds4-server: --moe-sidecar requires --moe-mode slot-bank");
         exit(2);
     }
@@ -12076,6 +12087,14 @@ int main(int argc, char **argv) {
         return 1;
     }
     ds4_engine_options_autodetect_sidecar_package(&cfg.engine, "ds4-server");
+    ds4_engine_options_apply_resident_preset(&cfg.engine, "ds4-server");
+    if (cfg.engine.resident &&
+        (!cfg.engine.moe_sidecar_path || !cfg.engine.moe_sidecar_path[0])) {
+        server_log(DS4_LOG_DEFAULT,
+                   "ds4-server: --resident requires a sidecar package directory passed to -m "
+                   "or an explicit --moe-sidecar");
+        return 2;
+    }
 
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();

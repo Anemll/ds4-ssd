@@ -860,6 +860,51 @@ static bool ds4_detect_sidecar_package(const char *path, char **dense_out) {
     return true;
 }
 
+static bool ds4_file_contains_literal(const char *path, const char *literal) {
+    if (!path || !literal || !literal[0]) return false;
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return false;
+    const size_t lit_len = strlen(literal);
+    char buf[8192 + 64];
+    size_t carry = 0;
+    bool found = false;
+    while (!found) {
+        const size_t room = sizeof(buf) - carry;
+        const size_t n = fread(buf + carry, 1, room, fp);
+        const size_t total = carry + n;
+        if (total >= lit_len) {
+            for (size_t i = 0; i + lit_len <= total; i++) {
+                if (memcmp(buf + i, literal, lit_len) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (n < room) break;
+        carry = lit_len > 1 ? lit_len - 1 : 0;
+        if (carry > total) carry = total;
+        memmove(buf, buf + total - carry, carry);
+    }
+    fclose(fp);
+    return found;
+}
+
+static bool ds4_sidecar_manifest_contains_literal(const char *dir,
+                                                  const char *literal) {
+    if (!dir || !dir[0]) return false;
+    char *manifest = ds4_join_path(dir, "manifest.json");
+    bool found = ds4_file_contains_literal(manifest, literal);
+    free(manifest);
+    if (found) return true;
+
+    char *sidecar = ds4_join_path(dir, "sidecar");
+    manifest = ds4_join_path(sidecar, "manifest.json");
+    found = ds4_file_contains_literal(manifest, literal);
+    free(manifest);
+    free(sidecar);
+    return found;
+}
+
 static void *xrealloc(void *ptr, size_t size) {
     ds4_alloc_guard_check("realloc", size);
     void *p = realloc(ptr, size);
@@ -9499,22 +9544,42 @@ static void metal_graph_free(ds4_gpu_graph *g) {
                                     100.0 * (double)resident_slots / (double)total_slots : 0.0;
         const double avg_layer_slots = DS4_N_LAYER ?
                                        (double)resident_slots / (double)DS4_N_LAYER : 0.0;
-        fprintf(stderr,
-                "ds4: Flash-MoE slot-bank stats hits=%" PRIu64 " misses=%" PRIu64
-                " hit-rate=%.1f%% resident-slots=%" PRIu64 "/%" PRIu64
-                " (%.1f%%, avg=%.1f/layer min=%u max=%u of %u)"
-                " installed=%.2f MiB\n",
-                g->flash_hits,
-                g->flash_misses,
-                hit_rate,
-                resident_slots,
-                total_slots,
-                resident_pct,
-                avg_layer_slots,
-                min_layer_slots,
-                max_layer_slots,
-                g->flash_slot_bank,
-                (double)g->flash_installed_bytes / 1048576.0);
+        const char *preload_env = getenv("DS4_FLASH_MOE_PRELOAD_SLOT_BANK");
+        const bool preload_requested =
+            preload_env && preload_env[0] && atoi(preload_env) != 0;
+        const bool full_resident_mixed_bank =
+            g->flash_mixed_slot_bank &&
+            preload_requested &&
+            g->flash_slot_bank >= DS4_N_EXPERT &&
+            total_slots != 0 &&
+            resident_slots == total_slots;
+        if (full_resident_mixed_bank) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE resident slot bank: resident-slots=%" PRIu64
+                    "/%" PRIu64 " (%.1f%%, avg=%.1f/layer) installed=%.2f GiB\n",
+                    resident_slots,
+                    total_slots,
+                    resident_pct,
+                    avg_layer_slots,
+                    (double)g->flash_installed_bytes / 1073741824.0);
+        } else {
+            fprintf(stderr,
+                    "ds4: Flash-MoE slot-bank stats hits=%" PRIu64 " misses=%" PRIu64
+                    " hit-rate=%.1f%% resident-slots=%" PRIu64 "/%" PRIu64
+                    " (%.1f%%, avg=%.1f/layer min=%u max=%u of %u)"
+                    " installed=%.2f MiB\n",
+                    g->flash_hits,
+                    g->flash_misses,
+                    hit_rate,
+                    resident_slots,
+                    total_slots,
+                    resident_pct,
+                    avg_layer_slots,
+                    min_layer_slots,
+                    max_layer_slots,
+                    g->flash_slot_bank,
+                    (double)g->flash_installed_bytes / 1048576.0);
+        }
         if (g->flash_decode_prefetch_calls) {
             fprintf(stderr,
                     "ds4: Flash-MoE decode prefetch calls=%" PRIu64
@@ -9656,7 +9721,24 @@ static void metal_graph_free(ds4_gpu_graph *g) {
                     live_plans,
                     total_slots);
         }
-        if (g->flash_prefill_refs || g->flash_prefill_unique) {
+        const bool detailed_flash_profile =
+            (getenv("DS4_FLASH_MOE_PROFILE") &&
+             getenv("DS4_FLASH_MOE_PROFILE")[0] &&
+             atoi(getenv("DS4_FLASH_MOE_PROFILE")) != 0) ||
+            (getenv("DS4_FLASH_MOE_STAGE_STATS") &&
+             getenv("DS4_FLASH_MOE_STAGE_STATS")[0] &&
+             atoi(getenv("DS4_FLASH_MOE_STAGE_STATS")) != 0) ||
+            (getenv("DS4_FLASH_MOE_SCHED_STATS") &&
+             getenv("DS4_FLASH_MOE_SCHED_STATS")[0] &&
+             atoi(getenv("DS4_FLASH_MOE_SCHED_STATS")) != 0) ||
+            (getenv("DS4_FLASH_MOE_HYBRID_STATS") &&
+             getenv("DS4_FLASH_MOE_HYBRID_STATS")[0] &&
+             atoi(getenv("DS4_FLASH_MOE_HYBRID_STATS")) != 0) ||
+            (getenv("DS4_FLASH_MOE_CONCURRENT_STATS") &&
+             getenv("DS4_FLASH_MOE_CONCURRENT_STATS")[0] &&
+             atoi(getenv("DS4_FLASH_MOE_CONCURRENT_STATS")) != 0);
+        if (!full_resident_mixed_bank &&
+            (g->flash_prefill_refs || g->flash_prefill_unique)) {
             const uint64_t saved = g->flash_prefill_refs > g->flash_prefill_unique ?
                                    g->flash_prefill_refs - g->flash_prefill_unique : 0;
             const double saved_pct = g->flash_prefill_refs ?
@@ -9672,10 +9754,22 @@ static void metal_graph_free(ds4_gpu_graph *g) {
                     saved_pct,
                     reuse);
         }
-        if (g->flash_prefill_slot_refs) {
+        if (!full_resident_mixed_bank && g->flash_prefill_slot_refs) {
             fprintf(stderr,
                     "ds4: Flash-MoE prefill slot-cache refs=%" PRIu64
                     " hits=%" PRIu64 " installs=%" PRIu64 "\n",
+                    g->flash_prefill_slot_refs,
+                    g->flash_prefill_slot_hits,
+                    g->flash_prefill_slot_installs);
+        }
+        if (full_resident_mixed_bank && detailed_flash_profile &&
+            (g->flash_prefill_refs || g->flash_prefill_slot_refs)) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE resident prefill cache detail: refs=%" PRIu64
+                    " unique=%" PRIu64 " slot-refs=%" PRIu64
+                    " slot-hits=%" PRIu64 " slot-installs=%" PRIu64 "\n",
+                    g->flash_prefill_refs,
+                    g->flash_prefill_unique,
                     g->flash_prefill_slot_refs,
                     g->flash_prefill_slot_hits,
                     g->flash_prefill_slot_installs);
@@ -11158,10 +11252,16 @@ static bool metal_graph_encode_decode_layer(
     const bool keep_ffn_out = metal_graph_needs_ffn_out(g, il, pos);
     bool shared_gate_up_done = false;
     bool shared_down_done = false;
+    const bool flash_identity_gpu_selected_decode =
+        g->flash_moe && metal_graph_flash_moe_identity_gpu_selected_active(g, il);
+    if (flash_identity_gpu_selected_decode) {
+        g->flash_decode_ids_valid[il] = 0;
+    }
     const bool use_decode_prefetch =
         g->flash_moe &&
         !g->flash_direct_mmap_bank &&
         !g->flash_per_expert_buffers &&
+        !flash_identity_gpu_selected_decode &&
         !decode_pf_active &&
         flash_moe_decode_prefetch_enabled() &&
         flash_moe_decode_prefetch_max_loads() > 0 &&
@@ -11172,7 +11272,7 @@ static bool metal_graph_encode_decode_layer(
         decode_pf_active = ok && decode_pf.active;
         decode_overlap = decode_pf_active && decode_pf.n_loads > 0;
         if (ok) ok = ds4_gpu_begin_commands() != 0;
-    } else if (ok && g->flash_moe) {
+    } else if (ok && g->flash_moe && !flash_identity_gpu_selected_decode) {
         if (!decode_pf_active) {
             if (!g->flash_per_expert_buffers &&
                 !g->flash_per_slot_buffers &&
@@ -11257,7 +11357,29 @@ static bool metal_graph_encode_decode_layer(
             flash_moe_layer_all_mxfp4_plane_split(flash_layer);
         const bool flash_hybrid_down_mxfp4_plane_split =
             flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer);
-        if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
+        if (flash_identity_gpu_selected_decode) {
+            decode_debug_stage = "flash_moe.identity_banked";
+            static int logged_identity_banked = 0;
+            if (!logged_identity_banked) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path "
+                        "(slot id == expert id)\n");
+                logged_identity_banked = 1;
+            }
+            ok = metal_graph_flash_moe_compute_grouped_banked(g,
+                                                              layer,
+                                                              il,
+                                                              gate_expert_bytes,
+                                                              gate_slot_stride,
+                                                              gate_row_bytes,
+                                                              down_expert_bytes,
+                                                              down_slot_stride,
+                                                              down_row_bytes,
+                                                              (uint32_t)expert_in_dim,
+                                                              (uint32_t)down_in_dim,
+                                                              (uint32_t)routed_out_dim,
+                                                              active_expert_used);
+        } else if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
             decode_debug_stage = g->flash_per_expert_buffers ?
                 "flash_moe.per_expert_slots6" : "flash_moe.per_slot_slots6";
             if (!g->flash_decode_ids_valid[il]) {
@@ -11380,6 +11502,28 @@ static bool metal_graph_encode_decode_layer(
                         (uint32_t)down_in_dim,
                         (uint32_t)routed_out_dim,
                         active_expert_used);
+            }
+        } else if (g->flash_mixed_slot_bank &&
+                   !g->flash_direct_mmap_bank &&
+                   metal_graph_flash_moe_compute_grouped_banked(g,
+                           layer,
+                           il,
+                           gate_expert_bytes,
+                           gate_slot_stride,
+                           gate_row_bytes,
+                           down_expert_bytes,
+                           down_slot_stride,
+                           down_row_bytes,
+                           (uint32_t)expert_in_dim,
+                           (uint32_t)down_in_dim,
+                           (uint32_t)routed_out_dim,
+                           active_expert_used)) {
+            decode_debug_stage = "flash_moe.mixed_banked";
+            static int logged_mixed_banked = 0;
+            if (!logged_mixed_banked) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE mixed slot bank using fully fused banked decode path\n");
+                logged_mixed_banked = 1;
             }
         } else if ((metal_graph_flash_moe_direct_mmap_slots6_active(g) ||
                     flash_moe_mixed_slots6_grouped_enabled()) &&
@@ -21800,9 +21944,63 @@ bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
     return true;
 }
 
+static void ds4_setenv_default_warn(const char *name,
+                                    const char *value,
+                                    const char *program_name) {
+    if (!name || !value) return;
+    if (setenv(name, value, 0) != 0) {
+        fprintf(stderr,
+                "%s: warning: failed to set default %s=%s: %s\n",
+                program_name && program_name[0] ? program_name : "ds4",
+                name,
+                value,
+                strerror(errno));
+    }
+}
+
+void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
+                                              const char *program_name) {
+    if (!opt || !opt->resident) return;
+
+    opt->moe_mode = DS4_MOE_MODE_SLOT_BANK;
+    if (!opt->moe_slot_bank_explicit || opt->moe_slot_bank <= 0) {
+        opt->moe_slot_bank = (int)DS4_N_EXPERT;
+    }
+    if (opt->ssd_cache && opt->ssd_cache[0]) {
+        fprintf(stderr,
+                "%s: --resident ignores --ssd-cache; using resident all-expert slot bank\n",
+                program_name && program_name[0] ? program_name : "ds4");
+        opt->ssd_cache = NULL;
+    }
+
+    ds4_setenv_default_warn("DS4_FLASH_MOE_FORCE_MIXED_SLOT_BANK", "1", program_name);
+    ds4_setenv_default_warn("DS4_FLASH_MOE_DIRECT_MMAP_AUTO", "0", program_name);
+    ds4_setenv_default_warn("DS4_FLASH_MOE_SLOT_BANK_RESIDENCY", "1", program_name);
+    ds4_setenv_default_warn("DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES", "1", program_name);
+    ds4_setenv_default_warn("DS4_FLASH_MOE_PRELOAD_SLOT_BANK", "1", program_name);
+    ds4_setenv_default_warn("DS4_MXFP4_NATIVE", "1", program_name);
+}
+
+static void ds4_engine_options_apply_sidecar_manifest_defaults(
+        const ds4_engine_options *opt,
+        const char               *program_name) {
+    if (!opt ||
+        opt->moe_mode != DS4_MOE_MODE_SLOT_BANK ||
+        !opt->moe_sidecar_path ||
+        !opt->moe_sidecar_path[0]) {
+        return;
+    }
+    if (ds4_sidecar_manifest_contains_literal(opt->moe_sidecar_path,
+                                              "MXFP4_NATIVE")) {
+        ds4_setenv_default_warn("DS4_MXFP4_NATIVE", "1", program_name);
+    }
+}
+
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_engine_options resolved = *opt;
     ds4_engine_options_autodetect_sidecar_package(&resolved, "ds4");
+    ds4_engine_options_apply_resident_preset(&resolved, "ds4");
+    ds4_engine_options_apply_sidecar_manifest_defaults(&resolved, "ds4");
     opt = &resolved;
 
     if (opt->quality || opt->no_int8) {

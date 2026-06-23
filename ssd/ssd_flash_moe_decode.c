@@ -1543,6 +1543,28 @@ static bool metal_graph_flash_moe_async_loads_complete(
     return true;
 }
 
+static bool metal_graph_flash_moe_identity_gpu_selected_active(
+        const ds4_gpu_graph *g,
+        uint32_t             il) {
+    if (!g || !g->flash_moe || il >= DS4_N_LAYER ||
+        env_flag_enabled("DS4_FLASH_MOE_DISABLE_IDENTITY_GPU_SELECTED") ||
+        !flash_moe_preload_slot_bank_enabled() ||
+        g->flash_direct_mmap_bank ||
+        g->flash_per_expert_buffers ||
+        g->flash_per_slot_buffers ||
+        g->flash_chunked_mixed_bank ||
+        !g->flash_mixed_slot_bank ||
+        g->flash_slot_bank < DS4_N_EXPERT ||
+        !g->router_selected ||
+        !g->router_weights ||
+        !g->flash_gate_bank[il] ||
+        !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il]) {
+        return false;
+    }
+    return metal_graph_flash_moe_sidecar_layer_has_records(&g->flash_moe->layer[il]);
+}
+
 static bool metal_graph_flash_moe_compute_grouped_banked(
         ds4_gpu_graph             *g,
         const ds4_layer_weights   *layer,
@@ -1560,41 +1582,10 @@ static bool metal_graph_flash_moe_compute_grouped_banked(
     if (!g || !layer || il >= DS4_N_LAYER) return false;
     const ds4_flash_moe_layer_sidecar *flash_layer =
         g->flash_moe ? &g->flash_moe->layer[il] : NULL;
-    if (flash_layer &&
-        (flash_moe_layer_all_mxfp4_plane_split(flash_layer) ||
-         flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer)) &&
-        g->flash_decode_ids_valid[il]) {
-        return ds4_gpu_routed_moe_one_banked_tensor_slotwise_baked(
-                   g->routed_out,
-                   g->routed_gate,
-                   g->routed_up,
-                   g->routed_mid,
-                   g->routed_down,
-                   g->flash_gate_bank[il],
-                   g->flash_up_bank[il],
-                   g->flash_down_bank[il],
-                   g->flash_slot_bank,
-                   layer->ffn_gate_exps->type,
-                   layer->ffn_down_exps->type,
-                   gate_expert_bytes,
-                   gate_slot_stride,
-                   gate_row_bytes,
-                   down_expert_bytes,
-                   down_slot_stride,
-                   down_row_bytes,
-                   expert_in_dim,
-                   expert_mid_dim,
-                   out_dim,
-                   il,
-                   g->flash_decode_slot_ids[il],
-                   g->router_weights,
-                   active_expert_used,
-                   DS4_SWIGLU_CLAMP_EXP,
-	                   g->ffn_norm) != 0;
-    }
-    if (flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer)) {
-        return false;
-    }
+    if (!metal_graph_flash_moe_sidecar_layer_has_records(flash_layer)) return false;
+    const ds4_gpu_tensor *selected =
+        metal_graph_flash_moe_identity_gpu_selected_active(g, il) ?
+        g->router_selected : g->router_slot_selected;
     return ds4_gpu_routed_moe_one_banked_tensor(g->routed_out,
                                                 g->routed_gate,
                                                 g->routed_up,
@@ -1615,7 +1606,7 @@ static bool metal_graph_flash_moe_compute_grouped_banked(
                                                 expert_in_dim,
                                                 expert_mid_dim,
                                                 out_dim,
-                                                g->router_slot_selected,
+                                                selected,
                                                 g->router_weights,
                                                 active_expert_used,
                                                 DS4_SWIGLU_CLAMP_EXP,
@@ -1969,9 +1960,17 @@ static bool metal_graph_flash_moe_compute_independent_slots6_grouped(
     ds4_gpu_tensor *gate_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     ds4_gpu_tensor *up_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     ds4_gpu_tensor *down_slots[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+    const bool mixed_cached_slot_views =
+        !g->flash_per_expert_buffers &&
+        !g->flash_per_slot_buffers &&
+        g->flash_mixed_slot_bank &&
+        !g->flash_chunked_mixed_bank &&
+        g->flash_slot_bank <= DS4_MAX_EXPERT;
     const bool use_fresh_views =
         env_flag_enabled("DS4_FLASH_MOE_SLOTS6_FRESH_VIEWS") ||
-        (!g->flash_per_expert_buffers && !g->flash_per_slot_buffers);
+        (!g->flash_per_expert_buffers &&
+         !g->flash_per_slot_buffers &&
+         !mixed_cached_slot_views);
     bool ok = true;
     for (uint32_t k = 0; ok && k < active_expert_used; k++) {
         const int32_t slot = g->flash_decode_slot_ids[il][k];

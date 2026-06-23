@@ -500,6 +500,9 @@ static void usage(FILE *fp) {
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 32\n"
         "                         Higher caches more experts; lower uses less RAM.\n"
+        "  --resident            Flash-MoE sidecar resident mode: full mixed\n"
+        "                         slot bank, Metal residency, page touch, preload.\n"
+        "                         Implies slot-bank mode and defaults slots to all experts.\n"
         "  --ssd-cache BYTES|auto\n"
         "                         Size the Flash-MoE slot bank from a cache budget\n"
         "                         such as 25GB. auto uses available memory minus\n"
@@ -709,6 +712,9 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+            c.engine.moe_slot_bank_explicit = true;
+        } else if (!strcmp(arg, "--resident")) {
+            c.engine.resident = true;
         } else if (!strcmp(arg, "--ssd-cache")) {
             c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--moe-expert-topk")) {
@@ -855,6 +861,14 @@ static agent_config parse_options(int argc, char **argv) {
     agent_setenv_default_or_die("DS4_METAL_RESUME_PREFILL_MIN", "256");
     c.engine.ctx_size = c.gen.ctx_size;
     ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4-agent");
+    ds4_engine_options_apply_resident_preset(&c.engine, "ds4-agent");
+    if (c.engine.resident &&
+        (!c.engine.moe_sidecar_path || !c.engine.moe_sidecar_path[0])) {
+        fprintf(stderr,
+                "ds4-agent: --resident requires a sidecar package directory passed to -m "
+                "or an explicit --moe-sidecar\n");
+        exit(2);
+    }
     if (c.resident_ane_prefill &&
         (c.engine.moe_mode != DS4_MOE_MODE_OFF || c.engine.moe_sidecar_path)) {
         fprintf(stderr,
@@ -11767,8 +11781,13 @@ static void agent_print_resume_hint(agent_worker *w) {
     if (!agent_worker_current_resume_sha(w, sha)) return;
 
     const agent_config *cfg = w->cfg;
-    char *model = agent_shell_quote(cfg->engine.model_path ?
-                                    cfg->engine.model_path : "ds4flash.gguf");
+    const char *resume_model_path =
+        (cfg->engine.resident &&
+         cfg->engine.moe_sidecar_path &&
+         cfg->engine.moe_sidecar_path[0]) ?
+        cfg->engine.moe_sidecar_path :
+        (cfg->engine.model_path ? cfg->engine.model_path : "ds4flash.gguf");
+    char *model = agent_shell_quote(resume_model_path);
     printf("\nresume this session:\n  ./ds4-agent --model %s --backend %s --ctx %d",
            model, ds4_backend_name(cfg->engine.backend), cfg->gen.ctx_size);
     free(model);
@@ -11779,7 +11798,9 @@ static void agent_print_resume_hint(agent_worker *w) {
                mtp, cfg->engine.mtp_draft_tokens, cfg->engine.mtp_margin);
         free(mtp);
     }
-    if (cfg->engine.moe_mode != DS4_MOE_MODE_OFF) {
+    if (cfg->engine.resident) {
+        printf(" --resident");
+    } else if (cfg->engine.moe_mode != DS4_MOE_MODE_OFF) {
         printf(" --moe-mode %s", agent_moe_mode_name(cfg->engine.moe_mode));
         if (cfg->engine.ssd_cache && cfg->engine.ssd_cache[0]) {
             char *ssd_cache = agent_shell_quote(cfg->engine.ssd_cache);
@@ -11789,7 +11810,8 @@ static void agent_print_resume_hint(agent_worker *w) {
             printf(" --moe-slot-bank %d", cfg->engine.moe_slot_bank);
         }
     }
-    if (cfg->engine.moe_sidecar_path && cfg->engine.moe_sidecar_path[0]) {
+    if (!cfg->engine.resident &&
+        cfg->engine.moe_sidecar_path && cfg->engine.moe_sidecar_path[0]) {
         char *sidecar = agent_shell_quote(cfg->engine.moe_sidecar_path);
         printf(" --moe-sidecar %s", sidecar);
         free(sidecar);

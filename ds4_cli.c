@@ -100,6 +100,11 @@ static void usage(FILE *fp) {
         "  --moe-slot-bank N\n"
         "      Streaming slots per layer; main RAM/cache knob. Default: 32\n"
         "      Higher caches more experts; lower uses less RAM.\n"
+        "  --resident\n"
+        "      Flash-MoE sidecar resident mode: load every expert into a mixed\n"
+        "      slot bank, request Metal residency, touch pages, and preload all\n"
+        "      routed layers. Implies --moe-mode slot-bank and defaults slots\n"
+        "      per layer to the model expert count.\n"
         "  --ssd-cache BYTES|auto\n"
         "      Size the Flash-MoE slot bank from a cache budget such as 25GB.\n"
         "      auto uses available memory minus dense weights and context buffers,\n"
@@ -1432,6 +1437,9 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.moe_mode = parse_moe_mode(need_arg(&i, argc, argv, arg));
         } else if (!strcmp(arg, "--moe-slot-bank")) {
             c.engine.moe_slot_bank = parse_int(need_arg(&i, argc, argv, arg), arg);
+            c.engine.moe_slot_bank_explicit = true;
+        } else if (!strcmp(arg, "--resident")) {
+            c.engine.resident = true;
         } else if (!strcmp(arg, "--ssd-cache")) {
             c.engine.ssd_cache = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--moe-expert-topk")) {
@@ -1542,6 +1550,14 @@ static cli_config parse_options(int argc, char **argv) {
     }
     c.engine.ctx_size = c.gen.ctx_size;
     ds4_engine_options_autodetect_sidecar_package(&c.engine, "ds4");
+    ds4_engine_options_apply_resident_preset(&c.engine, "ds4");
+    if (c.engine.resident &&
+        (!c.engine.moe_sidecar_path || !c.engine.moe_sidecar_path[0])) {
+        fprintf(stderr,
+                "ds4: --resident requires a sidecar package directory passed to -m "
+                "or an explicit --moe-sidecar\n");
+        exit(2);
+    }
     if (c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
         fprintf(stderr, "ds4: --moe-sidecar requires --moe-mode slot-bank\n");
         exit(2);

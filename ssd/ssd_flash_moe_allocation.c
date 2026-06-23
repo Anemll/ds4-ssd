@@ -666,6 +666,27 @@ static bool metal_graph_flash_moe_prepare_slot_bank_owner(
     return true;
 }
 
+static void metal_graph_flash_moe_log_resident_load_progress(
+        const char *phase,
+        uint32_t    done_layers,
+        uint32_t    total_layers,
+        uint64_t    done_bytes,
+        uint64_t    total_bytes) {
+    if (total_layers == 0 || total_bytes == 0) return;
+    if (phase && phase[0] && done_layers == 1) {
+        fprintf(stderr, "ds4: Flash-MoE resident %s: ", phase);
+    }
+    fputc('.', stderr);
+    if (done_layers >= total_layers || done_bytes >= total_bytes) {
+        fprintf(stderr,
+                " %.2f/%.2f GiB (%u layers)\n",
+                (double)done_bytes / 1073741824.0,
+                (double)total_bytes / 1073741824.0,
+                done_layers);
+    }
+    fflush(stderr);
+}
+
 static ds4_gpu_tensor *metal_graph_flash_moe_alloc_slot_bank_tensor(uint64_t bytes) {
     return flash_moe_untracked_slot_bank_enabled() ?
            ds4_gpu_tensor_alloc_untracked(bytes) :
@@ -762,6 +783,69 @@ static bool metal_graph_flash_moe_init_expert_family_views(
     g->flash_expert_down_view[il][slot] =
         ds4_gpu_tensor_view(expert,
                             layer->family_offset[DS4_FLASH_FAMILY_DOWN],
+                            layer->family_bytes[DS4_FLASH_FAMILY_DOWN]);
+    const bool ok =
+        g->flash_expert_gate_view[il][slot] &&
+        g->flash_expert_up_view[il][slot] &&
+        g->flash_expert_down_view[il][slot];
+    if (ok) {
+        metal_graph_flash_moe_tag_layer_family_storage(
+                g,
+                il,
+                g->flash_expert_gate_view[il][slot],
+                g->flash_expert_up_view[il][slot],
+                g->flash_expert_down_view[il][slot]);
+    }
+    if (!ok) metal_graph_flash_moe_free_expert_family_views(g, il, slot);
+    return ok;
+}
+
+static bool metal_graph_flash_moe_init_mixed_slot_family_views(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       slot) {
+    if (!g || !g->flash_moe ||
+        il >= DS4_N_LAYER || slot >= DS4_MAX_EXPERT ||
+        slot >= g->flash_slot_bank ||
+        !g->flash_mixed_slot_bank ||
+        g->flash_chunked_mixed_bank ||
+        g->flash_per_expert_buffers ||
+        g->flash_per_slot_buffers) {
+        return false;
+    }
+    const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+    if (!g->flash_gate_bank[il] || !g->flash_up_bank[il] || !g->flash_down_bank[il]) {
+        return false;
+    }
+    if (layer->expert_stride != 0 &&
+        (uint64_t)slot > UINT64_MAX / layer->expert_stride) {
+        return false;
+    }
+    const uint64_t offset = (uint64_t)slot * layer->expert_stride;
+    ds4_gpu_tensor *bases[DS4_FLASH_FAMILY_COUNT] = {
+        g->flash_gate_bank[il],
+        g->flash_up_bank[il],
+        g->flash_down_bank[il],
+    };
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        const uint64_t bytes = ds4_gpu_tensor_bytes(bases[fam]);
+        if (offset > bytes || layer->family_bytes[fam] > bytes - offset) {
+            return false;
+        }
+    }
+
+    metal_graph_flash_moe_free_expert_family_views(g, il, slot);
+    g->flash_expert_gate_view[il][slot] =
+        ds4_gpu_tensor_view(g->flash_gate_bank[il],
+                            offset,
+                            layer->family_bytes[DS4_FLASH_FAMILY_GATE]);
+    g->flash_expert_up_view[il][slot] =
+        ds4_gpu_tensor_view(g->flash_up_bank[il],
+                            offset,
+                            layer->family_bytes[DS4_FLASH_FAMILY_UP]);
+    g->flash_expert_down_view[il][slot] =
+        ds4_gpu_tensor_view(g->flash_down_bank[il],
+                            offset,
                             layer->family_bytes[DS4_FLASH_FAMILY_DOWN]);
     const bool ok =
         g->flash_expert_gate_view[il][slot] &&
@@ -1136,6 +1220,19 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
     uint64_t touched_slot_bytes = 0;
     uint32_t touched_slot_buffers = 0;
     uint32_t residency_capacity = 0;
+    uint64_t resident_preload_total_bytes = 0;
+    uint64_t resident_prepare_done_bytes = 0;
+    uint64_t resident_preload_done_bytes = 0;
+    uint32_t resident_preload_total_layers = 0;
+    uint32_t resident_prepare_done_layers = 0;
+    uint32_t resident_preload_done_layers = 0;
+    const bool resident_preload_progress =
+        preload_slot_bank &&
+        !per_expert &&
+        !per_slot &&
+        !g->flash_chunked_mixed_bank &&
+        g->flash_mixed_slot_bank &&
+        sidecar->slot_bank >= DS4_N_EXPERT;
     if (flash_moe_untracked_slot_bank_enabled()) {
         static int logged_untracked_slot_bank = 0;
         if (!logged_untracked_slot_bank) {
@@ -1431,6 +1528,23 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
             }
             slab_bytes += mixed_bytes;
         }
+        if (ok && resident_preload_progress) {
+            resident_preload_total_bytes = 0;
+            resident_preload_total_layers = 0;
+            for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+                if (!metal_graph_flash_moe_sidecar_layer_has_records(&sidecar->layer[il])) continue;
+                resident_preload_total_bytes += layer_mixed_bytes[il];
+                resident_preload_total_layers++;
+            }
+            fprintf(stderr,
+                    "ds4: Flash-MoE resident mixed slot-bank load: "
+                    "layers=%u slots=%u bytes=%.2f GiB "
+                    "(one dot per layer)\n",
+                    resident_preload_total_layers,
+                    sidecar->slot_bank,
+                    (double)resident_preload_total_bytes / 1073741824.0);
+            fflush(stderr);
+        }
         if (ok && g->flash_layer_slot_slab) {
             g->flash_layer_slot_slab_bank = metal_graph_flash_moe_alloc_slot_bank_tensor(slab_bytes);
             ok = g->flash_layer_slot_slab_bank != NULL;
@@ -1605,6 +1719,16 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
             if (!g->flash_layer_slot_slab) {
                 total_bank_bytes += mixed_bytes;
             }
+            if (ok && resident_preload_progress) {
+                resident_prepare_done_layers++;
+                resident_prepare_done_bytes += mixed_bytes;
+                metal_graph_flash_moe_log_resident_load_progress(
+                        "prepare",
+                        resident_prepare_done_layers,
+                        resident_preload_total_layers,
+                        resident_prepare_done_bytes,
+                        resident_preload_total_bytes);
+            }
         } else {
             const uint64_t gate_bytes = (uint64_t)sidecar->slot_bank *
                                         layer->family_bytes[DS4_FLASH_FAMILY_GATE];
@@ -1648,6 +1772,11 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     "with at least %u slots\n",
                     (unsigned)DS4_N_EXPERT);
             ok = false;
+        }
+        if (ok && resident_preload_progress) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE resident preload: ");
+            fflush(stderr);
         }
         for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
             const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
@@ -1701,6 +1830,16 @@ static bool metal_graph_flash_moe_alloc_slot_banks(
                     expert_to_slot[expert] = (int32_t)expert;
                     slot_age[expert] = ++g->flash_age;
                 }
+            }
+            if (ok && resident_preload_progress) {
+                resident_preload_done_layers++;
+                resident_preload_done_bytes += mixed_bytes;
+                metal_graph_flash_moe_log_resident_load_progress(
+                        "",
+                        resident_preload_done_layers,
+                        resident_preload_total_layers,
+                        resident_preload_done_bytes,
+                        resident_preload_total_bytes);
             }
         }
         if (ok) {

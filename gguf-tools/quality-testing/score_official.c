@@ -44,9 +44,10 @@ static void usage(const char *prog) {
         "  --no-int8        Disable int8 accelerator paths (FP8/fallback)\n"
         "  --quality        Exact kernels; implies --no-int8\n"
         "  --ssd-cache S    SSD cache budget (e.g. 25GB or auto)\n"
+        "  --resident       Load a sidecar package as an all-expert resident bank\n"
         "  --limit N        Score at most N cases (0 = all, default: all)\n"
         "  --first-token-only  Score only the first target token\n"
-        "  --moe-slot-bank N  Streaming slots per layer (default 32)\n",
+        "  --moe-slot-bank N  Streaming slots per layer (default 32; resident defaults to 256)\n",
         prog);
 }
 
@@ -57,8 +58,10 @@ int main(int argc, char **argv) {
     int ctx_size = 4096;
     bool no_int8 = false;
     bool quality = false;
+    bool resident = false;
     const char *ssd_cache = NULL;
     int moe_slot_bank = 32;
+    bool moe_slot_bank_explicit = false;
     int limit = 0;
     bool first_token_only = false;
 
@@ -66,13 +69,18 @@ int main(int argc, char **argv) {
     int pos = 0;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if (!strcmp(a, "--no-int8")) {
+        if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
+            usage(argv[0]);
+            return 0;
+        } else if (!strcmp(a, "--no-int8")) {
             no_int8 = true;
         } else if (!strcmp(a, "--quality")) {
             quality = true;
             no_int8 = true;
         } else if (!strcmp(a, "--first-token-only")) {
             first_token_only = true;
+        } else if (!strcmp(a, "--resident")) {
+            resident = true;
         } else if (!strcmp(a, "--ssd-cache")) {
             if (i + 1 >= argc) die("--ssd-cache needs a value");
             ssd_cache = argv[++i];
@@ -86,6 +94,7 @@ int main(int argc, char **argv) {
         } else if (!strcmp(a, "--moe-slot-bank")) {
             if (i + 1 >= argc) die("--moe-slot-bank needs a value");
             moe_slot_bank = atoi(argv[++i]);
+            moe_slot_bank_explicit = true;
         } else if (a[0] == '-' && a[1] == '-') {
             fprintf(stderr, "unknown option: %s\n", a);
             usage(argv[0]);
@@ -123,6 +132,9 @@ int main(int argc, char **argv) {
         .no_int8 = no_int8,
         .ssd_cache = ssd_cache,
         .moe_slot_bank = moe_slot_bank,
+        .moe_slot_bank_explicit = moe_slot_bank_explicit,
+        .ctx_size = ctx_size,
+        .resident = resident,
     };
 
     ds4_engine *engine = NULL;

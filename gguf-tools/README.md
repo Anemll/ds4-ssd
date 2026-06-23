@@ -129,6 +129,7 @@ See `quality-testing/README.md`.  The short version is:
 ```sh
 python3 gguf-tools/quality-testing/collect_official.py
 make -C gguf-tools quality-score
-gguf-tools/quality-testing/score_official MODEL.gguf gguf-tools/quality-testing/data/manifest.tsv /tmp/model.tsv 4096
+gguf-tools/quality-testing/score_official --ctx 4096 MODEL.gguf gguf-tools/quality-testing/data/flash/manifest.tsv /tmp/model.tsv
+gguf-tools/quality-testing/score_official --ctx 4096 --resident /path/to/sidecar-package gguf-tools/quality-testing/data/flash/manifest.tsv /tmp/sidecar.tsv
 python3 gguf-tools/quality-testing/compare_scores.py /tmp/old.tsv /tmp/new.tsv
 ```

@@ -54,16 +54,30 @@ The scorer links against the DS4 runtime and uses Metal by default.
 
 ```sh
 gguf-tools/quality-testing/score_official \
+  --ctx 4096 \
   ../deepseek-v4-quants/gguf/OLD.gguf \
   gguf-tools/quality-testing/data/flash/manifest.tsv \
-  /tmp/old.tsv \
-  4096
+  /tmp/old.tsv
 
 gguf-tools/quality-testing/score_official \
+  --ctx 4096 \
   ../deepseek-v4-quants/gguf/NEW.gguf \
   gguf-tools/quality-testing/data/flash/manifest.tsv \
-  /tmp/new.tsv \
-  4096
+  /tmp/new.tsv
+```
+
+Sidecar packages can be scored directly by passing the package directory. Use
+`--ssd-cache auto` for the normal streaming path, or `--resident` when you want
+the quality run to exercise the same all-expert resident bank used by resident
+decode/server runs:
+
+```sh
+gguf-tools/quality-testing/score_official \
+  --ctx 4096 \
+  --resident \
+  /Users/anemll/Models/ds4-hybrid-down-layer-sweep-model \
+  gguf-tools/quality-testing/data/flash/manifest.tsv \
+  /tmp/hybrid_resident.tsv
 ```
 
 Use `data/pro/manifest.tsv` for PRO GGUFs.  The scorer and comparator do not

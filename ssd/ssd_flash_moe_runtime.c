@@ -1467,6 +1467,16 @@ static ds4_gpu_tensor *metal_graph_flash_moe_family_slot_cached_view(
         !metal_graph_flash_moe_ensure_per_slot_buffer(g, il, slot)) {
         return NULL;
     }
+    if (!g->flash_per_expert_buffers &&
+        !g->flash_per_slot_buffers &&
+        g->flash_mixed_slot_bank &&
+        !g->flash_chunked_mixed_bank &&
+        (!g->flash_expert_gate_view[il][slot] ||
+         !g->flash_expert_up_view[il][slot] ||
+         !g->flash_expert_down_view[il][slot]) &&
+        !metal_graph_flash_moe_init_mixed_slot_family_views(g, il, (uint32_t)slot)) {
+        return NULL;
+    }
     switch (fam) {
     case DS4_FLASH_FAMILY_GATE:
         return g->flash_expert_gate_view[il][slot];

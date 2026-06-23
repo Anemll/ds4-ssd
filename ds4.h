@@ -77,11 +77,13 @@ typedef struct {
     const char *moe_sidecar_path;
     ds4_moe_mode moe_mode;
     int moe_slot_bank;
+    bool moe_slot_bank_explicit;
     const char *ssd_cache;
     int ctx_size;
     bool warm_weights;
     bool quality;
     bool no_int8;
+    bool resident;
 } ds4_engine_options;
 
 typedef void (*ds4_token_emit_fn)(void *ud, int token);
@@ -117,6 +119,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
 void ds4_engine_close(ds4_engine *e);
 bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
                                                    const char *program_name);
+void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
+                                              const char *program_name);
 void ds4_engine_summary(ds4_engine *e);
 bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e);
 const char *ds4_backend_name(ds4_backend backend);

@@ -70,6 +70,11 @@ Or the native MXFP4 package (bit-exact MXFP4 routed experts, ~156 GB,
 ./ds4 -m models/DSv4-Flash-MXFP4-native-flash --ssd-cache auto -p "Hello"
 ```
 
+Sidecar manifests that contain `MXFP4_NATIVE` storage automatically default
+`DS4_MXFP4_NATIVE=1` when the variable is unset. Explicitly setting
+`DS4_MXFP4_NATIVE=0` keeps the guard enabled and will reject native MXFP4
+sidecars.
+
 `--ssd-cache` sizes the resident expert slot bank (`auto`, or an explicit value
 like `32GB`). Any size is safe: on RAM-limited machines the bank is clamped so
 prefill cannot overflow memory and auto-shrinks after prefill so decode-miss
@@ -143,6 +148,49 @@ variables still win. Profiles choose ANE only for chunk shapes where it has
 measured faster than GPU or NAX on that machine. See
 [docs/PROFILES.md](docs/PROFILES.md) and
 [docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md).
+
+## Run Resident Sidecar Mode
+
+On high-memory Apple Silicon systems, a sidecar package can also be loaded as a
+fully resident all-expert slot bank. This keeps the sidecar package layout
+(`manifest.json` plus `dense/model-dense.gguf`) but avoids decode-time SSD
+expert misses.
+
+Use `--resident` with the sidecar package directory:
+
+```sh
+./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --resident \
+  --ctx 8192 \
+  -p "Hello"
+```
+
+`--resident` autodetects the dense GGUF, enables sidecar slot-bank mode,
+defaults the slot bank to all experts, preloads and touches the resident bank,
+and disables direct-mmap auto selection. If you explicitly pass
+`--moe-slot-bank`, that value is honored.
+
+The same simplified startup is supported by the local server:
+
+```sh
+./ds4-server \
+  -m "$DS4_SIDECAR_DIR" \
+  --resident \
+  --ctx 32768 \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+The OpenAI-compatible server advertises `deepseek-v4-flash` from
+`GET /v1/models`:
+
+```sh
+curl http://127.0.0.1:8000/v1/models
+```
+
+Use that id in API calls unless you intentionally want a compatibility alias:
+`deepseek-chat` disables thinking and `deepseek-reasoner` enables thinking.
 
 ### Experimental Pro Support
 
