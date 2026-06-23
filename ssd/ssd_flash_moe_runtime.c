@@ -103,9 +103,7 @@ static bool backend_stats_logs_enabled(void);
 
 static bool flash_moe_graph_uses_mxfp4_plane_split(const ds4_gpu_graph *g) {
     return g && g->flash_moe &&
-           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE] &&
-           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_UP] &&
-           g->flash_moe->layer[0].family_mxfp4_plane_split[DS4_FLASH_FAMILY_DOWN];
+           flash_moe_layer_all_mxfp4_plane_split(&g->flash_moe->layer[0]);
 }
 
 static bool ane_output_proj_enabled_for_run(const ds4_gpu_graph *g) {
@@ -715,6 +713,93 @@ static bool flash_moe_pread_split(int fd, uint64_t offset, uint8_t *dst,
         ok = ok && jobs[c].ok;
     }
     return ok;
+}
+
+static bool metal_graph_flash_moe_family_file_offset(
+        const ds4_flash_moe_layer_sidecar *layer,
+        int32_t                            true_expert,
+        uint32_t                           fam,
+        uint64_t                          *offset_out) {
+    if (offset_out) *offset_out = 0;
+    if (!layer || !offset_out ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT ||
+        fam >= DS4_FLASH_FAMILY_COUNT) {
+        return false;
+    }
+    const uint64_t bytes = layer->family_bytes[fam];
+    if (bytes == 0) return true;
+    if (layer->family_major) {
+        if (true_expert != 0 &&
+            bytes > UINT64_MAX / (uint64_t)true_expert) return false;
+        const uint64_t expert_off = (uint64_t)true_expert * bytes;
+        if (layer->family_file_offset[fam] > UINT64_MAX - expert_off) return false;
+        *offset_out = layer->family_file_offset[fam] + expert_off;
+        return true;
+    }
+    if (true_expert != 0 &&
+        layer->expert_stride > UINT64_MAX / (uint64_t)true_expert) return false;
+    const uint64_t record_offset = (uint64_t)true_expert * layer->expert_stride;
+    if (layer->family_offset[fam] > UINT64_MAX - record_offset) return false;
+    *offset_out = record_offset + layer->family_offset[fam];
+    return true;
+}
+
+static bool metal_graph_flash_moe_record_file_offset(
+        const ds4_flash_moe_layer_sidecar *layer,
+        int32_t                            true_expert,
+        uint64_t                          *offset_out) {
+    if (offset_out) *offset_out = 0;
+    if (!layer || !offset_out ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+        return false;
+    }
+    if (true_expert != 0 &&
+        layer->expert_stride > UINT64_MAX / (uint64_t)true_expert) return false;
+    *offset_out = (uint64_t)true_expert * layer->expert_stride;
+    return true;
+}
+
+static bool metal_graph_flash_moe_read_record_to_buf(
+        const ds4_flash_moe_layer_sidecar *layer,
+        int32_t                            true_expert,
+        uint8_t                           *dst,
+        int                                io_split) {
+    if (!layer || !dst ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+        return false;
+    }
+    if (!layer->family_major) {
+        uint64_t record_offset = 0;
+        return metal_graph_flash_moe_record_file_offset(layer, true_expert, &record_offset) &&
+               flash_moe_pread_split(layer->fd,
+                                     record_offset,
+                                     dst,
+                                     layer->expert_stride,
+                                     io_split);
+    }
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        const uint64_t bytes = layer->family_bytes[fam];
+        if (bytes == 0) continue;
+        if (layer->family_offset[fam] > layer->expert_stride ||
+            bytes > layer->expert_stride - layer->family_offset[fam]) {
+            return false;
+        }
+        uint64_t file_offset = 0;
+        if (!metal_graph_flash_moe_family_file_offset(layer,
+                                                      true_expert,
+                                                      fam,
+                                                      &file_offset)) {
+            return false;
+        }
+        if (!flash_moe_pread_split(layer->fd,
+                                   file_offset,
+                                   dst + layer->family_offset[fam],
+                                   bytes,
+                                   io_split)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool flash_moe_direct_slot_pread_enabled(void) {
@@ -1403,14 +1488,19 @@ static bool metal_graph_flash_moe_pread_slot_direct(
         true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
         return false;
     }
-    const uint64_t record_offset = (uint64_t)true_expert * layer->expert_stride;
     for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
         const uint64_t bytes = layer->family_bytes[fam];
         if (bytes == 0) continue;
         if (!dst[fam]) return false;
-        if (layer->family_offset[fam] > UINT64_MAX - record_offset) return false;
+        uint64_t file_offset = 0;
+        if (!metal_graph_flash_moe_family_file_offset(layer,
+                                                      true_expert,
+                                                      fam,
+                                                      &file_offset)) {
+            return false;
+        }
         if (!flash_moe_pread_split(layer->fd,
-                                   record_offset + layer->family_offset[fam],
+                                   file_offset,
                                    dst[fam],
                                    bytes,
                                    io_split)) {
@@ -2411,13 +2501,48 @@ typedef struct {
     int io_split;
     uint8_t *family_dst[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_offset[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_file_offset[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_bytes[DS4_FLASH_FAMILY_COUNT];
+    bool family_gather;
     int err;
     int complete;
     bool canceled;
     double pread_t0_ms;
     double pread_t1_ms;
 } ds4_flash_decode_read_job;
+
+static bool ds4_flash_decode_read_job_set_sidecar(
+        ds4_flash_decode_read_job          *job,
+        const ds4_flash_moe_layer_sidecar  *layer,
+        int32_t                             true_expert,
+        int                                 io_split) {
+    if (!job || !layer ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+        return false;
+    }
+    uint64_t record_offset = 0;
+    if (!metal_graph_flash_moe_record_file_offset(layer,
+                                                  true_expert,
+                                                  &record_offset)) {
+        return false;
+    }
+    job->fd = layer->fd;
+    job->offset = record_offset;
+    job->bytes = layer->expert_stride;
+    job->io_split = io_split;
+    job->family_gather = layer->family_major;
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        job->family_offset[fam] = layer->family_offset[fam];
+        job->family_bytes[fam] = layer->family_bytes[fam];
+        if (!metal_graph_flash_moe_family_file_offset(layer,
+                                                      true_expert,
+                                                      fam,
+                                                      &job->family_file_offset[fam])) {
+            return false;
+        }
+    }
+    return true;
+}
 
 static bool ds4_flash_decode_read_job_set_memory_src_copy(
         ds4_flash_decode_read_job *job,
@@ -2517,13 +2642,12 @@ static void *ds4_flash_decode_read_thread(void *arg) {
         const int io_split = job->io_split > 0 ? job->io_split : flash_moe_cache_io_split();
         for (uint32_t fam = 0; ok && fam < DS4_FLASH_FAMILY_COUNT; fam++) {
             if (job->family_bytes[fam] == 0) continue;
-            if (!job->family_dst[fam] ||
-                job->family_offset[fam] > UINT64_MAX - job->offset) {
+            if (!job->family_dst[fam]) {
                 ok = false;
                 break;
             }
             ok = flash_moe_pread_split(job->fd,
-                                       job->offset + job->family_offset[fam],
+                                       job->family_file_offset[fam],
                                        job->family_dst[fam],
                                        job->family_bytes[fam],
                                        io_split);
@@ -2531,8 +2655,30 @@ static void *ds4_flash_decode_read_thread(void *arg) {
         if (!ok) job->err = errno ? errno : EIO;
     } else {
         const int io_split = job->io_split > 0 ? job->io_split : flash_moe_cache_io_split();
-        if (!flash_moe_pread_split(job->fd, job->offset, job->buf, job->bytes,
-                                   io_split)) {
+        bool ok = true;
+        if (job->family_gather) {
+            if (!job->buf) {
+                ok = false;
+            }
+            for (uint32_t fam = 0; ok && fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+                const uint64_t bytes = job->family_bytes[fam];
+                if (bytes == 0) continue;
+                if (job->family_offset[fam] > job->bytes ||
+                    bytes > job->bytes - job->family_offset[fam]) {
+                    ok = false;
+                    break;
+                }
+                ok = flash_moe_pread_split(job->fd,
+                                           job->family_file_offset[fam],
+                                           job->buf + job->family_offset[fam],
+                                           bytes,
+                                           io_split);
+            }
+        } else {
+            ok = flash_moe_pread_split(job->fd, job->offset, job->buf, job->bytes,
+                                       io_split);
+        }
+        if (!ok) {
             job->err = errno ? errno : EIO;
         }
     }
@@ -2552,12 +2698,30 @@ static void *ds4_flash_decode_scratch_prefetch_worker(void *arg) {
             continue;
         }
         job->pread_t0_ms = now_sec() * 1000.0;
-        bool ok = job->buf &&
-                  flash_moe_pread_full_interruptible(job->fd,
-                                                     job->offset,
-                                                     job->buf,
-                                                     job->bytes,
-                                                     &pf->stop_requested);
+        bool ok = job->buf != NULL;
+        if (ok && job->family_gather) {
+            for (uint32_t fam = 0; ok && fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+                const uint64_t bytes = job->family_bytes[fam];
+                if (bytes == 0) continue;
+                if (job->family_offset[fam] > job->bytes ||
+                    bytes > job->bytes - job->family_offset[fam]) {
+                    ok = false;
+                    errno = EINVAL;
+                    break;
+                }
+                ok = flash_moe_pread_full_interruptible(job->fd,
+                                                        job->family_file_offset[fam],
+                                                        job->buf + job->family_offset[fam],
+                                                        bytes,
+                                                        &pf->stop_requested);
+            }
+        } else if (ok) {
+            ok = flash_moe_pread_full_interruptible(job->fd,
+                                                    job->offset,
+                                                    job->buf,
+                                                    job->bytes,
+                                                    &pf->stop_requested);
+        }
         job->pread_t1_ms = now_sec() * 1000.0;
         if (!ok) {
             if (errno == ECANCELED || pf->stop_requested) {
@@ -2638,6 +2802,8 @@ typedef struct ds4_flash_prefill_async_slot {
     int fd;
     uint64_t offset;
     uint64_t bytes;
+    const ds4_flash_moe_layer_sidecar *sidecar_layer;
+    bool family_gather;
     int err;
     bool canceled;
     bool speculative;   /* cross-layer prefetch read; paused during ANE eval */
@@ -2745,12 +2911,24 @@ static void *ds4_flash_prefill_async_thread(void *arg) {
         const uint64_t base_offset = slot->offset;
         const uint64_t bytes = slot->bytes;
         const uint32_t nsplit = slot->nsplit;
+        const bool family_gather = slot->family_gather;
+        const ds4_flash_moe_layer_sidecar *sidecar_layer = slot->sidecar_layer;
+        const int32_t expert = slot->expert;
         uint8_t *buf = slot->buf;
         pthread_mutex_unlock(&r->mu);
 
-        uint64_t coff = 0, clen = 0;
-        flash_moe_io_split_range(bytes, nsplit, chunk, &coff, &clen);
-        const bool ok = flash_moe_pread_full(fd, base_offset + coff, buf + coff, clen);
+        bool ok = false;
+        if (family_gather) {
+            ok = chunk == 0 &&
+                 metal_graph_flash_moe_read_record_to_buf(sidecar_layer,
+                                                          expert,
+                                                          buf,
+                                                          r->io_split);
+        } else {
+            uint64_t coff = 0, clen = 0;
+            flash_moe_io_split_range(bytes, nsplit, chunk, &coff, &clen);
+            ok = flash_moe_pread_full(fd, base_offset + coff, buf + coff, clen);
+        }
         const double t1 = now_sec() * 1000.0;
 
         pthread_mutex_lock(&r->mu);
@@ -2982,6 +3160,7 @@ static bool ds4_flash_prefill_async_submit(ds4_flash_prefill_async_reader *r,
                                            int fd,
                                            uint64_t offset,
                                            uint64_t bytes,
+                                           const ds4_flash_moe_layer_sidecar *sidecar_layer,
                                            bool speculative) {
     if (!r || !r->initialized || bytes == 0 || bytes > r->buf_bytes) return false;
     pthread_mutex_lock(&r->mu);
@@ -3016,11 +3195,13 @@ static bool ds4_flash_prefill_async_submit(ds4_flash_prefill_async_reader *r,
     slot->fd = fd;
     slot->offset = offset;
     slot->bytes = bytes;
+    slot->sidecar_layer = sidecar_layer;
+    slot->family_gather = sidecar_layer && sidecar_layer->family_major;
     slot->err = 0;
     slot->canceled = false;
     slot->speculative = speculative;
     slot->any_err = false;
-    slot->nsplit = flash_moe_active_io_split(bytes, r->io_split);
+    slot->nsplit = slot->family_gather ? 1u : flash_moe_active_io_split(bytes, r->io_split);
     slot->chunks_claimed = 0;
     slot->chunks_done = 0;
     slot->pread_t0_ms = 0.0;

@@ -72,9 +72,13 @@ static void metal_graph_flash_moe_record_decode_slots(
         const int32_t *true_ids,
         const int32_t *slot_ids,
         uint32_t       n_ids) {
+    const ds4_flash_moe_layer_sidecar *flash_layer =
+        (g && g->flash_moe && il < DS4_N_LAYER) ? &g->flash_moe->layer[il] : NULL;
     const bool needs_decode_ids =
         flash_moe_replay_plan_enabled() ||
         flash_moe_mixed_slots6_grouped_enabled() ||
+        flash_moe_layer_all_mxfp4_plane_split(flash_layer) ||
+        flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer) ||
         (g && (g->flash_chunked_mixed_bank ||
                g->flash_direct_mmap_bank ||
                g->flash_per_expert_buffers ||

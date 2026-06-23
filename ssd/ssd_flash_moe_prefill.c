@@ -252,6 +252,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 }
             }
         }
+        if (ok) {
+            flash_moe_log_prefill_dedup(il, n_tokens, n_pairs, n_unique, gpu_compacted);
+        }
     }
 
     const uint64_t miss_before = g->flash_misses;
@@ -449,6 +452,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                         _side_layer->fd, \
                                                         _src, \
                                                         _side_layer->expert_stride, \
+                                                        _side_layer, \
                                                         false /* on-demand within-layer */); \
                     if (!ok) break; \
                 } \
@@ -905,6 +909,13 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             }
         }
 
+        metal_graph_flash_moe_tag_layer_family_storage(
+                g,
+                il,
+                gate_b,
+                up_b,
+                down_b);
+
         // Synchronize previous work, then run this expert's compute on its bank set.
         if (commands_open) {
             ok = ds4_gpu_end_commands() != 0;
@@ -1221,6 +1232,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                     0, (uint32_t)best_refs,
                                                     next_layer->fd, src,
                                                     next_layer->expert_stride,
+                                                    next_layer,
                                                     true /* speculative cross-layer */)) {
                     break;  /* pool full or submit error: stop queuing */
                 }

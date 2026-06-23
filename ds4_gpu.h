@@ -412,6 +412,91 @@ int ds4_gpu_matmul_f32_tensor(
         const ds4_gpu_tensor *x,
         uint64_t                n_tok);
 
+int ds4_gpu_matmul_gguf_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint32_t                weight_type,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok);
+
+int ds4_gpu_glm52_q8_head_matvec_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint32_t                in_dim,
+        uint32_t                out_dim,
+        uint32_t                n_head,
+        uint32_t                in_head_stride,
+        uint32_t                out_head_stride,
+        uint32_t                input_offset,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_glm52_q8_head_matvec_batch_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint32_t                in_dim,
+        uint32_t                out_dim,
+        uint32_t                n_head,
+        uint32_t                in_head_stride,
+        uint32_t                out_head_stride,
+        uint32_t                input_offset,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens);
+
+int ds4_gpu_glm52_split_kv_batch_tensor(
+        ds4_gpu_tensor       *kv_lora,
+        ds4_gpu_tensor       *k_pe,
+        const ds4_gpu_tensor *kv_raw,
+        uint32_t                n_tokens);
+
+int ds4_gpu_glm52_store_kv_tensor(
+        ds4_gpu_tensor       *kv_cache,
+        ds4_gpu_tensor       *kpe_cache,
+        const ds4_gpu_tensor *kv_lora,
+        const ds4_gpu_tensor *k_pe,
+        uint32_t                row,
+        uint32_t                ctx);
+
+int ds4_gpu_glm52_store_kv_batch_tensor(
+        ds4_gpu_tensor       *kv_cache,
+        ds4_gpu_tensor       *kpe_cache,
+        const ds4_gpu_tensor *kv_lora,
+        const ds4_gpu_tensor *k_pe,
+        uint32_t                pos0,
+        uint32_t                n_tokens,
+        uint32_t                ctx);
+
+int ds4_gpu_glm52_attention_decode_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *q_abs,
+        const ds4_gpu_tensor *q_raw,
+        const ds4_gpu_tensor *kv_cache,
+        const ds4_gpu_tensor *kpe_cache,
+        ds4_gpu_tensor       *scores,
+        uint32_t                n_past,
+        uint32_t                ctx,
+        uint32_t                n_head,
+        float                   scale);
+
+int ds4_gpu_glm52_attention_prefill_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *q_abs,
+        const ds4_gpu_tensor *q_raw,
+        const ds4_gpu_tensor *kv_cache,
+        const ds4_gpu_tensor *kpe_cache,
+        uint32_t                pos0,
+        uint32_t                n_tokens,
+        uint32_t                ctx,
+        uint32_t                n_head,
+        float                   scale);
+
 int ds4_gpu_repeat_hc_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *row,
@@ -851,6 +936,20 @@ int ds4_gpu_router_select_batch_tensor(
         float                   expert_weight_scale,
         uint32_t                n_tokens);
 
+int ds4_gpu_glm_router_select_tensor(
+        ds4_gpu_tensor       *selected,
+        ds4_gpu_tensor       *weights,
+        ds4_gpu_tensor       *probs,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                bias_offset,
+        uint32_t                n_expert,
+        uint32_t                n_expert_used,
+        float                   expert_weight_scale,
+        bool                    has_bias,
+        const ds4_gpu_tensor *logits,
+        uint32_t                n_tokens);
+
 int ds4_gpu_routed_moe_one_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *gate,
@@ -969,6 +1068,27 @@ int ds4_gpu_routed_moe_one_slots6_tensor(
         ds4_gpu_tensor       *gate_slots[6],
         ds4_gpu_tensor       *up_slots[6],
         ds4_gpu_tensor       *down_slots[6],
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x);
+
+int ds4_gpu_routed_moe_one_slots8_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_slots[8],
+        ds4_gpu_tensor       *up_slots[8],
+        ds4_gpu_tensor       *down_slots[8],
         uint32_t                gate_type,
         uint32_t                down_type,
         uint64_t                gate_row_bytes,
@@ -1425,9 +1545,11 @@ int ds4_gpu_matmul_q8_0_hc_expand_tensor(
         uint32_t                n_hc);
 
 /* Resolved dense-projection backend for the startup compute banner:
- * 2 = W8A8 int8, 1 = fp16-NAX (half x half), 0 = fp32 legacy. */
+ * 2 = W8A8 int8, 1 = Q8_0 direct-RHS NAX, 0 = fp32/simd legacy.
+ * This only describes Q8_0 dispatch; GLM K-quant dense tensors have their own
+ * fused-dequant matvec path for n=1 and one-expert fused mul_mm_id for batches. */
 int ds4_gpu_dense_backend_kind(void);
-/* Token-count cutoff below which the dense W8A8 path falls back to NAX/fp16. */
+/* Token-count cutoff below which the dense W8A8 path falls back to Q8 NAX. */
 uint64_t ds4_gpu_dense_i8_min_tokens_public(void);
 
 /* Metal recommendedMaxWorkingSetSize (GPU wired-memory budget); 0 if no device.

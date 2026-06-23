@@ -250,6 +250,55 @@ static void flash_moe_log_prefill_hist(uint32_t       il,
     }
 }
 
+static FILE *flash_moe_dedup_csv(void) {
+    static int initialized = 0;
+    static FILE *fp = NULL;
+    if (initialized) return fp;
+    initialized = 1;
+
+    const char *path = getenv("DS4_FLASH_MOE_DEDUP_CSV");
+    if (!path || !path[0]) return NULL;
+
+    fp = fopen(path, "ab");
+    if (!fp) {
+        fprintf(stderr, "ds4: failed to open DS4_FLASH_MOE_DEDUP_CSV=%s: %s\n",
+                path, strerror(errno));
+        return NULL;
+    }
+
+    if (fseek(fp, 0, SEEK_END) == 0 && ftell(fp) == 0) {
+        fprintf(fp, "seq,layer,tokens,topk,refs,unique,saved,saved_pct,reuse,gpu_compact\n");
+    }
+    setvbuf(fp, NULL, _IOLBF, 0);
+    return fp;
+}
+
+static void flash_moe_log_prefill_dedup(uint32_t il,
+                                        uint32_t n_tokens,
+                                        uint64_t n_pairs,
+                                        uint32_t n_unique,
+                                        bool gpu_compacted) {
+    FILE *fp = flash_moe_dedup_csv();
+    if (!fp) return;
+
+    static uint64_t seq = 0;
+    const uint64_t saved = n_pairs > n_unique ? n_pairs - n_unique : 0;
+    const double saved_pct = n_pairs ? 100.0 * (double)saved / (double)n_pairs : 0.0;
+    const double reuse = n_unique ? (double)n_pairs / (double)n_unique : 0.0;
+    fprintf(fp,
+            "%" PRIu64 ",%u,%u,%u,%" PRIu64 ",%u,%" PRIu64 ",%.3f,%.6f,%u\n",
+            ++seq,
+            il,
+            n_tokens,
+            (unsigned)DS4_N_EXPERT_ACTIVE_USED,
+            n_pairs,
+            n_unique,
+            saved,
+            saved_pct,
+            reuse,
+            gpu_compacted ? 1u : 0u);
+}
+
 static void metal_graph_flash_moe_trace_session_sync(
         const char *path,
         int         checkpoint_len,
@@ -282,8 +331,10 @@ static bool metal_graph_prefill_verbose_trace_enabled(void) {
 
 static void metal_graph_prefill_trace_emit(const char *line, size_t len) {
     if (!line || len == 0) return;
-    (void)fwrite(line, 1, len, stderr);
-    fflush(stderr);
+    if (!backend_diagnostic_logs_suppressed()) {
+        (void)fwrite(line, 1, len, stderr);
+        fflush(stderr);
+    }
 
     static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
     static int fd = -2;

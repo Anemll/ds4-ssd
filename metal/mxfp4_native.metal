@@ -320,6 +320,55 @@ kernel void kernel_dsv4_mxfp4_plane_id_sum6_f32(
     }
 }
 
+kernel void kernel_dsv4_mxfp4_plane_slots6_sum6_f32(
+        device const uchar *down_data0   [[buffer(0)]],
+        device const uchar *down_data1   [[buffer(1)]],
+        device const uchar *down_data2   [[buffer(2)]],
+        device const uchar *down_data3   [[buffer(3)]],
+        device const uchar *down_data4   [[buffer(4)]],
+        device const uchar *down_data5   [[buffer(5)]],
+        device const uchar *down_scales0 [[buffer(6)]],
+        device const uchar *down_scales1 [[buffer(7)]],
+        device const uchar *down_scales2 [[buffer(8)]],
+        device const uchar *down_scales3 [[buffer(9)]],
+        device const uchar *down_scales4 [[buffer(10)]],
+        device const uchar *down_scales5 [[buffer(11)]],
+        device const float *mid          [[buffer(12)]],  // [6][mid_dim]
+        device float       *out          [[buffer(13)]],  // [out_dim]
+        constant uint      &mid_dim      [[buffer(14)]],
+        constant uint      &out_dim      [[buffer(15)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+    float sumf[2] = { 0.0f, 0.0f };
+
+    for (uint route = 0; route < 6u; route++) {
+        device const uchar *down_data_cur = down_data0;
+        device const uchar *down_scales_cur = down_scales0;
+        switch (route) {
+        case 1: down_data_cur = down_data1; down_scales_cur = down_scales1; break;
+        case 2: down_data_cur = down_data2; down_scales_cur = down_scales2; break;
+        case 3: down_data_cur = down_data3; down_scales_cur = down_scales3; break;
+        case 4: down_data_cur = down_data4; down_scales_cur = down_scales4; break;
+        case 5: down_data_cur = down_data5; down_scales_cur = down_scales5; break;
+        default: break;
+        }
+        device const float *mid_route = mid + (ulong)route * mid_dim;
+        ds4mx_plane_dot2_accum(down_data_cur, down_scales_cur, mid_route,
+                               out_dim, mid_dim, row0, tiisg, sumf);
+    }
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float sum = simd_sum(sumf[r]);
+        if (tiisg == 0 && row < out_dim) {
+            out[row] = sum;
+        }
+    }
+}
+
 struct ds4_metal_slots6_chunk_map {
     uint32_t chunk[6];
     uint32_t slot[6];

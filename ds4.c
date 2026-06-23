@@ -89,19 +89,19 @@ static bool ds4_backend_uses_graph(ds4_backend backend) {
  */
 
 enum {
-    DS4_MAX_LAYER            = 61,
+    DS4_MAX_LAYER            = 80,
     DS4_MAX_EMBD             = 7168,
-    DS4_MAX_VOCAB            = 129280,
+    DS4_MAX_VOCAB            = 154880,
     DS4_MAX_HEAD             = 128,
     DS4_MAX_HEAD_KV          = 1,
     DS4_MAX_HEAD_DIM         = 512,
     DS4_MAX_VALUE_DIM        = 512,
     DS4_MAX_ROT              = 64,
     DS4_MAX_OUT_GROUP        = 16,
-    DS4_MAX_LORA_Q           = 1536,
+    DS4_MAX_LORA_Q           = 2048,
     DS4_MAX_LORA_O           = 1024,
     DS4_MAX_EXPERT           = 384,
-    DS4_MAX_EXPERT_USED      = 6,
+    DS4_MAX_EXPERT_USED      = 8,
     DS4_MAX_EXPERT_SHARED    = 1,
     DS4_FLASH_MOE_MAX_CHUNKS = 16,
     DS4_MAX_FF_EXP           = 3072,
@@ -109,7 +109,7 @@ enum {
     DS4_MAX_SWA              = 128,
     DS4_MAX_INDEXER_HEAD     = 64,
     DS4_MAX_INDEXER_HEAD_DIM = 128,
-    DS4_MAX_INDEXER_TOP_K    = 1024,
+    DS4_MAX_INDEXER_TOP_K    = 2048,
     DS4_MAX_HC               = 4,
     DS4_MAX_HC_SINKHORN_ITER = 20,
 };
@@ -117,6 +117,7 @@ enum {
 typedef enum {
     DS4_VARIANT_FLASH = 0,
     DS4_VARIANT_PRO   = 1,
+    DS4_VARIANT_GLM52 = 2,
 } ds4_variant;
 
 typedef struct {
@@ -144,6 +145,9 @@ typedef struct {
     uint32_t n_indexer_top_k;
     uint32_t n_hc;
     uint32_t n_hc_sinkhorn_iter;
+    uint32_t n_dense_lead;
+    uint32_t n_nextn;
+    uint32_t n_lora_kv;
     float rms_eps;
     float hc_eps;
     float expert_weight_scale;
@@ -181,6 +185,9 @@ static const ds4_shape DS4_SHAPE_FLASH = {
     .n_indexer_top_k = 512,
     .n_hc = 4,
     .n_hc_sinkhorn_iter = 20,
+    .n_dense_lead = 0,
+    .n_nextn = 0,
+    .n_lora_kv = 0,
     .rms_eps = DS4_DEFAULT_RMS_EPS,
     .hc_eps = DS4_DEFAULT_HC_EPS,
     .expert_weight_scale = 1.5f,
@@ -218,6 +225,9 @@ static const ds4_shape DS4_SHAPE_PRO = {
     .n_indexer_top_k = 1024,
     .n_hc = 4,
     .n_hc_sinkhorn_iter = 20,
+    .n_dense_lead = 0,
+    .n_nextn = 0,
+    .n_lora_kv = 0,
     .rms_eps = DS4_DEFAULT_RMS_EPS,
     .hc_eps = DS4_DEFAULT_HC_EPS,
     .expert_weight_scale = 2.5f,
@@ -228,6 +238,46 @@ static const ds4_shape DS4_SHAPE_PRO = {
     .rope_yarn_beta_slow = DS4_DEFAULT_ROPE_YARN_BETA_SLOW,
     .compress_rope_freq_base = DS4_DEFAULT_COMPRESS_ROPE_FREQ_BASE,
     .rope_orig_ctx = DS4_DEFAULT_ROPE_ORIG_CTX,
+};
+
+static const ds4_shape DS4_SHAPE_GLM52 = {
+    .name = "GLM-5.2",
+    .variant = DS4_VARIANT_GLM52,
+    .n_layer = 79,
+    .n_embd = 6144,
+    .n_vocab = 154880,
+    .n_head = 64,
+    .n_head_kv = 1,
+    .n_head_dim = 512,
+    .n_value_dim = 512,
+    .n_rot = 64,
+    .n_out_group = 1,
+    .n_lora_q = 2048,
+    .n_lora_o = 0,
+    .n_expert = 256,
+    .n_expert_used = 8,
+    .n_expert_shared = 1,
+    .n_ff_exp = 2048,
+    .n_hash_layer = 0,
+    .n_swa = 0,
+    .n_indexer_head = 32,
+    .n_indexer_head_dim = 128,
+    .n_indexer_top_k = 2048,
+    .n_hc = 1,
+    .n_hc_sinkhorn_iter = 0,
+    .n_dense_lead = 3,
+    .n_nextn = 1,
+    .n_lora_kv = 512,
+    .rms_eps = 1.0e-5f,
+    .hc_eps = DS4_DEFAULT_HC_EPS,
+    .expert_weight_scale = 2.5f,
+    .swiglu_clamp_exp = 0.0f,
+    .rope_freq_base = 8000000.0f,
+    .rope_scale_factor = 1.0f,
+    .rope_yarn_beta_fast = DS4_DEFAULT_ROPE_YARN_BETA_FAST,
+    .rope_yarn_beta_slow = DS4_DEFAULT_ROPE_YARN_BETA_SLOW,
+    .compress_rope_freq_base = 0.0f,
+    .rope_orig_ctx = UINT64_C(1048576),
 };
 
 static ds4_shape g_ds4_shape = {
@@ -255,6 +305,9 @@ static ds4_shape g_ds4_shape = {
     .n_indexer_top_k = 512,
     .n_hc = 4,
     .n_hc_sinkhorn_iter = 20,
+    .n_dense_lead = 0,
+    .n_nextn = 0,
+    .n_lora_kv = 0,
     .rms_eps = DS4_DEFAULT_RMS_EPS,
     .hc_eps = DS4_DEFAULT_HC_EPS,
     .expert_weight_scale = 1.5f,
@@ -293,6 +346,9 @@ static uint32_t g_ds4_compress_ratios[DS4_MAX_LAYER] = {0};
 #define DS4_N_INDEXER_TOP_K           (g_ds4_shape.n_indexer_top_k)
 #define DS4_N_HC                      (g_ds4_shape.n_hc)
 #define DS4_N_HC_SINKHORN_ITER        (g_ds4_shape.n_hc_sinkhorn_iter)
+#define DS4_N_DENSE_LEAD              (g_ds4_shape.n_dense_lead)
+#define DS4_N_NEXTN                   (g_ds4_shape.n_nextn)
+#define DS4_N_LORA_KV                 (g_ds4_shape.n_lora_kv)
 #define DS4_RMS_EPS                   (g_ds4_shape.rms_eps)
 #define DS4_HC_EPS                    (g_ds4_shape.hc_eps)
 #define DS4_EXPERT_WEIGHT_SCALE       (g_ds4_shape.expert_weight_scale)
@@ -312,9 +368,11 @@ static int g_ds4_lock_fd = -1;
 static uint32_t ds4_active_expert_used(void) {
     static bool initialized = false;
     static uint32_t active = 0;
+    static uint32_t model_topk = 0;
 
-    if (initialized) return active;
+    if (initialized && model_topk == DS4_N_EXPERT_USED) return active;
     initialized = true;
+    model_topk = DS4_N_EXPERT_USED;
     active = DS4_N_EXPERT_USED;
 
     const char *name = "DS4_MOE_EXPERT_TOPK";
@@ -1253,9 +1311,15 @@ enum {
     DS4_TENSOR_F16      = 1,
     DS4_TENSOR_Q8_0     = 8,
     DS4_TENSOR_Q2_K     = 10,
+    DS4_TENSOR_Q3_K     = 11,
     DS4_TENSOR_Q4_K     = 12,
+    DS4_TENSOR_Q5_K     = 13,
+    DS4_TENSOR_Q6_K     = 14,
     DS4_TENSOR_IQ2_XXS  = 16,
+    DS4_TENSOR_IQ3_XXS  = 18,
+    DS4_TENSOR_IQ4_XS   = 23,
     DS4_TENSOR_I32      = 26,
+    DS4_TENSOR_IQ1_M    = 29,
     DS4_TENSOR_MXFP4    = 39,
 };
 
@@ -1659,19 +1723,31 @@ static void model_summary(const ds4_model *m) {
 
     model_get_string(m, "general.name", &name);
     model_get_string(m, "general.architecture", &arch);
-    model_get_u32(m, "deepseek4.block_count", &layers);
-    model_get_u64(m, "deepseek4.context_length", &ctx_train);
-    model_get_u32(m, "deepseek4.attention.head_count", &n_head);
-    model_get_u32(m, "deepseek4.attention.head_count_kv", &n_head_kv);
-    model_get_u32(m, "deepseek4.attention.key_length", &head_dim);
-    model_get_u32(m, "deepseek4.attention.sliding_window", &n_swa);
-    model_get_u32(m, "deepseek4.attention.indexer.head_count", &indexer_heads);
-    model_get_u32(m, "deepseek4.attention.indexer.key_length", &indexer_head_dim);
-    model_get_u32(m, "deepseek4.attention.indexer.top_k", &indexer_top_k);
-    model_get_u32(m, "deepseek4.expert_count", &n_expert);
-    model_get_u32(m, "deepseek4.expert_used_count", &n_expert_used);
-    model_get_u32(m, "deepseek4.expert_group_count", &n_expert_groups);
-    model_get_u32(m, "deepseek4.expert_group_used_count", &n_group_used);
+    const char *kv = ds4_streq(arch, "glm-dsa") ? "glm-dsa" : "deepseek4";
+    char key[128];
+#define DS4_SUMMARY_GET_U32(suffix, out) do { \
+        snprintf(key, sizeof(key), "%s.%s", kv, suffix); \
+        model_get_u32(m, key, out); \
+    } while (0)
+#define DS4_SUMMARY_GET_U64(suffix, out) do { \
+        snprintf(key, sizeof(key), "%s.%s", kv, suffix); \
+        model_get_u64(m, key, out); \
+    } while (0)
+    DS4_SUMMARY_GET_U32("block_count", &layers);
+    DS4_SUMMARY_GET_U64("context_length", &ctx_train);
+    DS4_SUMMARY_GET_U32("attention.head_count", &n_head);
+    DS4_SUMMARY_GET_U32("attention.head_count_kv", &n_head_kv);
+    DS4_SUMMARY_GET_U32("attention.key_length", &head_dim);
+    DS4_SUMMARY_GET_U32("attention.sliding_window", &n_swa);
+    DS4_SUMMARY_GET_U32("attention.indexer.head_count", &indexer_heads);
+    DS4_SUMMARY_GET_U32("attention.indexer.key_length", &indexer_head_dim);
+    DS4_SUMMARY_GET_U32("attention.indexer.top_k", &indexer_top_k);
+    DS4_SUMMARY_GET_U32("expert_count", &n_expert);
+    DS4_SUMMARY_GET_U32("expert_used_count", &n_expert_used);
+    DS4_SUMMARY_GET_U32("expert_group_count", &n_expert_groups);
+    DS4_SUMMARY_GET_U32("expert_group_used_count", &n_group_used);
+#undef DS4_SUMMARY_GET_U32
+#undef DS4_SUMMARY_GET_U64
 
     for (uint64_t i = 0; i < m->n_tensors; i++) {
         tensor_bytes += m->tensors[i].bytes;
@@ -2593,6 +2669,8 @@ typedef struct {
     ds4_tensor *attn_q_b;
     ds4_tensor *attn_kv;
     ds4_tensor *attn_kv_a_norm;
+    ds4_tensor *attn_k_b;
+    ds4_tensor *attn_v_b;
     ds4_tensor *attn_sinks;
     ds4_tensor *attn_output_a;
     ds4_tensor *attn_output_b;
@@ -2601,6 +2679,9 @@ typedef struct {
     ds4_tensor *attn_compressor_gate;
     ds4_tensor *attn_compressor_norm;
     ds4_tensor *indexer_attn_q_b;
+    ds4_tensor *indexer_attn_k;
+    ds4_tensor *indexer_k_norm;
+    ds4_tensor *indexer_k_norm_b;
     ds4_tensor *indexer_proj;
     ds4_tensor *indexer_compressor_ape;
     ds4_tensor *indexer_compressor_kv;
@@ -2613,6 +2694,9 @@ typedef struct {
     ds4_tensor *ffn_gate_tid2eid;
     ds4_tensor *ffn_gate_inp;
     ds4_tensor *ffn_exp_probs_b;
+    ds4_tensor *ffn_gate;
+    ds4_tensor *ffn_up;
+    ds4_tensor *ffn_down;
     ds4_tensor *ffn_gate_exps;
     ds4_tensor *ffn_up_exps;
     ds4_tensor *ffn_down_exps;
@@ -2652,12 +2736,15 @@ typedef struct {
     const uint8_t *map;
     uint64_t map_size;
     uint64_t family_offset[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_file_offset[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_bytes[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_file_bytes[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_plane_data_bytes[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_plane_scale_bytes[DS4_FLASH_FAMILY_COUNT];
     uint32_t family_type[DS4_FLASH_FAMILY_COUNT];
     bool family_mxfp4_plane_split[DS4_FLASH_FAMILY_COUNT];
     uint64_t expert_stride;
+    bool family_major;
     bool present[DS4_FLASH_FAMILY_COUNT];
 } ds4_flash_moe_layer_sidecar;
 
@@ -2856,17 +2943,29 @@ static void tensor_expect_plain_layout(
 
 static bool tensor_is_routed_expert_type(uint32_t type) {
     return type == DS4_TENSOR_IQ2_XXS ||
+           type == DS4_TENSOR_IQ1_M ||
+           type == DS4_TENSOR_IQ3_XXS ||
+           type == DS4_TENSOR_IQ4_XS ||
            type == DS4_TENSOR_Q2_K ||
+           type == DS4_TENSOR_Q3_K ||
            type == DS4_TENSOR_Q4_K ||
+           type == DS4_TENSOR_Q5_K ||
+           type == DS4_TENSOR_Q6_K ||
            type == DS4_TENSOR_MXFP4;
 }
 
 static DS4_MAYBE_UNUSED uint64_t routed_expert_block_bytes(uint32_t type) {
     switch (type) {
-    case DS4_TENSOR_IQ2_XXS: return sizeof(block_iq2_xxs);
-    case DS4_TENSOR_Q2_K:    return sizeof(block_q2_K);
-    case DS4_TENSOR_Q4_K:    return sizeof(block_q4_K);
-    case DS4_TENSOR_MXFP4:   return sizeof(block_mxfp4);
+    case DS4_TENSOR_IQ1_M:   return 56;
+    case DS4_TENSOR_IQ2_XXS: return 66;
+    case DS4_TENSOR_IQ3_XXS: return 98;
+    case DS4_TENSOR_IQ4_XS:  return 136;
+    case DS4_TENSOR_Q2_K:    return 84;
+    case DS4_TENSOR_Q3_K:    return 110;
+    case DS4_TENSOR_Q4_K:    return 144;
+    case DS4_TENSOR_Q5_K:    return 176;
+    case DS4_TENSOR_Q6_K:    return 210;
+    case DS4_TENSOR_MXFP4:   return 17;
     default:                 ds4_die("unsupported routed expert tensor type");
     }
     return 0;
@@ -3247,9 +3346,21 @@ static void config_validate_fixed_shape(uint32_t n_layer) {
     config_expect_u32("block_count",                  n_layer,                 DS4_N_LAYER);
 }
 
+static bool glm52_model_is_glm_dsa(const ds4_model *m);
+static void glm52_config_validate_model(const ds4_model *m);
+static void glm52_weights_bind(
+        ds4_weights                  *w,
+        const ds4_model              *m,
+        const ds4_flash_moe_sidecar  *flash_moe);
+
 /* Validate metadata values that affect semantics: attention shape, HC count,
  * expert routing, RoPE scaling, compression ratios, and SwiGLU clamp. */
 static void config_validate_model(const ds4_model *m) {
+    if (glm52_model_is_glm_dsa(m)) {
+        glm52_config_validate_model(m);
+        return;
+    }
+
     const uint32_t n_layer = required_u32(m, "deepseek4.block_count");
     const uint32_t n_embd = required_u32(m, "deepseek4.embedding_length");
     const uint32_t n_vocab = required_u32(m, "deepseek4.vocab_size");
@@ -3397,12 +3508,19 @@ static ds4_tensor *routed_tensorf(
     return required_tensor(m, name);
 }
 
+#include "glm52/glm52_model.c"
+
 /* Bind tensor names once into the fixed DS4 layer layout.  This is the point
  * where stringly GGUF metadata becomes direct model-specific pointers. */
 static void weights_bind(
         ds4_weights                  *w,
         const ds4_model              *m,
         const ds4_flash_moe_sidecar  *flash_moe) {
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_GLM52) {
+        glm52_weights_bind(w, m, flash_moe);
+        return;
+    }
+
     memset(w, 0, sizeof(*w));
     w->token_embd       = required_tensor(m, "token_embd.weight");
     w->output_hc_base   = required_tensor(m, "output_hc_base.weight");
@@ -11136,8 +11254,9 @@ static bool metal_graph_encode_decode_layer(
         const uint64_t down_slot_stride =
             (g->flash_mixed_slot_bank && flash_layer) ? flash_layer->expert_stride : down_expert_bytes;
         const bool flash_mxfp4_plane_split =
-            flash_layer &&
-            flash_layer->family_mxfp4_plane_split[DS4_FLASH_FAMILY_GATE];
+            flash_moe_layer_all_mxfp4_plane_split(flash_layer);
+        const bool flash_hybrid_down_mxfp4_plane_split =
+            flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer);
         if (g->flash_per_expert_buffers || g->flash_per_slot_buffers) {
             decode_debug_stage = g->flash_per_expert_buffers ?
                 "flash_moe.per_expert_slots6" : "flash_moe.per_slot_slots6";
@@ -11276,7 +11395,8 @@ static bool metal_graph_encode_decode_layer(
                            (uint32_t)routed_out_dim)) {
             decode_debug_stage = metal_graph_flash_moe_direct_mmap_slots6_active(g) ?
                 "flash_moe.direct_mmap_slots6" : "flash_moe.mixed_slots6";
-        } else if ((flash_mxfp4_plane_split && g->flash_decode_ids_valid[il]) ||
+        } else if (((flash_mxfp4_plane_split || flash_hybrid_down_mxfp4_plane_split) &&
+                    g->flash_decode_ids_valid[il]) ||
                    flash_moe_baked_slot_decode_enabled()) {
             decode_debug_stage = "flash_moe.slotwise_baked";
             if (!g->flash_decode_ids_valid[il]) {
@@ -17141,6 +17261,11 @@ static void metal_graph_log_prefill_compute_once(
         plane_split_prefill &&
         ds4_gpu_mxfp4_native_requested() &&
         ds4_gpu_has_native_mxfp4();
+    const bool hybrid_native_down_prefill =
+        g && g->flash_moe &&
+        flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(&g->flash_moe->layer[0]) &&
+        ds4_gpu_mxfp4_native_requested() &&
+        ds4_gpu_has_native_mxfp4();
     const bool try_ane_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool try_ane =
         !plane_split_prefill &&
@@ -17193,6 +17318,20 @@ static void metal_graph_log_prefill_compute_once(
         routed = "MPP 4.1 native MXFP4 (plane-sidecar/no-repack)";
     } else if (hybrid) {
         routed = "ANE i8i8 (W8A8) + GPU MPP-int8/NAX (W8A8) hybrid";
+    } else if (hybrid_native_down_prefill) {
+        if (try_ane_requested) {
+            char reason[240];
+            snprintf(unsupported_routed,
+                     sizeof(unsupported_routed),
+                     "GPU/MPP fallback: IQ2_XXS gate/up + native MXFP4 down "
+                     "(Flash-MoE ANE requested but %s)",
+                     flash_moe_ane_prefill_unsupported_reason(layer,
+                                                              reason,
+                                                              sizeof(reason)));
+            routed = unsupported_routed;
+        } else {
+            routed = "GPU/MPP: IQ2_XXS gate/up + native MXFP4 down";
+        }
     } else if (try_ane) {
         routed = "ANE i8i8 (W8A8)";
     } else if (try_ane_requested) {
@@ -17215,12 +17354,12 @@ static void metal_graph_log_prefill_compute_once(
     const char *dense;
     switch (ds4_gpu_dense_backend_kind()) {
         case 2:  dense = "W8A8 int8"; break;
-        case 1:  dense = "fp16-NAX (half x half)"; break;
+        case 1:  dense = "Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch"; break;
         default: dense = "fp32 (legacy)"; break;
     }
     if (ds4_gpu_dense_backend_kind() == 2) {
         fprintf(stderr,
-                "ds4: prefill compute: routed experts = %s | dense proj = %s (>= %llu tok, else fp16-NAX)\n",
+                "ds4: prefill compute: routed experts = %s | dense proj = %s (>= %llu tok, else Q8 direct-RHS NAX)\n",
                 routed, dense,
                 (unsigned long long)ds4_gpu_dense_i8_min_tokens_public());
     } else {
@@ -18276,10 +18415,15 @@ bool ds4_tokens_starts_with(const ds4_tokens *tokens, const ds4_tokens *prefix) 
 struct ds4_vocab {
     ds4_str *token;
     int n_vocab;
+    bool glm_tokenizer;
     int bos_id;
     int eos_id;
+    int pad_id;
+    int sop_id;
+    int system_id;
     int user_id;
     int assistant_id;
+    int observation_id;
     int think_start_id;
     int think_end_id;
     int dsml_id;
@@ -18617,6 +18761,111 @@ static bool joyai_cjk_at(const char *s, uint64_t len, uint64_t pos) {
     return utf8_is_cjk_hira_kata(cp);
 }
 
+static bool ascii_alnum(uint8_t c) {
+    return ascii_alpha(c) || ascii_digit(c);
+}
+
+static bool ascii_ci_starts_with(const char *s, uint64_t len, uint64_t pos, const char *pat) {
+    const uint64_t n = strlen(pat);
+    if (pos > len || n > len - pos) return false;
+    for (uint64_t i = 0; i < n; i++) {
+        uint8_t a = (uint8_t)s[pos + i];
+        uint8_t b = (uint8_t)pat[i];
+        if (a >= 'A' && a <= 'Z') a = (uint8_t)(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z') b = (uint8_t)(b - 'A' + 'a');
+        if (a != b) return false;
+    }
+    return true;
+}
+
+static uint64_t glm4_consume_letters(const char *s, uint64_t len, uint64_t pos) {
+    while (pos < len && joyai_letter_like_at(s, len, pos)) {
+        pos = next_utf8_char(s, len, pos);
+    }
+    return pos;
+}
+
+/* GLM declares tokenizer.ggml.pre = glm4.  For ASCII prompts this mirrors the
+ * ChatGLM4/llama3 GPT-2 BPE regex:
+ * contractions, optional leading non-letter before letters, 1-3 digit groups,
+ * punctuation runs with trailing newlines, newline runs, trailing spaces, spaces. */
+static void bpe_tokenize_text_glm4(const ds4_vocab *vocab, const char *text, token_vec *out) {
+    const uint64_t len = strlen(text);
+    uint64_t pos = 0;
+
+    while (pos < len) {
+        uint64_t start = pos;
+        uint8_t c = (uint8_t)text[pos];
+
+        if (c == '\'' &&
+            (ascii_ci_starts_with(text, len, pos, "'s") ||
+             ascii_ci_starts_with(text, len, pos, "'t") ||
+             ascii_ci_starts_with(text, len, pos, "'m") ||
+             ascii_ci_starts_with(text, len, pos, "'d"))) {
+            pos += 2;
+        } else if (c == '\'' &&
+                   (ascii_ci_starts_with(text, len, pos, "'re") ||
+                    ascii_ci_starts_with(text, len, pos, "'ve") ||
+                    ascii_ci_starts_with(text, len, pos, "'ll"))) {
+            pos += 3;
+        } else if (!ascii_newline(c) &&
+                   !ascii_alpha(c) &&
+                   !ascii_digit(c) &&
+                   pos + 1 < len &&
+                   joyai_letter_like_at(text, len, pos + 1)) {
+            pos++;
+            pos = glm4_consume_letters(text, len, pos);
+        } else if (joyai_letter_like_at(text, len, pos)) {
+            pos = glm4_consume_letters(text, len, pos);
+        } else if (ascii_digit(c)) {
+            int ndigits = 0;
+            while (pos < len && ascii_digit((uint8_t)text[pos]) && ndigits < 3) {
+                pos++;
+                ndigits++;
+            }
+        } else if (c == ' ' &&
+                   pos + 1 < len &&
+                   !ascii_space((uint8_t)text[pos + 1]) &&
+                   !ascii_alnum((uint8_t)text[pos + 1])) {
+            pos++;
+            while (pos < len &&
+                   !ascii_space((uint8_t)text[pos]) &&
+                   !ascii_alnum((uint8_t)text[pos])) {
+                pos = next_utf8_char(text, len, pos);
+            }
+            while (pos < len && ascii_newline((uint8_t)text[pos])) pos++;
+        } else if (!ascii_space(c) && !ascii_alnum(c)) {
+            while (pos < len &&
+                   !ascii_space((uint8_t)text[pos]) &&
+                   !ascii_alnum((uint8_t)text[pos])) {
+                pos = next_utf8_char(text, len, pos);
+            }
+            while (pos < len && ascii_newline((uint8_t)text[pos])) pos++;
+        } else if (ascii_space(c)) {
+            uint64_t p = pos;
+            uint64_t last_newline_end = 0;
+            while (p < len && ascii_space((uint8_t)text[p])) {
+                uint8_t sc = (uint8_t)text[p++];
+                if (ascii_newline(sc)) last_newline_end = p;
+            }
+            if (last_newline_end) {
+                pos = last_newline_end;
+            } else if (p == len) {
+                pos = p;
+            } else if (p > pos + 1) {
+                pos = p - 1;
+            } else {
+                pos = p;
+            }
+        } else {
+            pos = next_utf8_char(text, len, pos);
+        }
+
+        if (pos == start) pos = next_utf8_char(text, len, pos);
+        bpe_emit_piece(vocab, (ds4_str){ text + start, pos - start }, out);
+    }
+}
+
 /*
  * DeepSeek V4 Flash declares tokenizer.ggml.pre = "joyai-llm".  The split
  * below mirrors the JoyAI BPE pre-tokenizer for the cases this model
@@ -18638,6 +18887,11 @@ static bool joyai_cjk_at(const char *s, uint64_t len, uint64_t pos) {
 /* JoyAI/DeepSeek pre-tokenization.  The split shape matters: different pieces
  * lead to different BPE merges even when the final text bytes are identical. */
 static void bpe_tokenize_text(const ds4_vocab *vocab, const char *text, token_vec *out) {
+    if (vocab->glm_tokenizer) {
+        bpe_tokenize_text_glm4(vocab, text, out);
+        return;
+    }
+
     const uint64_t len = strlen(text);
     uint64_t pos = 0;
 
@@ -18716,6 +18970,21 @@ static int vocab_lookup(const ds4_vocab *vocab, const char *text) {
     return token;
 }
 
+static int vocab_lookup_optional(const ds4_vocab *vocab, const char *text) {
+    int token = -1;
+    if (!table_get(&vocab->token_to_id, text, strlen(text), &token)) return -1;
+    return token;
+}
+
+static bool vocab_model_uses_glm4_tokenizer(const ds4_model *model) {
+    ds4_str pre = {0};
+    ds4_str arch = {0};
+    if (model_get_string(model, "tokenizer.ggml.pre", &pre) && ds4_streq(pre, "glm4")) {
+        return true;
+    }
+    return model_get_string(model, "general.architecture", &arch) && ds4_streq(arch, "glm-dsa");
+}
+
 /* Load token strings, special token ids, and merge ranks from GGUF metadata. */
 static void vocab_load(ds4_vocab *vocab, const ds4_model *model) {
     memset(vocab, 0, sizeof(*vocab));
@@ -18750,13 +19019,45 @@ static void vocab_load(ds4_vocab *vocab, const ds4_model *model) {
         table_put(&vocab->merge_rank, merge, (int)i);
     }
 
-    vocab->bos_id       = vocab_lookup(vocab, "<｜begin▁of▁sentence｜>");
-    vocab->eos_id       = vocab_lookup(vocab, "<｜end▁of▁sentence｜>");
-    vocab->user_id      = vocab_lookup(vocab, "<｜User｜>");
-    vocab->assistant_id = vocab_lookup(vocab, "<｜Assistant｜>");
-    vocab->think_start_id = vocab_lookup(vocab, "<think>");
-    vocab->think_end_id = vocab_lookup(vocab, "</think>");
-    vocab->dsml_id = vocab_lookup(vocab, "｜DSML｜");
+    vocab->glm_tokenizer = vocab_model_uses_glm4_tokenizer(model);
+    vocab->pad_id = -1;
+    vocab->sop_id = -1;
+    vocab->system_id = -1;
+    vocab->observation_id = -1;
+    vocab->dsml_id = -1;
+
+    if (vocab->glm_tokenizer) {
+        uint32_t id = 0;
+        if (model_get_u32(model, "tokenizer.ggml.bos_token_id", &id)) {
+            vocab->bos_id = (int)id;
+        } else {
+            vocab->bos_id = vocab_lookup(vocab, "[gMASK]");
+        }
+        if (model_get_u32(model, "tokenizer.ggml.eos_token_id", &id)) {
+            vocab->eos_id = (int)id;
+        } else {
+            vocab->eos_id = vocab_lookup(vocab, "<|endoftext|>");
+        }
+        if (model_get_u32(model, "tokenizer.ggml.padding_token_id", &id)) {
+            vocab->pad_id = (int)id;
+        }
+        vocab->sop_id = vocab_lookup(vocab, "<sop>");
+        vocab->system_id = vocab_lookup(vocab, "<|system|>");
+        vocab->user_id = vocab_lookup(vocab, "<|user|>");
+        vocab->assistant_id = vocab_lookup(vocab, "<|assistant|>");
+        vocab->observation_id = vocab_lookup_optional(vocab, "<|observation|>");
+        vocab->think_start_id = vocab_lookup(vocab, "<think>");
+        vocab->think_end_id = vocab_lookup(vocab, "</think>");
+        vocab->dsml_id = vocab_lookup_optional(vocab, "｜DSML｜");
+    } else {
+        vocab->bos_id       = vocab_lookup(vocab, "<｜begin▁of▁sentence｜>");
+        vocab->eos_id       = vocab_lookup(vocab, "<｜end▁of▁sentence｜>");
+        vocab->user_id      = vocab_lookup(vocab, "<｜User｜>");
+        vocab->assistant_id = vocab_lookup(vocab, "<｜Assistant｜>");
+        vocab->think_start_id = vocab_lookup(vocab, "<think>");
+        vocab->think_end_id = vocab_lookup(vocab, "</think>");
+        vocab->dsml_id = vocab_lookup(vocab, "｜DSML｜");
+    }
 }
 
 static void vocab_free(ds4_vocab *vocab) {
@@ -18775,6 +19076,31 @@ static void encode_chat_prompt(
         const char      *prompt,
         ds4_think_mode   think_mode,
         token_vec       *out) {
+    if (vocab->glm_tokenizer) {
+        token_vec_push(out, vocab->bos_id);
+        token_vec_push(out, vocab->sop_id);
+        if (think_mode == DS4_THINK_MAX) {
+            token_vec_push(out, vocab->system_id);
+            bpe_tokenize_text(vocab, "\n", out);
+            bpe_tokenize_text(vocab, DS4_REASONING_EFFORT_MAX_PREFIX, out);
+        }
+        if (system && system[0]) {
+            token_vec_push(out, vocab->system_id);
+            bpe_tokenize_text(vocab, "\n", out);
+            bpe_tokenize_text(vocab, system, out);
+        }
+        token_vec_push(out, vocab->user_id);
+        bpe_tokenize_text(vocab, "\n", out);
+        bpe_tokenize_text(vocab, prompt, out);
+        token_vec_push(out, vocab->assistant_id);
+        bpe_tokenize_text(vocab, "\n", out);
+        if (think_mode == DS4_THINK_NONE) {
+            token_vec_push(out, vocab->think_start_id);
+            token_vec_push(out, vocab->think_end_id);
+        }
+        return;
+    }
+
     token_vec_push(out, vocab->bos_id);
     if (think_mode == DS4_THINK_MAX) {
         bpe_tokenize_text(vocab, DS4_REASONING_EFFORT_MAX_PREFIX, out);
@@ -18800,7 +19126,21 @@ static bool special_token_at(const ds4_vocab *vocab, const char *p, int *token, 
     struct special {
         const char *text;
         int token;
-    } specials[] = {
+    };
+    const struct special glm_specials[] = {
+        {"[gMASK]",          vocab->bos_id},
+        {"<sop>",            vocab->sop_id},
+        {"<|endoftext|>",    vocab->eos_id},
+        {"[MASK]",           vocab->pad_id},
+        {"<|system|>",       vocab->system_id},
+        {"<|user|>",         vocab->user_id},
+        {"<|assistant|>",    vocab->assistant_id},
+        {"<|observation|>",  vocab->observation_id},
+        {"<think>",          vocab->think_start_id},
+        {"</think>",         vocab->think_end_id},
+        {"｜DSML｜",          vocab->dsml_id},
+    };
+    const struct special ds4_specials[] = {
         {"<｜begin▁of▁sentence｜>", vocab->bos_id},
         {"<｜end▁of▁sentence｜>",   vocab->eos_id},
         {"<｜User｜>",              vocab->user_id},
@@ -18810,7 +19150,12 @@ static bool special_token_at(const ds4_vocab *vocab, const char *p, int *token, 
         {"｜DSML｜",                vocab->dsml_id},
     };
 
-    for (size_t i = 0; i < sizeof(specials) / sizeof(specials[0]); i++) {
+    const struct special *specials = vocab->glm_tokenizer ? glm_specials : ds4_specials;
+    const size_t n_specials = vocab->glm_tokenizer ?
+        sizeof(glm_specials) / sizeof(glm_specials[0]) :
+        sizeof(ds4_specials) / sizeof(ds4_specials[0]);
+    for (size_t i = 0; i < n_specials; i++) {
+        if (specials[i].token < 0) continue;
         size_t n = strlen(specials[i].text);
         if (!strncmp(p, specials[i].text, n)) {
             *token = specials[i].token;
@@ -18857,6 +19202,9 @@ void ds4_tokenize_rendered_chat(ds4_engine *e, const char *text, ds4_tokens *out
 
 void ds4_chat_begin(ds4_engine *e, ds4_tokens *tokens) {
     token_vec_push(tokens, e->vocab.bos_id);
+    if (e->vocab.glm_tokenizer) {
+        token_vec_push(tokens, e->vocab.sop_id);
+    }
 }
 
 void ds4_encode_chat_prompt(
@@ -18869,6 +19217,10 @@ void ds4_encode_chat_prompt(
 }
 
 void ds4_chat_append_max_effort_prefix(ds4_engine *e, ds4_tokens *tokens) {
+    if (e->vocab.glm_tokenizer) {
+        token_vec_push(tokens, e->vocab.system_id);
+        bpe_tokenize_text(&e->vocab, "\n", tokens);
+    }
     bpe_tokenize_text(&e->vocab, DS4_REASONING_EFFORT_MAX_PREFIX, tokens);
 }
 
@@ -18876,6 +19228,21 @@ void ds4_chat_append_message(ds4_engine *e, ds4_tokens *tokens, const char *role
     ds4_vocab *vocab = &e->vocab;
     if (!role) role = "user";
     if (!content) content = "";
+
+    if (vocab->glm_tokenizer) {
+        if (!strcmp(role, "system") || !strcmp(role, "developer")) {
+            token_vec_push(tokens, vocab->system_id);
+        } else if (!strcmp(role, "assistant")) {
+            token_vec_push(tokens, vocab->assistant_id);
+        } else if (!strcmp(role, "tool") || !strcmp(role, "function")) {
+            token_vec_push(tokens, vocab->observation_id >= 0 ? vocab->observation_id : vocab->user_id);
+        } else {
+            token_vec_push(tokens, vocab->user_id);
+        }
+        bpe_tokenize_text(vocab, "\n", tokens);
+        bpe_tokenize_text(vocab, content, tokens);
+        return;
+    }
 
     if (!strcmp(role, "system") || !strcmp(role, "developer")) {
         bpe_tokenize_text(vocab, content, tokens);
@@ -18896,6 +19263,14 @@ void ds4_chat_append_message(ds4_engine *e, ds4_tokens *tokens, const char *role
 
 void ds4_chat_append_assistant_prefix(ds4_engine *e, ds4_tokens *tokens, ds4_think_mode think_mode) {
     token_vec_push(tokens, e->vocab.assistant_id);
+    if (e->vocab.glm_tokenizer) {
+        bpe_tokenize_text(&e->vocab, "\n", tokens);
+        if (think_mode == DS4_THINK_NONE) {
+            token_vec_push(tokens, e->vocab.think_start_id);
+            token_vec_push(tokens, e->vocab.think_end_id);
+        }
+        return;
+    }
     token_vec_push(tokens, ds4_think_mode_enabled(think_mode) ?
                    e->vocab.think_start_id : e->vocab.think_end_id);
 }
@@ -19015,6 +19390,21 @@ int ds4_token_user(ds4_engine *e) {
 
 int ds4_token_assistant(ds4_engine *e) {
     return e->vocab.assistant_id;
+}
+
+static bool ds4_vocab_token_is_generation_stop(const ds4_vocab *vocab, int token) {
+    if (token == vocab->eos_id) return true;
+    if (!vocab->glm_tokenizer) return false;
+    return token == vocab->user_id ||
+           token == vocab->assistant_id ||
+           token == vocab->system_id ||
+           token == vocab->observation_id ||
+           token == vocab->sop_id ||
+           token == vocab->bos_id;
+}
+
+static bool ds4_token_is_generation_stop(ds4_engine *e, int token) {
+    return ds4_vocab_token_is_generation_stop(&e->vocab, token);
 }
 
 static int sample_argmax(const float *logits, uint32_t n_vocab) {
@@ -19329,7 +19719,7 @@ static int generate_raw_swa_cpu(
         }
 
         int token = sample_argmax(logits, DS4_N_VOCAB);
-        if (token == vocab->eos_id) break;
+        if (ds4_vocab_token_is_generation_stop(vocab, token)) break;
 
         if (emit) emit(emit_ud, token);
         n_generated++;
@@ -19515,7 +19905,7 @@ static int generate_metal_graph_raw_swa(
         }
 
         int token = sample_argmax(logits, DS4_N_VOCAB);
-        if (token == vocab->eos_id) break;
+        if (ds4_vocab_token_is_generation_stop(vocab, token)) break;
 
         if (emit) emit(emit_ud, token);
         n_generated++;
@@ -19611,6 +20001,10 @@ const char *ds4_backend_name(ds4_backend backend) {
     case DS4_BACKEND_CPU:   return "cpu";
     }
     return "unknown";
+}
+
+bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e) {
+    return e && e->vocab.glm_tokenizer;
 }
 
 bool ds4_think_mode_enabled(ds4_think_mode mode) {
@@ -19711,11 +20105,14 @@ struct ds4_session {
     void *progress_ud;
     ds4_session_progress_fn display_progress;
     void *display_progress_ud;
+    void *variant_runtime;
     uint32_t prefill_cap;
     int ctx_size;
     bool checkpoint_valid;
     bool mtp_draft_valid;
 };
+
+#include "glm52/glm52_runtime.c"
 
 /* =========================================================================
  * Session Snapshot Payloads.
@@ -19962,9 +20359,12 @@ static void session_cpu_reset_cache(ds4_session *s) {
 
 int ds4_engine_routed_quant_bits(ds4_engine *e) {
     if (!e) return 0;
-    const ds4_tensor *gate = e->weights.layer[0].ffn_gate_exps;
-    if (!gate) return 0;
-    return gate->type == DS4_TENSOR_Q4_K ? 4 : 2;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        const ds4_tensor *gate = e->weights.layer[il].ffn_gate_exps;
+        if (!gate) continue;
+        return gate->type == DS4_TENSOR_Q4_K ? 4 : 2;
+    }
+    return 0;
 }
 
 bool ds4_engine_has_mtp(ds4_engine *e) {
@@ -20089,6 +20489,9 @@ static bool spec_frontier_commit_prefix1(ds4_session *s) {
 
 uint64_t ds4_session_payload_bytes(ds4_session *s) {
     if (!s || !s->checkpoint_valid) return 0;
+#ifndef DS4_NO_GPU
+    if (glm52_session_active(s)) return glm52_session_payload_bytes(s);
+#endif
     if (ds4_session_is_cpu(s)) {
         uint64_t bytes = (uint64_t)DS4_SESSION_PAYLOAD_U32_FIELDS * sizeof(uint32_t);
         bytes += (uint64_t)s->checkpoint.len * sizeof(uint32_t);
@@ -20117,6 +20520,9 @@ int ds4_session_save_payload(ds4_session *s, FILE *fp, char *err, size_t errlen)
         payload_set_err(err, errlen, "session has no valid checkpoint to save");
         return 1;
     }
+#ifndef DS4_NO_GPU
+    if (glm52_session_active(s)) return glm52_session_save_payload(s, fp, err, errlen);
+#endif
     if (ds4_session_is_cpu(s)) {
         const uint32_t raw_live = session_cpu_raw_live_rows(s);
         const uint32_t raw_cap = ds4_default_raw_cap((uint32_t)s->ctx_size);
@@ -20312,6 +20718,9 @@ int ds4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_bytes, c
         payload_set_err(err, errlen, "invalid session payload load");
         return 1;
     }
+#ifndef DS4_NO_GPU
+    if (glm52_session_active(s)) return glm52_session_load_payload(s, fp, payload_bytes, err, errlen);
+#endif
     uint64_t remaining = payload_bytes;
     uint32_t h[DS4_SESSION_PAYLOAD_U32_FIELDS];
     for (uint32_t i = 0; i < DS4_SESSION_PAYLOAD_U32_FIELDS; i++) {
@@ -20934,6 +21343,147 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
 #endif
 }
 
+typedef struct {
+    ds4_engine          *engine;
+    ds4_token_emit_fn    emit;
+    void                *emit_ud;
+    int                  tokens[32];
+    size_t               lens[32];
+    int                  n_tokens;
+    char                 text[128];
+    size_t               text_len;
+    bool                 active;
+} ds4_glm_generation_stop_filter;
+
+static const char *glm_generation_stop_text(size_t i) {
+    static const char *stops[] = {
+        "<|user|>",
+        "<|assistant|>",
+        "<|system|>",
+        "<|observation|>",
+        "<sop>",
+        "[gMASK]",
+    };
+    return i < sizeof(stops) / sizeof(stops[0]) ? stops[i] : NULL;
+}
+
+static bool glm_stop_text_find(const char *text, size_t len, size_t *off_out) {
+    for (size_t off = 0; off < len; off++) {
+        for (size_t i = 0; ; i++) {
+            const char *s = glm_generation_stop_text(i);
+            if (!s) break;
+            const size_t n = strlen(s);
+            if (off + n <= len && memcmp(text + off, s, n) == 0) {
+                if (off_out) *off_out = off;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static size_t glm_stop_text_suffix_prefix_len(const char *text, size_t len) {
+    size_t best = 0;
+    for (size_t off = 0; off < len; off++) {
+        const size_t suffix_len = len - off;
+        for (size_t i = 0; ; i++) {
+            const char *s = glm_generation_stop_text(i);
+            if (!s) break;
+            const size_t n = strlen(s);
+            if (suffix_len < n && suffix_len > best &&
+                memcmp(text + off, s, suffix_len) == 0) {
+                best = suffix_len;
+            }
+        }
+    }
+    return best;
+}
+
+static int glm_stop_text_status(const char *text, size_t len, size_t *flush_bytes) {
+    size_t stop_off = 0;
+    if (glm_stop_text_find(text, len, &stop_off)) {
+        if (flush_bytes) *flush_bytes = stop_off;
+        return 2;
+    }
+    const size_t keep = glm_stop_text_suffix_prefix_len(text, len);
+    if (flush_bytes) *flush_bytes = len - keep;
+    return keep != 0 ? 1 : 0;
+}
+
+static void glm_stop_filter_init(
+        ds4_glm_generation_stop_filter *f,
+        ds4_engine                     *engine,
+        ds4_token_emit_fn               emit,
+        void                           *emit_ud) {
+    memset(f, 0, sizeof(*f));
+    f->engine = engine;
+    f->emit = emit;
+    f->emit_ud = emit_ud;
+    f->active = engine && engine->vocab.glm_tokenizer && emit != NULL;
+}
+
+static void glm_stop_filter_flush_one(ds4_glm_generation_stop_filter *f) {
+    if (f->n_tokens <= 0) return;
+    if (f->emit) f->emit(f->emit_ud, f->tokens[0]);
+    const size_t n = f->lens[0];
+    if (n < f->text_len) memmove(f->text, f->text + n, f->text_len - n);
+    f->text_len -= n < f->text_len ? n : f->text_len;
+    memmove(f->tokens, f->tokens + 1, (size_t)(f->n_tokens - 1) * sizeof(f->tokens[0]));
+    memmove(f->lens, f->lens + 1, (size_t)(f->n_tokens - 1) * sizeof(f->lens[0]));
+    f->n_tokens--;
+}
+
+static void glm_stop_filter_flush(ds4_glm_generation_stop_filter *f) {
+    while (f->n_tokens > 0) glm_stop_filter_flush_one(f);
+}
+
+static void glm_stop_filter_flush_bytes(ds4_glm_generation_stop_filter *f, size_t bytes) {
+    while (f->n_tokens > 0 && bytes >= f->lens[0]) {
+        bytes -= f->lens[0];
+        glm_stop_filter_flush_one(f);
+    }
+}
+
+static bool glm_stop_filter_emit_or_stop(ds4_glm_generation_stop_filter *f, int token) {
+    if (!f->active) {
+        if (f->emit) f->emit(f->emit_ud, token);
+        return false;
+    }
+
+    size_t len = 0;
+    char *piece = ds4_token_text(f->engine, token, &len);
+    if (len == 0 || len >= sizeof(f->text) ||
+        f->n_tokens >= (int)(sizeof(f->tokens) / sizeof(f->tokens[0])) ||
+        f->text_len + len >= sizeof(f->text)) {
+        glm_stop_filter_flush(f);
+    }
+    if (len < sizeof(f->text) &&
+        f->n_tokens < (int)(sizeof(f->tokens) / sizeof(f->tokens[0])) &&
+        f->text_len + len < sizeof(f->text)) {
+        memcpy(f->text + f->text_len, piece, len);
+        f->text_len += len;
+        f->tokens[f->n_tokens] = token;
+        f->lens[f->n_tokens] = len;
+        f->n_tokens++;
+    } else if (f->emit) {
+        f->emit(f->emit_ud, token);
+    }
+    free(piece);
+
+    while (f->n_tokens > 0) {
+        size_t flush_bytes = 0;
+        const int status = glm_stop_text_status(f->text, f->text_len, &flush_bytes);
+        if (status == 2) {
+            glm_stop_filter_flush_bytes(f, flush_bytes);
+            return true;
+        }
+        if (flush_bytes == 0) return false;
+        glm_stop_filter_flush_bytes(f, flush_bytes);
+        if (status == 1) return false;
+    }
+    return false;
+}
+
 int ds4_engine_generate_argmax(
         ds4_engine        *e,
         const ds4_tokens  *prompt,
@@ -20973,18 +21523,27 @@ int ds4_engine_generate_argmax(
         if (room <= 1) max_tokens = 0;
         else if (max_tokens > room - 1) max_tokens = room - 1;
         int generated = 0;
-        const int eos = ds4_token_eos(e);
         const double decode_t0 = now_sec();
+        ds4_glm_generation_stop_filter stop_filter;
+        glm_stop_filter_init(&stop_filter, e, emit, emit_ud);
+        bool stopped = false;
         for (; generated < max_tokens; generated++) {
             const int token = ds4_session_argmax(s);
-            if (token == eos) break;
+            if (ds4_token_is_generation_stop(e, token)) {
+                stopped = true;
+                break;
+            }
             if (ds4_session_eval(s, token, err, sizeof(err)) != 0) {
                 fprintf(stderr, "ds4: Flash-MoE decode failed: %s\n", err);
                 ds4_session_free(s);
                 return 1;
             }
-            if (emit) emit(emit_ud, token);
+            if (glm_stop_filter_emit_or_stop(&stop_filter, token)) {
+                stopped = true;
+                break;
+            }
         }
+        if (!stopped) glm_stop_filter_flush(&stop_filter);
         const double decode_t1 = now_sec();
         if (backend_stats_logs_enabled()) {
             const double decode_s = decode_t1 - decode_t0;
@@ -21734,6 +22293,9 @@ void ds4_engine_close(ds4_engine *e) {
 
 int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     if (!out || !e || ctx_size <= 0) return 1;
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_GLM52) {
+        return glm52_session_create(out, e, ctx_size);
+    }
     if (e->backend == DS4_BACKEND_CPU) {
         ds4_session *s = xcalloc(1, sizeof(*s));
         s->engine = e;
@@ -21795,7 +22357,9 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
 
 void ds4_session_free(ds4_session *s) {
     if (!s) return;
-    if (ds4_session_is_cpu(s)) {
+    if (glm52_session_active(s)) {
+        glm52_session_free(s);
+    } else if (ds4_session_is_cpu(s)) {
         kv_cache_free(&s->cpu_cache);
         cpu_decode_scratch_free(&s->cpu_scratch);
     }
@@ -22022,7 +22586,7 @@ static DS4_MAYBE_UNUSED bool ds4_session_decode_prompt_suffix(
             return false;
         }
         token_vec_push(&s->checkpoint, prompt->v[i]);
-        if (s->progress) s->progress(s->progress_ud, "prefill_chunk", i + 1, prompt->len);
+        if (s->progress) s->progress(s->progress_ud, "prefill_token", i + 1, prompt->len);
     }
     s->checkpoint_valid = true;
     s->mtp_draft_valid = false;
@@ -22050,6 +22614,9 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
         snprintf(err, errlen, "prompt exceeds context");
         return 1;
     }
+    if (glm52_session_active(s)) {
+        return glm52_session_sync(s, prompt, err, errlen);
+    }
     if (ds4_session_is_cpu(s)) {
         ds4_engine *e = s->engine;
         if (s->checkpoint_valid &&
@@ -22069,7 +22636,7 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                                                          e->directional_steering_ffn_scale,
                                                          &s->cpu_scratch);
                 token_vec_push(&s->checkpoint, prompt->v[i]);
-                if (s->progress) s->progress(s->progress_ud, "prefill_chunk", i + 1, prompt->len);
+                if (s->progress) s->progress(s->progress_ud, "prefill_token", i + 1, prompt->len);
             }
             s->checkpoint_valid = true;
             return 0;
@@ -22252,7 +22819,7 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
                 return 1;
             }
             token_vec_push(&s->checkpoint, prompt->v[i]);
-            if (s->progress) s->progress(s->progress_ud, "prefill_chunk", i + 1, prompt->len);
+            if (s->progress) s->progress(s->progress_ud, "prefill_token", i + 1, prompt->len);
         }
         if (suffix == 0 &&
             !metal_graph_flash_moe_residency_stats_boundary(&s->graph, "decode-start")) {
@@ -22527,6 +23094,10 @@ int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out) {
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                      char *err, size_t errlen) {
     if (!s) return 1;
+    if (glm52_session_active(s)) {
+        (void)probe_mtp;
+        return glm52_session_eval(s, token, err, errlen);
+    }
     if (ds4_session_is_cpu(s)) {
         ds4_engine *e = s->engine;
         forward_token_raw_swa_cpu_decode_scratch(s->logits,

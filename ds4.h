@@ -118,6 +118,7 @@ void ds4_engine_close(ds4_engine *e);
 bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
                                                    const char *program_name);
 void ds4_engine_summary(ds4_engine *e);
+bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e);
 const char *ds4_backend_name(ds4_backend backend);
 bool ds4_think_mode_enabled(ds4_think_mode mode);
 const char *ds4_think_mode_name(ds4_think_mode mode);

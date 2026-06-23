@@ -176,7 +176,7 @@ static void usage(FILE *fp) {
         "  --inspect\n"
         "      Load the model and print a summary only.\n"
         "  --dump-tokens\n"
-        "      Tokenize -p/--prompt-file exactly as written, then exit without inference.\n"
+        "      Print the rendered prompt tokens, then exit without inference.\n"
         "  --dump-logprobs FILE\n"
         "      Write greedy continuation top-logprobs as JSON without printing text.\n"
         "  --logprobs-top-k N\n"
@@ -490,6 +490,99 @@ static void token_printer_write_text(token_printer *p, const char *text, size_t 
     }
 }
 
+typedef struct {
+    token_printer *printer;
+    char pending[128];
+    size_t pending_len;
+} cli_glm_stop_filter;
+
+static const char *cli_glm_stop_text(size_t i) {
+    static const char *stops[] = {
+        "<|user|>",
+        "<|assistant|>",
+        "<|system|>",
+        "<|observation|>",
+        "<sop>",
+        "[gMASK]",
+    };
+    return i < sizeof(stops) / sizeof(stops[0]) ? stops[i] : NULL;
+}
+
+static bool cli_glm_stop_find(const char *text, size_t len, size_t *off_out) {
+    for (size_t off = 0; off < len; off++) {
+        for (size_t i = 0; ; i++) {
+            const char *s = cli_glm_stop_text(i);
+            if (!s) break;
+            const size_t n = strlen(s);
+            if (off + n <= len && memcmp(text + off, s, n) == 0) {
+                if (off_out) *off_out = off;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static size_t cli_glm_stop_suffix_prefix_len(const char *text, size_t len) {
+    size_t best = 0;
+    for (size_t off = 0; off < len; off++) {
+        const size_t suffix_len = len - off;
+        for (size_t i = 0; ; i++) {
+            const char *s = cli_glm_stop_text(i);
+            if (!s) break;
+            const size_t n = strlen(s);
+            if (suffix_len < n && suffix_len > best &&
+                memcmp(text + off, s, suffix_len) == 0) {
+                best = suffix_len;
+            }
+        }
+    }
+    return best;
+}
+
+static void cli_glm_stop_filter_init(cli_glm_stop_filter *f, token_printer *printer) {
+    memset(f, 0, sizeof(*f));
+    f->printer = printer;
+}
+
+static void cli_glm_stop_filter_flush(cli_glm_stop_filter *f) {
+    if (f->pending_len) {
+        token_printer_write_text(f->printer, f->pending, f->pending_len);
+        f->pending_len = 0;
+    }
+}
+
+static bool cli_glm_stop_filter_write(cli_glm_stop_filter *f, const char *text, size_t len) {
+    if (!len) return false;
+    if (len >= sizeof(f->pending) || f->pending_len + len >= sizeof(f->pending)) {
+        cli_glm_stop_filter_flush(f);
+    }
+    if (len < sizeof(f->pending) && f->pending_len + len < sizeof(f->pending)) {
+        memcpy(f->pending + f->pending_len, text, len);
+        f->pending_len += len;
+    } else {
+        token_printer_write_text(f->printer, text, len);
+        return false;
+    }
+
+    while (f->pending_len) {
+        size_t stop_off = 0;
+        if (cli_glm_stop_find(f->pending, f->pending_len, &stop_off)) {
+            if (stop_off) token_printer_write_text(f->printer, f->pending, stop_off);
+            f->pending_len = 0;
+            return true;
+        }
+        const size_t keep = cli_glm_stop_suffix_prefix_len(f->pending, f->pending_len);
+        const size_t safe = f->pending_len - keep;
+        if (safe == 0) return false;
+        token_printer_write_text(f->printer, f->pending, safe);
+        if (keep) memmove(f->pending, f->pending + safe, keep);
+        f->pending_len = keep;
+        if (keep) return false;
+    }
+    return false;
+}
+
 static void print_generated_token(void *ud, int token) {
     token_printer *p = ud;
     size_t len = 0;
@@ -525,6 +618,8 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         .use_color = isatty(fileno(stdout)) != 0,
         .last_output_newline = true,
     };
+    cli_glm_stop_filter stop_filter;
+    cli_glm_stop_filter_init(&stop_filter, &printer);
     const double t_prefill0 = cli_now_sec();
     cli_prefill_progress progress = {
         .base_tokens = 0,
@@ -556,11 +651,17 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;
+    bool stopped = false;
     const double t_decode0 = cli_now_sec();
     while (generated < max_tokens && !cli_interrupt_requested()) {
         int token = ds4_session_sample(session, cfg->gen.temperature, 0,
                                        cfg->gen.top_p, cfg->gen.min_p, &rng);
-        if (token == ds4_token_eos(engine)) break;
+        if (token == ds4_token_eos(engine) ||
+            token == ds4_token_user(engine) ||
+            token == ds4_token_assistant(engine)) {
+            stopped = true;
+            break;
+        }
 
         int toks[17];
         int ntok = 0;
@@ -591,20 +692,27 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
 
         bool stop = false;
         for (int j = 0; j < ntok; j++) {
-            if (toks[j] == ds4_token_eos(engine)) {
+            if (toks[j] == ds4_token_eos(engine) ||
+                toks[j] == ds4_token_user(engine) ||
+                toks[j] == ds4_token_assistant(engine)) {
                 stop = true;
                 break;
             }
             size_t piece_len = 0;
             char *piece = ds4_token_text(engine, toks[j], &piece_len);
-            token_printer_write_text(&printer, piece, piece_len);
-            fflush(stdout);
+            stop = cli_glm_stop_filter_write(&stop_filter, piece, piece_len);
             free(piece);
+            if (stop) break;
+            fflush(stdout);
             generated++;
             if (generated >= max_tokens) break;
         }
-        if (stop) break;
+        if (stop) {
+            stopped = true;
+            break;
+        }
     }
+    if (!stopped) cli_glm_stop_filter_flush(&stop_filter);
     const double t_decode1 = cli_now_sec();
     generation_done(&printer);
     if (cli_interrupt_requested()) cli_interrupt_clear();
@@ -1454,17 +1562,10 @@ int main(int argc, char **argv) {
     cli_config cfg = parse_options(argc, argv);
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
-    if (cfg.gen.dump_tokens) {
-        if (cfg.gen.prompt == NULL) {
-            fprintf(stderr, "ds4: --dump-tokens requires -p or --prompt-file\n");
-            free(cfg.prompt_owned);
-            return 2;
-        }
-        int rc = ds4_dump_text_tokenization(cfg.engine.model_path,
-                                            cfg.gen.prompt,
-                                            stdout);
+    if (cfg.gen.dump_tokens && cfg.gen.prompt == NULL) {
+        fprintf(stderr, "ds4: --dump-tokens requires -p or --prompt-file\n");
         free(cfg.prompt_owned);
-        return rc;
+        return 2;
     }
     if (!cfg.inspect) {
         ds4_model_shape_select_for_path(cfg.engine.model_path);
