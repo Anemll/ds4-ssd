@@ -82,10 +82,18 @@ static int flash_moe_run_mpp_int8_safe_tensor(
 
     static bool warned = false;
     if (!warned) {
-        fprintf(stderr,
-                "ds4: MPP/NAX int8 partial-tile workaround active "
-                "(64-row MPP tiles, tail rows use legacy GPU; set "
-                "DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)\n");
+        if (ds4_no_int8_paths_enabled()) {
+            fprintf(stderr,
+                    "ds4: MPP/NAX partial-tile workaround active "
+                    "(--no-int8 path; 64-row MPP/NAX tiles, tail rows use "
+                    "legacy GPU; set DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 "
+                    "to benchmark old behavior)\n");
+        } else {
+            fprintf(stderr,
+                    "ds4: MPP/NAX int8 partial-tile workaround active "
+                    "(64-row MPP tiles, tail rows use legacy GPU; set "
+                    "DS4_FLASH_MOE_MPP_ALLOW_PARTIAL_TILES=1 to benchmark old behavior)\n");
+        }
         warned = true;
     }
 
