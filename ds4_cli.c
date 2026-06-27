@@ -656,6 +656,8 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;
+    uint64_t mtp_draft_slots = 0;
+    uint64_t mtp_draft_accepted = 0;
     bool stopped = false;
     const double t_decode0 = cli_now_sec();
     while (generated < max_tokens && !cli_interrupt_requested()) {
@@ -672,12 +674,15 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
         int ntok = 0;
         if (cfg->gen.temperature <= 0.0f && ds4_engine_mtp_draft_tokens(engine) > 1 &&
             getenv("DS4_MTP_SPEC_DISABLE") == NULL) {
+            const int accepted_cap = (int)(sizeof(toks) / sizeof(toks[0]));
+            int drafted = 0;
             ntok = ds4_session_eval_speculative_argmax(session,
                                                        token,
                                                        max_tokens - generated,
                                                        ds4_token_eos(engine),
                                                        toks,
-                                                       (int)(sizeof(toks) / sizeof(toks[0])),
+                                                       accepted_cap,
+                                                       &drafted,
                                                        err,
                                                        sizeof(err));
             if (ntok < 0) {
@@ -685,6 +690,8 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
                 ds4_session_free(session);
                 return 1;
             }
+            mtp_draft_slots += (uint64_t)drafted;
+            if (ntok > 1) mtp_draft_accepted += (uint64_t)(ntok - 1);
         } else {
             if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
                 fprintf(stderr, "ds4: decode failed: %s\n", err);
@@ -732,6 +739,15 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
                 decode_s > 0.0 ? (double)generated / decode_s : 0.0,
                 generated,
                 decode_s);
+        if (mtp_draft_slots > 0) {
+            const double mtp_acceptance =
+                100.0 * (double)mtp_draft_accepted / (double)mtp_draft_slots;
+            fprintf(stderr,
+                    "ds4: mtp acceptance: %.1f%% (%llu/%llu draft tokens)\n",
+                    mtp_acceptance,
+                    (unsigned long long)mtp_draft_accepted,
+                    (unsigned long long)mtp_draft_slots);
+        }
     }
 
     ds4_session_free(session);
@@ -1150,6 +1166,8 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
     uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     int generated = 0;
+    uint64_t mtp_draft_slots = 0;
+    uint64_t mtp_draft_accepted = 0;
     const double t_decode0 = cli_now_sec();
     while (generated < max_tokens && !cli_interrupt_requested()) {
         int token = ds4_session_sample(chat->session,
@@ -1164,18 +1182,23 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
         int ntok = 0;
         if (cfg->gen.temperature <= 0.0f && ds4_engine_mtp_draft_tokens(engine) > 1 &&
             getenv("DS4_MTP_SPEC_DISABLE") == NULL) {
+            const int accepted_cap = (int)(sizeof(toks) / sizeof(toks[0]));
+            int drafted = 0;
             ntok = ds4_session_eval_speculative_argmax(chat->session,
                                                        token,
                                                        max_tokens - generated,
                                                        ds4_token_eos(engine),
                                                        toks,
-                                                       (int)(sizeof(toks) / sizeof(toks[0])),
+                                                       accepted_cap,
+                                                       &drafted,
                                                        err,
                                                        sizeof(err));
             if (ntok < 0) {
                 fprintf(stderr, "ds4: decode failed: %s\n", err);
                 return 1;
             }
+            mtp_draft_slots += (uint64_t)drafted;
+            if (ntok > 1) mtp_draft_accepted += (uint64_t)(ntok - 1);
         } else {
             if (ds4_session_eval(chat->session, token, err, sizeof(err)) != 0) {
                 fprintf(stderr, "ds4: decode failed: %s\n", err);
@@ -1222,6 +1245,16 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
             "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
             prefill_s > 0.0 ? (double)suffix / prefill_s : 0.0,
             decode_s > 0.0 ? (double)generated / decode_s : 0.0);
+    if (mtp_draft_slots > 0) {
+        const double mtp_acceptance =
+            100.0 * (double)mtp_draft_accepted / (double)mtp_draft_slots;
+        ds4_log(stderr,
+                DS4_LOG_TIMING,
+                "ds4: mtp acceptance: %.1f%% (%llu/%llu draft tokens)\n",
+                mtp_acceptance,
+                (unsigned long long)mtp_draft_accepted,
+                (unsigned long long)mtp_draft_slots);
+    }
     return 0;
 }
 

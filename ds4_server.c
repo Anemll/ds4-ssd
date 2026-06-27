@@ -10934,6 +10934,7 @@ static void generate_job(server *s, job *j) {
                                                        ds4_token_eos(s->engine),
                                                        toks,
                                                        (int)(sizeof(toks) / sizeof(toks[0])),
+                                                       NULL,
                                                        err,
                                                        sizeof(err));
             if (ntok < 0) {

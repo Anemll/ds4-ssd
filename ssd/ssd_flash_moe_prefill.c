@@ -63,6 +63,217 @@ static uint32_t metal_graph_effective_prefill_cap(const ds4_gpu_graph *g) {
     return cap ? cap : 1u;
 }
 
+static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
+        ds4_gpu_graph       *g,
+        const ds4_layer_weights *layer,
+        uint32_t             il,
+        uint32_t             n_tokens,
+        uint64_t             gate_expert_bytes,
+        uint64_t             gate_row_bytes,
+        uint64_t             down_expert_bytes,
+        uint64_t             down_row_bytes,
+        uint32_t             expert_in_dim,
+        uint32_t             expert_mid_dim,
+        uint32_t             out_dim) {
+    if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+        n_tokens == 0 || n_tokens > 4u ||
+        !g->flash_prefill_selected ||
+        !g->batch_router_selected ||
+        !g->batch_router_weights ||
+        !g->batch_ffn_norm ||
+        !g->batch_routed_out ||
+        !g->batch_routed_gate ||
+        !g->batch_routed_up ||
+        !g->batch_routed_mid ||
+        !g->batch_routed_down ||
+        !g->flash_gate_bank[il] ||
+        !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il]) {
+        return false;
+    }
+
+    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    if (!g->flash_mixed_slot_bank ||
+        g->flash_chunked_mixed_bank ||
+        g->flash_per_slot_buffers ||
+        g->flash_per_expert_buffers ||
+        !flash_moe_layer_all_mxfp4_plane_split(flash_layer)) {
+        return false;
+    }
+
+    const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
+    const uint64_t n_pairs = (uint64_t)n_tokens * active_expert_used;
+    if (n_pairs == 0 || n_pairs > 4u * DS4_N_EXPERT_ACTIVE_USED) return false;
+
+    int32_t true_ids[4u * DS4_N_EXPERT_ACTIVE_USED];
+    int32_t slot_ids[4u * DS4_N_EXPERT_ACTIVE_USED];
+    bool protected_experts[DS4_MAX_EXPERT];
+    memset(protected_experts, 0, sizeof(protected_experts));
+
+    bool ok = ds4_gpu_end_commands() != 0;
+    if (!ok) return false;
+    ok = ds4_gpu_tensor_read(g->batch_router_selected,
+                             0,
+                             true_ids,
+                             n_pairs * sizeof(true_ids[0])) != 0;
+    const uint64_t miss_before = g->flash_misses;
+    for (uint64_t pair = 0; ok && pair < n_pairs; pair++) {
+        const int32_t true_expert = true_ids[pair];
+        if (true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+            ok = false;
+            break;
+        }
+        ok = metal_graph_flash_moe_install(g,
+                                           il,
+                                           true_expert,
+                                           protected_experts,
+                                           &slot_ids[pair]);
+        if (ok) protected_experts[true_expert] = true;
+    }
+    if (ok) {
+        ok = ds4_gpu_tensor_write(g->flash_prefill_selected,
+                                  0,
+                                  slot_ids,
+                                  n_pairs * sizeof(slot_ids[0])) != 0;
+    }
+    if (ok) ok = ds4_gpu_begin_commands() != 0;
+    if (!ok) return false;
+
+    const uint64_t gate_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : gate_expert_bytes;
+    const uint64_t down_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : down_expert_bytes;
+    bool mid_is_f16 = false;
+    ok = ds4_gpu_routed_moe_banked_batch_tensor(g->batch_routed_out,
+                                                g->batch_routed_gate,
+                                                g->batch_routed_up,
+                                                g->batch_routed_mid,
+                                                g->batch_routed_down,
+                                                g->flash_gate_bank[il],
+                                                g->flash_up_bank[il],
+                                                g->flash_down_bank[il],
+                                                g->flash_slot_bank,
+                                                layer->ffn_gate_exps->type,
+                                                layer->ffn_down_exps->type,
+                                                gate_expert_bytes,
+                                                gate_slot_stride,
+                                                gate_row_bytes,
+                                                down_expert_bytes,
+                                                down_slot_stride,
+                                                down_row_bytes,
+                                                expert_in_dim,
+                                                expert_mid_dim,
+                                                out_dim,
+                                                g->flash_prefill_selected,
+                                                g->batch_router_weights,
+                                                active_expert_used,
+                                                DS4_SWIGLU_CLAMP_EXP,
+                                                g->batch_ffn_norm,
+                                                n_tokens) != 0;
+    g->batch_routed_mid_is_f16 = mid_is_f16;
+    if (ok) {
+        static bool logged = false;
+        if (!logged && !backend_diagnostic_logs_suppressed()) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: MTP sidecar verifier: MXFP4 slot-bank tiny batch path "
+                    "engaged (n_tokens<=4, misses=%" PRIu64 ")\n",
+                    (uint64_t)(g->flash_misses - miss_before));
+        }
+    }
+    return ok;
+}
+
+static bool metal_graph_flash_moe_run_resident_batch_slotbank(
+        ds4_gpu_graph       *g,
+        const ds4_layer_weights *layer,
+        uint32_t             il,
+        uint32_t             n_tokens,
+        uint64_t             gate_expert_bytes,
+        uint64_t             gate_row_bytes,
+        uint64_t             down_expert_bytes,
+        uint64_t             down_row_bytes,
+        uint32_t             expert_in_dim,
+        uint32_t             expert_mid_dim,
+        uint32_t             out_dim) {
+    if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+        n_tokens == 0 || n_tokens > 5u ||
+        !g->batch_router_selected ||
+        !g->batch_router_weights ||
+        !g->batch_ffn_norm ||
+        !g->batch_routed_out ||
+        !g->batch_routed_gate ||
+        !g->batch_routed_up ||
+        !g->batch_routed_mid ||
+        !g->batch_routed_down ||
+        !g->flash_gate_bank[il] ||
+        !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il]) {
+        return false;
+    }
+
+    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    const bool hybrid_batch_experiment =
+        env_flag_enabled("DS4_MTP_HYBRID_BATCH_VERIFY_EXPERIMENT");
+    if (!g->flash_mixed_slot_bank ||
+        g->flash_chunked_mixed_bank ||
+        g->flash_per_slot_buffers ||
+        g->flash_per_expert_buffers ||
+        g->flash_direct_mmap_bank ||
+        g->flash_slot_bank < DS4_N_EXPERT ||
+        !env_flag_enabled("DS4_FLASH_MOE_PRELOAD_SLOT_BANK") ||
+        (flash_moe_layer_iq2_gate_up_mxfp4_down_plane_split(flash_layer) &&
+         !hybrid_batch_experiment) ||
+        flash_moe_layer_all_mxfp4_plane_split(flash_layer)) {
+        return false;
+    }
+
+    const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
+    const uint64_t gate_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : gate_expert_bytes;
+    const uint64_t down_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : down_expert_bytes;
+
+    const bool ok =
+        ds4_gpu_routed_moe_banked_batch_tensor(g->batch_routed_out,
+                                               g->batch_routed_gate,
+                                               g->batch_routed_up,
+                                               g->batch_routed_mid,
+                                               g->batch_routed_down,
+                                               g->flash_gate_bank[il],
+                                               g->flash_up_bank[il],
+                                               g->flash_down_bank[il],
+                                               g->flash_slot_bank,
+                                               layer->ffn_gate_exps->type,
+                                               layer->ffn_down_exps->type,
+                                               gate_expert_bytes,
+                                               gate_slot_stride,
+                                               gate_row_bytes,
+                                               down_expert_bytes,
+                                               down_slot_stride,
+                                               down_row_bytes,
+                                               expert_in_dim,
+                                               expert_mid_dim,
+                                               out_dim,
+                                               g->batch_router_selected,
+                                               g->batch_router_weights,
+                                               active_expert_used,
+                                               DS4_SWIGLU_CLAMP_EXP,
+                                               g->batch_ffn_norm,
+                                               n_tokens) != 0;
+    g->batch_routed_mid_is_f16 = false;
+    if (ok) {
+        static bool logged = false;
+        if (!logged && !backend_diagnostic_logs_suppressed()) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: MTP sidecar verifier: resident slot-bank tiny batch path "
+                    "engaged (n_tokens<=5, slot id == expert id)\n");
+        }
+    }
+    return ok;
+}
+
 static bool metal_graph_flash_moe_run_prefill_dedup(
         ds4_gpu_graph       *g,
         const ds4_layer_weights *layer,

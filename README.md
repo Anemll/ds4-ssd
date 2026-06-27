@@ -192,6 +192,88 @@ curl http://127.0.0.1:8000/v1/models
 Use that id in API calls unless you intentionally want a compatibility alias:
 `deepseek-chat` disables thinking and `deepseek-reasoner` enables thinking.
 
+## Run MTP With A Sidecar
+
+MTP speculative decoding is optional. It uses the normal sidecar or resident
+sidecar model as the target, plus a small support GGUF that drafts candidate
+tokens. Download the support model first:
+
+```sh
+./download_model.sh mtp
+export DS4_MTP_GGUF="$PWD/gguf/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf"
+```
+
+For a basic sidecar MTP smoke test, keep the draft length at 2 and use greedy
+decoding:
+
+```sh
+DS4_AGENT_ALLOW_BACKEND_STATS=1 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --mtp "$DS4_MTP_GGUF" \
+  --mtp-draft 2 \
+  --mtp-margin 0 \
+  --temp 0 \
+  --nothink \
+  -n 128 \
+  -p "Write a short Python function that parses a CSV line with quoted fields."
+```
+
+Expected startup logs include:
+
+```text
+MTP support model loaded
+MTP sidecar verifier
+```
+
+Expected summary output includes an acceptance line when MTP ran:
+
+```text
+ds4: mtp acceptance: 86.3% (1740/2016 draft tokens)
+```
+
+If the acceptance line is missing, MTP did not actually draft or verify tokens.
+Check that `--mtp "$DS4_MTP_GGUF"` was passed and that `--mtp-draft` is greater
+than 1.
+
+For fully resident sidecar runs, enable the sidecar batch verifier. This is the
+path to test MTP with the all-expert resident slot bank and without SSD
+decode-miss I/O:
+
+```sh
+DS4_AGENT_ALLOW_BACKEND_STATS=1 \
+DS4_MTP_SIDECAR_BATCH_VERIFY=1 \
+./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --resident \
+  --mtp "$DS4_MTP_GGUF" \
+  --mtp-draft 2 \
+  --mtp-margin 0 \
+  --temp 0 \
+  --nothink \
+  -n 256 \
+  -p "Hello"
+```
+
+For full native MXFP4 sidecars, set `DS4_MTP_SIDECAR_BATCH_VERIFY=1`; otherwise
+DS4 skips MTP by default because the exact sidecar verifier is slower than
+ordinary banked decode on that layout.
+
+For hybrid resident sidecars with `IQ2_XXS` gate/up and `MXFP4_NATIVE` down,
+`DS4_MTP_SIDECAR_BATCH_VERIFY=1` intentionally falls back to exact decode2 by
+default. The experimental hybrid batch verifier is available for profiling, but
+was measured slower than exact decode2:
+
+```sh
+DS4_MTP_HYBRID_BATCH_VERIFY_EXPERIMENT=1 \
+DS4_MTP_SIDECAR_BATCH_VERIFY=1 \
+./ds4 -m "$DS4_SIDECAR_DIR" --resident --mtp "$DS4_MTP_GGUF" --mtp-draft 2
+```
+
+MTP is only expected to help when the target verifier is cheaper than the
+accepted target tokens it replaces. A high acceptance rate alone does not
+guarantee a speedup; compare the final `generation:` tokens-per-second line
+against the same command without `--mtp`.
+
 ### Experimental Pro Support
 
 DeepSeek V4 Pro sidecar support is experimental. For Pro agent runs, use

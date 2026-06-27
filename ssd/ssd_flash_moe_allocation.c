@@ -2111,6 +2111,26 @@ static bool metal_graph_enable_flash_moe(
         flash_moe_auto_per_slot_buffers_enabled(sidecar);
     const bool per_slot = !per_expert && (per_slot_env || per_slot_auto);
     const bool per_slot_lazy = per_slot && flash_moe_per_slot_lazy_alloc_enabled();
+    if (!per_expert && !direct_mmap && !per_slot) {
+        const char *slot_bank_env = getenv("DS4_FLASH_MOE_SLOT_BANK");
+        if (slot_bank_env && slot_bank_env[0]) {
+            char *end = NULL;
+            errno = 0;
+            unsigned long v = strtoul(slot_bank_env, &end, 10);
+            if (errno == 0 && end != slot_bank_env &&
+                v >= active_expert_used && v <= DS4_N_EXPERT) {
+                const uint32_t requested = (uint32_t)v;
+                if (requested != sidecar->slot_bank) {
+                    fprintf(stderr,
+                            "ds4: Flash-MoE slot bank override: manifest %u -> %u slots "
+                            "(DS4_FLASH_MOE_SLOT_BANK)\n",
+                            sidecar->slot_bank,
+                            requested);
+                    ((ds4_flash_moe_sidecar *)sidecar)->slot_bank = requested;
+                }
+            }
+        }
+    }
     const uint32_t requested_slot_bank =
         (per_expert || direct_mmap) ? DS4_N_EXPERT : sidecar->slot_bank;
     uint32_t effective_slot_bank = requested_slot_bank;
