@@ -10924,9 +10924,15 @@ static void generate_job(server *s, job *j) {
 
         int toks[17];
         int ntok = 0;
-        if (temperature <= 0.0f &&
-            ds4_engine_mtp_draft_tokens(s->engine) > 1 &&
-            getenv("DS4_MTP_SPEC_DISABLE") == NULL)
+        const bool dspark_draft_enabled =
+            ds4_engine_dspark_draft_tokens(s->engine) > 0;
+        const bool mtp_draft_enabled =
+            ds4_engine_mtp_draft_tokens(s->engine) > 1;
+        const bool use_speculative =
+            temperature <= 0.0f &&
+            ((dspark_draft_enabled && getenv("DS4_DSPARK_SPEC_DISABLE") == NULL) ||
+             (mtp_draft_enabled && getenv("DS4_MTP_SPEC_DISABLE") == NULL));
+        if (use_speculative)
         {
             ntok = ds4_session_eval_speculative_argmax(s->session,
                                                        token,
@@ -11810,6 +11816,18 @@ static void usage(FILE *fp) {
         "      Maximum autoregressive MTP draft tokens per speculative step. Default: 1\n"
         "  --mtp-margin F\n"
         "      Minimum recursive-draft confidence for the fast N=2 verifier. Default: 3\n"
+        "  --draft dspark\n"
+        "      Use a DSpark draft package for speculative decoding. Greedy only.\n"
+        "  --draft-path PATH\n"
+        "      DS4 DSpark draft package directory.\n"
+        "  --draft-verify N\n"
+        "      Static DSpark verification budget, 0..5. Default: 4\n"
+        "  --draft-mode strict|batch\n"
+        "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch is experimental fast mode.\n"
+        "  --draft-scheduler static|confidence\n"
+        "      DSpark verification scheduler. Default: static\n"
+        "  --draft-conf-threshold F\n"
+        "      DSpark confidence threshold for the confidence scheduler. Default: 0\n"
         "  --moe-sidecar PATH\n"
         "      Flash-MoE sidecar directory containing manifest.json and expert records.\n"
         "  --moe-mode NAME\n"
@@ -11926,6 +11944,28 @@ static ds4_moe_mode parse_moe_mode_arg(const char *s, const char *arg) {
     exit(2);
 }
 
+static ds4_draft_kind parse_draft_kind_arg(const char *s, const char *arg) {
+    if (!strcmp(s, "none") || !strcmp(s, "off")) return DS4_DRAFT_NONE;
+    if (!strcmp(s, "dspark")) return DS4_DRAFT_DSPARK;
+    server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
+    server_log(DS4_LOG_DEFAULT, "ds4-server: valid draft modes are: none, dspark");
+    exit(2);
+}
+
+static const char *parse_draft_scheduler_arg(const char *s, const char *arg) {
+    if (!strcmp(s, "static") || !strcmp(s, "confidence")) return s;
+    server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
+    server_log(DS4_LOG_DEFAULT, "ds4-server: valid DSpark schedulers are: static, confidence");
+    exit(2);
+}
+
+static const char *parse_draft_mode_arg(const char *s, const char *arg) {
+    if (!strcmp(s, "strict") || !strcmp(s, "batch")) return s;
+    server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
+    server_log(DS4_LOG_DEFAULT, "ds4-server: valid DSpark draft modes are: strict, batch");
+    exit(2);
+}
+
 static ds4_backend default_server_backend(void) {
 #ifdef DS4_NO_GPU
     return DS4_BACKEND_CPU;
@@ -11943,6 +11983,10 @@ static server_config parse_options(int argc, char **argv) {
             .backend = default_server_backend(),
             .mtp_draft_tokens = 1,
             .mtp_margin = 3.0f,
+            .draft_kind = DS4_DRAFT_NONE,
+            .draft_verify = 5,
+            .draft_scheduler = "static",
+            .draft_conf_threshold = 0.0f,
             .moe_mode = DS4_MOE_MODE_OFF,
             .moe_slot_bank = 32,
         },
@@ -11968,6 +12012,28 @@ static server_config parse_options(int argc, char **argv) {
             c.engine.mtp_draft_tokens = parse_int_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--mtp-margin")) {
             c.engine.mtp_margin = parse_float_arg(need_arg(&i, argc, argv, arg), arg, 0.0f, 1000.0f);
+        } else if (!strcmp(arg, "--draft")) {
+            c.engine.draft_kind = parse_draft_kind_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--draft-path")) {
+            c.engine.draft_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--draft-verify")) {
+            c.engine.draft_verify = parse_nonneg_int_arg(need_arg(&i, argc, argv, arg), arg);
+            if (c.engine.draft_verify > 5) {
+                server_log(DS4_LOG_DEFAULT, "ds4-server: --draft-verify must be <= 5");
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--draft-mode")) {
+            const char *mode = parse_draft_mode_arg(need_arg(&i, argc, argv, arg), arg);
+            if (setenv("DS4_DSPARK_VERIFY_CANONICAL", mode, 1) != 0) {
+                server_log(DS4_LOG_DEFAULT,
+                           "ds4-server: failed to set DS4_DSPARK_VERIFY_CANONICAL=%s",
+                           mode);
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--draft-scheduler")) {
+            c.engine.draft_scheduler = parse_draft_scheduler_arg(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--draft-conf-threshold")) {
+            c.engine.draft_conf_threshold = parse_float_arg(need_arg(&i, argc, argv, arg), arg, 0.0f, 1.0f);
         } else if (!strcmp(arg, "--moe-sidecar")) {
             c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--moe-mode")) {
@@ -12062,6 +12128,14 @@ static server_config parse_options(int argc, char **argv) {
     if (c.engine.directional_steering_file && !directional_steering_scale_set) {
         c.engine.directional_steering_ffn = 1.0f;
     }
+    if (c.engine.draft_kind == DS4_DRAFT_DSPARK && (!c.engine.draft_path || !c.engine.draft_path[0])) {
+        server_log(DS4_LOG_DEFAULT, "ds4-server: --draft dspark requires --draft-path");
+        exit(2);
+    }
+    if (c.engine.draft_kind == DS4_DRAFT_NONE && c.engine.draft_path && c.engine.draft_path[0]) {
+        server_log(DS4_LOG_DEFAULT, "ds4-server: --draft-path requires --draft dspark");
+        exit(2);
+    }
     c.engine.ctx_size = c.ctx_size;
     if (!c.engine.resident &&
         c.engine.moe_sidecar_path && c.engine.moe_mode == DS4_MOE_MODE_OFF) {
@@ -12104,6 +12178,17 @@ int main(int argc, char **argv) {
 
     ds4_engine *engine = NULL;
     if (ds4_engine_open(&engine, &cfg.engine) != 0) return 1;
+    const char *dspark_partial = getenv("DS4_DSPARK_ALLOW_PARTIAL");
+    const bool dspark_partial_allowed =
+        dspark_partial && dspark_partial[0] && atoi(dspark_partial) != 0;
+    if (ds4_engine_has_dspark(engine) &&
+        !ds4_engine_dspark_inference_ready(engine) &&
+        !dspark_partial_allowed) {
+        server_log(DS4_LOG_DEFAULT,
+                   "ds4-server: DSpark draft package validated, but draft inference kernels are not enabled yet");
+        ds4_engine_close(engine);
+        return 1;
+    }
 
     ds4_session *session = NULL;
     if (ds4_session_create(&session, engine, cfg.ctx_size) != 0) {

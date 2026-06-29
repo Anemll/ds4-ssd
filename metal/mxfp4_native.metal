@@ -433,6 +433,121 @@ kernel void kernel_dsv4_mxfp4_plane_id_batch_sum6_f32(
     }
 }
 
+kernel void kernel_dsv4_mxfp4_plane_id_batch_pair_swiglu_strided_f32(
+        device const float *x                [[buffer(0)]],  // [n_tokens][in_dim]
+        device const uchar *gate_data        [[buffer(1)]],
+        device const uchar *gate_scales      [[buffer(2)]],
+        device const uchar *up_data          [[buffer(3)]],
+        device const uchar *up_scales        [[buffer(4)]],
+        device const int   *selected         [[buffer(5)]],  // [n_tokens][6] slot ids
+        device const float *weights          [[buffer(6)]],  // [n_tokens][6] route weights
+        device float       *gate_out         [[buffer(7)]],  // [n_tokens][6][mid_dim]
+        device float       *up_out           [[buffer(8)]],  // [n_tokens][6][mid_dim]
+        device float       *mid              [[buffer(9)]],  // [n_tokens][6][mid_dim]
+        constant uint      &in_dim           [[buffer(10)]],
+        constant uint      &mid_dim          [[buffer(11)]],
+        constant uint      &data_slot_stride [[buffer(12)]],
+        constant uint      &scale_slot_stride[[buffer(13)]],
+        constant float     &clamp_value      [[buffer(14)]],
+        constant uint      &write_clamped    [[buffer(15)]],
+        constant uint      &n_tokens         [[buffer(16)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint token = tgpig.y;
+    const uint route = tgpig.z;
+    if (token >= n_tokens || route >= 6u) return;
+    const uint pair = token * 6u + route;
+    const int slot_i = selected[pair];
+    if (slot_i < 0) return;
+    const uint slot = uint(slot_i);
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+
+    device const float *x_row = x + (ulong)token * in_dim;
+    device const uchar *gate_data_cur = gate_data + (ulong)slot * data_slot_stride;
+    device const uchar *gate_scales_cur = gate_scales + (ulong)slot * scale_slot_stride;
+    device const uchar *up_data_cur = up_data + (ulong)slot * data_slot_stride;
+    device const uchar *up_scales_cur = up_scales + (ulong)slot * scale_slot_stride;
+    float sumg[2] = { 0.0f, 0.0f };
+    float sumu[2] = { 0.0f, 0.0f };
+
+    ds4mx_plane_dot2_accum(gate_data_cur, gate_scales_cur, x_row,
+                           mid_dim, in_dim, row0, tiisg, sumg);
+    ds4mx_plane_dot2_accum(up_data_cur, up_scales_cur, x_row,
+                           mid_dim, in_dim, row0, tiisg, sumu);
+
+    const float route_weight = weights[pair];
+    const ulong route_base = ((ulong)token * 6ul + (ulong)route) * mid_dim;
+    device float *gate_route = gate_out + route_base;
+    device float *up_route = up_out + route_base;
+    device float *mid_route = mid + route_base;
+
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float gate_sum = simd_sum(sumg[r]);
+        const float up_sum = simd_sum(sumu[r]);
+        if (tiisg == 0 && row < mid_dim) {
+            float g = gate_sum;
+            float u = up_sum;
+            gate_route[row] = g;
+            up_route[row] = u;
+            if (clamp_value > 1.0e-6f) {
+                g = min(g, clamp_value);
+                u = clamp(u, -clamp_value, clamp_value);
+            }
+            if (write_clamped != 0u) {
+                gate_route[row] = g;
+                up_route[row] = u;
+            }
+            const float silu = g / (1.0f + exp(-g));
+            mid_route[row] = silu * u * route_weight;
+        }
+    }
+}
+
+kernel void kernel_dsv4_mxfp4_plane_id_batch_sum6_strided_f32(
+        device const uchar *down_data        [[buffer(0)]],
+        device const uchar *down_scales      [[buffer(1)]],
+        device const int   *selected         [[buffer(2)]],  // [n_tokens][6] slot ids
+        device const float *mid              [[buffer(3)]],  // [n_tokens][6][mid_dim]
+        device float       *out              [[buffer(4)]],  // [n_tokens][out_dim]
+        constant uint      &mid_dim          [[buffer(5)]],
+        constant uint      &out_dim          [[buffer(6)]],
+        constant uint      &data_slot_stride [[buffer(7)]],
+        constant uint      &scale_slot_stride[[buffer(8)]],
+        constant uint      &n_tokens         [[buffer(9)]],
+        uint3 tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]])
+{
+    const uint token = tgpig.y;
+    if (token >= n_tokens) return;
+    const uint row0 = (tgpig.x * 2u + uint(sgitg)) * 2u;
+    float sumf[2] = { 0.0f, 0.0f };
+
+    for (uint route = 0; route < 6u; route++) {
+        const uint pair = token * 6u + route;
+        const int slot_i = selected[pair];
+        if (slot_i < 0) continue;
+        const uint slot = uint(slot_i);
+        device const uchar *down_data_cur = down_data + (ulong)slot * data_slot_stride;
+        device const uchar *down_scales_cur = down_scales + (ulong)slot * scale_slot_stride;
+        device const float *mid_route = mid + ((ulong)token * 6ul + (ulong)route) * mid_dim;
+        ds4mx_plane_dot2_accum(down_data_cur, down_scales_cur, mid_route,
+                               out_dim, mid_dim, row0, tiisg, sumf);
+    }
+
+    device float *out_row = out + (ulong)token * out_dim;
+    for (uint r = 0; r < 2u; r++) {
+        const uint row = row0 + r;
+        const float sum = simd_sum(sumf[r]);
+        if (tiisg == 0 && row < out_dim) {
+            out_row[row] = sum;
+        }
+    }
+}
+
 kernel void kernel_dsv4_mxfp4_plane_slots6_sum6_f32(
         device const uchar *down_data0   [[buffer(0)]],
         device const uchar *down_data1   [[buffer(1)]],

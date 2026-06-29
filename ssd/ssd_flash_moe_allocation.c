@@ -90,9 +90,12 @@ static uint64_t metal_graph_release_prefill_scratch(ds4_gpu_graph *g) {
     DS4_RELEASE_PREFILL_TENSOR(batch_group_tmp);
     DS4_RELEASE_PREFILL_TENSOR(batch_attn_out);
     DS4_RELEASE_PREFILL_TENSOR(batch_attn_low);
+    DS4_RELEASE_PREFILL_TENSOR(batch_heads_raw);
     DS4_RELEASE_PREFILL_TENSOR(batch_heads);
     DS4_RELEASE_PREFILL_TENSOR(batch_indexer_weights);
     DS4_RELEASE_PREFILL_TENSOR(batch_indexer_q);
+    DS4_RELEASE_PREFILL_TENSOR(batch_index_comp_sc);
+    DS4_RELEASE_PREFILL_TENSOR(batch_index_comp_kv);
     DS4_RELEASE_PREFILL_TENSOR(batch_comp_sc);
     DS4_RELEASE_PREFILL_TENSOR(batch_comp_kv);
     DS4_RELEASE_PREFILL_TENSOR(batch_kv);
@@ -147,6 +150,7 @@ static bool metal_graph_ensure_prefill_scratch(
     const uint64_t comp_width_max = 2ull * (DS4_N_HEAD_DIM > DS4_N_INDEXER_HEAD_DIM
         ? DS4_N_HEAD_DIM
         : DS4_N_INDEXER_HEAD_DIM);
+    const uint64_t index_comp_width = 2ull * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t pc = g->prefill_cap ? g->prefill_cap : 1u;
     uint64_t moe_pc = g->batch_routed_scratch_cap;
@@ -155,6 +159,12 @@ static bool metal_graph_ensure_prefill_scratch(
         g->batch_routed_scratch_cap = (uint32_t)moe_pc;
     }
     const bool ane_shared_batch = metal_graph_batch_shared_expert_uses_ane();
+    const bool needs_batch_shared_tensors =
+        !ane_shared_batch || ds4_dspark_is_loaded(g->dspark);
+    const bool needs_attn_stage_audit =
+        env_flag_enabled("DS4_DSPARK_HYBRID_ATTN_STAGE_AUDIT");
+    const bool needs_index_comp_rows =
+        env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS");
 
 #define DS4_ENSURE_PREFILL_TENSOR(name, bytes) do {                    \
         if (!g->name) g->name = ds4_gpu_tensor_alloc((bytes));          \
@@ -175,9 +185,16 @@ static bool metal_graph_ensure_prefill_scratch(
     DS4_ENSURE_PREFILL_TENSOR(batch_kv, pc * DS4_N_HEAD_DIM * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_comp_kv, pc * comp_width_max * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_comp_sc, pc * comp_width_max * sizeof(float));
+    if (needs_index_comp_rows) {
+        DS4_ENSURE_PREFILL_TENSOR(batch_index_comp_kv, pc * index_comp_width * sizeof(float));
+        DS4_ENSURE_PREFILL_TENSOR(batch_index_comp_sc, pc * index_comp_width * sizeof(float));
+    }
     DS4_ENSURE_PREFILL_TENSOR(batch_indexer_q, pc * indexer_q_dim * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_indexer_weights, pc * DS4_N_INDEXER_HEAD * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_heads, pc * q_dim * sizeof(float));
+    if (needs_attn_stage_audit) {
+        DS4_ENSURE_PREFILL_TENSOR(batch_heads_raw, pc * q_dim * sizeof(float));
+    }
     DS4_ENSURE_PREFILL_TENSOR(batch_attn_low, pc * low_dim * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_attn_out, pc * DS4_N_EMBD * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_group_tmp, pc * group_dim * sizeof(float));
@@ -185,7 +202,7 @@ static bool metal_graph_ensure_prefill_scratch(
     DS4_ENSURE_PREFILL_TENSOR(batch_after_attn_hc, pc * hc_dim * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_ffn_cur, pc * DS4_N_EMBD * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_ffn_norm, pc * DS4_N_EMBD * sizeof(float));
-    if (!ane_shared_batch) {
+    if (needs_batch_shared_tensors) {
         DS4_ENSURE_PREFILL_TENSOR(batch_shared_gate, pc * shared_dim * sizeof(float));
         DS4_ENSURE_PREFILL_TENSOR(batch_shared_up, pc * shared_dim * sizeof(float));
         DS4_ENSURE_PREFILL_TENSOR(batch_shared_mid, pc * shared_dim * sizeof(float));
@@ -212,11 +229,14 @@ static bool metal_graph_ensure_prefill_scratch(
         g->batch_qr && g->batch_qr_norm && g->batch_q &&
         g->batch_kv_raw && g->batch_kv &&
         g->batch_comp_kv && g->batch_comp_sc &&
+        (!needs_index_comp_rows ||
+         (g->batch_index_comp_kv && g->batch_index_comp_sc)) &&
         g->batch_indexer_q && g->batch_indexer_weights &&
-        g->batch_heads && g->batch_attn_low && g->batch_attn_out &&
+        g->batch_heads && (!needs_attn_stage_audit || g->batch_heads_raw) &&
+        g->batch_attn_low && g->batch_attn_out &&
         g->batch_group_tmp && g->batch_low_tmp && g->batch_after_attn_hc &&
         g->batch_ffn_cur && g->batch_ffn_norm &&
-        (ane_shared_batch ||
+        (!needs_batch_shared_tensors ||
          (g->batch_shared_gate && g->batch_shared_up && g->batch_shared_mid)) &&
         g->batch_shared_out &&
         g->batch_router_logits && g->batch_router_probs &&
@@ -304,9 +324,12 @@ static bool metal_graph_alloc_raw_cap(
     const uint64_t comp_width_max = 2ull * (DS4_N_HEAD_DIM > DS4_N_INDEXER_HEAD_DIM
         ? DS4_N_HEAD_DIM
         : DS4_N_INDEXER_HEAD_DIM);
+    const uint64_t index_comp_width = 2ull * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t pc = prefill_cap;
     const bool ane_shared_batch = metal_graph_batch_shared_expert_uses_ane();
+    const bool needs_batch_shared_tensors = !ane_shared_batch || enable_mtp;
+    const bool needs_index_comp_rows = env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS");
     const uint64_t moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill(prefill_cap);
     g->batch_routed_scratch_cap = (uint32_t)moe_pc;
     uint64_t kv_cache_bytes = 0;
@@ -372,6 +395,12 @@ static bool metal_graph_alloc_raw_cap(
                 g->spec_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_prefix1_attn_state_kv[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
                 g->spec_prefix1_attn_state_score[il] = ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
+                for (uint32_t slot = 0; slot < DS4_SPEC_PREFIX_SLOTS; slot++) {
+                    g->spec_prefix_attn_state_kv[slot][il] =
+                        ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
+                    g->spec_prefix_attn_state_score[slot][il] =
+                        ds4_gpu_tensor_alloc(attn_width * attn_rows * sizeof(float));
+                }
             }
             if (g->layer_attn_state_kv[il]) {
                 state_init_ok = state_init_ok &&
@@ -395,6 +424,12 @@ static bool metal_graph_alloc_raw_cap(
                     g->spec_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_kv[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
                     g->spec_prefix1_index_state_score[il] = ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                    for (uint32_t slot = 0; slot < DS4_SPEC_PREFIX_SLOTS; slot++) {
+                        g->spec_prefix_index_state_kv[slot][il] =
+                            ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                        g->spec_prefix_index_state_score[slot][il] =
+                            ds4_gpu_tensor_alloc(index_width * index_rows * sizeof(float));
+                    }
                 }
                 if (g->layer_index_state_kv[il]) {
                     state_init_ok = state_init_ok &&
@@ -440,6 +475,33 @@ static bool metal_graph_alloc_raw_cap(
     g->output_embd = ds4_gpu_tensor_alloc((uint64_t)DS4_N_EMBD * sizeof(float));
     g->output_norm = ds4_gpu_tensor_alloc((uint64_t)DS4_N_EMBD * sizeof(float));
     g->logits = ds4_gpu_tensor_alloc(vocab_dim * sizeof(float));
+    g->dspark_hc_mean_weights = ds4_gpu_tensor_alloc((uint64_t)DS4_N_HC * sizeof(float));
+    g->dspark_target_hidden = ds4_gpu_tensor_alloc(128ull * 3ull * DS4_N_EMBD * sizeof(float));
+    g->dspark_main_proj = ds4_gpu_tensor_alloc(5ull * DS4_N_EMBD * sizeof(float));
+    g->dspark_main_x = ds4_gpu_tensor_alloc(5ull * DS4_N_EMBD * sizeof(float));
+    g->dspark_input_ids = ds4_gpu_tensor_alloc(6ull * sizeof(int32_t));
+    g->dspark_h = ds4_gpu_tensor_alloc(5ull * (uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+    for (uint32_t i = 0; i < 3u; i++) {
+        g->dspark_main_kv[i] = ds4_gpu_tensor_alloc(5ull * DS4_N_HEAD_DIM * sizeof(float));
+        g->dspark_kv_cache[i] = ds4_gpu_tensor_alloc(128ull * DS4_N_HEAD_DIM * sizeof(float));
+        if (g->dspark_kv_cache[i]) {
+            state_init_ok = state_init_ok &&
+                            ds4_gpu_tensor_fill_f32(g->dspark_kv_cache[i],
+                                                     0.0f,
+                                                     128ull * DS4_N_HEAD_DIM) != 0;
+        }
+    }
+    if (g->dspark_hc_mean_weights) {
+        float mean_weights[DS4_MAX_HC];
+        for (uint32_t i = 0; i < DS4_N_HC; i++) {
+            mean_weights[i] = 1.0f / (float)DS4_N_HC;
+        }
+        state_init_ok = state_init_ok &&
+                        ds4_gpu_tensor_write(g->dspark_hc_mean_weights,
+                                             0,
+                                             mean_weights,
+                                             (uint64_t)DS4_N_HC * sizeof(mean_weights[0])) != 0;
+    }
     /*
      * MTP is deliberately outside the normal graph footprint.  A session that
      * does not opt in with --mtp must allocate and execute exactly the same
@@ -478,9 +540,26 @@ static bool metal_graph_alloc_raw_cap(
     g->batch_kv = ds4_gpu_tensor_alloc(pc * DS4_N_HEAD_DIM * sizeof(float));
     g->batch_comp_kv = ds4_gpu_tensor_alloc(pc * comp_width_max * sizeof(float));
     g->batch_comp_sc = ds4_gpu_tensor_alloc(pc * comp_width_max * sizeof(float));
+    if (needs_index_comp_rows) {
+        g->batch_index_comp_kv = ds4_gpu_tensor_alloc(pc * index_comp_width * sizeof(float));
+        g->batch_index_comp_sc = ds4_gpu_tensor_alloc(pc * index_comp_width * sizeof(float));
+    }
     g->batch_indexer_q = ds4_gpu_tensor_alloc(pc * indexer_q_dim * sizeof(float));
     g->batch_indexer_weights = ds4_gpu_tensor_alloc(pc * DS4_N_INDEXER_HEAD * sizeof(float));
     g->batch_heads = ds4_gpu_tensor_alloc(pc * q_dim * sizeof(float));
+    if (env_flag_enabled("DS4_DSPARK_HYBRID_ATTN_STAGE_AUDIT") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_MIXED_SHARED_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_MIXED_VEC_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_VEC_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_DIRECT_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_DIRECT_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARSTREAM_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARSTREAM_COMPARE")) {
+        g->batch_heads_raw = ds4_gpu_tensor_alloc(pc * q_dim * sizeof(float));
+    }
     g->batch_attn_low = ds4_gpu_tensor_alloc(pc * low_dim * sizeof(float));
     g->batch_attn_out = ds4_gpu_tensor_alloc(pc * DS4_N_EMBD * sizeof(float));
     g->batch_group_tmp = ds4_gpu_tensor_alloc(pc * group_dim * sizeof(float));
@@ -488,7 +567,7 @@ static bool metal_graph_alloc_raw_cap(
     g->batch_after_attn_hc = ds4_gpu_tensor_alloc(pc * hc_dim * sizeof(float));
     g->batch_ffn_cur = ds4_gpu_tensor_alloc(pc * DS4_N_EMBD * sizeof(float));
     g->batch_ffn_norm = ds4_gpu_tensor_alloc(pc * DS4_N_EMBD * sizeof(float));
-    if (!ane_shared_batch) {
+    if (needs_batch_shared_tensors) {
         g->batch_shared_gate = ds4_gpu_tensor_alloc(pc * shared_dim * sizeof(float));
         g->batch_shared_up = ds4_gpu_tensor_alloc(pc * shared_dim * sizeof(float));
         g->batch_shared_mid = ds4_gpu_tensor_alloc(pc * shared_dim * sizeof(float));
@@ -518,6 +597,12 @@ static bool metal_graph_alloc_raw_cap(
                                g->spec_attn_state_score[il] != NULL &&
                                g->spec_prefix1_attn_state_kv[il] != NULL &&
                                g->spec_prefix1_attn_state_score[il] != NULL));
+            if (layer_cache_ok && enable_mtp) {
+                for (uint32_t slot = 0; layer_cache_ok && slot < DS4_SPEC_PREFIX_SLOTS; slot++) {
+                    layer_cache_ok = g->spec_prefix_attn_state_kv[slot][il] != NULL &&
+                                     g->spec_prefix_attn_state_score[slot][il] != NULL;
+                }
+            }
         }
         if (layer_cache_ok && ratio == 4) {
             layer_cache_ok = g->layer_index_comp_cache[il] != NULL &&
@@ -528,6 +613,12 @@ static bool metal_graph_alloc_raw_cap(
                                g->spec_index_state_score[il] != NULL &&
                                g->spec_prefix1_index_state_kv[il] != NULL &&
                                g->spec_prefix1_index_state_score[il] != NULL));
+            if (layer_cache_ok && enable_mtp) {
+                for (uint32_t slot = 0; layer_cache_ok && slot < DS4_SPEC_PREFIX_SLOTS; slot++) {
+                    layer_cache_ok = g->spec_prefix_index_state_kv[slot][il] != NULL &&
+                                     g->spec_prefix_index_state_score[slot][il] != NULL;
+                }
+            }
         }
     }
 
@@ -549,6 +640,11 @@ static bool metal_graph_alloc_raw_cap(
                     g->after_ffn_hc &&
                     g->output_pre && g->output_weights && g->output_embd &&
                     g->output_norm && g->logits &&
+                    g->dspark_hc_mean_weights && g->dspark_target_hidden &&
+                    g->dspark_main_proj && g->dspark_main_x &&
+                    g->dspark_input_ids && g->dspark_h &&
+                    g->dspark_main_kv[0] && g->dspark_main_kv[1] && g->dspark_main_kv[2] &&
+                    g->dspark_kv_cache[0] && g->dspark_kv_cache[1] && g->dspark_kv_cache[2] &&
                     (!enable_mtp ||
                      (g->mtp_embed && g->mtp_enorm && g->mtp_eproj &&
                       g->mtp_eproj_hc && g->mtp_hnorm_hc && g->mtp_hproj_hc &&
@@ -561,11 +657,15 @@ static bool metal_graph_alloc_raw_cap(
                     g->batch_qr && g->batch_qr_norm && g->batch_q &&
                     g->batch_kv_raw && g->batch_kv &&
                     g->batch_comp_kv && g->batch_comp_sc &&
+                    (!needs_index_comp_rows ||
+                     (g->batch_index_comp_kv && g->batch_index_comp_sc)) &&
                     g->batch_indexer_q && g->batch_indexer_weights &&
-                    g->batch_heads && g->batch_attn_low && g->batch_attn_out &&
+                    g->batch_heads &&
+                    (!env_flag_enabled("DS4_DSPARK_HYBRID_ATTN_STAGE_AUDIT") || g->batch_heads_raw) &&
+                    g->batch_attn_low && g->batch_attn_out &&
                     g->batch_group_tmp && g->batch_low_tmp && g->batch_after_attn_hc &&
                     g->batch_ffn_cur && g->batch_ffn_norm &&
-                    (ane_shared_batch ||
+                    (!needs_batch_shared_tensors ||
                      (g->batch_shared_gate && g->batch_shared_up &&
                       g->batch_shared_mid)) &&
                     g->batch_shared_out &&

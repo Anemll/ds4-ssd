@@ -26,6 +26,11 @@ typedef enum {
 } ds4_moe_mode;
 
 typedef enum {
+    DS4_DRAFT_NONE,
+    DS4_DRAFT_DSPARK,
+} ds4_draft_kind;
+
+typedef enum {
     DS4_THINK_NONE,
     DS4_THINK_HIGH,
     DS4_THINK_MAX,
@@ -71,6 +76,11 @@ typedef struct {
     int n_threads;
     int mtp_draft_tokens;
     float mtp_margin;
+    ds4_draft_kind draft_kind;
+    const char *draft_path;
+    int draft_verify;
+    const char *draft_scheduler;
+    float draft_conf_threshold;
     const char *directional_steering_file;
     float directional_steering_attn;
     float directional_steering_ffn;
@@ -109,10 +119,30 @@ typedef struct {
     bool available;
     uint32_t moe_slot_bank;
     uint32_t moe_slot_bank_capacity;
+    uint64_t resident_bytes;
+    uint64_t phys_footprint_bytes;
+    uint64_t gpu_footprint_bytes;
     uint64_t gpu_compressed_bytes;
     uint64_t task_compressed_bytes;
+    uint64_t decompressions;
+    uint64_t system_memory_total_bytes;
+    uint64_t system_memory_free_bytes;
+    uint64_t system_memory_active_bytes;
+    uint64_t system_memory_wired_bytes;
     uint64_t system_compressed_bytes;
     uint64_t system_compressor_bytes;
+    uint64_t system_memory_pressure_bytes;
+    uint32_t system_memory_pressure_pct;
+    uint64_t swap_total_bytes;
+    uint64_t swap_used_bytes;
+    uint64_t dspark_perf_blocks;
+    uint64_t dspark_perf_drafted_tokens;
+    uint64_t dspark_perf_committed_tokens;
+    double dspark_perf_draft_seconds;
+    double dspark_perf_snapshot_seconds;
+    double dspark_perf_verify_seconds;
+    double dspark_perf_commit_seconds;
+    double dspark_perf_total_seconds;
 } ds4_runtime_status;
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
@@ -225,6 +255,9 @@ int ds4_session_dump_moe_cache(ds4_session *s, uint32_t target_slots,
 int ds4_engine_routed_quant_bits(ds4_engine *e);
 bool ds4_engine_has_mtp(ds4_engine *e);
 int ds4_engine_mtp_draft_tokens(ds4_engine *e);
+bool ds4_engine_has_dspark(ds4_engine *e);
+bool ds4_engine_dspark_inference_ready(ds4_engine *e);
+int ds4_engine_dspark_draft_tokens(ds4_engine *e);
 const ds4_tokens *ds4_session_tokens(ds4_session *s);
 
 /* Disk KV cache payload helpers.  The server owns the outer file header and

@@ -151,6 +151,8 @@ cuda-regression: tests/cuda_long_context_smoke
 endif
 
 DS4_INCLUDED_SRCS = \
+	dspark.c \
+	dspark.h \
 	ds4_metal_diagnostics.c \
 	ds4_metal_mtp.c \
 	glm52/glm52_model.c \

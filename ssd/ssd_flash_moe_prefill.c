@@ -76,7 +76,7 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
         uint32_t             expert_mid_dim,
         uint32_t             out_dim) {
     if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
-        n_tokens == 0 || n_tokens > 4u ||
+        n_tokens == 0 || n_tokens > 5u ||
         !g->flash_prefill_selected ||
         !g->batch_router_selected ||
         !g->batch_router_weights ||
@@ -103,12 +103,14 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
 
     const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
     const uint64_t n_pairs = (uint64_t)n_tokens * active_expert_used;
-    if (n_pairs == 0 || n_pairs > 4u * DS4_N_EXPERT_ACTIVE_USED) return false;
+    if (n_pairs == 0 || n_pairs > 5u * DS4_N_EXPERT_ACTIVE_USED) return false;
 
-    int32_t true_ids[4u * DS4_N_EXPERT_ACTIVE_USED];
-    int32_t slot_ids[4u * DS4_N_EXPERT_ACTIVE_USED];
+    int32_t true_ids[5u * DS4_N_EXPERT_ACTIVE_USED];
+    int32_t slot_ids[5u * DS4_N_EXPERT_ACTIVE_USED];
     bool protected_experts[DS4_MAX_EXPERT];
     memset(protected_experts, 0, sizeof(protected_experts));
+    const bool identity_selected =
+        metal_graph_flash_moe_identity_gpu_selected_active(g, il);
 
     bool ok = ds4_gpu_end_commands() != 0;
     if (!ok) return false;
@@ -123,12 +125,16 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
             ok = false;
             break;
         }
-        ok = metal_graph_flash_moe_install(g,
-                                           il,
-                                           true_expert,
-                                           protected_experts,
-                                           &slot_ids[pair]);
-        if (ok) protected_experts[true_expert] = true;
+        if (identity_selected) {
+            slot_ids[pair] = true_expert;
+        } else {
+            ok = metal_graph_flash_moe_install(g,
+                                               il,
+                                               true_expert,
+                                               protected_experts,
+                                               &slot_ids[pair]);
+            if (ok) protected_experts[true_expert] = true;
+        }
     }
     if (ok) {
         ok = ds4_gpu_tensor_write(g->flash_prefill_selected,
@@ -176,8 +182,8 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
         if (!logged && !backend_diagnostic_logs_suppressed()) {
             logged = true;
             fprintf(stderr,
-                    "ds4: MTP sidecar verifier: MXFP4 slot-bank tiny batch path "
-                    "engaged (n_tokens<=4, misses=%" PRIu64 ")\n",
+                    "ds4: speculative sidecar verifier: MXFP4 slot-bank tiny batch path "
+                    "engaged (n_tokens<=5, misses=%" PRIu64 ")\n",
                     (uint64_t)(g->flash_misses - miss_before));
         }
     }
@@ -267,7 +273,7 @@ static bool metal_graph_flash_moe_run_resident_batch_slotbank(
         if (!logged && !backend_diagnostic_logs_suppressed()) {
             logged = true;
             fprintf(stderr,
-                    "ds4: MTP sidecar verifier: resident slot-bank tiny batch path "
+                    "ds4: speculative sidecar verifier: resident slot-bank tiny batch path "
                     "engaged (n_tokens<=5, slot id == expert id)\n");
         }
     }

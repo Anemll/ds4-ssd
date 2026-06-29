@@ -26,11 +26,15 @@ kernel void kernel_swiglu_f32(
     device       float * dst_row  = (device       float *) ((device       char *) dst  + tgpig*args.nb1);
 
     for (int i0 = tpitg; i0 < args.ne0; i0 += ntg) {
-        const float x0 = src0_row[i0];
-        const float x1 = src1_row[i0];
+        float x0 = src0_row[i0];
+        float x1 = src1_row[i0];
+        if (args.limit > 0.0f) {
+            x1 = clamp(x1, -args.limit, args.limit);
+            x0 = min(x0, args.limit);
+        }
 
         const float silu = x0 / (1.0f + exp(-x0));
 
-        dst_row[i0] = silu*x1;
+        dst_row[i0] = silu*x1*args.alpha;
     }
 }

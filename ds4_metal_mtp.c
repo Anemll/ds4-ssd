@@ -51,18 +51,56 @@ static bool metal_graph_capture_prefix1_attn_state(ds4_gpu_graph *g, uint32_t il
     if (!g->spec_capture_prefix1 || !g->spec_prefix1_attn_state_kv[il]) return true;
     const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_attn_state_kv[il]);
     g->spec_prefix1_n_comp[il] = g->layer_n_comp[il];
-    return ds4_gpu_tensor_copy(g->spec_prefix1_attn_state_kv[il], 0,
-                                 g->layer_attn_state_kv[il], 0, bytes) != 0 &&
-           ds4_gpu_tensor_copy(g->spec_prefix1_attn_state_score[il], 0,
-                                 g->layer_attn_state_score[il], 0, bytes) != 0;
+    return ds4_gpu_tensor_copy_pair(g->spec_prefix1_attn_state_kv[il], 0,
+                                    g->layer_attn_state_kv[il], 0, bytes,
+                                    g->spec_prefix1_attn_state_score[il], 0,
+                                    g->layer_attn_state_score[il], 0, bytes) != 0;
 }
 
 static bool metal_graph_capture_prefix1_index_state(ds4_gpu_graph *g, uint32_t il) {
     if (!g->spec_capture_prefix1 || !g->spec_prefix1_index_state_kv[il]) return true;
     const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_index_state_kv[il]);
     g->spec_prefix1_n_index_comp[il] = g->layer_n_index_comp[il];
-    return ds4_gpu_tensor_copy(g->spec_prefix1_index_state_kv[il], 0,
-                                 g->layer_index_state_kv[il], 0, bytes) != 0 &&
-           ds4_gpu_tensor_copy(g->spec_prefix1_index_state_score[il], 0,
-                                 g->layer_index_state_score[il], 0, bytes) != 0;
+    return ds4_gpu_tensor_copy_pair(g->spec_prefix1_index_state_kv[il], 0,
+                                    g->layer_index_state_kv[il], 0, bytes,
+                                    g->spec_prefix1_index_state_score[il], 0,
+                                    g->layer_index_state_score[il], 0, bytes) != 0;
+}
+
+static bool metal_graph_capture_prefix_attn_state(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       prefix_len) {
+    if (!g || prefix_len == 0 || prefix_len > DS4_SPEC_PREFIX_SLOTS) return false;
+    const uint32_t slot = prefix_len - 1u;
+    if (!g->spec_prefix_attn_state_kv[slot][il]) return true;
+    const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_attn_state_kv[il]);
+    g->spec_prefix_n_comp[slot][il] = g->layer_n_comp[il];
+    return ds4_gpu_tensor_copy_pair(g->spec_prefix_attn_state_kv[slot][il], 0,
+                                    g->layer_attn_state_kv[il], 0, bytes,
+                                    g->spec_prefix_attn_state_score[slot][il], 0,
+                                    g->layer_attn_state_score[il], 0, bytes) != 0;
+}
+
+static bool metal_graph_capture_prefix_index_state(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       prefix_len) {
+    if (!g || prefix_len == 0 || prefix_len > DS4_SPEC_PREFIX_SLOTS) return false;
+    const uint32_t slot = prefix_len - 1u;
+    if (!g->spec_prefix_index_state_kv[slot][il]) return true;
+    const uint64_t bytes = ds4_gpu_tensor_bytes(g->layer_index_state_kv[il]);
+    g->spec_prefix_n_index_comp[slot][il] = g->layer_n_index_comp[il];
+    return ds4_gpu_tensor_copy_pair(g->spec_prefix_index_state_kv[slot][il], 0,
+                                    g->layer_index_state_kv[il], 0, bytes,
+                                    g->spec_prefix_index_state_score[slot][il], 0,
+                                    g->layer_index_state_score[il], 0, bytes) != 0;
+}
+
+static bool metal_graph_capture_prefix_state(
+        ds4_gpu_graph *g,
+        uint32_t       il,
+        uint32_t       prefix_len) {
+    return metal_graph_capture_prefix_attn_state(g, il, prefix_len) &&
+           metal_graph_capture_prefix_index_state(g, il, prefix_len);
 }

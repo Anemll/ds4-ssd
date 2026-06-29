@@ -63,6 +63,138 @@ struct ds4_metal_args_mul_mv_ext {
     int16_t r3;
 };
 
+struct ds4_metal_args_fp8_e4m3_matmul {
+    uint32_t in_dim;
+    uint32_t out_dim;
+    uint32_t scale_cols;
+    uint32_t n_tokens;
+};
+
+struct ds4_metal_args_hc_rms_scale {
+    int32_t n;
+    int32_t n4;
+    uint64_t row_stride;
+    float eps;
+};
+
+constant float ds4_dense_e4m3fn_exp_scale[16] = {
+    0.0f, 0.015625f, 0.03125f, 0.0625f,
+    0.125f, 0.25f, 0.5f, 1.0f,
+    2.0f, 4.0f, 8.0f, 16.0f,
+    32.0f, 64.0f, 128.0f, 256.0f,
+};
+
+static inline float ds4_dense_e8m0_to_float(uchar bits) {
+    return as_type<float>(uint(bits) << 23);
+}
+
+static inline float ds4_dense_e4m3fn_to_float(uchar bits) {
+    const uint sign = bits >> 7;
+    const uint mag = bits & 0x7fu;
+    const uint exp = (mag >> 3) & 0x0fu;
+    const uint mant = mag & 0x07u;
+    const float v = exp == 0u
+        ? float(mant) * 0.001953125f
+        : (1.0f + float(mant) * 0.125f) * ds4_dense_e4m3fn_exp_scale[exp];
+    return sign ? -v : v;
+}
+
+// DSpark dense FP8 sidecar multiply. The exported package stores weights as
+// row-major E4M3FN [out_dim, in_dim] with one E8M0 scale per 128x128 block.
+kernel void kernel_mul_mv_fp8_e4m3_f32(
+        constant ds4_metal_args_fp8_e4m3_matmul & args,
+        device const uchar * weights,
+        device const uchar * scales,
+        device const float * x,
+        device       float * dst,
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]]) {
+    const uint row = tgpig.x;
+    const uint tok = tgpig.y;
+    if (row >= args.out_dim || tok >= args.n_tokens) {
+        return;
+    }
+
+    device const uchar *wrow = weights + (ulong)row * (ulong)args.in_dim;
+    device const float *xrow = x + (ulong)tok * (ulong)args.in_dim;
+    const uint scale_row = row >> 7;
+
+    float sum = 0.0f;
+    for (uint k = tiisg; k < args.in_dim; k += 32u) {
+        const float scale =
+            ds4_dense_e8m0_to_float(scales[(ulong)scale_row * (ulong)args.scale_cols + (k >> 7)]);
+        sum += xrow[k] * ds4_dense_e4m3fn_to_float(wrow[k]) * scale;
+    }
+
+    sum = simd_sum(sum);
+    if (tiisg == 0) {
+        dst[(ulong)tok * (ulong)args.out_dim + row] = sum;
+    }
+}
+
+// DSpark draft FP8 rows kernel for N<=5. It keeps the original per-token
+// reduction order while sharing the weight/scale traversal across draft rows.
+kernel void kernel_mul_mv_fp8_e4m3_f32_rows5(
+        constant ds4_metal_args_fp8_e4m3_matmul & args,
+        device const uchar * weights,
+        device const uchar * scales,
+        device const float * x,
+        device       float * dst,
+        uint   row   [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]]) {
+    if (row >= args.out_dim) {
+        return;
+    }
+
+    device const uchar *wrow = weights + (ulong)row * (ulong)args.in_dim;
+    const uint scale_row = row >> 7;
+
+    float sum0 = 0.0f;
+    float sum1 = 0.0f;
+    float sum2 = 0.0f;
+    float sum3 = 0.0f;
+    float sum4 = 0.0f;
+    for (uint k = tiisg; k < args.in_dim; k += 32u) {
+        const float scale =
+            ds4_dense_e8m0_to_float(scales[(ulong)scale_row * (ulong)args.scale_cols + (k >> 7)]);
+        const float w = ds4_dense_e4m3fn_to_float(wrow[k]);
+        sum0 += x[k] * w * scale;
+        if (args.n_tokens > 1u) {
+            sum1 += x[(ulong)args.in_dim + k] * w * scale;
+        }
+        if (args.n_tokens > 2u) {
+            sum2 += x[2ul * (ulong)args.in_dim + k] * w * scale;
+        }
+        if (args.n_tokens > 3u) {
+            sum3 += x[3ul * (ulong)args.in_dim + k] * w * scale;
+        }
+        if (args.n_tokens > 4u) {
+            sum4 += x[4ul * (ulong)args.in_dim + k] * w * scale;
+        }
+    }
+
+    sum0 = simd_sum(sum0);
+    sum1 = simd_sum(sum1);
+    sum2 = simd_sum(sum2);
+    sum3 = simd_sum(sum3);
+    sum4 = simd_sum(sum4);
+    if (tiisg == 0) {
+        dst[row] = sum0;
+        if (args.n_tokens > 1u) {
+            dst[(ulong)args.out_dim + row] = sum1;
+        }
+        if (args.n_tokens > 2u) {
+            dst[2ul * (ulong)args.out_dim + row] = sum2;
+        }
+        if (args.n_tokens > 3u) {
+            dst[3ul * (ulong)args.out_dim + row] = sum3;
+        }
+        if (args.n_tokens > 4u) {
+            dst[4ul * (ulong)args.out_dim + row] = sum4;
+        }
+    }
+}
+
 template<short NR0>
 static inline void helper_mv_reduce_and_write(
         device float * dst_f32,
@@ -188,6 +320,146 @@ kernel void kernel_mul_mv_q8_0_f32(
         ushort tiisg[[thread_index_in_simdgroup]],
         ushort sgitg[[simdgroup_index_in_threadgroup]]) {
     kernel_mul_mv_q8_0_f32_impl<N_R0_Q8_0, constant ds4_metal_args_mul_mv &>(args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
+
+// DSpark verifier experiment: exact tiny-row Q8_0 matvec for up to five rows.
+// This preserves the decode matvec K/reduction order for each token row while
+// allowing one weight row stream to feed N<=5 verifier token rows.
+template<short NR0, typename args_t>
+void kernel_mul_mv_q8_0_f32_rows5_exact_impl(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    const short NSG = FC_mul_mv_nsg;
+
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr short NQ = 8;
+    constexpr short NT = 5;
+
+    const int nb = args.ne00/QK8_0;
+    const int r0 = tgpig.x*NR0;
+    const int im = tgpig.z;
+
+    const uint i12 = im%args.ne12;
+    const uint i13 = im/args.ne12;
+
+    device const float * y[NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        const uint64_t offset1 = (uint64_t)tok*args.nb11 + (i12)*args.nb12 + (i13)*args.nb13;
+        y[tok] = (tok < args.ne11) ? (device const float *) (src1 + offset1)
+                                   : (device const float *) src1;
+    }
+
+    device const block_q8_0 * ax[NR0];
+    FOR_UNROLL (short row = 0; row < NR0; ++row) {
+        const uint64_t offset0 = (r0 + row)*args.nb01 + (i12/args.r2)*args.nb02 + (i13/args.r3)*args.nb03;
+        ax[row] = (device const block_q8_0 *) ((device char *) src0 + offset0);
+    }
+
+    float sumf[NT][NR0] = {
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+    };
+
+    const short ix = tiisg/(NW/NQ);
+    const short il = tiisg%(NW/NQ);
+    const int ib0 = sgitg*NQ + ix;
+
+    float yl[NT][NQ];
+    device const float * yb[NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        yb[tok] = y[tok] + ib0*QK8_0 + il*NQ;
+    }
+
+    for (int ib = ib0; ib < nb; ib += NSG*NQ) {
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            if (tok < args.ne11) {
+                FOR_UNROLL (short i = 0; i < NQ; ++i) {
+                    yl[tok][i] = yb[tok][i];
+                }
+            }
+        }
+
+        FOR_UNROLL (short row = 0; row < NR0; row++) {
+            device const int8_t * qs = ax[row][ib].qs + il*NQ;
+            const float d = ax[row][ib].d;
+
+            FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+                if (tok < args.ne11) {
+                    float sumq = 0.f;
+                    FOR_UNROLL (short i = 0; i < NQ; ++i) {
+                        sumq += qs[i] * yl[tok][i];
+                    }
+                    sumf[tok][row] += sumq*d;
+                }
+            }
+        }
+
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            yb[tok] += NSG*NQ*QK8_0;
+        }
+    }
+
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        if (tok < args.ne11) {
+            device float * dst_f32 = (device float *) dst +
+                (uint64_t)im*args.ne0*args.ne1 + (uint64_t)tok*args.ne0;
+            helper_mv_reduce_and_write<NR0>(dst_f32, sumf[tok], r0, args.ne01, tiisg, sgitg, shmem);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+}
+
+kernel void kernel_mul_mv_q8_0_f32_rows5_exact(
+        constant ds4_metal_args_mul_mv & args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_q8_0_f32_rows5_exact_impl<N_R0_Q8_0, constant ds4_metal_args_mul_mv &>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
+
+template<short NR0, typename args_t>
+void kernel_mul_mv_q8_0_f32_rows5_seq_exact_impl(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    constexpr short NT = 5;
+
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        if (tok < args.ne11) {
+            uint3 row_tgpig = uint3(tgpig.x, (uint)tok, tgpig.z);
+            kernel_mul_mv_q8_0_f32_impl<NR0, args_t>(
+                    args, src0, src1, dst, shmem, row_tgpig, tiisg, sgitg);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+}
+
+kernel void kernel_mul_mv_q8_0_f32_rows5_seq_exact(
+        constant ds4_metal_args_mul_mv & args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_q8_0_f32_rows5_seq_exact_impl<N_R0_Q8_0, constant ds4_metal_args_mul_mv &>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
 }
 
 // Decode shared-expert gate/up projections followed by SwiGLU:
@@ -546,6 +818,370 @@ typedef decltype(kernel_mul_mv_t_t_4<half, half4, half, half4>) mul_mv_t_t_4;
 // Host-visible vectorized dense matvec variants for F32 and F16 weights.
 template [[host_name("kernel_mul_mv_f32_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<float, float4, float, float4>;
 template [[host_name("kernel_mul_mv_f16_f32_4")]] kernel mul_mv_t_t_4 kernel_mul_mv_t_t_4<half,  half4,  float, float4>;
+
+kernel void kernel_dsv4_hc_rms_scale_f32_4(
+        constant ds4_metal_args_hc_rms_scale & args,
+        device const float4 * x,
+        device       float  * scales,
+        threadgroup  float  * shmem_f32 [[threadgroup(0)]],
+        uint row [[threadgroup_position_in_grid]],
+        ushort tid [[thread_position_in_threadgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]],
+        ushort tiisg [[thread_index_in_simdgroup]],
+        ushort ntg [[threads_per_threadgroup]]) {
+    if (args.n <= 0 || args.n4 <= 0) return;
+    if (sgitg == 0) {
+        shmem_f32[tiisg] = 0.0f;
+    }
+
+    const uint64_t row_stride4 = args.row_stride / sizeof(float4);
+    device const float4 *xr = x + (uint64_t)row * row_stride4;
+
+    float sumf = 0.0f;
+    for (int i = tid; i < args.n4; i += ntg) {
+        const float4 v = xr[i];
+        sumf += dot(v, v);
+    }
+    sumf = simd_sum(sumf);
+
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (tiisg == 0) {
+        shmem_f32[sgitg] = sumf;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    sumf = shmem_f32[tiisg];
+    sumf = simd_sum(sumf);
+    if (tid == 0) {
+        scales[row] = 1.0f / sqrt(sumf / float(args.n) + args.eps);
+    }
+}
+
+template<short NR0, typename args_t>
+void kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_impl(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device const float * scales,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    const short NSG = FC_mul_mv_nsg;
+
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr short NB  = 32;
+    constexpr short NF  = 16;
+    constexpr short NF4 = NF/4;
+    constexpr short NT  = 5;
+
+    const int nb = args.ne00/NB;
+    const int r0 = tgpig.x*NR0;
+    const int im = tgpig.z;
+
+    const uint i12 = im%args.ne12;
+    const uint i13 = im/args.ne12;
+
+    device const float4 * y4[NT];
+    device const float  * y [NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        const uint64_t offset1 = (uint64_t)tok*args.nb11 + (i12)*args.nb12 + (i13)*args.nb13;
+        y4[tok] = (tok < args.ne11) ? (device const float4 *) (src1 + offset1) : (device const float4 *) src1;
+        y [tok] = (tok < args.ne11) ? (device const float  *) (src1 + offset1) : (device const float  *) src1;
+    }
+
+    device const half  * ax [NR0];
+    device const half4 * ax4[NR0];
+    FOR_UNROLL (short row = 0; row < NR0; ++row) {
+        const uint64_t offset0 = (r0 + row)*args.nb01 + (i12/args.r2)*args.nb02 + (i13/args.r3)*args.nb03;
+
+        ax [row] = (device const half  *) ((device char *) src0 + offset0);
+        ax4[row] = (device const half4 *) ((device char *) src0 + offset0);
+    }
+
+    float sumf[NT][NR0] = {
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+    };
+
+    const short ix = tiisg/(NW/NF);
+    const short il = tiisg%(NW/NF);
+    const int ib0 = sgitg*NF + ix;
+
+    float4 yl4[NT][NF4];
+    device const float4 * yb4[NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        yb4[tok] = y4[tok] + (ib0*NB + il*NF)/4;
+    }
+
+    for (int ib = ib0; ib < nb; ib += NSG*NF) {
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            if (tok < args.ne11) {
+                const float scale = scales[tok];
+                FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                    yl4[tok][i] = yb4[tok][i] * scale;
+                }
+            }
+        }
+
+        FOR_UNROLL (short row = 0; row < NR0; row++) {
+            device const half4 * xb4 = ax4[row] + (ib*NB + il*NF)/4;
+
+            FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+                if (tok < args.ne11) {
+                    float sumq = 0.f;
+                    FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                        sumq += dot(float4(xb4[i]), float4(yl4[tok][i]));
+                    }
+                    sumf[tok][row] += sumq;
+                }
+            }
+        }
+
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            yb4[tok] += NSG*NF*NW/4;
+        }
+    }
+
+    for (int i = nb*NB + sgitg*NW + tiisg; i < args.ne00; i += NW*NSG) {
+        FOR_UNROLL (short row = 0; row < NR0; row++) {
+            const float w = ax[row][i];
+            FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+                if (tok < args.ne11) {
+                    sumf[tok][row] += w * (y[tok][i] * scales[tok]);
+                }
+            }
+        }
+    }
+
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        if (tok < args.ne11) {
+            device float * dst_f32 = (device float *) dst +
+                (uint64_t)im*args.ne0*args.ne1 + (uint64_t)tok*args.ne0;
+            helper_mv_reduce_and_write<NR0>(dst_f32, sumf[tok], r0, args.ne01, tiisg, sgitg, shmem);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+}
+
+template<typename args_t>
+void kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_disp(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device const float * scales,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    switch (args.nr0) {
+        case 2: kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_impl<2>(args, src0, src1, scales, dst, shmem, tgpig, tiisg, sgitg); break;
+        case 4: kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_impl<4>(args, src0, src1, scales, dst, shmem, tgpig, tiisg, sgitg); break;
+    }
+}
+
+kernel void kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact(
+        constant ds4_metal_args_mul_mv & args,
+        device const char * src0,
+        device const char * src1,
+        device const float * scales,
+        device       char * dst,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_disp<constant ds4_metal_args_mul_mv &>(
+            args, src0, src1, scales, dst, shmem, tgpig, tiisg, sgitg);
+}
+
+// DSpark verifier experiment: exact tiny-row F16 matvec for up to five rows.
+// This keeps the decode matvec K/reduction order for each token row, but shares
+// the weight row loads across the N<=5 verifier rows inside one threadgroup.
+template<short NR0, typename args_t>
+void kernel_mul_mv_f16_f32_4_rows5_exact_impl(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    const short NSG = FC_mul_mv_nsg;
+
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr short NB  = 32;
+    constexpr short NF  = 16;
+    constexpr short NF4 = NF/4;
+    constexpr short NT  = 5;
+
+    const int nb = args.ne00/NB;
+    const int r0 = tgpig.x*NR0;
+    const int im = tgpig.z;
+
+    const uint i12 = im%args.ne12;
+    const uint i13 = im/args.ne12;
+
+    device const float4 * y4[NT];
+    device const float  * y [NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        const uint64_t offset1 = (uint64_t)tok*args.nb11 + (i12)*args.nb12 + (i13)*args.nb13;
+        y4[tok] = (tok < args.ne11) ? (device const float4 *) (src1 + offset1) : (device const float4 *) src1;
+        y [tok] = (tok < args.ne11) ? (device const float  *) (src1 + offset1) : (device const float  *) src1;
+    }
+
+    device const half  * ax [NR0];
+    device const half4 * ax4[NR0];
+    FOR_UNROLL (short row = 0; row < NR0; ++row) {
+        const uint64_t offset0 = (r0 + row)*args.nb01 + (i12/args.r2)*args.nb02 + (i13/args.r3)*args.nb03;
+
+        ax [row] = (device const half  *) ((device char *) src0 + offset0);
+        ax4[row] = (device const half4 *) ((device char *) src0 + offset0);
+    }
+
+    float sumf[NT][NR0] = {
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+    };
+
+    const short ix = tiisg/(NW/NF);
+    const short il = tiisg%(NW/NF);
+    const int ib0 = sgitg*NF + ix;
+
+    float4 yl4[NT][NF4];
+    device const float4 * yb4[NT];
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        yb4[tok] = y4[tok] + (ib0*NB + il*NF)/4;
+    }
+
+    for (int ib = ib0; ib < nb; ib += NSG*NF) {
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            if (tok < args.ne11) {
+                FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                    yl4[tok][i] = yb4[tok][i];
+                }
+            }
+        }
+
+        FOR_UNROLL (short row = 0; row < NR0; row++) {
+            device const half4 * xb4 = ax4[row] + (ib*NB + il*NF)/4;
+
+            FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+                if (tok < args.ne11) {
+                    float sumq = 0.f;
+                    FOR_UNROLL (short i = 0; i < NF4; ++i) {
+                        sumq += dot(float4(xb4[i]), float4(yl4[tok][i]));
+                    }
+                    sumf[tok][row] += sumq;
+                }
+            }
+        }
+
+        FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+            yb4[tok] += NSG*NF*NW/4;
+        }
+    }
+
+    for (int i = nb*NB + sgitg*NW + tiisg; i < args.ne00; i += NW*NSG) {
+        FOR_UNROLL (short row = 0; row < NR0; row++) {
+            const float w = ax[row][i];
+            FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+                if (tok < args.ne11) {
+                    sumf[tok][row] += w * y[tok][i];
+                }
+            }
+        }
+    }
+
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        if (tok < args.ne11) {
+            device float * dst_f32 = (device float *) dst +
+                (uint64_t)im*args.ne0*args.ne1 + (uint64_t)tok*args.ne0;
+            helper_mv_reduce_and_write<NR0>(dst_f32, sumf[tok], r0, args.ne01, tiisg, sgitg, shmem);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+}
+
+template<typename args_t>
+void kernel_mul_mv_f16_f32_4_rows5_exact_disp(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    switch (args.nr0) {
+        case 2: kernel_mul_mv_f16_f32_4_rows5_exact_impl<2>(args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); break;
+        case 4: kernel_mul_mv_f16_f32_4_rows5_exact_impl<4>(args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); break;
+    }
+}
+
+kernel void kernel_mul_mv_f16_f32_4_rows5_exact(
+        constant ds4_metal_args_mul_mv & args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_f16_f32_4_rows5_exact_disp<constant ds4_metal_args_mul_mv &>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
+
+template<short NR0, typename args_t>
+void kernel_mul_mv_f16_f32_4_rows5_seq_exact_impl(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    constexpr short NT = 5;
+
+    FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
+        if (tok < args.ne11) {
+            uint3 row_tgpig = uint3(tgpig.x, (uint)tok, tgpig.z);
+            kernel_mul_mv_t_t_4_impl<half, half4, float, float4, NR0, args_t>(
+                    args, src0, src1, dst, shmem, row_tgpig, tiisg, sgitg);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+}
+
+template<typename args_t>
+void kernel_mul_mv_f16_f32_4_rows5_seq_exact_disp(
+        args_t args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem,
+        uint3  tgpig,
+        ushort tiisg,
+        ushort sgitg) {
+    switch (args.nr0) {
+        case 2: kernel_mul_mv_f16_f32_4_rows5_seq_exact_impl<2>(args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); break;
+        case 4: kernel_mul_mv_f16_f32_4_rows5_seq_exact_impl<4>(args, src0, src1, dst, shmem, tgpig, tiisg, sgitg); break;
+    }
+}
+
+kernel void kernel_mul_mv_f16_f32_4_rows5_seq_exact(
+        constant ds4_metal_args_mul_mv & args,
+        device const char * src0,
+        device const char * src1,
+        device       char * dst,
+        threadgroup  char * shmem [[threadgroup(0)]],
+        uint3  tgpig[[threadgroup_position_in_grid]],
+        ushort tiisg[[thread_index_in_simdgroup]],
+        ushort sgitg[[simdgroup_index_in_threadgroup]]) {
+    kernel_mul_mv_f16_f32_4_rows5_seq_exact_disp<constant ds4_metal_args_mul_mv &>(
+            args, src0, src1, dst, shmem, tgpig, tiisg, sgitg);
+}
 
 // DS4 compressor projections always compute two same-shaped F16 matvecs from
 // the same normalized activation: one for projected KV and one for pooling
