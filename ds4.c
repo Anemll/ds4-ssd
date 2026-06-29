@@ -16394,7 +16394,10 @@ static bool metal_graph_encode_layer_attention_batch(
                                                                               DS4_N_HEAD,
                                                                               DS4_N_HEAD_DIM) != 0;
 		                } else {
-		                    const bool defer_plain_row_exact = spec_defer_row_exact_heads;
+		                    const bool force_mma_diag =
+                        env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
+                    const bool defer_plain_row_exact =
+                        spec_defer_row_exact_heads && !force_mma_diag;
 		                    const bool defer_plain_varlen =
 		                        env_flag_enabled("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS_VARLEN_UNSAFE") ||
 		                        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARLEN_HEADS_UNSAFE");
