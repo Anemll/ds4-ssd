@@ -11771,14 +11771,20 @@ static const char *need_arg(int *i, int argc, char **argv, const char *opt) {
 
 static void log_context_memory(ds4_backend backend, int ctx_size) {
     ds4_context_memory m = ds4_context_memory_estimate(backend, ctx_size);
+    char grow[96] = "";
+    if (m.ctx_grow && m.comp_cap_max > m.comp_cap) {
+        snprintf(grow, sizeof(grow), "/%u max, grow_block=%u",
+                 m.comp_cap_max, m.ctx_grow_block);
+    }
     server_log(DS4_LOG_DEFAULT,
-               "ds4-server: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u)",
+               "ds4-server: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u%s)",
                (double)m.total_bytes / (1024.0 * 1024.0),
                ctx_size,
                ds4_backend_name(backend),
                m.prefill_cap,
                m.raw_cap,
-               m.comp_cap);
+               m.comp_cap,
+               grow);
 }
 
 static void server_close_resources(server *s) {

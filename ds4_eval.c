@@ -3171,14 +3171,20 @@ static int next_pending_case(eval_ui *ui, int start) {
 
 static void log_context_memory(ds4_backend backend, int ctx_size) {
     ds4_context_memory m = ds4_context_memory_estimate(backend, ctx_size);
+    char grow[96] = "";
+    if (m.ctx_grow && m.comp_cap_max > m.comp_cap) {
+        snprintf(grow, sizeof(grow), "/%u max, grow_block=%u",
+                 m.comp_cap_max, m.ctx_grow_block);
+    }
     fprintf(stderr,
-            "ds4-eval: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u)\n",
+            "ds4-eval: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u%s)\n",
             (double)m.total_bytes / (1024.0 * 1024.0),
             ctx_size,
             ds4_backend_name(backend),
             m.prefill_cap,
             m.raw_cap,
-            m.comp_cap);
+            m.comp_cap,
+            grow);
 }
 
 static const char *report_status_name(eval_status st) {

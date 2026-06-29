@@ -301,14 +301,20 @@ static ds4_backend default_backend(void) {
 
 static void log_context_memory(ds4_backend backend, int ctx_size) {
     ds4_context_memory m = ds4_context_memory_estimate(backend, ctx_size);
+    char grow[96] = "";
+    if (m.ctx_grow && m.comp_cap_max > m.comp_cap) {
+        snprintf(grow, sizeof(grow), "/%u max, grow_block=%u",
+                 m.comp_cap_max, m.ctx_grow_block);
+    }
     fprintf(stderr,
-            "ds4: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u)\n",
+            "ds4: context buffers %.2f MiB (ctx=%d, backend=%s, prefill_chunk=%u, raw_kv_rows=%u, compressed_kv_rows=%u%s)\n",
             (double)m.total_bytes / (1024.0 * 1024.0),
             ctx_size,
             ds4_backend_name(backend),
             m.prefill_cap,
             m.raw_cap,
-            m.comp_cap);
+            m.comp_cap,
+            grow);
 }
 
 static ds4_think_mode cli_effective_think_mode(const cli_generation_options *gen) {
@@ -810,6 +816,16 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     const bool dspark_draft_enabled = ds4_engine_dspark_draft_tokens(engine) > 0;
     const bool mtp_draft_enabled = ds4_engine_mtp_draft_tokens(engine) > 1;
     const char *draft_label = dspark_draft_enabled ? "dspark" : "mtp";
+    const bool draft_spec_available =
+        (dspark_draft_enabled && getenv("DS4_DSPARK_SPEC_DISABLE") == NULL) ||
+        (mtp_draft_enabled && getenv("DS4_MTP_SPEC_DISABLE") == NULL);
+    if (draft_spec_available && cfg->gen.temperature > 0.0f) {
+        fprintf(stderr,
+                "ds4: %s draft loaded but speculative decode is disabled "
+                "because --temp %.6g > 0; use --temp 0 for DSpark/MTP draft\n",
+                draft_label,
+                (double)cfg->gen.temperature);
+    }
     bool stopped = false;
     const double t_decode0 = cli_now_sec();
     while (generated < max_tokens && !cli_interrupt_requested()) {
@@ -1364,6 +1380,16 @@ static int run_chat_turn(ds4_engine *engine, cli_config *cfg, repl_chat *chat, c
     const bool dspark_draft_enabled = ds4_engine_dspark_draft_tokens(engine) > 0;
     const bool mtp_draft_enabled = ds4_engine_mtp_draft_tokens(engine) > 1;
     const char *draft_label = dspark_draft_enabled ? "dspark" : "mtp";
+    const bool draft_spec_available =
+        (dspark_draft_enabled && getenv("DS4_DSPARK_SPEC_DISABLE") == NULL) ||
+        (mtp_draft_enabled && getenv("DS4_MTP_SPEC_DISABLE") == NULL);
+    if (draft_spec_available && cfg->gen.temperature > 0.0f) {
+        fprintf(stderr,
+                "ds4: %s draft loaded but speculative decode is disabled "
+                "because --temp %.6g > 0; use --temp 0 for DSpark/MTP draft\n",
+                draft_label,
+                (double)cfg->gen.temperature);
+    }
     const double t_decode0 = cli_now_sec();
     while (generated < max_tokens && !cli_interrupt_requested()) {
         int token = ds4_session_sample(chat->session,
@@ -1908,6 +1934,8 @@ static cli_config parse_options(int argc, char **argv) {
 
 int main(int argc, char **argv) {
     cli_config cfg = parse_options(argc, argv);
+    ds4_engine_options_autodetect_sidecar_package(&cfg.engine, "ds4");
+    ds4_engine_options_apply_resident_preset(&cfg.engine, "ds4");
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
     if (cfg.gen.dump_tokens && cfg.gen.prompt == NULL) {

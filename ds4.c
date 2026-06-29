@@ -9267,6 +9267,7 @@ struct ds4_gpu_graph {
     ds4_gpu_tensor *batch_routed_mid;
     ds4_gpu_tensor *batch_routed_down;
     ds4_gpu_tensor *batch_routed_out;
+    uint32_t batch_scratch_cap;
     uint32_t batch_routed_compact_rows;
     uint32_t batch_routed_scratch_cap;
     bool batch_routed_mid_is_f16;
@@ -10392,7 +10393,9 @@ static bool metal_graph_ensure_ffn_out(ds4_gpu_graph *g) {
 
 static bool metal_graph_ensure_batch_ffn_out(ds4_gpu_graph *g) {
     if (!g->batch_ffn_out) {
-        g->batch_ffn_out = ds4_gpu_tensor_alloc((uint64_t)g->prefill_cap * DS4_N_EMBD * sizeof(float));
+        uint32_t rows = g->batch_scratch_cap ? g->batch_scratch_cap : g->prefill_cap;
+        if (rows == 0) rows = 1;
+        g->batch_ffn_out = ds4_gpu_tensor_alloc((uint64_t)rows * DS4_N_EMBD * sizeof(float));
     }
     return g->batch_ffn_out != NULL;
 }
@@ -14231,6 +14234,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_VEC_COMPARE");
 	    const bool spec_defer_batch_heads =
 	        env_flag_enabled("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS") ||
+	        env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA") ||
 	        spec_shared_prefix_raw_vec_rows ||
 	        spec_shared_prefix_varmap_rows ||
 	        spec_shared_prefix_varmap_direct_rows ||
@@ -15903,9 +15907,12 @@ static bool metal_graph_encode_layer_attention_batch(
             if (defer_indexed_heads || defer_plain_heads) {
                 static bool logged = false;
                 if (!logged && !backend_diagnostic_logs_suppressed()) {
+                    const bool force_mma_diag_log =
+                        defer_plain_heads && env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
                     fprintf(stderr,
-                            "ds4: dspark hybrid verifier deferring %s attention heads to batch call\n",
-                            defer_indexed_heads ? "indexed" : "plain");
+                            "ds4: dspark hybrid verifier deferring %s attention heads to %s\n",
+                            defer_indexed_heads ? "indexed" : "plain",
+                            force_mma_diag_log ? "MMA batch call" : "batch call");
                     logged = true;
                 }
             }
@@ -22286,7 +22293,7 @@ static bool metal_graph_verify_suffix_tops(
         float                 *row_logits) {
     if (n_tokens == 0 || n_tokens > g->prefill_cap || !g->spec_logits) return false;
     if (start > (uint32_t)prompt->len || n_tokens > (uint32_t)prompt->len - start) return false;
-    if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
+    if (!metal_graph_ensure_prefill_scratch_rows(g, weights, &weights->layer[0], n_tokens)) return false;
     if (capture_prefix_count > DS4_SPEC_PREFIX_SLOTS) {
         capture_prefix_count = DS4_SPEC_PREFIX_SLOTS;
     }
@@ -22599,8 +22606,17 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
             if (ratio != 0 && ratio < min_ratio) min_ratio = ratio;
         }
         if (min_ratio == UINT32_MAX) min_ratio = ctx;
-        m.comp_cap = ctx / min_ratio + 2u;
-        if (m.comp_cap < 2u) m.comp_cap = 2u;
+        m.ctx_grow = ds4_ctx_grow_enabled();
+        m.ctx_grow_block = ds4_ctx_grow_block();
+        m.comp_cap_max = ctx / min_ratio + 2u;
+        if (m.comp_cap_max < 2u) m.comp_cap_max = 2u;
+        if (m.ctx_grow) {
+            m.comp_cap = m.ctx_grow_block / min_ratio + 2u;
+            if (m.comp_cap < 2u) m.comp_cap = 2u;
+            if (m.comp_cap > m.comp_cap_max) m.comp_cap = m.comp_cap_max;
+        } else {
+            m.comp_cap = m.comp_cap_max;
+        }
 
         m.raw_bytes = (uint64_t)DS4_N_LAYER *
                       m.raw_cap *
@@ -22609,7 +22625,13 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
         for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
             const uint32_t ratio = ds4_layer_compress_ratio(il);
             if (ratio == 0) continue;
-            const uint32_t layer_comp_cap = ctx / ratio + 2u;
+            uint32_t layer_comp_cap = ctx / ratio + 2u;
+            if (layer_comp_cap < 2u) layer_comp_cap = 2u;
+            if (m.ctx_grow) {
+                uint32_t init_cap = m.ctx_grow_block / ratio + 2u;
+                if (init_cap < 2u) init_cap = 2u;
+                if (init_cap < layer_comp_cap) layer_comp_cap = init_cap;
+            }
             m.compressed_bytes += (uint64_t)layer_comp_cap *
                                   DS4_N_HEAD_DIM *
                                   sizeof(float);
@@ -22644,6 +22666,7 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
             }
         }
         if (m.comp_cap == 0) m.comp_cap = ctx / 4u + 2u;
+        m.comp_cap_max = m.comp_cap;
         m.scratch_bytes = ((uint64_t)(m.raw_cap + m.comp_cap) * sizeof(float)) +
                           ((uint64_t)m.comp_cap * sizeof(float)) +
                           ((uint64_t)m.comp_cap * sizeof(bool));
@@ -24509,6 +24532,7 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
         }
     }
     if (m.comp_cap == 0) m.comp_cap = ctx / 4u + 2u;
+    m.comp_cap_max = m.comp_cap;
     m.scratch_bytes = ((uint64_t)(m.raw_cap + m.comp_cap) * sizeof(float)) +
                       ((uint64_t)m.comp_cap * sizeof(float)) +
                       ((uint64_t)m.comp_cap * sizeof(bool));

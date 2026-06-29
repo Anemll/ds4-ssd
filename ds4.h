@@ -107,6 +107,9 @@ typedef struct {
     uint32_t prefill_cap;
     uint32_t raw_cap;
     uint32_t comp_cap;
+    uint32_t comp_cap_max;
+    uint32_t ctx_grow_block;
+    bool ctx_grow;
 } ds4_context_memory;
 
 typedef struct {

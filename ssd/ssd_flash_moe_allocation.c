@@ -114,7 +114,9 @@ static uint64_t metal_graph_release_prefill_scratch(ds4_gpu_graph *g) {
 
 #undef DS4_RELEASE_PREFILL_TENSOR
     g->batch_routed_mid_is_f16 = false;
+    g->batch_scratch_cap = 0;
     g->batch_routed_compact_rows = 0;
+    g->batch_routed_scratch_cap = 0;
     return released;
 }
 
@@ -133,11 +135,34 @@ static void metal_graph_release_prefill_scratch_before_decode(
     if (memory_report) ds4_gpu_print_memory_report("after releasing prefill scratch");
 }
 
-static bool metal_graph_ensure_prefill_scratch(
+static bool metal_graph_ensure_prefill_scratch_rows(
         ds4_gpu_graph           *g,
         const ds4_weights       *weights,
-        const ds4_layer_weights *layer) {
+        const ds4_layer_weights *layer,
+        uint32_t                 rows) {
     if (!g || !weights || !layer) return false;
+    if (rows == 0) rows = 1;
+    if (rows > g->prefill_cap) return false;
+
+    if (g->batch_scratch_cap != 0 &&
+        (g->batch_scratch_cap < rows ||
+         (rows <= 16u && g->batch_scratch_cap > 16u &&
+          !env_flag_enabled("DS4_SPEC_KEEP_FULL_PREFILL_SCRATCH")))) {
+        const uint32_t old_rows = g->batch_scratch_cap;
+        const uint64_t released = metal_graph_release_prefill_scratch(g);
+        if (released && env_flag_enabled("DS4_METAL_RELEASE_PREFILL_SCRATCH_TRACE")) {
+            fprintf(stderr,
+                    "ds4: resized Metal batch scratch from %u to %u rows "
+                    "for %s (released %.2f MiB)\n",
+                    old_rows,
+                    rows,
+                    rows <= 16u ? "spec decode" : "prefill",
+                    (double)released / 1048576.0);
+        }
+    }
+    if (g->batch_scratch_cap == 0) {
+        g->batch_scratch_cap = rows;
+    }
 
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
     const uint64_t mix_hc = 2ull * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
@@ -152,7 +177,7 @@ static bool metal_graph_ensure_prefill_scratch(
         : DS4_N_INDEXER_HEAD_DIM);
     const uint64_t index_comp_width = 2ull * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
-    const uint64_t pc = g->prefill_cap ? g->prefill_cap : 1u;
+    const uint64_t pc = g->batch_scratch_cap ? g->batch_scratch_cap : 1u;
     uint64_t moe_pc = g->batch_routed_scratch_cap;
     if (moe_pc == 0) {
         moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill((uint32_t)pc);
@@ -248,6 +273,17 @@ static bool metal_graph_ensure_prefill_scratch(
     return ok;
 }
 
+static bool metal_graph_ensure_prefill_scratch(
+        ds4_gpu_graph           *g,
+        const ds4_weights       *weights,
+        const ds4_layer_weights *layer) {
+    if (!g) return false;
+    return metal_graph_ensure_prefill_scratch_rows(g,
+                                                   weights,
+                                                   layer,
+                                                   g->prefill_cap ? g->prefill_cap : 1u);
+}
+
 static bool metal_graph_alloc_raw_cap(
         ds4_gpu_graph *g,
         const ds4_weights     *weights,
@@ -331,6 +367,7 @@ static bool metal_graph_alloc_raw_cap(
     const bool needs_batch_shared_tensors = !ane_shared_batch || enable_mtp;
     const bool needs_index_comp_rows = env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS");
     const uint64_t moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill(prefill_cap);
+    g->batch_scratch_cap = prefill_cap;
     g->batch_routed_scratch_cap = (uint32_t)moe_pc;
     uint64_t kv_cache_bytes = 0;
     const uint64_t context_bytes =

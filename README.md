@@ -276,11 +276,30 @@ against the same command without `--mtp`.
 
 ## Run DSpark With A Sidecar
 
-DSpark support is package-based rather than GGUF-based. The draft checkpoint
-must match the target shape. For Flash sidecar runs, use the Flash DSpark
-checkpoint, not the Pro DSpark checkpoint.
+The primary DSpark path is the Flash sidecar target plus a separate DS4-owned
+DSpark draft package. Treat GGUF main-model runs as a compatibility path for
+agent demos; the sidecar path is the reference for speed and correctness. The
+draft checkpoint must match the target shape, so use the Flash DSpark checkpoint
+with Flash sidecars, not the Pro DSpark checkpoint.
 
-Download only the Flash DSpark draft shards:
+Use these paths in the examples below:
+
+```sh
+export DS4_SIDECAR_DIR=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+export DS4_DSPARK_DRAFT=/Users/anemll/Models/DSv4-Flash-DSpark-draft
+export TEST_PROMPT='Make a game of Space Invader in Pygame'
+```
+
+Download the pre-exported Flash DSpark draft package:
+
+```sh
+DS4_DSPARK_DRAFT_DIR="$DS4_DSPARK_DRAFT" ./download_model.sh dspark
+```
+
+This downloads [anemll/DSv4-Flash-DSpark-draft](https://huggingface.co/anemll/DSv4-Flash-DSpark-draft)
+directly into the DS4 runtime package layout. To rebuild the package locally
+from the original DeepSeek shards instead, download only the Flash DSpark draft
+shards:
 
 ```sh
 mkdir -p /Volumes/TB36/Models/DS/DeepSeek-V4-Flash-DSpark
@@ -298,7 +317,7 @@ Export the DS4-owned draft package:
 ```sh
 scripts/export_dspark_draft.sh \
   --source-dir /Volumes/TB36/Models/DS/DeepSeek-V4-Flash-DSpark \
-  --out-dir /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+  --out-dir "$DS4_DSPARK_DRAFT" \
   --variant flash \
   --force
 ```
@@ -307,9 +326,9 @@ Validate the package against the Flash sidecar target:
 
 ```sh
 ./ds4 \
-  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+  -m "$DS4_SIDECAR_DIR" \
   --draft dspark \
-  --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+  --draft-path "$DS4_DSPARK_DRAFT" \
   --draft-verify 5 \
   --inspect
 ```
@@ -321,40 +340,96 @@ the active proposal length is `min(block_size, --draft-verify)`, so the default
 proposes and verifies 5 draft tokens and the loader prints `active=5`. Pass
 `--draft-verify 2`, `3`, or `4` explicitly for fixed smaller-block A/B tests.
 
-The intended greedy benchmark shape is:
+Run a paired sidecar baseline first:
 
 ```sh
-./ds4 \
-  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+DS4_AGENT_ALLOW_BACKEND_STATS=1 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
   --resident \
-  --draft dspark \
-  --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
-  --draft-scheduler static \
   --temp 0 \
   --nothink \
-  -n 4000 \
+  -n 1000 \
   -c 4096 \
-  -p "Make a game of Space Invader in Pygame"
+  -p "$TEST_PROMPT"
 ```
 
-The same command shape is also the current fastest clean local verifier path.
-DS4 selects the strict commit-safe hybrid verifier by default for DSpark greedy
-runs unless `--quality`, `DS4_DSPARK_EXACT_VERIFY=1`, or
-`DS4_DSPARK_FAST_VERIFY_DISABLE=1` is set:
+Then run DSpark on the same sidecar target:
 
 ```sh
-DS4_DSPARK_PERF=1 DS4_DSPARK_BASELINE_TPS=<paired-no-draft-tps> ./ds4 \
-  -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 ./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
   --resident \
   --draft dspark \
-  --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 5 \
   --draft-scheduler static \
   --temp 0 \
   --nothink \
   -n 1000 \
   -c 4096 \
-  -p "Make a game of Space Invader in Pygame"
+  -p "$TEST_PROMPT"
 ```
+
+The sidecar command is the current clean reference path. DS4 selects the strict
+commit-safe hybrid verifier by default for DSpark greedy runs unless
+`--quality`, `DS4_DSPARK_EXACT_VERIFY=1`, or `DS4_DSPARK_FAST_VERIFY_DISABLE=1`
+is set. A successful run prints:
+
+```text
+ds4: DSpark draft package loaded: ... (block=5 verify=5 active=5 ...)
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels ...
+ds4: dspark perf: draft=... verify=... block=... tau=...
+ds4: dspark acceptance: ...
+ds4: dspark acceptance by position: ...
+ds4: dspark avg scheduled: ...
+```
+
+Here `tau` means emitted tokens per speculation block:
+`1 + accepted_draft_tokens / blocks`. With `--draft-verify 4`, the maximum
+`tau` is therefore `5.0`: one ordinary target token plus up to four accepted
+draft tokens.
+
+For `ds4-agent`, keep the same sidecar model and draft package:
+
+```sh
+DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
+./ds4-agent \
+  --model "$DS4_SIDECAR_DIR" \
+  --resident \
+  --draft dspark \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 4 \
+  --temp 0 \
+  --nothink \
+  --ctx 24096 \
+  --debug-status
+```
+
+Add `--dspark-attn-force-mma` only for a faster Mode-B/demo run where exact
+byte identity with the strict verifier is not the goal.
+
+If a demo must use a GGUF main model, keep DSpark as the same external draft
+package and pass `--draft-path` explicitly:
+
+```sh
+export DS4_GGUF=/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf
+
+DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
+./ds4-agent \
+  --model "$DS4_GGUF" \
+  --draft dspark \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 4 \
+  --temp 0 \
+  --nothink \
+  --ctx 24096 \
+  --debug-status
+```
+
+The sidecar path remains preferred for DSpark. GGUF main-model runs have higher
+memory pressure; the runtime keeps the large prefill chunk for prompt ingestion
+and shrinks speculative verifier scratch to the active DSpark rows during
+generation.
 
 Runtime DSpark inference uses MPP 4.1 FP8/MXFP4 draft kernels with persistent
 resident draft experts. Startup refuses DSpark if the native MXFP4

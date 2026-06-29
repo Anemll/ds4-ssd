@@ -4056,6 +4056,7 @@ static bool metal_graph_verify_decodeN_exact(
     if (capture_prefix_count >= n_tokens) {
         capture_prefix_count = n_tokens > 0 ? n_tokens - 1u : 0u;
     }
+    if (!metal_graph_ensure_prefill_scratch_rows(g, weights, &weights->layer[0], n_tokens)) return false;
 	    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
 	    const uint32_t n_layers = metal_graph_spec_verify_layer_limit();
 	    const bool exact_stage_profile =
@@ -4310,7 +4311,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
     if (capture_prefix_count >= n_tokens) {
         capture_prefix_count = n_tokens > 0 ? n_tokens - 1u : 0u;
     }
-    if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
+    if (!metal_graph_ensure_prefill_scratch_rows(g, weights, &weights->layer[0], n_tokens)) return false;
 
     int32_t token_ids[5] = {0, 0, 0, 0, 0};
     for (uint32_t i = 0; i < n_tokens; i++) token_ids[i] = (int32_t)tokens[i];

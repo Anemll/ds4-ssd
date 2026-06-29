@@ -6,6 +6,8 @@ SIDECAR_REPO="anemll/dsv4-iq2xxs-expert-major"
 SIDECAR_DIR_NAME="dsv4-iq2xxs-expert-major"
 MXFP4_REPO="anemll/DSv4-Flash-MXFP4-native-flash"
 MXFP4_DIR_NAME="DSv4-Flash-MXFP4-native-flash"
+DSPARK_REPO="anemll/DSv4-Flash-DSpark-draft"
+DSPARK_DIR_NAME="DSv4-Flash-DSpark-draft"
 HUIHUI_REPO="huihui-ai/Huihui-DeepSeek-V4-Flash-abliterated-ds4-GGUF"
 Q2_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf"
 Q2_IMATRIX_FILE="DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2-imatrix.gguf"
@@ -30,6 +32,11 @@ case "$MXFP4_OUT_DIR" in
     /*) ;;
     *) MXFP4_OUT_DIR="$ROOT/$MXFP4_OUT_DIR" ;;
 esac
+DSPARK_OUT_DIR=${DS4_DSPARK_DRAFT_DIR:-"$ROOT/models/$DSPARK_DIR_NAME"}
+case "$DSPARK_OUT_DIR" in
+    /*) ;;
+    *) DSPARK_OUT_DIR="$ROOT/$DSPARK_OUT_DIR" ;;
+esac
 TOKEN=${HF_TOKEN:-}
 MODEL_REPO=$REPO
 
@@ -46,6 +53,7 @@ Usage:
   ./download_model.sh huihui-iq2xxs [--token TOKEN]
   ./download_model.sh sidecar [--token TOKEN]
   ./download_model.sh mxfp4 [--token TOKEN]
+  ./download_model.sh dspark [--token TOKEN]
 
 Targets:
   *** PREFERRED GGUF FILES: USE THE IMATRIX VERSIONS BELOW ***
@@ -90,6 +98,10 @@ Targets:
        --ssd-cache (the slot bank auto-shrinks after prefill on
        RAM-limited machines, so any --ssd-cache size is safe).
 
+  dspark
+       Flash DSpark draft package from $DSPARK_REPO.
+       Use with a matching Flash sidecar target and --draft dspark.
+
 Options:
   --token TOKEN  Hugging Face token. Otherwise HF_TOKEN or the local HF token
                  cache is used if present.
@@ -105,6 +117,10 @@ Environment:
   DS4_MXFP4_DIR  Directory used for the downloaded MXFP4 package.
                  Default: ./models/$MXFP4_DIR_NAME
 
+  DS4_DSPARK_DRAFT_DIR
+                 Directory used for the downloaded DSpark draft package.
+                 Default: ./models/$DSPARK_DIR_NAME
+
 After q2-imatrix/q4-imatrix/q2/q4/huihui-iq2xxs downloads the script updates:
   ./ds4flash.gguf -> <download directory>/<selected model>
 
@@ -117,6 +133,9 @@ After downloading mtp, enable it explicitly, for example:
 
 After downloading sidecar, run:
   DS4_SIDECAR_DIR=<sidecar directory> make sidecar-smoke
+
+After downloading dspark, enable it explicitly, for example:
+  ./ds4 -m <sidecar directory> --draft dspark --draft-path <dspark directory> --draft-verify 5 -p "Hello"
 EOF
 }
 
@@ -140,6 +159,7 @@ case "$MODEL" in
         ;;
     sidecar) MODEL_FILE= ;;
     mxfp4) MODEL_FILE= ;;
+    dspark) MODEL_FILE= ;;
     -h|--help|help)
         usage
         exit 0
@@ -266,6 +286,34 @@ download_mxfp4() {
     echo "  ./ds4 -m \"$MXFP4_OUT_DIR\" --ssd-cache 32GB -p 'Hello'"
 }
 
+download_dspark() {
+    if ! command -v hf >/dev/null 2>&1; then
+        echo "The DSpark draft package is a multi-file Hugging Face repo." >&2
+        echo "Install the Hugging Face CLI first: https://huggingface.co/docs/huggingface_hub/guides/cli" >&2
+        exit 1
+    fi
+
+    mkdir -p "$DSPARK_OUT_DIR"
+
+    echo "Downloading Flash DSpark draft package"
+    echo "from https://huggingface.co/$DSPARK_REPO"
+    echo "to $DSPARK_OUT_DIR"
+    echo "If the download stops, run the same command again to resume it."
+
+    if [ -n "$TOKEN" ]; then
+        HF_TOKEN=$TOKEN hf download "$DSPARK_REPO" --local-dir "$DSPARK_OUT_DIR"
+    else
+        hf download "$DSPARK_REPO" --local-dir "$DSPARK_OUT_DIR"
+    fi
+
+    echo
+    echo "Set:"
+    echo "  export DS4_DSPARK_DRAFT=$DSPARK_OUT_DIR"
+    echo
+    echo "Then run with a matching Flash sidecar target:"
+    echo "  ./ds4 -m \"\$DS4_SIDECAR_DIR\" --resident --draft dspark --draft-path \"\$DS4_DSPARK_DRAFT\" --draft-verify 5 -p 'Hello'"
+}
+
 if [ "$MODEL" = "sidecar" ]; then
     download_sidecar
     echo
@@ -275,6 +323,13 @@ fi
 
 if [ "$MODEL" = "mxfp4" ]; then
     download_mxfp4
+    echo
+    echo "Done."
+    exit 0
+fi
+
+if [ "$MODEL" = "dspark" ]; then
+    download_dspark
     echo
     echo "Done."
     exit 0
