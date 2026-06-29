@@ -407,6 +407,39 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
   --debug-status
 ```
 
+For `ds4-server`, use the same resident sidecar target. DSpark is greedy-only,
+so client requests must use `temperature: 0` if you want speculative decoding:
+
+```sh
+DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 \
+./ds4-server \
+  -m "$DS4_SIDECAR_DIR" \
+  --resident \
+  --draft dspark \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 4 \
+  --ctx 4096 \
+  --tokens 4096 \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+Example OpenAI-compatible request:
+
+```sh
+curl http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-chat",
+    "messages": [
+      {"role": "user", "content": "Make a game of Space Invader in Pygame"}
+    ],
+    "max_tokens": 160,
+    "temperature": 0,
+    "stream": false
+  }'
+```
+
 Add `--dspark-attn-force-mma` only for a faster Mode-B/demo run where exact
 byte identity with the strict verifier is not the goal.
 
@@ -443,6 +476,9 @@ Operational notes:
   `--draft-verify 2`, `3`, or `5` only for explicit A/B sweeps.
 - `--dspark-attn-force-mma` is a faster demo/Mode-B diagnostic. It is not the
   strict byte-identical verifier path.
+- DSpark can run against a streaming/direct-mmap sidecar, but that path is not
+  the speed target: verifier work becomes SSD/VM-bound. Use `--resident` for
+  DSpark throughput measurements.
 
 Useful DSpark diagnostics:
 
