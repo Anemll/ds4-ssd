@@ -404,6 +404,18 @@ static void cli_print_runtime_status(ds4_session *session, bool styled) {
                 tau,
                 (unsigned long long)rt.dspark_perf_blocks);
 
+        const double avg_verify_gpu_ms =
+            1000.0 * rt.dspark_perf_verify_gpu_seconds / (double)rt.dspark_perf_blocks;
+        const double verify_gpu_pct = avg_verify_ms > 0.0 ?
+            100.0 * avg_verify_gpu_ms / avg_verify_ms : 0.0;
+        cli_log_runtime_line(styled,
+                "ds4: dspark verify GPU-busy: %.2f ms/block of %.2f ms verify "
+                "(%.1f%% active, %.1f%% idle)\n",
+                avg_verify_gpu_ms,
+                avg_verify_ms,
+                verify_gpu_pct,
+                100.0 - verify_gpu_pct);
+
         double baseline_decode_ms = cli_env_positive_double("DS4_DSPARK_BASELINE_DECODE_MS");
         const double baseline_tps = cli_env_positive_double("DS4_DSPARK_BASELINE_TPS");
         if (baseline_decode_ms <= 0.0 && baseline_tps > 0.0) {

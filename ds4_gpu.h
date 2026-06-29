@@ -1979,4 +1979,7 @@ uint64_t ds4_gpu_recommended_working_set_bytes(void);
 /* Total installed physical RAM (hw.memsize); 0 if unavailable. */
 uint64_t ds4_gpu_system_memory_bytes(void);
 
+/* Cumulative GPU command-buffer execution time (seconds), from cb GPUStart/EndTime. */
+double ds4_gpu_busy_seconds(void);
+
 #endif

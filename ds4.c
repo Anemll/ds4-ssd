@@ -24645,6 +24645,7 @@ struct ds4_session {
     double dspark_perf_draft_seconds;
     double dspark_perf_snapshot_seconds;
     double dspark_perf_verify_seconds;
+    double dspark_perf_verify_gpu_seconds;
     double dspark_perf_commit_seconds;
     double dspark_perf_total_seconds;
     bool checkpoint_valid;
@@ -28891,6 +28892,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             const double snapshot_t0 = dspark_perf ? now_sec() : 0.0;
             bool have_frontier = spec_frontier_snapshot(&frontier, s);
             const double snapshot_done = dspark_perf ? now_sec() : 0.0;
+            const double verify_gpu_t0 = dspark_perf ? ds4_gpu_busy_seconds() : 0.0;
             bool ok = have_frontier;
             const bool hybrid_layer_hc_audit = dspark_policy.hybrid_layer_hc_audit;
             const bool hybrid_dspark_kv_audit = dspark_policy.hybrid_dspark_kv_audit;
@@ -29074,6 +29076,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                 ds4_verify_layer_hc_audit_free(&hybrid_hc_audit);
             }
             const double verify_done = dspark_perf ? now_sec() : 0.0;
+            if (dspark_perf) {
+                s->dspark_perf_verify_gpu_seconds +=
+                    ds4_gpu_busy_seconds() - verify_gpu_t0;
+            }
             if (ok) {
                 int commit_drafts = 1;
                 for (int i = 1; i < draft_n; i++) {
@@ -31224,6 +31230,7 @@ int ds4_session_runtime_status(ds4_session *s, ds4_runtime_status *out) {
         out->dspark_perf_draft_seconds = s->dspark_perf_draft_seconds;
         out->dspark_perf_snapshot_seconds = s->dspark_perf_snapshot_seconds;
         out->dspark_perf_verify_seconds = s->dspark_perf_verify_seconds;
+        out->dspark_perf_verify_gpu_seconds = s->dspark_perf_verify_gpu_seconds;
         out->dspark_perf_commit_seconds = s->dspark_perf_commit_seconds;
         out->dspark_perf_total_seconds = s->dspark_perf_total_seconds;
         ds4_gpu_vm_stats vm;

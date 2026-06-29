@@ -141,6 +141,7 @@ typedef struct {
     double dspark_perf_draft_seconds;
     double dspark_perf_snapshot_seconds;
     double dspark_perf_verify_seconds;
+    double dspark_perf_verify_gpu_seconds;
     double dspark_perf_commit_seconds;
     double dspark_perf_total_seconds;
 } ds4_runtime_status;

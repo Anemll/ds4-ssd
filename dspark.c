@@ -4375,6 +4375,13 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 			        row_exact_router || (row_exact_routed && !batch_router_row_routed);
     const bool hybrid_batch_attn_decode_order =
         env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_DECODE_ORDER");
+    /* Step-0 timing probe (branch dspark-attn): DS4_DSPARK_ATTN_BYPASS skips the
+     * committed-prefix attention/compressor/indexer batch so DS4_DSPARK_PERF
+     * reports per-block verify time WITHOUT the attention subsystem. Output is
+     * invalid (cmp meaningless); only the per-block verify ms delta vs a normal
+     * run is meaningful. Used once to decide if attention is worth a new kernel. */
+    const bool dspark_attn_bypass_probe =
+        env_flag_enabled("DS4_DSPARK_ATTN_BYPASS");
     const bool hybrid_batch_attn_prefix_safe =
         hybrid_batch_attn_decode_order &&
         env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_ROW_QKV") &&
@@ -4523,6 +4530,9 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 	            DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_exact_prefix_s);
 	        } else {
 	            if (hybrid_batch_attn_decode_order) {
+                if (dspark_attn_bypass_probe) {
+                    ok = true; /* Step-0: skip attention subsystem for timing only */
+                } else {
                 ok = metal_graph_encode_layer_attention_batch(g,
                                                               model,
                                                               &weights->layer[il],
@@ -4530,6 +4540,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
                                                               start,
                                                               n_tokens,
                                                               batch_attn_capture_prefix_count);
+                }
 	            } else {
 	                for (uint32_t t = 0; ok && t < n_tokens; t++) {
 	                    const uint32_t pos = start + t;

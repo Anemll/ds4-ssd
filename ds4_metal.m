@@ -1333,9 +1333,18 @@ static void ds4_gpu_close_batch_encoder(void) {
     g_batch_enc = nil;
 }
 
+static double g_gpu_busy_seconds = 0.0; /* sum of cb GPU exec time (dspark-attn probe) */
+
+double ds4_gpu_busy_seconds(void) { return g_gpu_busy_seconds; }
+
 static int ds4_gpu_wait_command_buffer(id<MTLCommandBuffer> cb, const char *label) {
     g_fz_wait++;
     [cb waitUntilCompleted];
+    {
+        const double gs = cb.GPUStartTime;
+        const double ge = cb.GPUEndTime;
+        if (ge > gs) g_gpu_busy_seconds += (ge - gs);
+    }
     if (cb.status == MTLCommandBufferStatusError) {
         fprintf(stderr, "ds4: Metal %s failed: %s\n",
                 label, [[cb.error localizedDescription] UTF8String]);
@@ -22080,7 +22089,11 @@ int ds4_gpu_attention_decode_varmap_rows_tensor(
         const uint32_t tail_rows =
             tail_avail < n_raw_union ? tail_avail : n_raw_union;
         const uint32_t head_rows = n_raw_union - tail_rows;
+        /* dspark-attn probe: skip F32->F16 prefix staging to time copy vs compute. */
+        const bool dspark_attn_nocopy =
+            ds4_gpu_env_flag_enabled("DS4_DSPARK_ATTN_NOCOPY");
         const bool raw_stream_ready =
+            dspark_attn_nocopy ? true :
             ds4_gpu_raw_f16_shadow_blit_to_stream(cb,
                                                   raw_kv,
                                                   raw_cap,
@@ -22107,7 +22120,7 @@ int ds4_gpu_attention_decode_varmap_rows_tensor(
                                                head_rows * head_dim)))) {
             return 0;
         }
-        if (max_comp) {
+        if (!dspark_attn_nocopy && max_comp) {
             bool comp_stream_ready = false;
             if (ds4_gpu_varmap_comp_f16_shadow_enabled()) {
                 id<MTLBuffer> comp_f16 =
