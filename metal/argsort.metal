@@ -31,6 +31,124 @@ struct ds4_metal_args_argsort_merge {
     int32_t  len;
 };
 
+struct ds4_metal_args_topk_logits {
+    uint32_t n_comp;
+    uint32_t n_tokens;
+    uint32_t top_k;
+    uint32_t pad;
+    uint64_t score_token_stride;
+    uint64_t topk_token_stride;
+};
+
+struct ds4_metal_args_argmax {
+    uint32_t n_comp;
+    uint32_t n_tokens;
+    uint64_t score_token_stride;
+    uint64_t selected_token_stride;
+};
+
+struct ds4_metal_args_add_argmax {
+    uint32_t n_comp;
+    uint32_t n_tokens;
+    uint64_t score_token_stride;
+    uint64_t add_token_stride;
+    uint64_t selected_token_stride;
+};
+
+kernel void kernel_argmax_f32_i32(
+        constant ds4_metal_args_argmax &args [[buffer(0)]],
+        device const char    *scores   [[buffer(1)]],
+        device       int32_t *selected [[buffer(2)]],
+        threadgroup  float   *vals     [[threadgroup(0)]],
+        threadgroup  int32_t *idxs     [[threadgroup(1)]],
+        uint row [[threadgroup_position_in_grid]],
+        uint tid [[thread_index_in_threadgroup]],
+        uint nt  [[threads_per_threadgroup]]) {
+    if (row >= args.n_tokens || args.n_comp == 0) return;
+
+    device const float *score_row =
+        (device const float *)(scores + (uint64_t)row * args.score_token_stride);
+
+    float best = -INFINITY;
+    int32_t best_i = INT_MAX;
+    for (uint i = tid; i < args.n_comp; i += nt) {
+        const float v = score_row[i];
+        if (v > best || (v == best && (int32_t)i < best_i)) {
+            best = v;
+            best_i = (int32_t)i;
+        }
+    }
+
+    vals[tid] = best;
+    idxs[tid] = best_i;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = nt >> 1; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            const float other = vals[tid + stride];
+            const int32_t other_i = idxs[tid + stride];
+            if (other > vals[tid] || (other == vals[tid] && other_i < idxs[tid])) {
+                vals[tid] = other;
+                idxs[tid] = other_i;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    if (tid == 0) {
+        selected[(uint64_t)row * args.selected_token_stride] = idxs[0];
+    }
+}
+
+kernel void kernel_add_argmax_f32_i32(
+        constant ds4_metal_args_add_argmax &args [[buffer(0)]],
+        device       char    *scores   [[buffer(1)]],
+        device const char    *add      [[buffer(2)]],
+        device       int32_t *selected [[buffer(3)]],
+        threadgroup  float   *vals     [[threadgroup(0)]],
+        threadgroup  int32_t *idxs     [[threadgroup(1)]],
+        uint row [[threadgroup_position_in_grid]],
+        uint tid [[thread_index_in_threadgroup]],
+        uint nt  [[threads_per_threadgroup]]) {
+    if (row >= args.n_tokens || args.n_comp == 0) return;
+
+    device float *score_row =
+        (device float *)(scores + (uint64_t)row * args.score_token_stride);
+    device const float *add_row =
+        (device const float *)(add + (uint64_t)row * args.add_token_stride);
+
+    float best = -INFINITY;
+    int32_t best_i = INT_MAX;
+    for (uint i = tid; i < args.n_comp; i += nt) {
+        const float v = score_row[i] + add_row[i];
+        score_row[i] = v;
+        if (v > best || (v == best && (int32_t)i < best_i)) {
+            best = v;
+            best_i = (int32_t)i;
+        }
+    }
+
+    vals[tid] = best;
+    idxs[tid] = best_i;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint stride = nt >> 1; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            const float other = vals[tid + stride];
+            const int32_t other_i = idxs[tid + stride];
+            if (other > vals[tid] || (other == vals[tid] && other_i < idxs[tid])) {
+                vals[tid] = other;
+                idxs[tid] = other_i;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    if (tid == 0) {
+        selected[(uint64_t)row * args.selected_token_stride] = idxs[0];
+    }
+}
+
 typedef void (argsort_t)(
         constant   ds4_metal_args_argsort & args,
         device   const char * src0,
@@ -264,3 +382,23 @@ kernel void kernel_argsort_merge_f32_i32(
 
 // Host-visible merge variant used by DS4 top-k selection.
 template [[host_name("kernel_argsort_merge_f32_i32_desc")]] kernel argsort_merge_t kernel_argsort_merge_f32_i32<DS4_SORT_ORDER_DESC>;
+
+kernel void kernel_gather_topk_logits_f32(
+        constant ds4_metal_args_topk_logits &args [[buffer(0)]],
+        device const char    *scores [[buffer(1)]],
+        device const int32_t *topk   [[buffer(2)]],
+        device       float   *out    [[buffer(3)]],
+        uint gid [[thread_position_in_grid]]) {
+    const uint total = args.n_tokens * args.top_k;
+    if (gid >= total || args.top_k == 0 || args.n_comp == 0) return;
+    const uint row = gid / args.top_k;
+    const uint k = gid - row * args.top_k;
+    const int32_t idx = topk[(uint64_t)row * args.topk_token_stride + k];
+    if (idx < 0 || (uint32_t)idx >= args.n_comp) {
+        out[gid] = -INFINITY;
+        return;
+    }
+    device const float *score_row =
+        (device const float *)(scores + (uint64_t)row * args.score_token_stride);
+    out[gid] = score_row[idx];
+}

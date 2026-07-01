@@ -68,6 +68,9 @@ struct ds4_metal_args_fp8_e4m3_matmul {
     uint32_t out_dim;
     uint32_t scale_cols;
     uint32_t n_tokens;
+    uint32_t in_stride;
+    uint32_t out_stride;
+    uint32_t group_rows;
 };
 
 struct ds4_metal_args_hc_rms_scale {
@@ -191,6 +194,74 @@ kernel void kernel_mul_mv_fp8_e4m3_f32_rows5(
         }
         if (args.n_tokens > 4u) {
             dst[4ul * (ulong)args.out_dim + row] = sum4;
+        }
+    }
+}
+
+// Strided N<=5 variant for DSpark draft attn_output_a. Each row keeps the same
+// FP8 reduction order as the normal rows5 kernel, but token rows may be spaced
+// by a larger parent tensor stride.
+kernel void kernel_mul_mv_fp8_e4m3_f32_rows5_strided(
+        constant ds4_metal_args_fp8_e4m3_matmul & args,
+        device const uchar * weights,
+        device const uchar * scales,
+        device const float * x,
+        device       float * dst,
+        uint   row   [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]]) {
+    if (row >= args.out_dim) {
+        return;
+    }
+
+    const uint in_stride = args.in_stride ? args.in_stride : args.in_dim;
+    const uint out_stride = args.out_stride ? args.out_stride : args.out_dim;
+    const uint group = args.group_rows ? row / args.group_rows : 0u;
+    const ulong src_base = (ulong)group * (ulong)args.in_dim;
+    device const uchar *wrow = weights + (ulong)row * (ulong)args.in_dim;
+    const uint scale_row = row >> 7;
+
+    float sum0 = 0.0f;
+    float sum1 = 0.0f;
+    float sum2 = 0.0f;
+    float sum3 = 0.0f;
+    float sum4 = 0.0f;
+    for (uint k = tiisg; k < args.in_dim; k += 32u) {
+        const float scale =
+            ds4_dense_e8m0_to_float(scales[(ulong)scale_row * (ulong)args.scale_cols + (k >> 7)]);
+        const float w = ds4_dense_e4m3fn_to_float(wrow[k]);
+        sum0 += x[src_base + k] * w * scale;
+        if (args.n_tokens > 1u) {
+            sum1 += x[(ulong)in_stride + src_base + k] * w * scale;
+        }
+        if (args.n_tokens > 2u) {
+            sum2 += x[2ul * (ulong)in_stride + src_base + k] * w * scale;
+        }
+        if (args.n_tokens > 3u) {
+            sum3 += x[3ul * (ulong)in_stride + src_base + k] * w * scale;
+        }
+        if (args.n_tokens > 4u) {
+            sum4 += x[4ul * (ulong)in_stride + src_base + k] * w * scale;
+        }
+    }
+
+    sum0 = simd_sum(sum0);
+    sum1 = simd_sum(sum1);
+    sum2 = simd_sum(sum2);
+    sum3 = simd_sum(sum3);
+    sum4 = simd_sum(sum4);
+    if (tiisg == 0) {
+        dst[row] = sum0;
+        if (args.n_tokens > 1u) {
+            dst[(ulong)out_stride + row] = sum1;
+        }
+        if (args.n_tokens > 2u) {
+            dst[2ul * (ulong)out_stride + row] = sum2;
+        }
+        if (args.n_tokens > 3u) {
+            dst[3ul * (ulong)out_stride + row] = sum3;
+        }
+        if (args.n_tokens > 4u) {
+            dst[4ul * (ulong)out_stride + row] = sum4;
         }
     }
 }

@@ -59,6 +59,7 @@ int ds4_gpu_tensor_copy_pair(ds4_gpu_tensor *dst0, uint64_t dst0_offset,
 
 int ds4_gpu_begin_commands(void);
 int ds4_gpu_flush_commands(void);
+int ds4_gpu_submit_commands(void);
 /* Like ds4_gpu_flush_commands, but waits for the committed batch to finish
  * before opening the next one. Caps in-flight depth to one command buffer so
  * the driver only keeps a single split's resources wired at a time. */
@@ -232,6 +233,27 @@ int ds4_gpu_indexer_scores_decode_batch_tensor(
 int ds4_gpu_indexer_topk_tensor(
         ds4_gpu_tensor       *selected,
         const ds4_gpu_tensor *scores,
+        uint32_t                n_comp,
+        uint32_t                n_tokens,
+        uint32_t                top_k);
+
+int ds4_gpu_argmax_f32_tensor(
+        ds4_gpu_tensor       *selected,
+        const ds4_gpu_tensor *scores,
+        uint32_t                n_comp,
+        uint32_t                n_tokens);
+
+int ds4_gpu_add_argmax_f32_tensor(
+        ds4_gpu_tensor       *selected,
+        ds4_gpu_tensor       *scores,
+        const ds4_gpu_tensor *add,
+        uint32_t                n_comp,
+        uint32_t                n_tokens);
+
+int ds4_gpu_indexer_topk_logits_tensor(
+        float                  *values,
+        const ds4_gpu_tensor   *scores,
+        const ds4_gpu_tensor   *selected,
         uint32_t                n_comp,
         uint32_t                n_tokens,
         uint32_t                top_k);
@@ -502,6 +524,22 @@ int ds4_gpu_matmul_fp8_e4m3_tensor(
         uint64_t                scale_cols,
         const ds4_gpu_tensor *x,
         uint64_t                n_tok);
+
+int ds4_gpu_matmul_fp8_e4m3_strided_rows5_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                scale_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        uint64_t                scale_rows,
+        uint64_t                scale_cols,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok,
+        uint64_t                in_stride,
+        uint64_t                out_stride,
+        uint64_t                group_rows);
 
 int ds4_gpu_matmul_gguf_tensor(
         ds4_gpu_tensor       *out,
@@ -1981,5 +2019,14 @@ uint64_t ds4_gpu_system_memory_bytes(void);
 
 /* Cumulative GPU command-buffer execution time (seconds), from cb GPUStart/EndTime. */
 double ds4_gpu_busy_seconds(void);
+
+/* Case E (dspark-attn): NAX/matmul2d batched verifier attention. */
+int ds4_gpu_dspark_nax_attention_tensor(
+        ds4_gpu_tensor *heads, const ds4_gpu_tensor *q,
+        const ds4_gpu_tensor *raw_kv, const ds4_gpu_tensor *comp_kv,
+        const ds4_gpu_tensor *comp_selected, uint32_t comp_selected_top_k,
+        const uint32_t *raw_counts, const uint32_t *comp_counts, const uint32_t *raw_starts,
+        uint32_t n_tok, uint32_t n_head, uint32_t n_comp,
+        uint32_t raw_cap, uint32_t head_dim, float scale);
 
 #endif

@@ -69,6 +69,8 @@ typedef struct {
     int moe_prefetch_topk;
     int moe_expert_topk;
     bool dspark_attn_force_mma;
+    bool draft_fast_relaxed;
+    bool draft_verify_dynamic;
     bool resident_ane_prefill;
     bool resident_ane_shared_expert;
     bool resident_ane_oproj;
@@ -115,6 +117,7 @@ typedef struct {
     uint64_t debug_system_compressed_bytes;
     uint64_t debug_gpu_compressed_bytes;
     char debug_draft_label[12];
+    uint32_t debug_draft_active_budget;
     uint64_t debug_draft_slots;
     uint64_t debug_draft_accepted;
     uint64_t debug_draft_blocks;
@@ -127,6 +130,7 @@ typedef struct agent_file_view agent_file_view;
 static void agent_status_clear_draft_debug(agent_status *st);
 static void agent_status_set_draft_debug(agent_status *st,
                                          const char *label,
+                                         uint32_t active_budget,
                                          uint64_t accepted,
                                          uint64_t slots,
                                          uint64_t blocks);
@@ -495,10 +499,15 @@ static ds4_draft_kind parse_draft_kind(const char *s) {
 }
 
 static const char *parse_draft_scheduler(const char *s) {
-    if (!strcmp(s, "static") || !strcmp(s, "confidence")) return s;
+    if (!strcmp(s, "static") ||
+        !strcmp(s, "confidence") ||
+        !strcmp(s, "confidence-softmax") ||
+        !strcmp(s, "softmax") ||
+        !strcmp(s, "confidence-softmax-long") ||
+        !strcmp(s, "softmax-long")) return s;
     fprintf(stderr,
             "ds4-agent: invalid --draft-scheduler value: %s "
-            "(expected static or confidence)\n",
+            "(expected static, confidence, confidence-softmax, or confidence-softmax-long)\n",
             s);
     exit(2);
 }
@@ -547,13 +556,16 @@ static void usage(FILE *fp) {
         "  --mtp-margin F         MTP verifier margin. Default: 3\n"
         "  --draft dspark         Use a DSpark draft package for speculative decoding.\n"
         "  --draft-path PATH      DS4 DSpark draft package directory.\n"
-        "  --draft-verify N       Static DSpark verification budget, 1..5. Default: 5\n"
+        "  --draft-verify N       Fixed DSpark verification budget, 1..5. Default: 5\n"
+        "  --draft-verify-dynamic Adapt active DSpark budget from 2 up to --draft-verify.\n"
         "  --draft-mode NAME      strict, batch, or unified. Default: strict\n"
-        "  --draft-scheduler NAME static or confidence. Default: static\n"
+        "  --draft-scheduler NAME static, confidence, confidence-softmax, or confidence-softmax-long. Default: static\n"
         "  --draft-conf-threshold F\n"
         "                         Confidence threshold for confidence scheduler.\n"
         "  --dspark-attn-force-mma\n"
         "                         Diagnostic: force DSpark verifier MMA attention path.\n"
+        "  --draft-fast-relaxed  Non-byte DSpark speed preset: frontier draft,\n"
+        "                         relaxed suffix accept, MMA attention, and fast Q2 down.\n"
         "  --moe-sidecar PATH     Flash-MoE sidecar directory.\n"
         "  --moe-mode NAME        Routed expert source: off or slot-bank. Default: off\n"
         "  --moe-slot-bank N      Streaming slots/layer; main RAM/cache knob. Default: 32\n"
@@ -650,10 +662,33 @@ static void agent_setenv_default_or_die(const char *name, const char *value) {
     }
 }
 
+static void agent_unsetenv_or_die(const char *name) {
+    if (unsetenv(name) != 0) {
+        fprintf(stderr, "ds4-agent: unsetenv %s: %s\n", name, strerror(errno));
+        exit(2);
+    }
+}
+
 static void agent_setenv_int_or_die(const char *name, int value) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", value);
     agent_setenv_or_die(name, buf);
+}
+
+static void agent_enable_dspark_fast_relaxed(void) {
+    agent_unsetenv_or_die("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS");
+    agent_setenv_default_or_die("DS4_DSPARK_FRONTIER_DRAFT", "1");
+    agent_setenv_or_die("DS4_DSPARK_RELAXED_ACCEPT", "1");
+    agent_setenv_or_die("DS4_DSPARK_RELAXED_MARGIN_DISABLE", "1");
+    agent_setenv_or_die("DS4_DSPARK_ATTN_FORCE_MMA", "1");
+    agent_setenv_or_die("DS4_DSPARK_HYBRID_ROW_ROUTED_FAST_Q2_SUM6", "1");
+    agent_setenv_or_die("DS4_METAL_ENABLE_ROUTED_DOWN_SUM6", "1");
+    agent_setenv_default_or_die("DS4_DSPARK_DRAFT_PREFETCH", "1");
+    agent_setenv_default_or_die("DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT", "1");
+    agent_setenv_default_or_die("DS4_DSPARK_RELAXED_TOPK", "256");
+    agent_setenv_default_or_die("DS4_DSPARK_RELAXED_LOGIT_DELTA", "10");
+    agent_setenv_default_or_die("DS4_DSPARK_RELAXED_MAX_OFFARGMAX_PER_BLOCK", "5");
+    agent_setenv_default_or_die("DS4_DSPARK_RELAXED_LOOP_TOKEN_MAX", "24");
 }
 
 static void agent_enable_resident_ane_prefill(agent_config *c) {
@@ -774,6 +809,9 @@ static agent_config parse_options(int argc, char **argv) {
             c.engine.draft_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--draft-verify")) {
             c.engine.draft_verify = parse_int_range(need_arg(&i, argc, argv, arg), arg, 1, 5);
+        } else if (!strcmp(arg, "--draft-verify-dynamic")) {
+            c.draft_verify_dynamic = true;
+            agent_setenv_or_die("DS4_DSPARK_VERIFY_DYNAMIC", "1");
         } else if (!strcmp(arg, "--draft-mode")) {
             const char *mode = parse_draft_mode(need_arg(&i, argc, argv, arg));
             c.draft_mode = mode;
@@ -792,12 +830,11 @@ static agent_config parse_options(int argc, char **argv) {
         } else if (!strcmp(arg, "--dspark-attn-force-mma")) {
             c.dspark_attn_force_mma = true;
             agent_setenv_or_die("DS4_DSPARK_ATTN_FORCE_MMA", "1");
-            if (unsetenv("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS") != 0) {
-                fprintf(stderr,
-                        "ds4-agent: unsetenv DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS: %s\n",
-                        strerror(errno));
-                exit(2);
-            }
+            agent_unsetenv_or_die("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS");
+        } else if (!strcmp(arg, "--draft-fast-relaxed")) {
+            c.draft_fast_relaxed = true;
+            c.dspark_attn_force_mma = true;
+            agent_enable_dspark_fast_relaxed();
         } else if (!strcmp(arg, "--moe-sidecar")) {
             c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--moe-mode")) {
@@ -1417,6 +1454,7 @@ static void agent_status_apply_runtime(agent_status *st,
 static void agent_status_clear_draft_debug(agent_status *st) {
     if (!st) return;
     st->debug_draft_label[0] = '\0';
+    st->debug_draft_active_budget = 0;
     st->debug_draft_slots = 0;
     st->debug_draft_accepted = 0;
     st->debug_draft_blocks = 0;
@@ -1424,6 +1462,7 @@ static void agent_status_clear_draft_debug(agent_status *st) {
 
 static void agent_status_set_draft_debug(agent_status *st,
                                          const char *label,
+                                         uint32_t active_budget,
                                          uint64_t accepted,
                                          uint64_t slots,
                                          uint64_t blocks) {
@@ -1432,6 +1471,7 @@ static void agent_status_set_draft_debug(agent_status *st,
              sizeof(st->debug_draft_label),
              "%s",
              label && label[0] ? label : "draft");
+    st->debug_draft_active_budget = active_budget;
     st->debug_draft_slots = slots;
     st->debug_draft_accepted = accepted;
     st->debug_draft_blocks = blocks;
@@ -1522,7 +1562,7 @@ static void agent_print_dspark_runtime_status(agent_worker *w,
     double avg_overhead_ms = avg_block_ms - avg_draft_ms - avg_verify_ms;
     if (avg_overhead_ms < 0.0) avg_overhead_ms = 0.0;
     const double tau =
-        1.0 + (double)rt.dspark_perf_committed_tokens / (double)rt.dspark_perf_blocks;
+        (double)rt.dspark_perf_committed_tokens / (double)rt.dspark_perf_blocks;
 
     agent_publishf(w,
             "\nds4-agent: dspark perf round=%d: draft=%.1f tok/s, verify=%.1f proposed tok/s, "
@@ -1553,6 +1593,22 @@ static void agent_print_dspark_runtime_status(agent_worker *w,
             avg_verify_ms,
             verify_gpu_pct,
             100.0 - verify_gpu_pct);
+
+    const double block_tps = rt.dspark_perf_total_seconds > 0.0 ?
+        (double)rt.dspark_perf_committed_tokens / rt.dspark_perf_total_seconds : 0.0;
+    const double draft_hidden_seconds =
+        rt.dspark_perf_total_seconds - rt.dspark_perf_draft_seconds;
+    if (draft_hidden_seconds > 0.0 && block_tps > 0.0) {
+        const double draft_hidden_tps =
+            (double)rt.dspark_perf_committed_tokens / draft_hidden_seconds;
+        agent_publishf(w,
+                "ds4-agent: dspark draft-overlap upper-bound round=%d: %.1f tok/s "
+                "(%.2fx block decode, hides %.2f ms/block)\n",
+                tool_round,
+                draft_hidden_tps,
+                draft_hidden_tps / block_tps,
+                avg_draft_ms);
+    }
 }
 
 static void agent_set_error(agent_worker *w, const char *msg) {
@@ -10218,7 +10274,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         uint64_t draft_accepted = 0;
         uint64_t draft_blocks = 0;
         uint64_t draft_pos_slots[16] = {0};
+        uint64_t draft_pos_cond_slots[16] = {0};
         uint64_t draft_pos_accepted[16] = {0};
+        uint64_t draft_full_accept_blocks = 0;
+        uint64_t draft_first_miss_blocks = 0;
         ds4_runtime_status dspark_rt_base;
         const bool dspark_rt_base_ok =
             agent_read_session_runtime_status(w->session, &dspark_rt_base);
@@ -10250,6 +10309,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
             if (use_speculative) {
                 const int accepted_cap = (int)(sizeof(toks) / sizeof(toks[0]));
                 int drafted = 0;
+                int accepted_draft_count = -1;
                 ntok = ds4_session_eval_speculative_argmax(w->session,
                                                            first_token,
                                                            max_tokens - generated,
@@ -10257,6 +10317,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                                                            toks,
                                                            accepted_cap,
                                                            &drafted,
+                                                           &accepted_draft_count,
                                                            err,
                                                            sizeof(err));
                 if (ntok < 0) {
@@ -10264,17 +10325,25 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                     agent_set_error(w, err);
                     return 1;
                 }
+                int accepted_drafts = accepted_draft_count >= 0 ?
+                    accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
+                if (accepted_drafts < 0) accepted_drafts = 0;
                 draft_slots += (uint64_t)drafted;
                 if (drafted > 0) {
                     draft_blocks++;
                     const int pos_cap = drafted < 16 ? drafted : 16;
                     for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
-                    const int accepted_drafts = ntok > 1 ? ntok - 1 : 0;
+                    if (accepted_drafts > drafted) accepted_drafts = drafted;
                     const int accepted_cap_pos =
                         accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
+                    for (int i = 0; i < pos_cap; i++) {
+                        if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+                    }
                     for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
+                    if (accepted_drafts == drafted) draft_full_accept_blocks++;
+                    if (accepted_drafts == 0) draft_first_miss_blocks++;
                 }
-                if (ntok > 1) draft_accepted += (uint64_t)(ntok - 1);
+                if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
             } else {
                 if (ds4_session_eval(w->session, first_token, err, sizeof(err)) != 0) {
                     agent_dsml_parser_free(&dsml);
@@ -10334,6 +10403,8 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
             if (w->cfg && w->cfg->debug_status) {
                 agent_status_set_draft_debug(&w->status,
                                              draft_label,
+                                             have_rt && rt.dspark_verify_dynamic ?
+                                                rt.dspark_active_verify_budget : 0,
                                              draft_accepted,
                                              draft_slots,
                                              draft_blocks);
@@ -10410,6 +10481,58 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                 agent_buf_puts(&pos_line, "\n");
                 agent_publish(w, pos_line.ptr, pos_line.len);
                 free(pos_line.ptr);
+                agent_buf cond_line = {0};
+                char cond_hdr[104];
+                snprintf(cond_hdr, sizeof(cond_hdr),
+                         "ds4-agent: %s conditional acceptance round=%d:",
+                         draft_label,
+                         tool_round);
+                agent_buf_puts(&cond_line, cond_hdr);
+                for (int i = 0; i < pos_limit; i++) {
+                    const uint64_t denom = draft_pos_cond_slots[i];
+                    const uint64_t numer = draft_pos_accepted[i];
+                    const double pct = denom != 0 ?
+                        100.0 * (double)numer / (double)denom : 0.0;
+                    char item[96];
+                    if (i == 0) {
+                        snprintf(item, sizeof(item),
+                                 " 1=%.1f%% (%llu/%llu)",
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                    } else if (i == 1) {
+                        snprintf(item, sizeof(item),
+                                 " 2|1=%.1f%% (%llu/%llu)",
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                    } else {
+                        snprintf(item, sizeof(item),
+                                 " %d|1-%d=%.1f%% (%llu/%llu)",
+                                 i + 1,
+                                 i,
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                    }
+                    agent_buf_puts(&cond_line, item);
+                }
+                agent_buf_puts(&cond_line, "\n");
+                agent_publish(w, cond_line.ptr, cond_line.len);
+                free(cond_line.ptr);
+                agent_publishf(w,
+                        "ds4-agent: %s full-accept round=%d: %.1f%% (%llu/%llu blocks), "
+                        "first-miss %.1f%% (%llu/%llu blocks)\n",
+                        draft_label,
+                        tool_round,
+                        draft_blocks > 0 ?
+                            100.0 * (double)draft_full_accept_blocks / (double)draft_blocks : 0.0,
+                        (unsigned long long)draft_full_accept_blocks,
+                        (unsigned long long)draft_blocks,
+                        draft_blocks > 0 ?
+                            100.0 * (double)draft_first_miss_blocks / (double)draft_blocks : 0.0,
+                        (unsigned long long)draft_first_miss_blocks,
+                        (unsigned long long)draft_blocks);
                 agent_publishf(w,
                         "ds4-agent: %s avg scheduled round=%d: %.2f draft tokens/block (%llu blocks)\n",
                         draft_label,
@@ -10949,12 +11072,25 @@ static void build_status_debug_text(const agent_status *st, char *buf, size_t le
         const double acc =
             100.0 * (double)st->debug_draft_accepted / (double)st->debug_draft_slots;
         const double tau = st->debug_draft_blocks != 0 ?
-            1.0 + (double)st->debug_draft_accepted / (double)st->debug_draft_blocks :
+            (double)st->debug_draft_accepted / (double)st->debug_draft_blocks :
             0.0;
+        char label[32];
+        if (st->debug_draft_active_budget != 0) {
+            snprintf(label,
+                     sizeof(label),
+                     "%s[%u]",
+                     st->debug_draft_label[0] ? st->debug_draft_label : "draft",
+                     st->debug_draft_active_budget);
+        } else {
+            snprintf(label,
+                     sizeof(label),
+                     "%s",
+                     st->debug_draft_label[0] ? st->debug_draft_label : "draft");
+        }
         snprintf(draft,
                  sizeof(draft),
                  "%s acc:%.1f%% tau:%.2f",
-                 st->debug_draft_label[0] ? st->debug_draft_label : "draft",
+                 label,
                  acc,
                  tau);
     }
@@ -12210,6 +12346,12 @@ static void agent_print_resume_hint(agent_worker *w) {
                draft_path,
                cfg->engine.draft_verify);
         free(draft_path);
+        if (cfg->draft_verify_dynamic) {
+            printf(" --draft-verify-dynamic");
+        }
+        if (cfg->draft_fast_relaxed) {
+            printf(" --draft-fast-relaxed");
+        }
         if (cfg->draft_mode && strcmp(cfg->draft_mode, "strict")) {
             printf(" --draft-mode %s", cfg->draft_mode);
         }

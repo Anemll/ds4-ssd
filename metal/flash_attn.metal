@@ -2906,7 +2906,7 @@ kernel void kernel_dspark_phase_range_probe(
         if (kind == 0u) {
             raw_keys += len;
             raw_ranges++;
-        } else if (kind == 1u) {
+        } else if (kind == 1u || kind == 2u) {
             comp_keys += len;
             comp_ranges++;
         } else {
@@ -2985,7 +2985,7 @@ kernel void kernel_dspark_mixed_prefix_range_probe(
         if (kind == 0u) {
             raw_keys += len;
             raw_ranges++;
-        } else if (kind == 1u) {
+        } else if (kind == 1u || kind == 2u) {
             comp_keys += len;
             comp_ranges++;
         } else {
@@ -3377,6 +3377,9 @@ kernel void kernel_dspark_mixed_prefix_head_probe(
         constant uint32_t                                      & n_raw_union,
         constant uint32_t                                      & nwg_arg,
         device char                                            * dst,
+        device const uint32_t                                  * row_raw_base,
+        device const uint32_t                                  * row_n_raw,
+        device const uint32_t                                  * row_n_comp,
         threadgroup half                                       * shmem_f16 [[threadgroup(0)]],
         uint3                                                    tgpig [[threadgroup_position_in_grid]],
         ushort                                                   tiisg [[thread_index_in_simdgroup]],
@@ -3388,6 +3391,7 @@ kernel void kernel_dspark_mixed_prefix_head_probe(
     constexpr short C = OP_FLASH_ATTN_EXT_VEC_NCPSG;
     constexpr short NW = N_SIMDWIDTH;
     constexpr uchar ROW_SHARED = 31;
+    constexpr uint KIND_ROWKEY = 2;
 
     const ushort row = sgitg;
     if (row >= args.ne01) {
@@ -3397,6 +3401,7 @@ kernel void kernel_dspark_mixed_prefix_head_probe(
     const uint32_t head = tgpig.y;
     const uint32_t iwg = tgpig.z;
     const uint32_t NWG = min(max(nwg_arg, 1u), 32u);
+    const bool direct_read = args.ne32 != 0;
     if (head >= (uint32_t)args.ne02 || iwg >= NWG) {
         return;
     }
@@ -3438,16 +3443,27 @@ kernel void kernel_dspark_mixed_prefix_head_probe(
         const bool row_range = (uint32_t)range.row == (uint32_t)row;
         const bool consume_range = shared_range || row_range;
         const bool load_range = shared_range ? (row == 0) : row_range;
-        if (lane != iwg || (kind != 0u && kind != 1u)) {
+        const bool rowkey_range = kind == KIND_ROWKEY;
+        const bool staged_rowkey_range = rowkey_range && shared_range && !direct_read;
+        if (lane != iwg || (kind != 0u && kind != 1u && !rowkey_range)) {
             continue;
         }
 
-        const uint32_t stream_begin =
+        uint32_t stream_begin =
             (kind == 0u) ? (uint32_t)range.begin : n_raw_union + (uint32_t)range.begin;
+        if (staged_rowkey_range) {
+            const uint32_t row_key = (uint32_t)range.begin;
+            const uint32_t n_raw0 = row_n_raw[0];
+            stream_begin = row_key < n_raw0
+                ? row_raw_base[0] + row_key
+                : n_raw_union + (row_key - n_raw0);
+        } else if (rowkey_range) {
+            stream_begin = 0u;
+        }
         for (uint32_t base = 0; base < (uint32_t)range.len; base += C) {
             const uint32_t chunk_len = min((uint32_t)C, (uint32_t)range.len - base);
             threadgroup_barrier(mem_flags::mem_threadgroup);
-            if (load_range) {
+            if (load_range && !direct_read && (!rowkey_range || staged_rowkey_range)) {
                 device const half4 *pk4_src =
                     k + ((uint64_t)stream_begin + base) * DK4;
                 device const half4 *pv4_src =
@@ -3460,62 +3476,91 @@ kernel void kernel_dspark_mixed_prefix_head_probe(
                 }
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
-            if (!consume_range) {
-                continue;
-            }
-
-            float mqk[C] = { [0 ... C - 1] = 0.0f };
-            FOR_UNROLL (short cc = 0; cc < C; ++cc) {
-                const bool valid_key = (uint32_t)cc < chunk_len;
-                FOR_UNROLL (short ii = 0; ii < DK4 / NW; ++ii) {
-                    const short qi = ii * NW + tiisg;
-                    half4 mk = half4(0.0h);
-                    if (valid_key) {
-                        threadgroup const half4 *pk4 =
-                            sk4 + (uint64_t)cc * DK4 + tiisg;
-                        mk = pk4[ii * NW];
+            if (consume_range) {
+                float mqk[C] = { [0 ... C - 1] = 0.0f };
+                FOR_UNROLL (short cc = 0; cc < C; ++cc) {
+                    const bool valid_key = (uint32_t)cc < chunk_len;
+                    FOR_UNROLL (short ii = 0; ii < DK4 / NW; ++ii) {
+                        const short qi = ii * NW + tiisg;
+                        half4 mk = half4(0.0h);
+                        if (valid_key) {
+                            if (direct_read || (rowkey_range && !staged_rowkey_range)) {
+                                uint32_t stream_row = stream_begin + base + (uint32_t)cc;
+                                if (rowkey_range) {
+                                    const uint32_t row_key =
+                                        (uint32_t)range.begin + base + (uint32_t)cc;
+                                    const uint32_t n_raw = row_n_raw[row];
+                                    stream_row = row_key < n_raw
+                                        ? row_raw_base[row] + row_key
+                                        : n_raw_union + (row_key - n_raw);
+                                }
+                                device const half4 *pk4 =
+                                    k + (uint64_t)stream_row * DK4 + qi;
+                                mk = *pk4;
+                            } else {
+                                threadgroup const half4 *pk4 =
+                                    sk4 + (uint64_t)cc * DK4 + tiisg;
+                                mk = pk4[ii * NW];
+                            }
+                        }
+                        mqk[cc] += dot(float4(mk), float4(sq4[qi]));
                     }
-                    mqk[cc] += dot(float4(mk), float4(sq4[qi]));
+                    mqk[cc] = simd_sum(mqk[cc]);
                 }
-                mqk[cc] = simd_sum(mqk[cc]);
-            }
 
-            const bool valid = tiisg < chunk_len;
-            float score = mqk[tiisg] * args.scale;
-            score += valid ? 0.0f : -MAXHALF;
-            ss[tiisg] = score;
-            simdgroup_barrier(mem_flags::mem_threadgroup);
+                const bool valid = tiisg < chunk_len;
+                float score = mqk[tiisg] * args.scale;
+                score += valid ? 0.0f : -MAXHALF;
+                ss[tiisg] = score;
+                simdgroup_barrier(mem_flags::mem_threadgroup);
 
-            const float old_m = M;
-            const float s = ss[tiisg];
-            M = simd_max(max(M, s));
-            const float ms = exp(old_m - M);
-            const float vs = exp(s - M);
-            S = S * ms + simd_sum(vs);
-            ss[tiisg] = vs;
-            FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
-                so4[ii * NW + tiisg] *= ms;
-            }
-            simdgroup_barrier(mem_flags::mem_threadgroup);
-
-            float4 lo[DV4 / NW] = { [0 ... DV4 / NW - 1] = float4(0.0f) };
-            FOR_UNROLL (short cc = 0; cc < C; ++cc) {
-                const bool valid_key = (uint32_t)cc < chunk_len;
-                const float weight = ss[cc];
+                const float old_m = M;
+                const float s = ss[tiisg];
+                M = simd_max(max(M, s));
+                const float ms = exp(old_m - M);
+                const float vs = exp(s - M);
+                S = S * ms + simd_sum(vs);
+                ss[tiisg] = vs;
                 FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
-                    half4 mv = half4(0.0h);
-                    if (valid_key) {
-                        threadgroup const half4 *pv4 =
-                            sv4 + (uint64_t)cc * DV4 + tiisg;
-                        mv = pv4[ii * NW];
-                    }
-                    lo[ii] += float4(mv) * weight;
+                    so4[ii * NW + tiisg] *= ms;
                 }
+                simdgroup_barrier(mem_flags::mem_threadgroup);
+
+                float4 lo[DV4 / NW] = { [0 ... DV4 / NW - 1] = float4(0.0f) };
+                FOR_UNROLL (short cc = 0; cc < C; ++cc) {
+                    const bool valid_key = (uint32_t)cc < chunk_len;
+                    const float weight = ss[cc];
+                    FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+                        half4 mv = half4(0.0h);
+                        if (valid_key) {
+                            if (direct_read || (rowkey_range && !staged_rowkey_range)) {
+                                uint32_t stream_row = stream_begin + base + (uint32_t)cc;
+                                if (rowkey_range) {
+                                    const uint32_t row_key =
+                                        (uint32_t)range.begin + base + (uint32_t)cc;
+                                    const uint32_t n_raw = row_n_raw[row];
+                                    stream_row = row_key < n_raw
+                                        ? row_raw_base[row] + row_key
+                                        : n_raw_union + (row_key - n_raw);
+                                }
+                                device const half4 *pv4 =
+                                    v + (uint64_t)stream_row * DV4 + (ii * NW + tiisg);
+                                mv = *pv4;
+                            } else {
+                                threadgroup const half4 *pv4 =
+                                    sv4 + (uint64_t)cc * DV4 + tiisg;
+                                mv = pv4[ii * NW];
+                            }
+                        }
+                        lo[ii] += float4(mv) * weight;
+                    }
+                }
+                FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+                    so4[ii * NW + tiisg] += lo[ii];
+                }
+                simdgroup_barrier(mem_flags::mem_threadgroup);
             }
-            FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
-                so4[ii * NW + tiisg] += lo[ii];
-            }
-            simdgroup_barrier(mem_flags::mem_threadgroup);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
         }
     }
 

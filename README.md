@@ -329,7 +329,7 @@ Validate the package against the Flash sidecar target:
   -m "$DS4_SIDECAR_DIR" \
   --draft dspark \
   --draft-path "$DS4_DSPARK_DRAFT" \
-  --draft-verify 4 \
+  --draft-verify 5 \
   --inspect
 ```
 
@@ -339,8 +339,9 @@ means the checkpoint can draft up to 5 tokens per block; it does not require
 every run to verify all 5. For current Flash sidecar runs, pin
 `--draft-verify 4`: in static mode the active proposal length is
 `min(block_size, --draft-verify)`, so the loader prints `block=5 verify=4
-active=4`. This still allows `tau` up to 5 while avoiding the slowest fifth
-draft position. Use `--draft-verify 2`, `3`, or `5` for fixed-budget A/B tests.
+active=4`. This avoids the slowest fifth draft position while still emitting
+the normal target token before each DSpark block. Use `--draft-verify 2`, `3`,
+or `5` for fixed-budget A/B tests.
 
 Run a paired sidecar baseline first:
 
@@ -386,10 +387,79 @@ ds4: dspark acceptance by position: ...
 ds4: dspark avg scheduled: ...
 ```
 
-Here `tau` means emitted tokens per speculation block:
-`1 + accepted_draft_tokens / blocks`. With `--draft-verify 4`, the maximum
-`tau` is therefore `5.0`: one ordinary target token plus up to four accepted
-draft tokens.
+Here `tau` in the DSpark perf line means accepted draft tokens per DSpark
+speculation block. End-to-end generated tokens also include the leading target
+token that seeded the block. With `--draft-verify 4`, the DSpark perf `tau` cap
+is therefore `4.0`; use `--draft-verify 5` to test the full DSpark-5 block.
+
+For adaptive budget experiments, keep `--draft-verify` as the cap and add
+`--draft-verify-dynamic`. The default controller is measured-throughput based:
+it starts at the cap, learns conditional acceptance by draft position, samples
+the active budgets `2,3,4,5`, and then selects the budget with the best expected
+accepted draft tokens per measured block second. This is intentionally closer
+to the Ollama/MLX dynamic-depth controller than the older last-window tau
+heuristic, so it can recover upward when a deeper block becomes worthwhile
+again. The default fast-start setting trusts a position after 4 conditional
+samples; set `DS4_DSPARK_VERIFY_DYNAMIC_MIN_SAMPLES=10` for a slower
+Ollama-like ramp. Set `DS4_DSPARK_VERIFY_DYNAMIC_LOG=1` to print budget
+changes, and use `DS4_DSPARK_VERIFY_DYNAMIC_MIN=N` to constrain the lower bound
+for A/B tests. Set `DS4_DSPARK_VERIFY_DYNAMIC_LEGACY=1` to restore the older
+tau-window controller.
+
+`--draft-scheduler confidence-softmax` is a strict adaptive-budget experiment:
+it uses the DSpark confidence head to choose how many proposed tokens to verify,
+but it still accepts only normal target-verified tokens. This is not relaxed
+acceptance and should not introduce the repetition failures seen in relaxed
+fast mode. Start with logging enabled:
+
+```sh
+DS4_CTX_GROW_BLOCK=2048 \
+DS4_AGENT_ALLOW_BACKEND_STATS=1 \
+DS4_DSPARK_PERF=1 \
+DS4_DSPARK_VERIFY_DYNAMIC_LOG=1 \
+DS4_DSPARK_CONFIDENCE_SOFTMAX_LOG=1 \
+./ds4 \
+  -m "$DS4_SIDECAR_DIR" \
+  --resident \
+  --draft dspark \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 5 \
+  --draft-verify-dynamic \
+  --draft-scheduler confidence-softmax \
+  --temp 0 \
+  --nothink \
+  -n 1000 \
+  -c 4096 \
+  -p "$TEST_PROMPT"
+```
+
+By default, `confidence-softmax` uses the verifier-cost-biased preset also
+available as `confidence-softmax-long`: `MIN=4`, `FIXED_COST=12`,
+`TOKEN_COST=0.25`, and `MASS_WEIGHT=0.5`. That keeps the scheduler close to the
+full DSpark-5 block while still allowing it to drop the weak tail. Set
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_LEGACY=1` to restore the older conservative
+defaults for A/B testing. Useful tuning knobs are
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_MIN`, `DS4_DSPARK_CONFIDENCE_SOFTMAX_TEMP`,
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_FIXED_COST`,
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_TOKEN_COST`,
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_MASS_WEIGHT`, and
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_FLOOR`. Lower `TOKEN_COST` or higher
+`MASS_WEIGHT` pushes toward longer prefixes. `DS4_DSPARK_CONFIDENCE_SOFTMAX_MIN=0`
+is an emergency-skip diagnostic: it can skip verification for a low-confidence
+draft block and fall back to the already-emitted target token, but if it fires
+too often it wastes draft time and behaves like baseline plus overhead.
+`DS4_DSPARK_CONFIDENCE_SOFTMAX_SKIP_BIAS` controls how willing the scheduler is
+to choose that zero-verify escape hatch.
+
+Relaxed fast-mode experiments can raise `tau` by accepting target-supported
+non-argmax draft tokens, but this changes the greedy contract and is not
+recommended for demos or agent coding tasks. The default relaxed gate now
+requires target uncertainty before a non-argmax token is accepted:
+`top1-top2 <= DS4_DSPARK_RELAXED_TARGET_MARGIN` and
+`top1-draft <= DS4_DSPARK_RELAXED_DRAFT_MARGIN` in addition to the configured
+top-k/logit gate. The simple loop guard is only a secondary brake; it rejects
+non-argmax draft tokens that would extend a recent repeated token n-gram or
+overuse one token in a short window.
 
 For `ds4-agent`, keep the same sidecar model and draft package:
 
@@ -406,6 +476,52 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
   --ctx 24096 \
   --debug-status
 ```
+
+The following relaxed-mode shape is retained only as a diagnostic speed
+experiment. It changes the greedy contract, so do not use it for demos without
+a separate quality pass. The off-argmax cap is important: older loose relaxed
+commands without it produced broken `ds4-agent` HTML/game output with duplicate
+declarations and repeated constants.
+
+```sh
+DS4_CTX_GROW_BLOCK=2048 \
+DS4_AGENT_ALLOW_BACKEND_STATS=1 \
+DS4_DSPARK_PERF=1 \
+DS4_AGENT_TURN_STATS=1 \
+DS4_DSPARK_RELAXED_LOOP_LOG=1 \
+DS4_DSPARK_RELAXED_COOLDOWN_BLOCKS=4 \
+./ds4-agent \
+  --model "$DS4_SIDECAR_DIR" \
+  --resident \
+  --draft dspark \
+  --draft-path "$DS4_DSPARK_DRAFT" \
+  --draft-verify 5 \
+  --draft-fast-relaxed \
+  --draft-scheduler confidence \
+  --draft-conf-threshold 0.4 \
+  --temp 0 \
+  --nothink \
+  --ctx 24096 \
+  --debug-status
+```
+
+`DS4_DSPARK_RELAXED_MARGIN_DISABLE=1` restores the older top-k/delta-only
+diagnostic gate, which is useful only for speed-ceiling comparisons.
+`DS4_DSPARK_RELAXED_LOOP_GUARD_DISABLE=1` is also only for unsafe speed-ceiling
+comparisons. `DS4_DSPARK_RELAXED_COOLDOWN_BLOCKS=N` is a recoverable brake:
+after a loop-guard rejection, off-argmax relaxed accepts are suppressed for `N`
+speculation blocks while target-argmax DSpark accepts can continue.
+The relaxed loop guard defaults to `DS4_DSPARK_RELAXED_LOOP_NGRAM=3`,
+`DS4_DSPARK_RELAXED_LOOP_TOKEN_MAX=12`, and checks target-top accepted tokens
+too; set `DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1` only to reproduce the
+older looser behavior.
+`DS4_DSPARK_RELAXED_MAX_OFFARGMAX_PER_BLOCK=N` caps how many non-argmax but
+target-supported draft tokens one block may accept. Start with `N=1` when
+testing loose gates. The current `--draft-fast-relaxed` preset uses
+`TOPK=256` / `LOGIT_DELTA=10`; it kept the 1000-token Space Invaders smoke
+canary-clean in local testing and was the best point in the local relaxed
+sweep, but it still measured below the >60 t/s goal. `DS4_DSPARK_RELAXED_OFFARGMAX_COOLDOWN_BLOCKS=N`
+can also force a short target-argmax-only cooldown after any off-argmax accept.
 
 For `ds4-server`, use the same resident sidecar target. DSpark is greedy-only,
 so client requests must use `temperature: 0` if you want speculative decoding:
@@ -472,10 +588,15 @@ Operational notes:
 - The Flash DSpark draft package is kept resident by default. A normal run
   refuses to fall back to disk-backed draft experts, so speed measurements do
   not silently switch paths.
-- `--draft-verify 4` is the recommended Flash sidecar budget. Use
-  `--draft-verify 2`, `3`, or `5` only for explicit A/B sweeps.
+- `--draft-verify 5` is the recommended Flash sidecar fast-preset budget. Use
+  `--draft-verify 2`, `3`, or `4` only for explicit A/B sweeps.
 - `--dspark-attn-force-mma` is a faster demo/Mode-B diagnostic. It is not the
   strict byte-identical verifier path.
+- `--draft-fast-relaxed` enables the current fast demo preset, including the
+  frontier draft path, relaxed suffix accept (`TOPK=256`, `LOGIT_DELTA=10`),
+  GPU-queue draft prefetch, MMA attention, and fast Q2 down. It is a
+  non-byte-identical diagnostic mode, not the strict verifier. The prefetch
+  hides only queue/readback slack; it is not true ANE/separate-engine overlap.
 - DSpark can run against a streaming/direct-mmap sidecar, but that path is not
   the speed target: verifier work becomes SSD/VM-bound. Use `--resident` for
   DSpark throughput measurements.
@@ -491,7 +612,7 @@ N=160 scripts/dspark_phase0_sweep.sh
 
 The final `generation:` line is the headline speed. DSpark also prints
 acceptance, acceptance by draft position, average scheduled draft length, and
-`tau`, where `tau = 1 + accepted_draft_tokens / blocks`.
+`tau`, where `tau = accepted/emitted draft tokens per DSpark block`.
 
 ### Experimental Pro Support
 

@@ -505,6 +505,13 @@ static void random_tool_id(char *dst, size_t dstlen, api_style api) {
 
 typedef struct server server;
 
+static ds4_think_mode server_resolve_think_mode(const server *s,
+                                                bool got_thinking,
+                                                const char *model,
+                                                bool thinking_enabled,
+                                                ds4_think_mode reasoning_effort,
+                                                int ctx_size);
+
 typedef struct {
     char *id;
     char *name;
@@ -2752,10 +2759,9 @@ static bool parse_chat_request(ds4_engine *e, server *s, const char *body, int d
         return false;
     }
     r->has_tools = tool_schemas && tool_schemas[0] && !tool_choice_none;
-    if (!got_thinking && model_alias_disables_thinking(r->model)) thinking_enabled = false;
-    if (!got_thinking && model_alias_enables_thinking(r->model)) thinking_enabled = true;
-    r->think_mode = ds4_think_mode_for_context(
-        think_mode_from_enabled(thinking_enabled, reasoning_effort), ctx_size);
+    r->think_mode = server_resolve_think_mode(s, got_thinking, r->model,
+                                              thinking_enabled,
+                                              reasoning_effort, ctx_size);
     kv_cache_restore_tool_memory_for_messages(s, &msgs);
     tool_memory_attach_to_messages(s, &msgs, &r->tool_replay);
     const char *active_tool_schemas = r->has_tools ? tool_schemas : NULL;
@@ -2950,10 +2956,9 @@ static bool parse_anthropic_request(ds4_engine *e, server *s, const char *body, 
         chat_msgs_push(&msgs, msg);
     }
     r->has_tools = tool_schemas && tool_schemas[0] && !tool_choice_none;
-    if (!got_thinking && model_alias_disables_thinking(r->model)) thinking_enabled = false;
-    if (!got_thinking && model_alias_enables_thinking(r->model)) thinking_enabled = true;
-    r->think_mode = ds4_think_mode_for_context(
-        think_mode_from_enabled(thinking_enabled, reasoning_effort), ctx_size);
+    r->think_mode = server_resolve_think_mode(s, got_thinking, r->model,
+                                              thinking_enabled,
+                                              reasoning_effort, ctx_size);
     if (!anthropic_validate_tool_results(s, &msgs,
                                          &r->anthropic_requires_live_tool_state,
                                          err, errlen))
@@ -3888,10 +3893,9 @@ static bool parse_responses_request(ds4_engine *e, server *s, const char *body, 
         (!tool_choice_none && combined_tool_schemas.len) ?
         combined_tool_schemas.ptr : NULL;
     r->has_tools = active_tool_schemas && active_tool_schemas[0];
-    if (!got_thinking && model_alias_disables_thinking(r->model)) thinking_enabled = false;
-    if (!got_thinking && model_alias_enables_thinking(r->model)) thinking_enabled = true;
-    r->think_mode = ds4_think_mode_for_context(
-        think_mode_from_enabled(thinking_enabled, reasoning_effort), ctx_size);
+    r->think_mode = server_resolve_think_mode(s, got_thinking, r->model,
+                                              thinking_enabled,
+                                              reasoning_effort, ctx_size);
     if (!responses_validate_tool_outputs(s, &msgs, r->think_mode,
                                          &r->responses_requires_live_tool_state,
                                          &r->responses_requires_live_reasoning,
@@ -3958,7 +3962,7 @@ static bool parse_prompt(const char **p, char **out) {
     return true;
 }
 
-static bool parse_completion_request(ds4_engine *e, const char *body, int def_tokens,
+static bool parse_completion_request(ds4_engine *e, server *s, const char *body, int def_tokens,
                                      int ctx_size, request *r, char *err, size_t errlen) {
     request_init(r, REQ_COMPLETION, def_tokens);
     const char *p = body;
@@ -4077,10 +4081,9 @@ static bool parse_completion_request(ds4_engine *e, const char *body, int def_to
         request_free(r);
         return false;
     }
-    if (!got_thinking && model_alias_disables_thinking(r->model)) thinking_enabled = false;
-    if (!got_thinking && model_alias_enables_thinking(r->model)) thinking_enabled = true;
-    r->think_mode = ds4_think_mode_for_context(
-        think_mode_from_enabled(thinking_enabled, reasoning_effort), ctx_size);
+    r->think_mode = server_resolve_think_mode(s, got_thinking, r->model,
+                                              thinking_enabled,
+                                              reasoning_effort, ctx_size);
     buf rendered = {0};
     buf_puts(&rendered, "<｜begin▁of▁sentence｜>");
     if (r->think_mode == DS4_THINK_MAX) buf_puts(&rendered, ds4_think_max_prefix());
@@ -7643,6 +7646,7 @@ struct server {
     visible_live_state thinking_live;
     bool disable_exact_dsml_tool_replay;
     bool enable_cors;
+    bool force_no_think;
     pthread_mutex_t tool_mu;
     pthread_mutex_t mu;
     pthread_cond_t cv;
@@ -7656,6 +7660,19 @@ struct server {
     pthread_mutex_t trace_mu;
     uint64_t trace_seq;
 };
+
+static ds4_think_mode server_resolve_think_mode(const server *s,
+                                                bool got_thinking,
+                                                const char *model,
+                                                bool thinking_enabled,
+                                                ds4_think_mode reasoning_effort,
+                                                int ctx_size) {
+    if (s && s->force_no_think) return DS4_THINK_NONE;
+    if (!got_thinking && model_alias_disables_thinking(model)) thinking_enabled = false;
+    if (!got_thinking && model_alias_enables_thinking(model)) thinking_enabled = true;
+    return ds4_think_mode_for_context(
+        think_mode_from_enabled(thinking_enabled, reasoning_effort), ctx_size);
+}
 
 /* Jobs are stack-owned by the client thread.  The worker signals completion
  * after the response has been written, so request data and the socket remain
@@ -10097,6 +10114,122 @@ static void server_runtime_status_suffix(server *s, char *buf, size_t len) {
              (double)rt.system_compressed_bytes / 1073741824.0);
 }
 
+static uint64_t server_u64_delta(uint64_t after, uint64_t before) {
+    return after >= before ? after - before : 0;
+}
+
+static double server_double_delta(double after, double before) {
+    return after >= before ? after - before : 0.0;
+}
+
+static void server_dspark_runtime_delta(ds4_runtime_status *out,
+                                        const ds4_runtime_status *after,
+                                        const ds4_runtime_status *before) {
+    memset(out, 0, sizeof(*out));
+    out->available = after->available;
+    out->dspark_perf_blocks =
+        server_u64_delta(after->dspark_perf_blocks, before->dspark_perf_blocks);
+    out->dspark_perf_drafted_tokens =
+        server_u64_delta(after->dspark_perf_drafted_tokens,
+                         before->dspark_perf_drafted_tokens);
+    out->dspark_perf_committed_tokens =
+        server_u64_delta(after->dspark_perf_committed_tokens,
+                         before->dspark_perf_committed_tokens);
+    out->dspark_perf_draft_seconds =
+        server_double_delta(after->dspark_perf_draft_seconds,
+                            before->dspark_perf_draft_seconds);
+    out->dspark_perf_verify_seconds =
+        server_double_delta(after->dspark_perf_verify_seconds,
+                            before->dspark_perf_verify_seconds);
+    out->dspark_perf_verify_gpu_seconds =
+        server_double_delta(after->dspark_perf_verify_gpu_seconds,
+                            before->dspark_perf_verify_gpu_seconds);
+    out->dspark_perf_commit_seconds =
+        server_double_delta(after->dspark_perf_commit_seconds,
+                            before->dspark_perf_commit_seconds);
+    out->dspark_perf_total_seconds =
+        server_double_delta(after->dspark_perf_total_seconds,
+                            before->dspark_perf_total_seconds);
+}
+
+static void server_log_dspark_runtime_status(server *s,
+                                             const ds4_runtime_status *base) {
+    if (!s || !s->session || !base) return;
+    if (!getenv("DS4_DSPARK_PERF") &&
+        !getenv("DS4_DSPARK_BLOCK_TIMING") &&
+        !getenv("DS4_DSPARK_TIMING") &&
+        !getenv("DS4_AGENT_ALLOW_BACKEND_STATS")) {
+        return;
+    }
+
+    ds4_runtime_status after;
+    memset(&after, 0, sizeof(after));
+    if (ds4_session_runtime_status(s->session, &after) == 0 || !after.available) return;
+    ds4_runtime_status rt;
+    server_dspark_runtime_delta(&rt, &after, base);
+    if (rt.dspark_perf_drafted_tokens == 0 || rt.dspark_perf_blocks == 0) return;
+
+    const double draft_tps = rt.dspark_perf_draft_seconds > 0.0 ?
+        (double)rt.dspark_perf_drafted_tokens / rt.dspark_perf_draft_seconds : 0.0;
+    const double verify_prop_tps = rt.dspark_perf_verify_seconds > 0.0 ?
+        (double)rt.dspark_perf_drafted_tokens / rt.dspark_perf_verify_seconds : 0.0;
+    const double verify_accept_tps = rt.dspark_perf_verify_seconds > 0.0 ?
+        (double)rt.dspark_perf_committed_tokens / rt.dspark_perf_verify_seconds : 0.0;
+    const double avg_block_ms = rt.dspark_perf_total_seconds > 0.0 ?
+        1000.0 * rt.dspark_perf_total_seconds / (double)rt.dspark_perf_blocks : 0.0;
+    const double avg_draft_ms =
+        1000.0 * rt.dspark_perf_draft_seconds / (double)rt.dspark_perf_blocks;
+    const double avg_verify_ms =
+        1000.0 * rt.dspark_perf_verify_seconds / (double)rt.dspark_perf_blocks;
+    const double avg_commit_ms =
+        1000.0 * rt.dspark_perf_commit_seconds / (double)rt.dspark_perf_blocks;
+    double avg_overhead_ms = avg_block_ms - avg_draft_ms - avg_verify_ms;
+    if (avg_overhead_ms < 0.0) avg_overhead_ms = 0.0;
+    const double tau =
+        (double)rt.dspark_perf_committed_tokens / (double)rt.dspark_perf_blocks;
+    server_log(DS4_LOG_GENERATION,
+               "ds4-server: dspark perf: draft=%.1f tok/s, verify=%.1f proposed tok/s, "
+               "verify-accepted=%.1f tok/s, block=%.2f ms "
+               "(draft=%.2f verify=%.2f overhead=%.2f commit=%.2f, tau=%.2f, blocks=%llu)",
+               draft_tps,
+               verify_prop_tps,
+               verify_accept_tps,
+               avg_block_ms,
+               avg_draft_ms,
+               avg_verify_ms,
+               avg_overhead_ms,
+               avg_commit_ms,
+               tau,
+               (unsigned long long)rt.dspark_perf_blocks);
+
+    const double avg_verify_gpu_ms =
+        1000.0 * rt.dspark_perf_verify_gpu_seconds / (double)rt.dspark_perf_blocks;
+    const double verify_gpu_pct = avg_verify_ms > 0.0 ?
+        100.0 * avg_verify_gpu_ms / avg_verify_ms : 0.0;
+    server_log(DS4_LOG_GENERATION,
+               "ds4-server: dspark verify GPU-busy: %.2f ms/block of %.2f ms verify "
+               "(%.1f%% active, %.1f%% idle)",
+               avg_verify_gpu_ms,
+               avg_verify_ms,
+               verify_gpu_pct,
+               100.0 - verify_gpu_pct);
+
+    const double block_tps = rt.dspark_perf_total_seconds > 0.0 ?
+        (double)rt.dspark_perf_committed_tokens / rt.dspark_perf_total_seconds : 0.0;
+    const double draft_hidden_seconds =
+        rt.dspark_perf_total_seconds - rt.dspark_perf_draft_seconds;
+    if (draft_hidden_seconds > 0.0 && block_tps > 0.0) {
+        const double draft_hidden_tps =
+            (double)rt.dspark_perf_committed_tokens / draft_hidden_seconds;
+        server_log(DS4_LOG_GENERATION,
+                   "ds4-server: dspark draft-overlap upper-bound: %.1f tok/s "
+                   "(%.2fx block decode, hides %.2f ms/block)",
+                   draft_hidden_tps,
+                   draft_hidden_tps / block_tps,
+                   avg_draft_ms);
+    }
+}
+
 static void log_flags(char *buf, size_t len, bool responses_protocol,
                       bool tools, bool thinking,
                       bool dsml_start, bool dsml_end) {
@@ -10888,6 +11021,19 @@ static void generate_job(server *s, job *j) {
     const double decode_t0 = now_sec();
     double last_decode_log_t = decode_t0;
     int last_decode_log_completion = 0;
+    uint64_t draft_slots = 0;
+    uint64_t draft_accepted = 0;
+    uint64_t draft_blocks = 0;
+    uint64_t draft_pos_slots[16] = {0};
+    uint64_t draft_pos_cond_slots[16] = {0};
+    uint64_t draft_pos_accepted[16] = {0};
+    uint64_t draft_full_accept_blocks = 0;
+    uint64_t draft_first_miss_blocks = 0;
+    ds4_runtime_status dspark_rt_base;
+    memset(&dspark_rt_base, 0, sizeof(dspark_rt_base));
+    const bool dspark_rt_base_ok =
+        ds4_session_runtime_status(s->session, &dspark_rt_base) != 0 &&
+        dspark_rt_base.available;
     thinking_state thinking = thinking_state_from_prompt(&j->req);
     const bool thinking_gates_tool_markers = ds4_think_mode_enabled(j->req.think_mode);
     bool tool_scan_waiting_for_think_close =
@@ -10934,19 +11080,41 @@ static void generate_job(server *s, job *j) {
              (mtp_draft_enabled && getenv("DS4_MTP_SPEC_DISABLE") == NULL));
         if (use_speculative)
         {
+            int drafted = 0;
+            int accepted_draft_count = -1;
             ntok = ds4_session_eval_speculative_argmax(s->session,
                                                        token,
                                                        max_tokens - completion,
                                                        ds4_token_eos(s->engine),
                                                        toks,
                                                        (int)(sizeof(toks) / sizeof(toks[0])),
-                                                       NULL,
+                                                       &drafted,
+                                                       &accepted_draft_count,
                                                        err,
                                                        sizeof(err));
             if (ntok < 0) {
                 finish = "error";
                 break;
             }
+            int accepted_drafts = accepted_draft_count >= 0 ?
+                accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
+            if (accepted_drafts < 0) accepted_drafts = 0;
+            draft_slots += (uint64_t)drafted;
+            if (drafted > 0) {
+                draft_blocks++;
+                const int pos_cap = drafted < 16 ? drafted : 16;
+                for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
+                if (accepted_drafts > drafted) accepted_drafts = drafted;
+                const int accepted_cap_pos =
+                    accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
+                for (int i = 0; i < pos_cap; i++) {
+                    if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+                }
+                for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
+                if (accepted_drafts == drafted) draft_full_accept_blocks++;
+                if (accepted_drafts == 0) draft_first_miss_blocks++;
+            }
+            if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
         } else {
             if (ds4_session_eval(s->session, token, err, sizeof(err)) != 0) {
                 finish = "error";
@@ -11142,6 +11310,103 @@ static void generate_job(server *s, job *j) {
                             decode_t0,
                             &last_decode_log_t,
                             &last_decode_log_completion);
+    }
+    if (dspark_rt_base_ok) {
+        server_log_dspark_runtime_status(s, &dspark_rt_base);
+    }
+    if (draft_slots > 0) {
+        const char *draft_label =
+            ds4_engine_dspark_draft_tokens(s->engine) > 0 ? "dspark" : "mtp";
+        const double draft_acceptance =
+            100.0 * (double)draft_accepted / (double)draft_slots;
+        server_log(DS4_LOG_GENERATION,
+                   "ds4-server: %s acceptance: %.1f%% (%llu/%llu draft tokens)",
+                   draft_label,
+                   draft_acceptance,
+                   (unsigned long long)draft_accepted,
+                   (unsigned long long)draft_slots);
+        int pos_limit = 0;
+        for (int i = 0; i < 16; i++) {
+            if (draft_pos_slots[i] != 0) pos_limit = i + 1;
+        }
+        if (pos_limit > 0) {
+            char pos[256];
+            size_t used = 0;
+            pos[0] = '\0';
+            for (int i = 0; i < pos_limit; i++) {
+                int n = snprintf(pos + used,
+                                 used < sizeof(pos) ? sizeof(pos) - used : 0,
+                                 "%s%d=%llu/%llu",
+                                 i ? " " : "",
+                                 i + 1,
+                                 (unsigned long long)draft_pos_accepted[i],
+                                 (unsigned long long)draft_pos_slots[i]);
+                if (n > 0) used += (size_t)n;
+            }
+            server_log(DS4_LOG_GENERATION,
+                       "ds4-server: %s acceptance by position: %s",
+                       draft_label,
+                       pos);
+            char cond[384];
+            used = 0;
+            cond[0] = '\0';
+            for (int i = 0; i < pos_limit; i++) {
+                const uint64_t denom = draft_pos_cond_slots[i];
+                const uint64_t numer = draft_pos_accepted[i];
+                const double pct = denom != 0 ?
+                    100.0 * (double)numer / (double)denom : 0.0;
+                int n;
+                if (i == 0) {
+                    n = snprintf(cond + used,
+                                 used < sizeof(cond) ? sizeof(cond) - used : 0,
+                                 "%s1=%.1f%% (%llu/%llu)",
+                                 used ? " " : "",
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                } else if (i == 1) {
+                    n = snprintf(cond + used,
+                                 used < sizeof(cond) ? sizeof(cond) - used : 0,
+                                 "%s2|1=%.1f%% (%llu/%llu)",
+                                 used ? " " : "",
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                } else {
+                    n = snprintf(cond + used,
+                                 used < sizeof(cond) ? sizeof(cond) - used : 0,
+                                 "%s%d|1-%d=%.1f%% (%llu/%llu)",
+                                 used ? " " : "",
+                                 i + 1,
+                                 i,
+                                 pct,
+                                 (unsigned long long)numer,
+                                 (unsigned long long)denom);
+                }
+                if (n > 0) used += (size_t)n;
+            }
+            server_log(DS4_LOG_GENERATION,
+                       "ds4-server: %s conditional acceptance: %s",
+                       draft_label,
+                       cond);
+            server_log(DS4_LOG_GENERATION,
+                       "ds4-server: %s full-accept: %.1f%% (%llu/%llu blocks), "
+                       "first-miss: %.1f%% (%llu/%llu blocks)",
+                       draft_label,
+                       draft_blocks > 0 ?
+                           100.0 * (double)draft_full_accept_blocks / (double)draft_blocks : 0.0,
+                       (unsigned long long)draft_full_accept_blocks,
+                       (unsigned long long)draft_blocks,
+                       draft_blocks > 0 ?
+                           100.0 * (double)draft_first_miss_blocks / (double)draft_blocks : 0.0,
+                       (unsigned long long)draft_first_miss_blocks,
+                       (unsigned long long)draft_blocks);
+            server_log(DS4_LOG_GENERATION,
+                       "ds4-server: %s avg scheduled: %.2f draft tokens/block (%llu blocks)",
+                       draft_label,
+                       draft_blocks > 0 ? (double)draft_slots / (double)draft_blocks : 0.0,
+                       (unsigned long long)draft_blocks);
+        }
     }
 
     if (j->req.stream && !structured_stream && text.len > plain_stream_pos) {
@@ -11623,7 +11888,7 @@ static void *client_main(void *arg) {
         ok = parse_responses_request(s->engine, s, hr.body, s->default_tokens,
                                      ctx_size, &req, err, sizeof(err));
     } else if (!strcmp(hr.method, "POST") && !strcmp(hr.path, "/v1/completions")) {
-        ok = parse_completion_request(s->engine, hr.body, s->default_tokens,
+        ok = parse_completion_request(s->engine, s, hr.body, s->default_tokens,
                                       ctx_size, &req, err, sizeof(err));
     } else {
         http_error(fd, s->enable_cors, 404, "unknown endpoint");
@@ -11729,6 +11994,7 @@ typedef struct {
     bool disable_exact_dsml_tool_replay;
     int tool_memory_max_ids;
     bool enable_cors;
+    bool force_no_think;
 } server_config;
 
 static int parse_int_arg(const char *s, const char *opt) {
@@ -11827,13 +12093,20 @@ static void usage(FILE *fp) {
         "  --draft-path PATH\n"
         "      DS4 DSpark draft package directory.\n"
         "  --draft-verify N\n"
-        "      Static DSpark verification budget, 0..5. Default: 4\n"
-        "  --draft-mode strict|batch\n"
-        "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch is experimental fast mode.\n"
-        "  --draft-scheduler static|confidence\n"
+        "      Fixed DSpark verification budget, 0..5. Default: 4\n"
+        "  --draft-verify-dynamic\n"
+        "      Adapt active DSpark verify budget from 2 up to --draft-verify based on recent accepted tokens.\n"
+        "  --draft-mode strict|batch|unified\n"
+        "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch/unified are experimental fast modes.\n"
+        "  --draft-scheduler static|confidence|confidence-softmax|confidence-softmax-long\n"
         "      DSpark verification scheduler. Default: static\n"
         "  --draft-conf-threshold F\n"
         "      DSpark confidence threshold for the confidence scheduler. Default: 0\n"
+        "  --dspark-attn-force-mma\n"
+        "      Diagnostic: force DSpark verifier MMA attention path.\n"
+        "  --draft-fast-relaxed\n"
+        "      Non-byte DSpark speed preset: frontier draft, relaxed suffix accept, MMA attention,\n"
+        "      and fast routed-down Q2. Intended for diagnostics/demo A/B only.\n"
         "  --moe-sidecar PATH\n"
         "      Flash-MoE sidecar directory containing manifest.json and expert records.\n"
         "  --moe-mode NAME\n"
@@ -11885,6 +12158,8 @@ static void usage(FILE *fp) {
         "\n"
         "Thinking and sampling:\n"
         "  DeepSeek-compatible chat requests default to thinking mode with high effort.\n"
+        "  --nothink, --no-think\n"
+        "      Force non-thinking mode for every request, ignoring client thinking controls.\n"
         "  Only reasoning_effort=max or output_config.effort=max requests Think Max.\n"
         "  Think Max is applied only when --ctx is at least 393216 tokens; smaller contexts use high.\n"
         "  thinking={type:disabled}, think=false, or model=deepseek-chat selects non-thinking mode.\n"
@@ -11959,17 +12234,59 @@ static ds4_draft_kind parse_draft_kind_arg(const char *s, const char *arg) {
 }
 
 static const char *parse_draft_scheduler_arg(const char *s, const char *arg) {
-    if (!strcmp(s, "static") || !strcmp(s, "confidence")) return s;
+    if (!strcmp(s, "static") ||
+        !strcmp(s, "confidence") ||
+        !strcmp(s, "confidence-softmax") ||
+        !strcmp(s, "softmax") ||
+        !strcmp(s, "confidence-softmax-long") ||
+        !strcmp(s, "softmax-long")) return s;
     server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
-    server_log(DS4_LOG_DEFAULT, "ds4-server: valid DSpark schedulers are: static, confidence");
+    server_log(DS4_LOG_DEFAULT,
+               "ds4-server: valid DSpark schedulers are: static, confidence, confidence-softmax, confidence-softmax-long");
     exit(2);
 }
 
 static const char *parse_draft_mode_arg(const char *s, const char *arg) {
-    if (!strcmp(s, "strict") || !strcmp(s, "batch")) return s;
+    if (!strcmp(s, "strict") || !strcmp(s, "batch") ||
+        !strcmp(s, "unified") || !strcmp(s, "unified_greedy")) return s;
     server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
-    server_log(DS4_LOG_DEFAULT, "ds4-server: valid DSpark draft modes are: strict, batch");
+    server_log(DS4_LOG_DEFAULT,
+               "ds4-server: valid DSpark draft modes are: strict, batch, unified");
     exit(2);
+}
+
+static void server_setenv_or_die(const char *name, const char *value, int overwrite) {
+    if (setenv(name, value, overwrite) != 0) {
+        server_log(DS4_LOG_DEFAULT,
+                   "ds4-server: failed to set %s=%s",
+                   name,
+                   value);
+        exit(2);
+    }
+}
+
+static void server_unsetenv_or_die(const char *name) {
+    if (unsetenv(name) != 0) {
+        server_log(DS4_LOG_DEFAULT,
+                   "ds4-server: failed to unset %s",
+                   name);
+        exit(2);
+    }
+}
+
+static void server_enable_dspark_fast_relaxed(void) {
+    server_unsetenv_or_die("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS");
+    server_setenv_or_die("DS4_DSPARK_FRONTIER_DRAFT", "1", 0);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_ACCEPT", "1", 1);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_MARGIN_DISABLE", "1", 1);
+    server_setenv_or_die("DS4_DSPARK_ATTN_FORCE_MMA", "1", 1);
+    server_setenv_or_die("DS4_DSPARK_HYBRID_ROW_ROUTED_FAST_Q2_SUM6", "1", 1);
+    server_setenv_or_die("DS4_METAL_ENABLE_ROUTED_DOWN_SUM6", "1", 1);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT", "1", 0);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_TOPK", "128", 0);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_LOGIT_DELTA", "6", 0);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_MAX_OFFARGMAX_PER_BLOCK", "5", 0);
+    server_setenv_or_die("DS4_DSPARK_RELAXED_LOOP_TOKEN_MAX", "24", 0);
 }
 
 static ds4_backend default_server_backend(void) {
@@ -11990,7 +12307,7 @@ static server_config parse_options(int argc, char **argv) {
             .mtp_draft_tokens = 1,
             .mtp_margin = 3.0f,
             .draft_kind = DS4_DRAFT_NONE,
-            .draft_verify = 5,
+            .draft_verify = 4,
             .draft_scheduler = "static",
             .draft_conf_threshold = 0.0f,
             .moe_mode = DS4_MOE_MODE_OFF,
@@ -12028,18 +12345,40 @@ static server_config parse_options(int argc, char **argv) {
                 server_log(DS4_LOG_DEFAULT, "ds4-server: --draft-verify must be <= 5");
                 exit(2);
             }
+        } else if (!strcmp(arg, "--draft-verify-dynamic")) {
+            if (setenv("DS4_DSPARK_VERIFY_DYNAMIC", "1", 1) != 0) {
+                server_log(DS4_LOG_DEFAULT,
+                           "ds4-server: failed to set DS4_DSPARK_VERIFY_DYNAMIC=1");
+                exit(2);
+            }
         } else if (!strcmp(arg, "--draft-mode")) {
             const char *mode = parse_draft_mode_arg(need_arg(&i, argc, argv, arg), arg);
-            if (setenv("DS4_DSPARK_VERIFY_CANONICAL", mode, 1) != 0) {
+            const char *canonical =
+                (!strcmp(mode, "unified") || !strcmp(mode, "unified_greedy")) ?
+                    "unified" : mode;
+            if (setenv("DS4_DSPARK_VERIFY_CANONICAL", canonical, 1) != 0) {
                 server_log(DS4_LOG_DEFAULT,
                            "ds4-server: failed to set DS4_DSPARK_VERIFY_CANONICAL=%s",
-                           mode);
+                           canonical);
+                exit(2);
+            }
+            if (!strcmp(canonical, "unified") &&
+                setenv("DS4_TARGET_FORWARD_UNIFIED", "1", 1) != 0) {
+                server_log(DS4_LOG_DEFAULT,
+                           "ds4-server: failed to set DS4_TARGET_FORWARD_UNIFIED=1");
                 exit(2);
             }
         } else if (!strcmp(arg, "--draft-scheduler")) {
             c.engine.draft_scheduler = parse_draft_scheduler_arg(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--draft-conf-threshold")) {
             c.engine.draft_conf_threshold = parse_float_arg(need_arg(&i, argc, argv, arg), arg, 0.0f, 1.0f);
+        } else if (!strcmp(arg, "--dspark-attn-force-mma")) {
+            server_unsetenv_or_die("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS");
+            server_setenv_or_die("DS4_DSPARK_ATTN_FORCE_MMA", "1", 1);
+        } else if (!strcmp(arg, "--draft-fast-relaxed")) {
+            server_enable_dspark_fast_relaxed();
+        } else if (!strcmp(arg, "--nothink") || !strcmp(arg, "--no-think")) {
+            c.force_no_think = true;
         } else if (!strcmp(arg, "--moe-sidecar")) {
             c.engine.moe_sidecar_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--moe-mode")) {
@@ -12212,6 +12551,11 @@ int main(int argc, char **argv) {
     s.disable_exact_dsml_tool_replay = cfg.disable_exact_dsml_tool_replay;
     s.tool_mem.max_entries = cfg.tool_memory_max_ids;
     s.enable_cors = cfg.enable_cors;
+    s.force_no_think = cfg.force_no_think;
+    if (s.force_no_think) {
+        server_log(DS4_LOG_DEFAULT,
+                   "ds4-server: forcing non-thinking mode for all requests");
+    }
     if (cfg.kv_disk_dir) {
         kv_cache_open(&s.kv, cfg.kv_disk_dir, cfg.kv_disk_space_mb,
                       cfg.kv_cache_reject_different_quant, cfg.kv_cache);

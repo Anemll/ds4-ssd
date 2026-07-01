@@ -189,6 +189,546 @@ kernel void ds4_dense_q8_nax(
     cT.store(mD);
 }
 
+// Case E (dspark-attn) — build the verifier key stream = ring-resolved raw window
+// ++ compressed cache, contiguous [n_keys x dim] (n_keys = n_raw + n_comp), so the
+// NAX attention sees the same keys the ALU verifier does (raw SWA + compressed).
+struct ds4_dspark_gather_args { int32_t n_raw; int32_t n_comp; int32_t dim; int32_t raw_cap; int32_t raw_start; };
+kernel void ds4_dspark_nax_gather(
+        constant ds4_dspark_gather_args &args [[buffer(0)]],
+        device const float *raw  [[buffer(1)]],   // [raw_cap x dim] ring buffer
+        device const float *comp [[buffer(2)]],    // [n_comp x dim]
+        device       float *out  [[buffer(3)]],     // [(n_raw+n_comp) x dim]
+        uint tid [[thread_position_in_grid]]) {
+    const uint nk = (uint)(args.n_raw + args.n_comp);
+    const uint total = nk * (uint)args.dim;
+    if (tid >= total) return;
+    const int key = (int)(tid / (uint)args.dim);
+    const int d   = (int)(tid - (uint)key * (uint)args.dim);
+    if (key < args.n_raw) {
+        const int rr = (args.raw_start + key) % args.raw_cap;   // resolve ring
+        out[(uint64_t)key * args.dim + d] = raw[(uint64_t)rr * args.dim + d];
+    } else {
+        const int cc = key - args.n_raw;
+        out[(uint64_t)key * args.dim + d] = comp[(uint64_t)cc * args.dim + d];
+    }
+}
+
+struct ds4_dspark_gather_topk_args {
+    int32_t n_raw;
+    int32_t top_k;
+    int32_t n_tokens;
+    int32_t dim;
+    int32_t raw_cap;
+    int32_t raw_start;
+};
+kernel void ds4_dspark_nax_gather_topk(
+        constant ds4_dspark_gather_topk_args &args [[buffer(0)]],
+        device const float   *raw      [[buffer(1)]], // [raw_cap x dim] ring buffer
+        device const float   *comp     [[buffer(2)]], // [n_comp x dim]
+        device const int32_t *selected [[buffer(3)]], // [n_tokens x top_k]
+        device       float   *out      [[buffer(4)]], // [n_raw + n_tokens*top_k, dim]
+        uint tid [[thread_position_in_grid]]) {
+    const uint n_comp_stream = (uint)args.top_k * (uint)args.n_tokens;
+    const uint nk = (uint)args.n_raw + n_comp_stream;
+    const uint total = nk * (uint)args.dim;
+    if (tid >= total) return;
+    const int key = (int)(tid / (uint)args.dim);
+    const int d   = (int)(tid - (uint)key * (uint)args.dim);
+    if (key < args.n_raw) {
+        const int rr = (args.raw_start + key) % args.raw_cap;
+        out[(uint64_t)key * args.dim + d] = raw[(uint64_t)rr * args.dim + d];
+    } else {
+        const int rel = key - args.n_raw;
+        const int tok = rel / args.top_k;
+        const int k   = rel - tok * args.top_k;
+        const int cc  = selected[(uint64_t)tok * args.top_k + k];
+        out[(uint64_t)key * args.dim + d] = cc >= 0 ?
+            comp[(uint64_t)cc * args.dim + d] : 0.0f;
+    }
+}
+
+// Case E (dspark-attn) — WIP/UNTESTED. NAX matmul2d Q@K^T scores for the DSpark
+// verifier's batched attention. C[m][key] = Q[m] . K[key], contraction over
+// head_dim D, where the M dimension flattens (head, token): m = head*n_tokens + tok.
+// K is head-independent (MLA latent) and is read directly from device as K^T via
+// strides (element[d][key] = K[key*row + d]); Q is staged per M-row to threadgroup
+// as half. Directly adapted from ds4_dense_q8_nax (same matmul2d descriptor /
+// operand order / transpose flags) — only A becomes a half-staged activation and B
+// becomes the shared K^T activation. Scale + softmax + A@V are applied separately;
+// this kernel is the E1 throughput microbench for Q@K^T on the tensor units.
+struct ds4_dspark_qk_args {
+    int32_t  D;                 // head_dim (contraction K)
+    int32_t  n_tokens;          // tokens per head
+    int32_t  n_keys;            // N
+    int32_t  n_head;            // M = n_head * n_tokens
+    uint64_t q_token_stride;    // bytes between tokens in Q
+    uint64_t q_head_stride;     // bytes between heads in Q
+    uint64_t k_row_stride;      // bytes between keys in K
+    uint64_t score_row_stride;  // floats between M-rows in scores (>= n_keys)
+};
+kernel void ds4_dspark_nax_qk_scores(
+        constant ds4_dspark_qk_args &args [[buffer(0)]],
+        device const char *q       [[buffer(1)]],   // f32, indexed by token+head strides
+        device const char *k       [[buffer(2)]],   // f32 [n_keys x D]
+        device       char *scores  [[buffer(3)]],   // f32 [M x n_keys] (M = head*n_tokens+tok)
+        threadgroup  char *shmem   [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NUM_THREADS = 128;
+    const int K = args.D;
+    const int M = args.n_head * args.n_tokens;
+    const int N = args.n_keys;
+    const int r0 = tgpig.y * NR0;   // flattened (head,token) tile
+    const int r1 = tgpig.x * NR1;   // key tile
+
+    threadgroup half *sa = (threadgroup half *)shmem;   // [NR0 x NK]
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    // K^T as a device tensor: element[d][key] = k[key*row + d]
+    // (non-const: matmul2d cooperative-tensor operands cannot be const-qualified)
+    device float *ptrK = (device float *)k;
+    const int strideK = (int)(args.k_row_stride / sizeof(float));
+    auto tB = tensor(ptrK, dextents<int32_t, 2>(K, N), array<int, 2>({1, strideK}));
+
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+
+    for (int lk = 0; lk < K; lk += NK) {
+        for (int work = tiitg; work < NR0*NK; work += NUM_THREADS) {
+            const int row = work / NK, kc = work % NK;
+            half v = (half)0;
+            const int m = r0 + row;
+            if (m < M) {
+                const int tok  = m / args.n_head;       // M = tok*n_head + head (row-major heads)
+                const int head = m - tok * args.n_head;
+                device const float *qrow = (device const float *)(q +
+                    (uint64_t)tok  * args.q_token_stride +
+                    (uint64_t)head * args.q_head_stride);
+                if (lk + kc < K) v = (half)qrow[lk + kc];
+            }
+            sa[row*NK + kc] = v;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0);
+        auto mB = tB.slice(lk, r1);
+        mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    device float *db = (device float *)scores;
+    auto tD = tensor(db, dextents<int32_t, 2>(M, N), array<int, 2>({1, M}));
+    auto mD = tD.slice(r0, r1);
+    cT.store(mD);
+}
+
+// Case E (dspark-attn) E2a — row softmax over scores. scores are column-major
+// [key*M + m] (as written by ds4_dspark_nax_qk_scores). Applies scale and softmax
+// per M-row, writes probs row-major [m*n_keys + key] for the P@V stage. One thread
+// per M-row (n_keys small for the verifier). E2a: no sinks/causal mask yet.
+struct ds4_dspark_sm_args { int32_t M; int32_t n_keys; float scale; int32_t n_head; int32_t n_raw; int32_t comp_stride; };
+kernel void ds4_dspark_nax_softmax(
+        constant ds4_dspark_sm_args &args [[buffer(0)]],
+        device const float *scores   [[buffer(1)]],   // [key*M + m]
+        device       float *probs    [[buffer(2)]],   // [m*n_keys + key]
+        device const int   *raw_cnt  [[buffer(3)]],    // per-token valid raw count
+        device const int   *comp_cnt [[buffer(4)]],     // per-token valid comp count
+        device const int   *raw_off  [[buffer(5)]],      // per-token raw window offset in stream
+        uint tid [[thread_position_in_grid]]) {
+    const int m = (int)tid;
+    if (m >= args.M) return;
+    const int N = args.n_keys, M = args.M;
+    // Stream:
+    //   dense mode: keys [0..n_raw) = raw union, [n_raw..n_raw+n_comp) = compressed.
+    //   top-k mode: keys [n_raw + tok*top_k .. +comp_cnt) hold this token's selected comp rows.
+    const int tok = m / args.n_head;
+    const int vraw  = raw_cnt[tok];
+    const int vcomp = comp_cnt[tok];
+    const int off   = raw_off[tok];
+    const int n_raw = args.n_raw;
+    const int cbase = n_raw + (args.comp_stride > 0 ? tok * args.comp_stride : 0);
+    float mx = -INFINITY;
+    for (int key = 0; key < N; key++) {
+        const bool valid = (key >= off && key < off + vraw) || (key >= cbase && key < cbase + vcomp);
+        if (valid) mx = max(mx, scores[(uint64_t)key * M + m] * args.scale);
+    }
+    float sum = 0.0f;
+    for (int key = 0; key < N; key++) {
+        const bool valid = (key >= off && key < off + vraw) || (key >= cbase && key < cbase + vcomp);
+        const float e = valid ? exp(scores[(uint64_t)key * M + m] * args.scale - mx) : 0.0f;
+        probs[(uint64_t)m * N + key] = e;
+        sum += e;
+    }
+    const float inv = sum > 0.0f ? 1.0f / sum : 0.0f;
+    for (int key = 0; key < N; key++) probs[(uint64_t)m * N + key] *= inv;
+}
+
+// Case E (dspark-attn) E2a — P@V on the tensor units. C[M x out_dim] =
+// probs[M x n_keys] @ V[n_keys x out_dim]. A = probs staged to threadgroup (half),
+// B = V read directly from device as [K=n_keys x N=out_dim] (non-const). Mirrors
+// ds4_dense_q8_nax. E2a stores out column-major [n*M + m] (layout fixed in E2b).
+struct ds4_dspark_pv_args {
+    int32_t  n_keys;        // contraction K
+    int32_t  M;             // rows
+    int32_t  out_dim;       // N
+    uint64_t v_row_stride;  // bytes per key in V
+    uint64_t p_row_stride;  // floats per M-row in probs (= n_keys)
+};
+kernel void ds4_dspark_nax_pv(
+        constant ds4_dspark_pv_args &args [[buffer(0)]],
+        device       float *probs  [[buffer(1)]],   // [m*n_keys + key] (non-const for matmul2d)
+        device       char  *v      [[buffer(2)]],    // f32 [n_keys x out_dim]
+        device       char  *out    [[buffer(3)]],    // f32 [M x out_dim]
+        threadgroup  char  *shmem  [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NUM_THREADS = 128;
+    const int K = args.n_keys, M = args.M, N = args.out_dim;
+    const int r0 = tgpig.y * NR0;   // M tile
+    const int r1 = tgpig.x * NR1;   // out_dim tile
+
+    threadgroup half *sa = (threadgroup half *)shmem;
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    // V is pre-transposed to vt[dim][key] so the contraction (key) is contiguous:
+    // element[k=key][n=dim] = vt[n*n_keys + k] -> strides {1, K}.
+    device float *ptrV = (device float *)v;  // vt[dim x n_keys]
+    auto tB = tensor(ptrV, dextents<int32_t, 2>(K, N), array<int, 2>({1, K}));
+
+    matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+        matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+    for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+
+    for (int lk = 0; lk < K; lk += NK) {
+        for (int work = tiitg; work < NR0*NK; work += NUM_THREADS) {
+            const int row = work / NK, kc = work % NK;
+            half pv = (half)0;
+            if (r0 + row < M && lk + kc < K) {
+                pv = (half)probs[(uint64_t)(r0+row) * args.p_row_stride + (lk + kc)];
+            }
+            sa[row*NK + kc] = pv;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        auto mA = tA.slice(0, 0);
+        auto mB = tB.slice(lk, r1);
+        mm.run(mB, mA, cT);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    device float *db = (device float *)out;
+    auto tD = tensor(db, dextents<int32_t, 2>(M, N), array<int, 2>({1, M})); // column-major out[dim*M+m] (QK/dense store layout)
+    auto mD = tD.slice(r0, r1);
+    cT.store(mD);
+}
+
+// Case E (dspark-attn) — transpose the column-major P@V output src[dim*M + m] into
+// the row-major attention heads dst[m*out_dim + d] (m = tok*n_head+head).
+struct ds4_dspark_ot_args { int32_t M; int32_t out_dim; };
+kernel void ds4_dspark_nax_otranspose(
+        constant ds4_dspark_ot_args &args [[buffer(0)]],
+        device const float *src [[buffer(1)]],   // [d*M + m]
+        device       float *dst [[buffer(2)]],    // [m*out_dim + d]
+        uint tid [[thread_position_in_grid]]) {
+    const uint total = (uint)args.M * (uint)args.out_dim;
+    if (tid >= total) return;
+    const int m = (int)(tid / (uint)args.out_dim);
+    const int d = (int)(tid - (uint)m * (uint)args.out_dim);
+    dst[(uint64_t)m * args.out_dim + d] = src[(uint64_t)d * args.M + m];
+}
+
+// Case E (dspark-attn) — transpose V[key][dim] -> vt[dim][key] so the P@V matmul2d
+// contracts over a contiguous key dimension. vt[d*n_keys + key] = v[key*v_stride_f + d].
+struct ds4_dspark_vt_args { int32_t n_keys; int32_t dim; int32_t v_stride_f; };
+kernel void ds4_dspark_nax_vtranspose(
+        constant ds4_dspark_vt_args &args [[buffer(0)]],
+        device const float *v  [[buffer(1)]],   // [key*v_stride_f + d]
+        device       float *vt [[buffer(2)]],    // [d*n_keys + key]
+        uint tid [[thread_position_in_grid]]) {
+    const uint total = (uint)args.n_keys * (uint)args.dim;
+    if (tid >= total) return;
+    const int key = (int)(tid / (uint)args.dim);
+    const int d   = (int)(tid - (uint)key * (uint)args.dim);
+    vt[(uint64_t)d * args.n_keys + key] = v[(uint64_t)key * args.v_stride_f + d];
+}
+
+// Case E (dspark-attn) — simple/correct AV reference (debug; bypasses the matmul2d
+// P@V to isolate operand-layout bugs). out[m][d] = sum_key probs[m][key]*V[key][d].
+// One thread per (m,d) output element. Row-major out = heads[tok][head][dim].
+struct ds4_dspark_av_args { int32_t M; int32_t n_keys; int32_t out_dim; int32_t v_stride_f; int32_t p_stride_f; };
+kernel void ds4_dspark_nax_av_simple(
+        constant ds4_dspark_av_args &args [[buffer(0)]],
+        device const float *probs [[buffer(1)]],   // [m*p_stride_f + key]
+        device const float *v     [[buffer(2)]],    // [key*v_stride_f + d]
+        device       float *out   [[buffer(3)]],     // [m*out_dim + d]
+        uint tid [[thread_position_in_grid]]) {
+    const uint total = (uint)args.M * (uint)args.out_dim;
+    if (tid >= total) return;
+    const int m = (int)(tid / (uint)args.out_dim);
+    const int d = (int)(tid - (uint)m * (uint)args.out_dim);
+    float acc = 0.0f;
+    for (int key = 0; key < args.n_keys; key++) {
+        acc += probs[(uint64_t)m * args.p_stride_f + key] * v[(uint64_t)key * args.v_stride_f + d];
+    }
+    out[(uint64_t)m * args.out_dim + d] = acc;
+}
+
+// Case E (dspark-attn) FUSED — QK(matmul2d / Neural Accelerator) + masked softmax(ALU)
+// + PV(ALU) in ONE dispatch. The win on M5 is NA∥ALU co-issue: with this as a single
+// kernel, while some threadgroups run the QK matmul2d on the Neural Accelerator, others
+// run the softmax/PV on the ALU — the two pipelines stay busy concurrently (impossible
+// across separate barrier-separated dispatches). Each TG owns a full M-tile (NR0 rows)
+// across ALL keys so its softmax is self-contained; key-tiles are looped internally.
+// Scores/probs round-trip through device scratch (cheap, n_keys small) but it is still
+// one dispatch, so the scheduler overlaps NA and ALU work across in-flight TGs.
+struct ds4_dspark_flash_args {
+    int32_t  D;               // head_dim contraction (512)
+    int32_t  n_tokens;
+    int32_t  n_keys;          // N
+    int32_t  n_head;
+    int32_t  n_raw;           // boundary: keys [n_raw .. n_raw+comp) are compressed
+    float    scale;
+    uint64_t q_token_stride;  // bytes between tokens in Q
+    uint64_t q_head_stride;   // bytes between heads in Q
+    uint64_t k_row_stride;    // bytes between keys in stream (= D*4)
+};
+kernel void ds4_dspark_nax_flash(
+        constant ds4_dspark_flash_args &args [[buffer(0)]],
+        device const char  *q       [[buffer(1)]],   // f32, token+head strides
+        device       char  *stream  [[buffer(2)]],   // f32 [n_keys x D] (non-const for matmul2d)
+        device       float *scores  [[buffer(3)]],   // scratch [key*M + m]
+        device       float *probs   [[buffer(4)]],   // scratch [m*n_keys + key]
+        device       float *heads   [[buffer(5)]],   // out [m*D + d]
+        device const int   *raw_cnt [[buffer(6)]],
+        device const int   *comp_cnt[[buffer(7)]],
+        device const int   *raw_off [[buffer(8)]],
+        threadgroup char   *shmem   [[threadgroup(0)]],
+        uint3  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 32, NK = 32, NUM_THREADS = 128;
+    const int K = args.D;
+    const int M = args.n_head * args.n_tokens;
+    const int N = args.n_keys;
+    const int r0 = tgpig.y * NR0;   // this TG owns M-rows [r0 .. r0+NR0)
+
+    threadgroup half *sa = (threadgroup half *)shmem;   // [NR0 x NK]
+    auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+    device float *ptrK = (device float *)stream;
+    const int strideK = (int)(args.k_row_stride / sizeof(float));   // = D
+    auto tB = tensor(ptrK, dextents<int32_t, 2>(K, N), array<int, 2>({1, strideK}));
+    auto tD = tensor(scores, dextents<int32_t, 2>(M, N), array<int, 2>({1, M}));
+
+    // ---- Phase 1 (Neural Accelerator): QK over all key-tiles -> scores[key*M+m] ----
+    for (int r1 = 0; r1 < N; r1 += NR1) {
+        matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+            matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+        auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+        for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+        for (int lk = 0; lk < K; lk += NK) {
+            for (int work = tiitg; work < NR0*NK; work += NUM_THREADS) {
+                const int row = work / NK, kc = work % NK;
+                half v = (half)0;
+                const int m = r0 + row;
+                if (m < M) {
+                    const int tok  = m / args.n_head;
+                    const int head = m - tok * args.n_head;
+                    device const float *qrow = (device const float *)(q +
+                        (uint64_t)tok  * args.q_token_stride +
+                        (uint64_t)head * args.q_head_stride);
+                    if (lk + kc < K) v = (half)qrow[lk + kc];
+                }
+                sa[row*NK + kc] = v;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+            auto mA = tA.slice(0, 0);
+            auto mB = tB.slice(lk, r1);
+            mm.run(mB, mA, cT);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+        auto mD = tD.slice(r0, r1);
+        cT.store(mD);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup | mem_flags::mem_device);
+
+    // ---- Phase 2 (ALU): masked softmax for this TG's rows -> probs[m*N+key] ----
+    for (int row = tiitg; row < NR0; row += NUM_THREADS) {
+        const int m = r0 + row;
+        if (m >= M) continue;
+        const int tok = m / args.n_head;
+        const int vraw = raw_cnt[tok], vcomp = comp_cnt[tok], off = raw_off[tok], nraw = args.n_raw;
+        float mx = -INFINITY;
+        for (int key = 0; key < N; key++) {
+            const bool valid = (key >= off && key < off + vraw) || (key >= nraw && key < nraw + vcomp);
+            if (valid) mx = max(mx, scores[(uint64_t)key * M + m] * args.scale);
+        }
+        float sum = 0.0f;
+        for (int key = 0; key < N; key++) {
+            const bool valid = (key >= off && key < off + vraw) || (key >= nraw && key < nraw + vcomp);
+            const float e = valid ? exp(scores[(uint64_t)key * M + m] * args.scale - mx) : 0.0f;
+            probs[(uint64_t)m * N + key] = e;
+            sum += e;
+        }
+        const float inv = sum > 0.0f ? 1.0f / sum : 0.0f;
+        for (int key = 0; key < N; key++) probs[(uint64_t)m * N + key] *= inv;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup | mem_flags::mem_device);
+
+    // ---- Phase 3 (ALU): PV -> heads[m*D+d] = sum_key probs[m][key]*stream[key][d] ----
+    for (int w = tiitg; w < NR0*K; w += NUM_THREADS) {
+        const int row = w / K, d = w - row * K;
+        const int m = r0 + row;
+        if (m >= M) continue;
+        float acc = 0.0f;
+        for (int key = 0; key < N; key++) {
+            acc += probs[(uint64_t)m * N + key] * ptrK[(uint64_t)key * strideK + d];
+        }
+        heads[(uint64_t)m * K + d] = acc;
+    }
+}
+
+// NA∥ALU in-kernel co-issue microbench. One kernel, 1-D grid; threadgroups are
+// partitioned into NA (matmul2d / Neural Accelerator) and ALU (scalar f32 matvec)
+// roles by mode: 0=all NA, 1=all ALU, 2=interleaved (even tg = NA, odd tg = ALU).
+// NA: C[M x N] = A[M x K] @ B[K x N] (B stored [N x K] row-major, read {1,K}).
+// ALU: O[rows x ncol] = X[rows x k] . W[ncol x k], pure scalar lanes, no matmul/simd.
+// Both repeat inner-iters to inflate time. Measures whether the two pipelines overlap.
+struct ds4_naalu_args {
+    int32_t M, N, K;            // matmul2d dims
+    int32_t na_iters, alu_iters;
+    int32_t alu_rows, alu_ncol, alu_k, alu_tgs;
+    int32_t mode;              // 0=NA, 1=ALU, 2=interleaved
+};
+kernel void ds4_naalu_bench(
+        constant ds4_naalu_args &a [[buffer(0)]],
+        device const float *A  [[buffer(1)]],   // [M x K]
+        device const float *B  [[buffer(2)]],   // [N x K] (element[d][n] = B[n*K+d])
+        device       float *C  [[buffer(3)]],    // [M x N]
+        device const float *W  [[buffer(4)]],    // [ncol x k]
+        device const float *X  [[buffer(5)]],    // [rows x k]
+        device       float *O  [[buffer(6)]],     // [rows x ncol]
+        threadgroup  char  *shmem [[threadgroup(0)]],
+        uint  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NUM_THREADS = 128;
+    bool do_na; uint role_id;
+    if (a.mode == 0)      { do_na = true;  role_id = tgpig; }
+    else if (a.mode == 1) { do_na = false; role_id = tgpig; }
+    else                  { do_na = ((tgpig & 1u) == 0u); role_id = tgpig >> 1; }
+
+    if (do_na) {
+        const int M = a.M, N = a.N, K = a.K;
+        const int gx = N / NR1;                 // NA tiles across N
+        const int tx = (int)(role_id % (uint)gx), ty = (int)(role_id / (uint)gx);
+        const int r1 = tx * NR1, r0 = ty * NR0;
+        threadgroup half *sa = (threadgroup half *)shmem;
+        auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+        device float *ptrB = (device float *)B;
+        auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, K}));
+        matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+            matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+        auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+        for (int it = 0; it < a.na_iters; it++) {
+            for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+            for (int lk = 0; lk < K; lk += NK) {
+                for (int work = tiitg; work < NR0*NK; work += NUM_THREADS) {
+                    const int row = work / NK, kc = work % NK;
+                    const int m = r0 + row;
+                    half v = (half)0;
+                    if (m < M && lk + kc < K) v = (half)A[(uint64_t)m * K + lk + kc];
+                    sa[row*NK + kc] = v;
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+                auto mA = tA.slice(0, 0); auto mB = tB.slice(lk, r1);
+                mm.run(mB, mA, cT);
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+        }
+        device float *db = (device float *)C;
+        auto tD = tensor(db, dextents<int32_t, 2>(M, N), array<int, 2>({1, M}));
+        auto mD = tD.slice(r0, r1);
+        cT.store(mD);
+    } else {
+        const int ncol = a.alu_ncol, kk = a.alu_k;
+        const int rows_per = a.alu_rows / a.alu_tgs;
+        const int base = (int)role_id * rows_per;
+        const int total = rows_per * ncol;
+        for (int it = 0; it < a.alu_iters; it++) {
+            for (int o = tiitg; o < total; o += NUM_THREADS) {
+                const int rr = base + o / ncol;
+                const int cc = o % ncol;
+                float acc = 0.0f;
+                device const float *xp = X + (uint64_t)rr * kk;
+                device const float *wp = W + (uint64_t)cc * kk;
+                for (int k = 0; k < kk; k++) acc += xp[k] * wp[k];
+                O[(uint64_t)rr * ncol + cc] = acc;
+            }
+        }
+    }
+}
+
+// Dense M=5 decision microbench: NA matmul2d (mode 0) vs well-occupied ALU
+// ncol-split matvec (mode 1) at the verifier's tall-skinny dense shape.
+// A=[M x K] activations (f32), B=[N x K] weights (element[d][n]=B[n*K+d]), C=[M x N].
+struct ds4_dm5_args { int32_t M, N, K, iters, mode, ncol_tgs; };
+kernel void ds4_dense_m5_bench(
+        constant ds4_dm5_args &a [[buffer(0)]],
+        device const float *A [[buffer(1)]],
+        device const float *B [[buffer(2)]],
+        device       float *C [[buffer(3)]],
+        threadgroup char *shmem [[threadgroup(0)]],
+        uint  tgpig [[threadgroup_position_in_grid]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    constexpr int NR1 = 128, NR0 = 64, NK = 32, NUM_THREADS = 128;
+    const int M = a.M, N = a.N, K = a.K;
+    if (a.mode == 0) {
+        // NA matmul2d over full N, M rows (M padded into one NR0 tile).
+        const int gx = N / NR1;
+        const int tx = (int)((uint)tgpig % (uint)gx), ty = (int)((uint)tgpig / (uint)gx);
+        const int r1 = tx * NR1, r0 = ty * NR0;
+        threadgroup half *sa = (threadgroup half *)shmem;
+        auto tA = tensor(sa, dextents<int32_t, 2>(NK, NR0));
+        device float *ptrB = (device float *)B;
+        auto tB = tensor(ptrB, dextents<int32_t, 2>(K, N), array<int, 2>({1, K}));
+        matmul2d<matmul2d_descriptor(NR1, NR0, NK, false, true, true,
+            matmul2d_descriptor::mode::multiply_accumulate), execution_simdgroups<4>> mm;
+        auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+        for (int it = 0; it < a.iters; it++) {
+            for (uint16_t i = 0; i < cT.get_capacity(); ++i) if (cT.is_valid_element(i)) cT[i] = 0.0f;
+            for (int lk = 0; lk < K; lk += NK) {
+                for (int work = tiitg; work < NR0*NK; work += NUM_THREADS) {
+                    const int row = work / NK, kc = work % NK;
+                    const int m = r0 + row;
+                    half v = (half)0;
+                    if (m < M && lk + kc < K) v = (half)A[(uint64_t)m * K + lk + kc];
+                    sa[row*NK + kc] = v;
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+                auto mA = tA.slice(0, 0); auto mB = tB.slice(lk, r1);
+                mm.run(mB, mA, cT);
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+        }
+        device float *db = (device float *)C;
+        auto tD = tensor(db, dextents<int32_t, 2>(M, N), array<int, 2>({1, M}));
+        auto mD = tD.slice(r0, r1);
+        cT.store(mD);
+    } else {
+        // ALU ncol-split matvec: tgpig in [0, ncol_tgs); each TG does all M rows for
+        // a slice of N columns (realistic full-occupancy ALU matvec, not row-starved).
+        const int cols_per = N / a.ncol_tgs;
+        const int c0 = (int)tgpig * cols_per;
+        const int total = M * cols_per;
+        for (int it = 0; it < a.iters; it++) {
+            for (int o = tiitg; o < total; o += NUM_THREADS) {
+                const int rr = o / cols_per;
+                const int cc = c0 + (o % cols_per);
+                float acc = 0.0f;
+                device const float *xp = A + (uint64_t)rr * K;
+                device const float *wp = B + (uint64_t)cc * K;
+                for (int k = 0; k < K; k++) acc += xp[k] * wp[k];
+                C[(uint64_t)rr * N + cc] = acc;
+            }
+        }
+    }
+}
+
 static inline int8_t ds4nf_f2i8(float x, float qscale) {
     return int8_t(int(rint(clamp(x * qscale, -128.0f, 127.0f))));
 }

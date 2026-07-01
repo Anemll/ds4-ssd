@@ -147,6 +147,8 @@ typedef struct {
     double dspark_perf_verify_gpu_seconds;
     double dspark_perf_commit_seconds;
     double dspark_perf_total_seconds;
+    uint32_t dspark_active_verify_budget;
+    bool dspark_verify_dynamic;
 } ds4_runtime_status;
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt);
@@ -243,6 +245,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int max_tokens, int eos_token,
                                         int *accepted, int accepted_cap,
                                         int *drafted,
+                                        int *draft_accepted,
                                         char *err, size_t errlen);
 void ds4_session_invalidate(ds4_session *s);
 void ds4_session_rewind(ds4_session *s, int pos);

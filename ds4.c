@@ -10516,6 +10516,25 @@ static bool metal_graph_decode_kv_store(
 
 static uint32_t metal_graph_decode_indexer_top_k(const ds4_gpu_graph *g) {
     (void)g;
+    const char *env = getenv("DS4_DSPARK_INDEXER_TOP_K_OVERRIDE");
+    if (env && env[0]) {
+        errno = 0;
+        char *end = NULL;
+        unsigned long v = strtoul(env, &end, 10);
+        if (errno == 0 && end != env && v != 0 && v <= DS4_N_INDEXER_TOP_K &&
+            (v & (v - 1ul)) == 0) {
+            return (uint32_t)v;
+        }
+        static bool warned = false;
+        if (!warned) {
+            fprintf(stderr,
+                    "ds4: ignoring DS4_DSPARK_INDEXER_TOP_K_OVERRIDE=%s "
+                    "(must be power-of-two <= model top_k=%u)\n",
+                    env,
+                    DS4_N_INDEXER_TOP_K);
+            warned = true;
+        }
+    }
     return DS4_N_INDEXER_TOP_K;
 }
 
@@ -14201,6 +14220,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	        (capture_prefix_count != 0 ||
 	         env_flag_enabled("DS4_SPEC_VERIFY_DECODE_ORDER") ||
 	         env_flag_enabled("DS4_DSPARK_BATCH_DECODE_ORDER") ||
+	         ds4_dspark_cased_batch_attn_byte_enabled() ||
 	         env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_DECODE_ORDER"));
 	    const char *dspark_verify_canonical_env =
 	        getenv("DS4_DSPARK_VERIFY_CANONICAL");
@@ -14233,8 +14253,10 @@ static bool metal_graph_encode_layer_attention_batch(
 	        env_flag_enabled("DS4_DSPARK_ATTN_MIXED_VEC_COMPARE") ||
 	        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_VEC_COMPARE");
 	    const bool spec_defer_batch_heads =
+	        ds4_dspark_cased_batch_attn_byte_enabled() ||
 	        env_flag_enabled("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS") ||
 	        env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA") ||
+	        env_flag_enabled("DS4_DSPARK_ATTN_NAX") ||
 	        spec_shared_prefix_raw_vec_rows ||
 	        spec_shared_prefix_varmap_rows ||
 	        spec_shared_prefix_varmap_direct_rows ||
@@ -14243,6 +14265,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	        (spec_prefix_capture_batch_canonical &&
 	         !env_flag_enabled("DS4_DSPARK_BATCH_DEFER_HEADS_DISABLE"));
 	    const bool spec_defer_row_exact_heads =
+	        ds4_dspark_cased_batch_attn_byte_enabled() ||
 	        env_flag_enabled("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS_ROW_EXACT") ||
 	        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_ROW_EXACT_HEADS") ||
 	        spec_shared_prefix_raw_vec_rows ||
@@ -14274,7 +14297,8 @@ static bool metal_graph_encode_layer_attention_batch(
 	        !metal_graph_use_reference_hc_norm_decode();
 	    const bool spec_row_qkv_requested =
 	        spec_decode_order &&
-	        env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_ROW_QKV");
+	        (ds4_dspark_cased_batch_attn_byte_enabled() ||
+	         env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_ROW_QKV"));
 	    const bool spec_row_qkv =
 	        spec_row_qkv_requested &&
 	        spec_fuse_hc_norm &&
@@ -14311,13 +14335,14 @@ static bool metal_graph_encode_layer_attention_batch(
     const bool spec_use_batch_ratio4_indexer_rows =
         spec_row_local_ratio4_indexer_rows ||
         (spec_prefix_capture_batch_canonical && ratio == 4);
-    const bool spec_row_local_ratio4_index_comp_rows =
-        spec_decode_order &&
-        !spec_prefix_capture_batch_canonical &&
-        ratio == 4 &&
-        env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS") &&
-        !metal_graph_use_reference_compressor_pair_proj() &&
-        !env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS_DISABLE");
+	    const bool spec_row_local_ratio4_index_comp_rows =
+	        spec_decode_order &&
+	        !spec_prefix_capture_batch_canonical &&
+	        ratio == 4 &&
+	        (ds4_dspark_cased_batch_attn_byte_enabled() ||
+	         env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS")) &&
+	        !metal_graph_use_reference_compressor_pair_proj() &&
+	        !env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS_DISABLE");
     const bool spec_use_batch_ratio4_index_comp_rows =
         spec_row_local_ratio4_index_comp_rows ||
         (spec_prefix_capture_batch_canonical && ratio == 4);
@@ -16381,34 +16406,89 @@ static bool metal_graph_encode_layer_attention_batch(
                                                                           pos0 + n_tokens - 1u,
                                                                           n_raw);
                 if (defer_indexed_heads) {
-                    ok = ds4_gpu_attention_indexed_mixed_batch_heads_tensor(g->batch_heads,
-                                                                              model->map,
-                                                                              model->size,
-                                                                              layer->attn_sinks->abs_offset,
-                                                                              g->batch_q,
-                                                                              g->layer_raw_cache[il],
-                                                                              g->layer_attn_comp_cache[il],
-                                                                              g->comp_mask,
-                                                                              n_tokens,
-                                                                              pos0,
-                                                                              n_raw,
-                                                                              g->raw_cap,
-                                                                              raw_start,
-                                                                              g->layer_n_comp[il],
-                                                                              deferred_top_k,
-                                                                              g->raw_window,
-                                                                              ratio,
-                                                                              DS4_N_HEAD,
-                                                                              DS4_N_HEAD_DIM) != 0;
-		                } else {
-		                    const bool force_mma_diag =
-                        env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
-                    const bool defer_plain_row_exact =
-                        spec_defer_row_exact_heads && !force_mma_diag;
+                    bool nax_indexed_ok = false;
+                    if (env_flag_enabled("DS4_DSPARK_ATTN_NAX") &&
+                        env_flag_enabled("DS4_DSPARK_ATTN_NAX_TOPK") &&
+                        g->layer_n_comp[il] > deferred_top_k * n_tokens) {
+                        nax_indexed_ok = ds4_gpu_dspark_nax_attention_tensor(
+                                g->batch_heads,
+                                g->batch_q,
+                                g->layer_raw_cache[il],
+                                g->layer_attn_comp_cache[il],
+                                g->comp_mask,
+                                deferred_top_k,
+                                raw_counts_small,
+                                comp_counts,
+                                raw_starts_small,
+                                n_tokens,
+                                DS4_N_HEAD,
+                                g->layer_n_comp[il],
+                                g->raw_cap,
+                                DS4_N_HEAD_DIM,
+                                1.0f / sqrtf((float)DS4_N_HEAD_DIM)) != 0;
+                    }
+                    if (nax_indexed_ok) {
+                        ok = true;
+                    } else {
+                        ok = ds4_gpu_attention_indexed_mixed_batch_heads_tensor(g->batch_heads,
+	                                                                              model->map,
+	                                                                              model->size,
+	                                                                              layer->attn_sinks->abs_offset,
+	                                                                              g->batch_q,
+	                                                                              g->layer_raw_cache[il],
+	                                                                              g->layer_attn_comp_cache[il],
+	                                                                              g->comp_mask,
+	                                                                              n_tokens,
+	                                                                              pos0,
+	                                                                              n_raw,
+	                                                                              g->raw_cap,
+	                                                                              raw_start,
+	                                                                              g->layer_n_comp[il],
+	                                                                              deferred_top_k,
+	                                                                              g->raw_window,
+	                                                                              ratio,
+	                                                                              DS4_N_HEAD,
+	                                                                              DS4_N_HEAD_DIM) != 0;
+                    }
+	                } else {
+			                    const bool force_mma_diag =
+	                        env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
+	                    const bool force_nax_diag = env_flag_enabled("DS4_DSPARK_ATTN_NAX");
+	                    const bool defer_plain_row_exact =
+	                        spec_defer_row_exact_heads && !force_mma_diag && !force_nax_diag;
 		                    const bool defer_plain_varlen =
 		                        env_flag_enabled("DS4_DSPARK_HYBRID_DEFER_BATCH_HEADS_VARLEN_UNSAFE") ||
 		                        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARLEN_HEADS_UNSAFE");
-		                    if (defer_plain_row_exact && n_tokens <= 5u && comp_counts) {
+		                    /* Case E (NAX matmul2d batched attention) is OPT-IN via DS4_DSPARK_ATTN_NAX=1.
+	 * It is NOT byte-identical to no-draft. The plain branch uses dense compressed
+	 * keys only when the compressed cache is under the indexer cutoff; the indexed
+	 * branch can opt into DS4_DSPARK_ATTN_NAX_TOPK=1 once selected top-k is smaller
+	 * than dense all-compressed. On failure the wrapper returns 0 and we fall through. */
+	                    bool nax_ok = false;
+	                    if (force_nax_diag) {
+                        /* Case E (dspark-attn): NAX/matmul2d batched attention over
+                         * the ring-resolved raw union ++ compressed stream, with
+                         * per-token raw-window-offset and comp masking. */
+                        uint32_t max_comp = 0u;
+                        for (uint32_t t = 0; t < n_tokens && t < 5u; t++)
+                            if (comp_counts && comp_counts[t] > max_comp) max_comp = comp_counts[t];
+	                        nax_ok = ds4_gpu_dspark_nax_attention_tensor(
+	                                g->batch_heads, g->batch_q,
+	                                g->layer_raw_cache[il],
+	                                max_comp ? g->layer_attn_comp_cache[il] : NULL,
+	                                NULL,
+	                                0,
+	                                raw_counts_small, comp_counts, raw_starts_small,
+	                                n_tokens, DS4_N_HEAD, max_comp,
+                                g->raw_cap, DS4_N_HEAD_DIM,
+                                1.0f / sqrtf((float)DS4_N_HEAD_DIM)) != 0;
+                        if (nax_ok) ok = true;
+                    }
+                    if (nax_ok) {
+                        /* Case E produced the attention heads; skip the strict path.
+                         * On failure (unsupported hardware / shape) nax_ok stays
+                         * false and we fall through to the strict ALU path below. */
+                    } else if (defer_plain_row_exact && n_tokens <= 5u && comp_counts) {
 		                        static bool logged_row_exact = false;
 		                        if (!logged_row_exact && !backend_diagnostic_logs_suppressed()) {
 			                            fprintf(stderr,
@@ -16423,6 +16503,7 @@ static bool metal_graph_encode_layer_attention_batch(
 					                            env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_DIRECT_ROWS") ||
 					                            env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_DIRECT_ROWS");
 					                        const bool varmap_compare =
+					                            ds4_dspark_cased_attn_compare_enabled() ||
 					                            env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_COMPARE") ||
 					                            env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_COMPARE");
 				                        const bool varstream_compare =
@@ -16447,7 +16528,8 @@ static bool metal_graph_encode_layer_attention_batch(
 			                        }
 				                        const bool varmap_rows =
 				                            !varstream_rows &&
-				                            (varmap_compare ||
+				                            (ds4_dspark_cased_batch_attn_byte_enabled() ||
+				                             varmap_compare ||
 				                             ds4_target_forward_shared_prefix_varmap_rows_enabled());
 			                        bool raw_vec_rows = false;
 			                        if (!varstream_rows &&
@@ -17017,7 +17099,8 @@ static bool metal_graph_encode_layer_attention_batch(
 
 	    const bool spec_row_output_hc =
 	        spec_decode_order &&
-	        env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_ROW_OUTPUT");
+	        (ds4_dspark_cased_batch_attn_byte_enabled() ||
+	         env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_ROW_OUTPUT"));
 	    bool spec_row_output_hc_profiled = false;
 
     if (ok) {
@@ -20533,6 +20616,9 @@ static bool metal_graph_verify_suffix_tops(
         bool               capture_prefix1,
         uint32_t           capture_prefix_count,
         int               *row_tops,
+        int               *row_topk,
+        uint32_t           row_topk_k,
+        float             *row_topk_logits,
         float             *row_logits);
 static uint32_t metal_graph_spec_verify_layer_limit(void);
 
@@ -20607,6 +20693,9 @@ static bool metal_graph_target_forward_rows_unified_batch_backend(
         bool               capture_prefix1,
         uint32_t           capture_prefix_count,
         int               *row_tops,
+        int               *row_topk,
+        uint32_t           row_topk_k,
+        float             *row_topk_logits,
         float             *row_logits) {
     return metal_graph_verify_suffix_tops(g,
                                           model,
@@ -20617,6 +20706,9 @@ static bool metal_graph_target_forward_rows_unified_batch_backend(
                                           capture_prefix1,
                                           capture_prefix_count,
                                           row_tops,
+                                          row_topk,
+                                          row_topk_k,
+                                          row_topk_logits,
                                           row_logits);
 }
 
@@ -20630,6 +20722,9 @@ static bool metal_graph_target_forward_rows_unified_strict_v1_backend(
         bool               capture_prefix1,
         uint32_t           capture_prefix_count,
         int               *row_tops,
+        int               *row_topk,
+        uint32_t           row_topk_k,
+        float             *row_topk_logits,
         float             *row_logits) {
     g_ds4_target_forward_strict_v1_depth++;
     bool ok = metal_graph_verify_decodeN_strict_v1(g,
@@ -20641,6 +20736,9 @@ static bool metal_graph_target_forward_rows_unified_strict_v1_backend(
                                                    capture_prefix1,
                                                    capture_prefix_count,
                                                    row_tops,
+                                                   row_topk,
+                                                   row_topk_k,
+                                                   row_topk_logits,
                                                    NULL,
                                                    NULL);
     g_ds4_target_forward_strict_v1_depth--;
@@ -20669,6 +20767,9 @@ static bool metal_graph_target_forward_rows_unified_shared_prefix_backend(
         bool               capture_prefix1,
         uint32_t           capture_prefix_count,
         int               *row_tops,
+        int               *row_topk,
+        uint32_t           row_topk_k,
+        float             *row_topk_logits,
         float             *row_logits) {
     static bool s_logged = false;
     if (!s_logged) {
@@ -20687,6 +20788,9 @@ static bool metal_graph_target_forward_rows_unified_shared_prefix_backend(
                                                                         capture_prefix1,
                                                                         capture_prefix_count,
                                                                         row_tops,
+                                                                        row_topk,
+                                                                        row_topk_k,
+                                                                        row_topk_logits,
                                                                         row_logits);
     g_ds4_target_forward_shared_prefix_depth--;
     return ok;
@@ -20710,6 +20814,9 @@ static bool metal_graph_target_forward_rows_unified(
         bool               top_only,
         bool               dspark_prepare_next,
         int               *row_tops,
+        int               *row_topk,
+        uint32_t           row_topk_k,
+        float             *row_topk_logits,
         float             *row_logits) {
     if (!g || !model || !weights || !tokens || n_rows == 0 || n_rows > 5u) {
         return false;
@@ -20792,6 +20899,9 @@ static bool metal_graph_target_forward_rows_unified(
                                                                            capture_prefix1,
                                                                            capture_prefix_count,
                                                                            row_tops,
+                                                                           row_topk,
+                                                                           row_topk_k,
+                                                                           row_topk_logits,
                                                                            row_logits);
             break;
         case DS4_TARGET_FORWARD_UNIFIED_BACKEND_SHARED_PREFIX:
@@ -20804,6 +20914,9 @@ static bool metal_graph_target_forward_rows_unified(
                                                                                capture_prefix1,
                                                                                capture_prefix_count,
                                                                                row_tops,
+                                                                               row_topk,
+                                                                               row_topk_k,
+                                                                               row_topk_logits,
                                                                                row_logits);
             break;
         case DS4_TARGET_FORWARD_UNIFIED_BACKEND_BATCH:
@@ -20817,6 +20930,9 @@ static bool metal_graph_target_forward_rows_unified(
                                                                        capture_prefix1,
                                                                        capture_prefix_count,
                                                                        row_tops,
+                                                                       row_topk,
+                                                                       row_topk_k,
+                                                                       row_topk_logits,
                                                                        row_logits);
             break;
         }
@@ -20898,6 +21014,9 @@ static bool metal_graph_mtp_target_verify_rows(
                                                        false,
                                                        false,
                                                        row_tops,
+                                                       NULL,
+                                                       0,
+                                                       NULL,
                                                        row_logits);
     }
     return metal_graph_verify_suffix_tops(g,
@@ -20909,6 +21028,9 @@ static bool metal_graph_mtp_target_verify_rows(
                                           capture_prefix1,
                                           capture_prefix_count,
                                           row_tops,
+                                          NULL,
+                                          0,
+                                          NULL,
                                           row_logits);
 }
 
@@ -22290,6 +22412,9 @@ static bool metal_graph_verify_suffix_tops(
         bool                   capture_prefix1,
         uint32_t               capture_prefix_count,
         int                   *row_tops,
+        int                   *row_topk,
+        uint32_t               row_topk_k,
+        float                 *row_topk_logits,
         float                 *row_logits) {
     if (n_tokens == 0 || n_tokens > g->prefill_cap || !g->spec_logits) return false;
     if (start > (uint32_t)prompt->len || n_tokens > (uint32_t)prompt->len - start) return false;
@@ -22302,6 +22427,9 @@ static bool metal_graph_verify_suffix_tops(
     }
     const uint32_t top_rows = n_tokens > 1 ? n_tokens - 1 : 0;
     if (top_rows && !row_tops) return false;
+    if (row_topk_k == 0) row_topk = NULL;
+    if (!row_topk) row_topk_logits = NULL;
+    if (row_topk_k > DS4_N_VOCAB) return false;
 
     bool ok = metal_graph_upload_prompt_tokens(g->prefill_tokens, prompt, start, n_tokens);
     if (ok) ok = metal_graph_upload_prompt_embeddings_hc(g->batch_cur_hc,
@@ -22353,24 +22481,46 @@ static bool metal_graph_verify_suffix_tops(
                                                       weights,
                                                       n_tokens,
                                                       weights->output->dim[1]);
+    const uint32_t suffix_topk_k = row_topk ? row_topk_k : 1u;
     if (ok) {
         if (top_rows) {
             ok = ds4_gpu_indexer_topk_tensor(g->comp_selected,
                                                g->spec_logits,
                                                DS4_N_VOCAB,
                                                top_rows,
-                                               1) != 0;
+                                               suffix_topk_k) != 0;
         }
     }
     if (ok) ok = ds4_gpu_end_commands() != 0;
     else (void)ds4_gpu_synchronize();
     const double mtp_verify_head_done =
         mtp_verify_layers_done != 0.0 ? now_sec() : 0.0;
+    if (ok && row_topk && row_topk_logits && top_rows) {
+        ok = ds4_gpu_indexer_topk_logits_tensor(row_topk_logits,
+                                                g->spec_logits,
+                                                g->comp_selected,
+                                                DS4_N_VOCAB,
+                                                top_rows,
+                                                suffix_topk_k) != 0;
+    }
     if (ok && top_rows) {
-        ok = ds4_gpu_tensor_read(g->comp_selected,
-                                   0,
-                                   row_tops,
-                                   (uint64_t)top_rows * sizeof(row_tops[0])) != 0;
+        if (row_topk) {
+            ok = ds4_gpu_tensor_read(g->comp_selected,
+                                     0,
+                                     row_topk,
+                                     (uint64_t)top_rows * suffix_topk_k *
+                                         sizeof(row_topk[0])) != 0;
+            if (ok && row_tops) {
+                for (uint32_t i = 0; i < top_rows; i++) {
+                    row_tops[i] = row_topk[(size_t)i * suffix_topk_k];
+                }
+            }
+        } else {
+            ok = ds4_gpu_tensor_read(g->comp_selected,
+                                     0,
+                                     row_tops,
+                                     (uint64_t)top_rows * sizeof(row_tops[0])) != 0;
+        }
     }
     if (ok && row_logits) {
         ok = ds4_gpu_tensor_read(g->spec_logits,
@@ -24675,10 +24825,1080 @@ struct ds4_session {
     double dspark_perf_verify_gpu_seconds;
     double dspark_perf_commit_seconds;
     double dspark_perf_total_seconds;
+    uint32_t dspark_relaxed_cooldown;
+    uint8_t dspark_dynamic_accept[8];
+    uint8_t dspark_dynamic_accept_pos;
+    uint8_t dspark_dynamic_accept_count;
+    uint8_t dspark_dynamic_switch_cooldown;
+    uint8_t dspark_dynamic_recover_count;
+    uint8_t dspark_dynamic_probe_budget;
+    uint16_t dspark_dynamic_utility_count[6];
+    double dspark_dynamic_utility_ema[6];
+    uint32_t dspark_dynamic_utility_blocks;
+    uint16_t dspark_dynamic_cost_count[6];
+    double dspark_dynamic_cost_ema[6];
+    uint16_t dspark_dynamic_accept_seen[6];
+    double dspark_dynamic_accept_ema[6];
+    uint32_t dspark_dynamic_throughput_blocks;
+    int dspark_dynamic_verify_budget;
+    int dspark_dynamic_record_suppress;
+    bool dspark_dynamic_verify_initialized;
+    bool dspark_dynamic_verify_logged;
     bool checkpoint_valid;
     bool mtp_draft_valid;
     bool dspark_draft_warmed;
+    bool dspark_frontier_after_full_ready;
+    bool dspark_draft_prefetch_pending;
+    int dspark_draft_prefetch_cap;
+    int dspark_draft_prefetch_last_token;
+    int dspark_draft_prefetch_checkpoint_len;
 };
+
+typedef struct {
+    bool enabled;
+    bool log;
+    int min_budget;
+    int max_budget;
+    int down_window;
+    int up_window;
+    int dwell_blocks;
+    int recover_probe_interval;
+    int utility_probe_samples;
+    float down_tau;
+    float up_tau;
+    float down_frac;
+    float up_frac;
+    float utility_alpha;
+    float utility_min_gain;
+    bool utility_mode;
+    bool throughput_mode;
+    int throughput_min_samples;
+    float throughput_cost_alpha;
+    float throughput_cost_clamp;
+    float throughput_accept_alpha;
+} ds4_dspark_dynamic_verify_cfg;
+
+static int ds4_dspark_env_int_default(
+        const char *name,
+        int default_value,
+        int min_value,
+        int max_value) {
+    const char *env = getenv(name);
+    if (!env || !env[0]) return default_value;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env) return default_value;
+    if (v < min_value) v = min_value;
+    if (v > max_value) v = max_value;
+    return (int)v;
+}
+
+static float ds4_dspark_env_float_default(
+        const char *name,
+        float default_value,
+        float min_value,
+        float max_value) {
+    const char *env = getenv(name);
+    if (!env || !env[0]) return default_value;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v)) return default_value;
+    if (v < min_value) v = min_value;
+    if (v > max_value) v = max_value;
+    return v;
+}
+
+static int ds4_dspark_base_verify_budget(const ds4_engine *e) {
+    if (!e) return 0;
+    int budget = e->dspark.verify_budget > 0 ? e->dspark.verify_budget : e->dspark.block_size;
+    if (budget > e->dspark.block_size) budget = e->dspark.block_size;
+    if (budget > 5) budget = 5;
+    if (budget < 1) budget = 1;
+    return budget;
+}
+
+static ds4_dspark_dynamic_verify_cfg ds4_dspark_dynamic_verify_cfg_make(const ds4_engine *e) {
+    ds4_dspark_dynamic_verify_cfg cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.enabled =
+        env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC") ||
+        env_flag_enabled("DS4_DSPARK_DRAFT_VERIFY_DYNAMIC") ||
+        env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY");
+    cfg.log =
+        env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_LOG") ||
+        env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY_LOG");
+    const bool legacy_dynamic =
+        env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_LEGACY") ||
+        env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY_LEGACY") ||
+        env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_TAU");
+    cfg.utility_mode =
+        env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_UTILITY") ||
+        env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY_UTILITY");
+    cfg.throughput_mode =
+        cfg.enabled &&
+        !legacy_dynamic &&
+        !env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_UTILITY_LEGACY");
+
+    const int base = ds4_dspark_base_verify_budget(e);
+    cfg.max_budget = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_MAX",
+            base,
+            1,
+            5);
+    if (cfg.max_budget > base) cfg.max_budget = base;
+    cfg.min_budget = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_MIN",
+            base >= 2 ? 2 : base,
+            1,
+            5);
+    if (cfg.min_budget > cfg.max_budget) cfg.min_budget = cfg.max_budget;
+
+    cfg.down_window = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_DOWN_WINDOW",
+            5,
+            1,
+            (int)sizeof(((ds4_session *)0)->dspark_dynamic_accept));
+    cfg.up_window = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UP_WINDOW",
+            3,
+            1,
+            (int)sizeof(((ds4_session *)0)->dspark_dynamic_accept));
+    cfg.dwell_blocks = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_DWELL",
+            2,
+            0,
+            (int)sizeof(((ds4_session *)0)->dspark_dynamic_accept));
+    cfg.recover_probe_interval = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_RECOVER_PROBE",
+            5,
+            0,
+            64);
+    cfg.utility_probe_samples = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UTILITY_PROBE",
+            2,
+            1,
+            64);
+    cfg.down_tau = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_DOWN_TAU",
+            3.4f,
+            0.0f,
+            5.0f);
+    cfg.up_tau = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UP_TAU",
+            3.9f,
+            0.0f,
+            5.0f);
+    cfg.down_frac = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_DOWN_FRAC",
+            0.60f,
+            0.0f,
+            1.0f);
+    cfg.up_frac = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UP_FRAC",
+            0.95f,
+            0.0f,
+            1.0f);
+    cfg.utility_alpha = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UTILITY_ALPHA",
+            0.30f,
+            0.01f,
+            1.0f);
+    cfg.utility_min_gain = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_UTILITY_MIN_GAIN",
+            0.05f,
+            0.0f,
+            1.0f);
+    cfg.throughput_min_samples = ds4_dspark_env_int_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_MIN_SAMPLES",
+            4,
+            1,
+            128);
+    cfg.throughput_cost_alpha = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_COST_ALPHA",
+            0.30f,
+            0.01f,
+            1.0f);
+    cfg.throughput_cost_clamp = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_COST_CLAMP",
+            0.25f,
+            0.0f,
+            10.0f);
+    cfg.throughput_accept_alpha = ds4_dspark_env_float_default(
+            "DS4_DSPARK_VERIFY_DYNAMIC_ACCEPT_ALPHA",
+            0.10f,
+            0.01f,
+            1.0f);
+    return cfg;
+}
+
+static float ds4_dspark_dynamic_down_threshold(
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        int budget) {
+    if (!cfg || budget <= 0) return 0.0f;
+    float threshold = budget >= cfg->max_budget ?
+        cfg->down_tau : cfg->down_frac * (float)budget;
+    if (threshold < 0.0f) threshold = 0.0f;
+    if (threshold > (float)budget) threshold = (float)budget;
+    return threshold;
+}
+
+static float ds4_dspark_dynamic_up_threshold(
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        int budget) {
+    if (!cfg || budget <= 0) return 0.0f;
+    float threshold = budget == cfg->max_budget - 1 ?
+        cfg->up_tau : cfg->up_frac * (float)budget;
+    if (threshold < 0.0f) threshold = 0.0f;
+    const float full = (float)budget;
+    if (threshold > full - 0.05f) threshold = full - 0.05f;
+    if (threshold < 0.0f) threshold = 0.0f;
+    return threshold;
+}
+
+static bool ds4_dspark_dynamic_trace_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_TRACE") ||
+           env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY_TRACE");
+}
+
+static void ds4_dspark_dynamic_confidence_trace(
+        const char  *tag,
+        int          budget,
+        int          draft_n,
+        const int   *drafts,
+        const float *confidence_probs) {
+    if (!ds4_dspark_dynamic_trace_enabled() ||
+        draft_n <= 0 ||
+        !confidence_probs) {
+        return;
+    }
+    if (draft_n > 5) draft_n = 5;
+    float min_conf = 1.0f;
+    float sum_conf = 0.0f;
+    for (int i = 0; i < draft_n; i++) {
+        const float p = confidence_probs[i];
+        if (p < min_conf) min_conf = p;
+        sum_conf += p;
+    }
+    const float avg_conf = draft_n > 0 ? sum_conf / (float)draft_n : 0.0f;
+    const int p20 = ds4_dspark_confident_prefix_len(confidence_probs, draft_n, 0.20f);
+    const int p40 = ds4_dspark_confident_prefix_len(confidence_probs, draft_n, 0.40f);
+    const int p60 = ds4_dspark_confident_prefix_len(confidence_probs, draft_n, 0.60f);
+    const int p80 = ds4_dspark_confident_prefix_len(confidence_probs, draft_n, 0.80f);
+    fprintf(stderr,
+            "ds4: dspark dynamic confidence tag=%s budget=%d drafted=%d "
+            "avg=%.3f min=%.3f prefix@.2/.4/.6/.8=%d/%d/%d/%d "
+            "p=[%.3f,%.3f,%.3f,%.3f,%.3f] "
+            "tok=[%d,%d,%d,%d,%d]\n",
+            tag ? tag : "?",
+            budget,
+            draft_n,
+            avg_conf,
+            min_conf,
+            p20,
+            p40,
+            p60,
+            p80,
+            draft_n > 0 ? confidence_probs[0] : 0.0f,
+            draft_n > 1 ? confidence_probs[1] : 0.0f,
+            draft_n > 2 ? confidence_probs[2] : 0.0f,
+            draft_n > 3 ? confidence_probs[3] : 0.0f,
+            draft_n > 4 ? confidence_probs[4] : 0.0f,
+            drafts && draft_n > 0 ? drafts[0] : -1,
+            drafts && draft_n > 1 ? drafts[1] : -1,
+            drafts && draft_n > 2 ? drafts[2] : -1,
+            drafts && draft_n > 3 ? drafts[3] : -1,
+                drafts && draft_n > 4 ? drafts[4] : -1);
+}
+
+static bool ds4_dspark_trust_confidence_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_TRUST_CONFIDENCE") ||
+           env_flag_enabled("DS4_DSPARK_DRAFT_TRUST_CONFIDENCE");
+}
+
+static float ds4_dspark_trust_confidence_threshold(void) {
+    return ds4_dspark_env_float_default(
+            "DS4_DSPARK_TRUST_CONFIDENCE_THRESHOLD",
+            0.90f,
+            0.0f,
+            1.0f);
+}
+
+static int ds4_dspark_trust_confidence_min_prefix(void) {
+    return ds4_dspark_env_int_default(
+            "DS4_DSPARK_TRUST_CONFIDENCE_MIN_PREFIX",
+            5,
+            1,
+            5);
+}
+
+static bool ds4_dspark_trust_confidence_log_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_TRUST_CONFIDENCE_LOG") ||
+           env_flag_enabled("DS4_DSPARK_DRAFT_TRUST_CONFIDENCE_LOG");
+}
+
+static bool ds4_dspark_scheduler_is_confidence_softmax(const ds4_engine *e) {
+    if (!e) return false;
+    const char *s = e->dspark.scheduler;
+    return !strcmp(s, "confidence-softmax") ||
+           !strcmp(s, "confidence-softmax-long") ||
+           !strcmp(s, "softmax") ||
+           !strcmp(s, "softmax-long") ||
+           env_flag_enabled("DS4_DSPARK_CONFIDENCE_SOFTMAX");
+}
+
+static bool ds4_dspark_scheduler_is_confidence_softmax_long(const ds4_engine *e) {
+    if (!e) return false;
+    const char *s = e->dspark.scheduler;
+    if (env_flag_enabled("DS4_DSPARK_CONFIDENCE_SOFTMAX_LEGACY")) {
+        return !strcmp(s, "confidence-softmax-long") ||
+               !strcmp(s, "softmax-long") ||
+               env_flag_enabled("DS4_DSPARK_CONFIDENCE_SOFTMAX_LONG");
+    }
+    return !strcmp(s, "confidence-softmax-long") ||
+           !strcmp(s, "confidence-softmax") ||
+           !strcmp(s, "softmax-long") ||
+           !strcmp(s, "softmax") ||
+           env_flag_enabled("DS4_DSPARK_CONFIDENCE_SOFTMAX_LONG");
+}
+
+static bool ds4_dspark_scheduler_is_confidence_hard(const ds4_engine *e) {
+    if (!e) return false;
+    return !strcmp(e->dspark.scheduler, "confidence");
+}
+
+static int ds4_dspark_confidence_softmax_prefix_len(
+        const float *confidence_logits,
+        const float *confidence_probs,
+        int          draft_n,
+        int          max_budget,
+        bool         prefer_long) {
+    if (!confidence_probs || draft_n <= 0) return draft_n;
+    if (draft_n > 5) draft_n = 5;
+    if (max_budget <= 0 || max_budget > draft_n) max_budget = draft_n;
+    if (max_budget > 5) max_budget = 5;
+    int min_budget = ds4_dspark_env_int_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_MIN",
+            prefer_long ? (max_budget >= 4 ? 4 : max_budget) :
+                          (max_budget >= 2 ? 2 : 1),
+            0,
+            5);
+    if (min_budget > max_budget) min_budget = max_budget;
+
+    const float temp = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_TEMP",
+            1.0f,
+            0.05f,
+            16.0f);
+    const float fixed_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_FIXED_COST",
+            prefer_long ? 12.0f : 3.0f,
+            0.0f,
+            100.0f);
+    const float token_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_TOKEN_COST",
+            prefer_long ? 0.25f : 1.0f,
+            0.001f,
+            100.0f);
+    const float mass_weight = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_MASS_WEIGHT",
+            prefer_long ? 0.50f : 0.25f,
+            0.0f,
+            10.0f);
+    const float floor = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_FLOOR",
+            0.0f,
+            0.0f,
+            1.0f);
+    const float skip_bias = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_SOFTMAX_SKIP_BIAS",
+            0.25f,
+            0.0f,
+            10.0f);
+
+    float logits[5] = {0};
+    float max_logit = -FLT_MAX;
+    for (int i = 0; i < max_budget; i++) {
+        float p = confidence_probs[i];
+        if (!isfinite(p)) p = 0.0f;
+        if (p < 1.0e-6f) p = 1.0e-6f;
+        if (p > 1.0f - 1.0e-6f) p = 1.0f - 1.0e-6f;
+        float z = confidence_logits ? confidence_logits[i] : logf(p / (1.0f - p));
+        if (!isfinite(z)) z = 0.0f;
+        z /= temp;
+        logits[i] = z;
+        if (z > max_logit) max_logit = z;
+    }
+    float zsum = 0.0f;
+    float weights[5] = {0};
+    for (int i = 0; i < max_budget; i++) {
+        weights[i] = expf(logits[i] - max_logit);
+        zsum += weights[i];
+    }
+    if (zsum <= 0.0f || !isfinite(zsum)) {
+        for (int i = 0; i < max_budget; i++) weights[i] = 1.0f / (float)max_budget;
+    } else {
+        for (int i = 0; i < max_budget; i++) weights[i] /= zsum;
+    }
+
+    int best_k = min_budget;
+    float best_score = -FLT_MAX;
+    float prefix_prob = 1.0f;
+    float expected_prefix = 0.0f;
+    float softmax_mass = 0.0f;
+    float scores[5] = {0};
+    float zero_score = -FLT_MAX;
+    if (min_budget == 0) {
+        /*
+         * Budget 0 means "do not spend verifier work on this draft block".
+         * The leading target token has already been committed in the normal
+         * path, so compare that fallback against the expected yield/cost of
+         * verifying one or more draft tokens.
+         */
+        const float cost = fixed_cost > 0.001f ? fixed_cost : 0.001f;
+        zero_score = skip_bias / cost;
+        best_k = 0;
+        best_score = zero_score;
+    }
+    for (int k = 1; k <= max_budget; k++) {
+        float p = confidence_probs[k - 1];
+        if (!isfinite(p)) p = 0.0f;
+        if (p < 0.0f) p = 0.0f;
+        if (p > 1.0f) p = 1.0f;
+        if (floor > 0.0f && p < floor) {
+            prefix_prob *= 0.25f * (p / floor);
+        } else {
+            prefix_prob *= p;
+        }
+        expected_prefix += prefix_prob;
+        softmax_mass += weights[k - 1];
+        if (k < min_budget) continue;
+        const float emitted = expected_prefix + mass_weight * softmax_mass;
+        const float cost = fixed_cost + token_cost * (float)k;
+        const float score = emitted / cost;
+        scores[k - 1] = score;
+        if (score > best_score) {
+            best_score = score;
+            best_k = k;
+        }
+    }
+    if (best_k < min_budget) best_k = min_budget;
+    if (best_k > max_budget) best_k = max_budget;
+
+    if (env_flag_enabled("DS4_DSPARK_CONFIDENCE_SOFTMAX_LOG") ||
+        env_flag_enabled("DS4_DSPARK_CONF_LOG")) {
+        fprintf(stderr,
+                "ds4: dspark confidence-softmax mode=%s raw=%d selected=%d "
+                "temp=%.2f cost=%.2f+%.2f*k mass_w=%.2f floor=%.2f "
+                "skip_bias=%.2f zero=%.3f "
+                "p=[%.3f,%.3f,%.3f,%.3f,%.3f] "
+                "w=[%.3f,%.3f,%.3f,%.3f,%.3f] "
+                "score=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+                prefer_long ? "long" : "default",
+                draft_n,
+                best_k,
+                temp,
+                fixed_cost,
+                token_cost,
+                mass_weight,
+                floor,
+                skip_bias,
+                zero_score,
+                draft_n > 0 ? confidence_probs[0] : 0.0f,
+                draft_n > 1 ? confidence_probs[1] : 0.0f,
+                draft_n > 2 ? confidence_probs[2] : 0.0f,
+                draft_n > 3 ? confidence_probs[3] : 0.0f,
+                draft_n > 4 ? confidence_probs[4] : 0.0f,
+                max_budget > 0 ? weights[0] : 0.0f,
+                max_budget > 1 ? weights[1] : 0.0f,
+                max_budget > 2 ? weights[2] : 0.0f,
+                max_budget > 3 ? weights[3] : 0.0f,
+                max_budget > 4 ? weights[4] : 0.0f,
+                scores[0],
+                scores[1],
+                scores[2],
+                scores[3],
+                scores[4]);
+    }
+    return best_k;
+}
+
+static float ds4_dspark_dynamic_verify_avg(const ds4_session *s, int window) {
+    if (!s || window <= 0 || s->dspark_dynamic_accept_count < (uint8_t)window) {
+        return -1.0f;
+    }
+    int sum = 0;
+    const int cap = (int)sizeof(s->dspark_dynamic_accept);
+    for (int i = 0; i < window; i++) {
+        int idx = (int)s->dspark_dynamic_accept_pos - 1 - i;
+        while (idx < 0) idx += cap;
+        sum += s->dspark_dynamic_accept[idx % cap];
+    }
+    return (float)sum / (float)window;
+}
+
+static void ds4_session_dspark_dynamic_verify_init(
+        ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg) {
+    if (!s || !cfg || !cfg->enabled) return;
+    if (!s->dspark_dynamic_verify_initialized ||
+        s->dspark_dynamic_verify_budget < cfg->min_budget ||
+        s->dspark_dynamic_verify_budget > cfg->max_budget) {
+        s->dspark_dynamic_verify_budget = cfg->max_budget;
+        s->dspark_dynamic_accept_pos = 0;
+        s->dspark_dynamic_accept_count = 0;
+        s->dspark_dynamic_switch_cooldown = 0;
+        s->dspark_dynamic_recover_count = 0;
+        s->dspark_dynamic_probe_budget = 0;
+        s->dspark_dynamic_utility_blocks = 0;
+        memset(s->dspark_dynamic_utility_count, 0, sizeof(s->dspark_dynamic_utility_count));
+        memset(s->dspark_dynamic_utility_ema, 0, sizeof(s->dspark_dynamic_utility_ema));
+        memset(s->dspark_dynamic_cost_count, 0, sizeof(s->dspark_dynamic_cost_count));
+        memset(s->dspark_dynamic_cost_ema, 0, sizeof(s->dspark_dynamic_cost_ema));
+        memset(s->dspark_dynamic_accept_seen, 0, sizeof(s->dspark_dynamic_accept_seen));
+        memset(s->dspark_dynamic_accept_ema, 0, sizeof(s->dspark_dynamic_accept_ema));
+        s->dspark_dynamic_throughput_blocks = 0;
+        memset(s->dspark_dynamic_accept, 0, sizeof(s->dspark_dynamic_accept));
+        s->dspark_dynamic_verify_initialized = true;
+    }
+    if (cfg->log && !s->dspark_dynamic_verify_logged) {
+        s->dspark_dynamic_verify_logged = true;
+        fprintf(stderr,
+                "ds4: dspark dynamic verify enabled "
+                "(min=%d max=%d down<=%.2f/%d up>=%.2f/%d "
+                "down_frac=%.2f up_frac=%.2f dwell=%d recover_probe=%d "
+                "mode=%s probe_samples=%d)\n",
+                cfg->min_budget,
+                cfg->max_budget,
+                cfg->down_tau,
+                cfg->down_window,
+                cfg->up_tau,
+                cfg->up_window,
+                cfg->down_frac,
+                cfg->up_frac,
+                cfg->dwell_blocks,
+                cfg->recover_probe_interval,
+                cfg->throughput_mode ? "throughput" :
+                    (cfg->utility_mode ? "utility-legacy" : "tau-legacy"),
+                cfg->utility_probe_samples);
+    }
+}
+
+static double ds4_dspark_dynamic_ema_update(
+        double old_value,
+        double sample,
+        double alpha,
+        double clamp_fraction) {
+    if (!isfinite(sample) || sample <= 0.0) return old_value;
+    if (!isfinite(old_value) || old_value <= 0.0) return sample;
+    double delta = sample - old_value;
+    if (clamp_fraction > 0.0) {
+        const double limit = fabs(old_value) * clamp_fraction;
+        if (delta > limit) delta = limit;
+        if (delta < -limit) delta = -limit;
+    }
+    return old_value + alpha * delta;
+}
+
+static int ds4_session_dspark_throughput_frontier(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg) {
+    if (!s || !cfg) return 0;
+    int frontier = 0;
+    for (int i = 1; i <= cfg->max_budget && i < 6; i++) {
+        if (s->dspark_dynamic_accept_seen[i] >=
+            (uint16_t)cfg->throughput_min_samples) {
+            frontier = i;
+        } else {
+            break;
+        }
+    }
+    return frontier;
+}
+
+static double ds4_session_dspark_throughput_accept_prob(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        int pos) {
+    if (!s || !cfg || pos <= 0 || pos >= 6) return 0.0;
+    if (s->dspark_dynamic_accept_seen[pos] >=
+        (uint16_t)cfg->throughput_min_samples) {
+        double p = s->dspark_dynamic_accept_ema[pos];
+        if (!isfinite(p)) p = 0.0;
+        if (p < 0.0) p = 0.0;
+        if (p > 1.0) p = 1.0;
+        return p;
+    }
+    /*
+     * Unreached frontier positions inherit an optimistic-but-bounded chance from
+     * the previous trusted position.  A one-step frontier cap prevents this from
+     * making deep budgets win before they have been measured.
+     */
+    for (int i = pos - 1; i >= 1; i--) {
+        if (s->dspark_dynamic_accept_seen[i] >=
+            (uint16_t)cfg->throughput_min_samples) {
+            double p = s->dspark_dynamic_accept_ema[i];
+            if (!isfinite(p)) p = 0.0;
+            if (p < 0.0) p = 0.0;
+            if (p > 1.0) p = 1.0;
+            return p;
+        }
+    }
+    return 1.0;
+}
+
+static double ds4_session_dspark_throughput_expected(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        int budget) {
+    if (!s || !cfg || budget <= 0) return 0.0;
+    if (budget > cfg->max_budget) budget = cfg->max_budget;
+    double prefix = 1.0;
+    double expected = 0.0;
+    for (int i = 1; i <= budget && i < 6; i++) {
+        prefix *= ds4_session_dspark_throughput_accept_prob(s, cfg, i);
+        expected += prefix;
+    }
+    return expected;
+}
+
+static int ds4_session_dspark_throughput_seed_budget(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg) {
+    if (!s || !cfg) return 0;
+    const int samples = cfg->utility_probe_samples > 0 ?
+        cfg->utility_probe_samples : 1;
+    for (int b = cfg->max_budget; b >= cfg->min_budget && b >= 1; b--) {
+        if (s->dspark_dynamic_cost_count[b] < (uint16_t)samples) {
+            return b;
+        }
+    }
+    return 0;
+}
+
+static int ds4_session_dspark_throughput_best_budget(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        double *best_score_out) {
+    if (best_score_out) *best_score_out = 0.0;
+    if (!s || !cfg) return 0;
+    const int frontier = ds4_session_dspark_throughput_frontier(s, cfg);
+    int limit = frontier + 1;
+    if (limit < cfg->min_budget) limit = cfg->min_budget;
+    if (limit > cfg->max_budget) limit = cfg->max_budget;
+    int best = cfg->min_budget;
+    double best_score = -1.0;
+    for (int b = cfg->min_budget; b <= limit && b < 6; b++) {
+        if (s->dspark_dynamic_cost_count[b] == 0) continue;
+        const double cost = s->dspark_dynamic_cost_ema[b];
+        if (!isfinite(cost) || cost <= 1.0e-9) continue;
+        const double expected =
+            ds4_session_dspark_throughput_expected(s, cfg, b);
+        const double score = expected / cost;
+        if (score > best_score) {
+            best_score = score;
+            best = b;
+        }
+    }
+    if (best_score_out) *best_score_out = best_score > 0.0 ? best_score : 0.0;
+    return best;
+}
+
+static void ds4_session_dspark_throughput_record(
+        ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg,
+        int drafted,
+        int committed,
+        double total_s) {
+    if (!s || !cfg || !cfg->throughput_mode || drafted <= 0) return;
+    if (drafted > 5) drafted = 5;
+    if (committed < 0) committed = 0;
+    if (committed > drafted) committed = drafted;
+    const int observed_budget =
+        drafted >= cfg->min_budget && drafted <= cfg->max_budget ?
+            drafted : s->dspark_dynamic_verify_budget;
+    if (observed_budget < cfg->min_budget || observed_budget > cfg->max_budget ||
+        observed_budget <= 0 || observed_budget >= 6) {
+        return;
+    }
+
+    const double alpha_cost = cfg->throughput_cost_alpha;
+    const double alpha_acc = cfg->throughput_accept_alpha;
+    const double sample_cost = total_s > 1.0e-9 ? total_s : 1.0e-9;
+    const uint16_t cost_count = s->dspark_dynamic_cost_count[observed_budget];
+    if (cost_count == 0) {
+        s->dspark_dynamic_cost_ema[observed_budget] = sample_cost;
+    } else {
+        s->dspark_dynamic_cost_ema[observed_budget] =
+            ds4_dspark_dynamic_ema_update(
+                s->dspark_dynamic_cost_ema[observed_budget],
+                sample_cost,
+                alpha_cost,
+                cfg->throughput_cost_clamp);
+    }
+    if (s->dspark_dynamic_cost_count[observed_budget] != UINT16_MAX) {
+        s->dspark_dynamic_cost_count[observed_budget]++;
+    }
+
+    for (int pos = 1; pos <= drafted && pos < 6; pos++) {
+        if (committed < pos - 1) break;
+        const double outcome = committed >= pos ? 1.0 : 0.0;
+        const uint16_t seen = s->dspark_dynamic_accept_seen[pos];
+        if (seen == 0) {
+            s->dspark_dynamic_accept_ema[pos] = outcome;
+        } else {
+            s->dspark_dynamic_accept_ema[pos] =
+                (1.0 - alpha_acc) * s->dspark_dynamic_accept_ema[pos] +
+                alpha_acc * outcome;
+        }
+        if (s->dspark_dynamic_accept_seen[pos] != UINT16_MAX) {
+            s->dspark_dynamic_accept_seen[pos]++;
+        }
+    }
+    s->dspark_dynamic_throughput_blocks++;
+
+    const int old_budget = s->dspark_dynamic_verify_budget;
+    int next_budget = ds4_session_dspark_throughput_seed_budget(s, cfg);
+    double best_score = 0.0;
+    if (next_budget == 0) {
+        next_budget =
+            ds4_session_dspark_throughput_best_budget(s, cfg, &best_score);
+    }
+    if (next_budget < cfg->min_budget) next_budget = cfg->min_budget;
+    if (next_budget > cfg->max_budget) next_budget = cfg->max_budget;
+
+    bool switch_ok = true;
+    if (next_budget != old_budget &&
+        old_budget >= cfg->min_budget &&
+        old_budget <= cfg->max_budget &&
+        s->dspark_dynamic_cost_count[old_budget] != 0 &&
+        s->dspark_dynamic_cost_count[next_budget] != 0) {
+        const double old_expected =
+            ds4_session_dspark_throughput_expected(s, cfg, old_budget);
+        const double old_cost = s->dspark_dynamic_cost_ema[old_budget];
+        const double old_score =
+            old_cost > 1.0e-9 ? old_expected / old_cost : 0.0;
+        if (next_budget != old_budget &&
+            best_score > 0.0 &&
+            old_score > 0.0 &&
+            best_score < old_score * (1.0 + (double)cfg->utility_min_gain)) {
+            switch_ok = false;
+            next_budget = old_budget;
+        }
+    }
+    if (switch_ok) {
+        s->dspark_dynamic_verify_budget = next_budget;
+    }
+
+    if (cfg->log &&
+        (s->dspark_dynamic_verify_budget != old_budget ||
+         env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_TRACE"))) {
+        double score[6] = {0};
+        double expected[6] = {0};
+        for (int b = cfg->min_budget; b <= cfg->max_budget && b < 6; b++) {
+            expected[b] = ds4_session_dspark_throughput_expected(s, cfg, b);
+            if (s->dspark_dynamic_cost_count[b] != 0 &&
+                s->dspark_dynamic_cost_ema[b] > 1.0e-9) {
+                score[b] = expected[b] / s->dspark_dynamic_cost_ema[b];
+            }
+        }
+        fprintf(stderr,
+                "ds4: dspark dynamic throughput budget %d -> %d "
+                "obs=%d committed=%d/%d frontier=%d "
+                "cost_ms=[%.1f,%.1f,%.1f,%.1f] "
+                "cost_n=[%u,%u,%u,%u] "
+                "acc_n=[%u,%u,%u,%u,%u] "
+                "acc=[%.3f,%.3f,%.3f,%.3f,%.3f] "
+                "exp=[%.2f,%.2f,%.2f,%.2f] "
+                "score=[%.1f,%.1f,%.1f,%.1f]\n",
+                old_budget,
+                s->dspark_dynamic_verify_budget,
+                observed_budget,
+                committed,
+                drafted,
+                ds4_session_dspark_throughput_frontier(s, cfg),
+                s->dspark_dynamic_cost_ema[2] * 1000.0,
+                s->dspark_dynamic_cost_ema[3] * 1000.0,
+                s->dspark_dynamic_cost_ema[4] * 1000.0,
+                s->dspark_dynamic_cost_ema[5] * 1000.0,
+                s->dspark_dynamic_cost_count[2],
+                s->dspark_dynamic_cost_count[3],
+                s->dspark_dynamic_cost_count[4],
+                s->dspark_dynamic_cost_count[5],
+                s->dspark_dynamic_accept_seen[1],
+                s->dspark_dynamic_accept_seen[2],
+                s->dspark_dynamic_accept_seen[3],
+                s->dspark_dynamic_accept_seen[4],
+                s->dspark_dynamic_accept_seen[5],
+                s->dspark_dynamic_accept_ema[1],
+                s->dspark_dynamic_accept_ema[2],
+                s->dspark_dynamic_accept_ema[3],
+                s->dspark_dynamic_accept_ema[4],
+                s->dspark_dynamic_accept_ema[5],
+                expected[2],
+                expected[3],
+                expected[4],
+                expected[5],
+                score[2],
+                score[3],
+                score[4],
+                score[5]);
+    }
+}
+
+static int ds4_session_dspark_utility_probe_budget(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg) {
+    if (!s || !cfg || !cfg->utility_mode) return 0;
+    for (int b = cfg->max_budget; b >= cfg->min_budget; b--) {
+        if (s->dspark_dynamic_utility_count[b] < (uint16_t)cfg->utility_probe_samples) {
+            return b;
+        }
+    }
+    return 0;
+}
+
+static int ds4_session_dspark_utility_best_budget(
+        const ds4_session *s,
+        const ds4_dspark_dynamic_verify_cfg *cfg) {
+    if (!s || !cfg || !cfg->utility_mode) return 0;
+    int best = cfg->max_budget;
+    double best_u = -1.0;
+    for (int b = cfg->min_budget; b <= cfg->max_budget; b++) {
+        if (s->dspark_dynamic_utility_count[b] == 0) continue;
+        const double u = s->dspark_dynamic_utility_ema[b];
+        if (u > best_u) {
+            best_u = u;
+            best = b;
+        }
+    }
+    return best;
+}
+
+static int ds4_session_dspark_effective_verify_budget(ds4_session *s, const ds4_engine *e) {
+    const int base = ds4_dspark_base_verify_budget(e);
+    ds4_dspark_dynamic_verify_cfg cfg = ds4_dspark_dynamic_verify_cfg_make(e);
+    if (!cfg.enabled || cfg.min_budget >= cfg.max_budget) return base;
+    ds4_session_dspark_dynamic_verify_init(s, &cfg);
+    const int probe_budget = cfg.throughput_mode ?
+        0 : ds4_session_dspark_utility_probe_budget(s, &cfg);
+    if (probe_budget > 0) return probe_budget;
+    int budget = s && s->dspark_dynamic_verify_initialized ?
+        s->dspark_dynamic_verify_budget : cfg.max_budget;
+    if (budget < cfg.min_budget) budget = cfg.min_budget;
+    if (budget > cfg.max_budget) budget = cfg.max_budget;
+    if (!cfg.utility_mode && !cfg.throughput_mode && s) {
+        s->dspark_dynamic_probe_budget = 0;
+        if (cfg.recover_probe_interval > 0 &&
+            budget < cfg.max_budget &&
+            s->dspark_dynamic_switch_cooldown == 0 &&
+            s->dspark_dynamic_recover_count >= (uint8_t)cfg.recover_probe_interval) {
+            const int probe_budget = budget + 1;
+            s->dspark_dynamic_probe_budget = (uint8_t)probe_budget;
+            return probe_budget;
+        }
+    }
+    return budget;
+}
+
+static void ds4_session_dspark_dynamic_verify_record(
+        ds4_session *s,
+        int drafted,
+        int committed,
+        double total_s) {
+    if (!s || drafted <= 0) return;
+    ds4_engine *e = s->engine;
+    ds4_dspark_dynamic_verify_cfg cfg = ds4_dspark_dynamic_verify_cfg_make(e);
+    if (!cfg.enabled || cfg.min_budget >= cfg.max_budget) return;
+    ds4_session_dspark_dynamic_verify_init(s, &cfg);
+
+    if (committed < 0) committed = 0;
+    if (committed > drafted) committed = drafted;
+    if (committed > 5) committed = 5;
+
+    const int observed_budget = drafted >= cfg.min_budget && drafted <= cfg.max_budget ?
+        drafted : s->dspark_dynamic_verify_budget;
+    if (cfg.throughput_mode) {
+        ds4_session_dspark_throughput_record(s,
+                                             &cfg,
+                                             drafted,
+                                             committed,
+                                             total_s);
+        return;
+    }
+    if (cfg.utility_mode &&
+        observed_budget >= cfg.min_budget &&
+        observed_budget <= cfg.max_budget &&
+        total_s > 0.0) {
+        const double utility = (double)committed / total_s;
+        const uint16_t count = s->dspark_dynamic_utility_count[observed_budget];
+        if (count == 0) {
+            s->dspark_dynamic_utility_ema[observed_budget] = utility;
+        } else {
+            const double alpha = cfg.utility_alpha;
+            s->dspark_dynamic_utility_ema[observed_budget] =
+                (1.0 - alpha) * s->dspark_dynamic_utility_ema[observed_budget] +
+                alpha * utility;
+        }
+        if (s->dspark_dynamic_utility_count[observed_budget] != UINT16_MAX) {
+            s->dspark_dynamic_utility_count[observed_budget]++;
+        }
+        s->dspark_dynamic_utility_blocks++;
+    }
+
+    if (cfg.utility_mode) {
+        const int probe_budget = ds4_session_dspark_utility_probe_budget(s, &cfg);
+        const int best_budget = ds4_session_dspark_utility_best_budget(s, &cfg);
+        if (probe_budget > 0) {
+            if (cfg.log) {
+                fprintf(stderr,
+                        "ds4: dspark utility probe next=%d observed=%d "
+                        "utility=%.2f counts=[%u,%u,%u,%u]\n",
+                        probe_budget,
+                        observed_budget,
+                        total_s > 0.0 ? (double)committed / total_s : 0.0,
+                        s->dspark_dynamic_utility_count[2],
+                        s->dspark_dynamic_utility_count[3],
+                        s->dspark_dynamic_utility_count[4],
+                        s->dspark_dynamic_utility_count[5]);
+            }
+        } else if (best_budget >= cfg.min_budget &&
+                   best_budget <= cfg.max_budget) {
+            const int old_budget = s->dspark_dynamic_verify_budget;
+            const double old_u =
+                (old_budget >= cfg.min_budget && old_budget <= cfg.max_budget) ?
+                    s->dspark_dynamic_utility_ema[old_budget] : 0.0;
+            const double best_u = s->dspark_dynamic_utility_ema[best_budget];
+            const bool enough_gain =
+                old_u <= 0.0 ||
+                best_budget == old_budget ||
+                best_u >= old_u * (1.0 + (double)cfg.utility_min_gain);
+            if (enough_gain) {
+                s->dspark_dynamic_verify_budget = best_budget;
+            }
+            if (cfg.log && s->dspark_dynamic_verify_budget != old_budget) {
+                fprintf(stderr,
+                        "ds4: dspark utility verify budget %d -> %d "
+                        "ema2=%.2f ema3=%.2f ema4=%.2f ema5=%.2f "
+                        "counts=[%u,%u,%u,%u]\n",
+                        old_budget,
+                        s->dspark_dynamic_verify_budget,
+                        s->dspark_dynamic_utility_ema[2],
+                        s->dspark_dynamic_utility_ema[3],
+                        s->dspark_dynamic_utility_ema[4],
+                        s->dspark_dynamic_utility_ema[5],
+                        s->dspark_dynamic_utility_count[2],
+                        s->dspark_dynamic_utility_count[3],
+                        s->dspark_dynamic_utility_count[4],
+                        s->dspark_dynamic_utility_count[5]);
+            }
+        }
+        return;
+    }
+
+    const int old_budget = s->dspark_dynamic_verify_budget;
+    if (s->dspark_dynamic_probe_budget > 0 &&
+        observed_budget == (int)s->dspark_dynamic_probe_budget &&
+        observed_budget > old_budget &&
+        observed_budget <= cfg.max_budget) {
+        const float up_threshold =
+            ds4_dspark_dynamic_up_threshold(&cfg, old_budget);
+        const bool keep_probe = (float)committed >= up_threshold;
+        if (keep_probe) {
+            s->dspark_dynamic_verify_budget = observed_budget;
+            s->dspark_dynamic_accept_pos = 0;
+            s->dspark_dynamic_accept_count = 0;
+            memset(s->dspark_dynamic_accept, 0, sizeof(s->dspark_dynamic_accept));
+        }
+        s->dspark_dynamic_probe_budget = 0;
+        s->dspark_dynamic_recover_count = 0;
+        s->dspark_dynamic_switch_cooldown = (uint8_t)cfg.dwell_blocks;
+        if (cfg.log) {
+            fprintf(stderr,
+                    "ds4: dspark dynamic recover probe %d -> %d %s "
+                    "(committed=%d/%d threshold=%.2f)\n",
+                    old_budget,
+                    observed_budget,
+                    keep_probe ? "kept" : "rejected",
+                    committed,
+                    drafted,
+                    up_threshold);
+        }
+        return;
+    }
+    s->dspark_dynamic_probe_budget = 0;
+
+    const int cap = (int)sizeof(s->dspark_dynamic_accept);
+    s->dspark_dynamic_accept[s->dspark_dynamic_accept_pos % cap] = (uint8_t)committed;
+    s->dspark_dynamic_accept_pos = (uint8_t)((s->dspark_dynamic_accept_pos + 1) % cap);
+    if (s->dspark_dynamic_accept_count < cap) s->dspark_dynamic_accept_count++;
+
+    if (s->dspark_dynamic_switch_cooldown > 0) {
+        s->dspark_dynamic_switch_cooldown--;
+        if (s->dspark_dynamic_verify_budget < cfg.max_budget &&
+            s->dspark_dynamic_recover_count != UINT8_MAX) {
+            s->dspark_dynamic_recover_count++;
+        }
+        return;
+    }
+    const float down_avg = ds4_dspark_dynamic_verify_avg(s, cfg.down_window);
+    const float up_avg = ds4_dspark_dynamic_verify_avg(s, cfg.up_window);
+    const float down_threshold =
+        ds4_dspark_dynamic_down_threshold(&cfg, old_budget);
+    const float up_threshold =
+        ds4_dspark_dynamic_up_threshold(&cfg, old_budget);
+
+    if (old_budget > cfg.min_budget &&
+        down_avg >= 0.0f &&
+        down_avg <= down_threshold) {
+        s->dspark_dynamic_verify_budget = old_budget - 1;
+        if (s->dspark_dynamic_verify_budget < cfg.min_budget) {
+            s->dspark_dynamic_verify_budget = cfg.min_budget;
+        }
+    } else if (old_budget < cfg.max_budget &&
+               up_avg >= 0.0f &&
+               up_avg >= up_threshold) {
+        s->dspark_dynamic_verify_budget = old_budget + 1;
+        if (s->dspark_dynamic_verify_budget > cfg.max_budget) {
+            s->dspark_dynamic_verify_budget = cfg.max_budget;
+        }
+    }
+
+    if (s->dspark_dynamic_verify_budget != old_budget) {
+        s->dspark_dynamic_accept_pos = 0;
+        s->dspark_dynamic_accept_count = 0;
+        memset(s->dspark_dynamic_accept, 0, sizeof(s->dspark_dynamic_accept));
+        s->dspark_dynamic_switch_cooldown = (uint8_t)cfg.dwell_blocks;
+        s->dspark_dynamic_recover_count = 0;
+    } else if (s->dspark_dynamic_verify_budget < cfg.max_budget) {
+        if (s->dspark_dynamic_recover_count != UINT8_MAX) {
+            s->dspark_dynamic_recover_count++;
+        }
+    } else {
+        s->dspark_dynamic_recover_count = 0;
+    }
+
+    if (cfg.log && s->dspark_dynamic_verify_budget != old_budget) {
+        fprintf(stderr,
+                "ds4: dspark dynamic verify budget %d -> %d "
+                "(last%d=%.2f/down<=%.2f last%d=%.2f/up>=%.2f "
+                "committed=%d/%d)\n",
+                old_budget,
+                s->dspark_dynamic_verify_budget,
+                cfg.down_window,
+                down_avg,
+                down_threshold,
+                cfg.up_window,
+                up_avg,
+                up_threshold,
+                committed,
+                drafted);
+    }
+}
+
+static void ds4_session_dspark_dynamic_verify_suppress_next(ds4_session *s) {
+    if (!s) return;
+    s->dspark_dynamic_record_suppress = 1;
+}
 
 static void ds4_session_dspark_perf_record(
         ds4_session *s,
@@ -24689,7 +25909,17 @@ static void ds4_session_dspark_perf_record(
         double verify_s,
         double commit_s,
         double total_s) {
-    if (!s || drafted <= 0) return;
+    if (!s) return;
+    if (drafted < 0) drafted = 0;
+    if (drafted == 0 &&
+        committed == 0 &&
+        draft_s <= 0.0 &&
+        snapshot_s <= 0.0 &&
+        verify_s <= 0.0 &&
+        commit_s <= 0.0 &&
+        total_s <= 0.0) {
+        return;
+    }
     if (committed < 0) committed = 0;
     if (committed > drafted) committed = drafted;
     if (draft_s < 0.0) draft_s = 0.0;
@@ -24697,6 +25927,26 @@ static void ds4_session_dspark_perf_record(
     if (verify_s < 0.0) verify_s = 0.0;
     if (commit_s < 0.0) commit_s = 0.0;
     if (total_s < 0.0) total_s = 0.0;
+
+    if (env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC_TRACE") ||
+        env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY_TRACE")) {
+        const int observed_budget =
+            drafted >= 1 && drafted <= 5 ? drafted : ds4_dspark_base_verify_budget(s->engine);
+        const double total_ms = total_s * 1000.0;
+        const double utility = total_s > 0.0 ? (double)committed / total_s : 0.0;
+        fprintf(stderr,
+                "ds4: dspark dynamic trace budget=%d drafted=%d committed=%d "
+                "draft=%.3fms verify=%.3fms commit=%.3fms total=%.3fms "
+                "utility=%.2f tok/s\n",
+                observed_budget,
+                drafted,
+                committed,
+                draft_s * 1000.0,
+                verify_s * 1000.0,
+                commit_s * 1000.0,
+                total_ms,
+                utility);
+    }
 
     s->dspark_perf_blocks++;
     s->dspark_perf_drafted_tokens += (uint64_t)drafted;
@@ -24706,11 +25956,828 @@ static void ds4_session_dspark_perf_record(
     s->dspark_perf_verify_seconds += verify_s;
     s->dspark_perf_commit_seconds += commit_s;
     s->dspark_perf_total_seconds += total_s;
+    const bool suppress_dynamic_record = s->dspark_dynamic_record_suppress != 0;
+    s->dspark_dynamic_record_suppress = 0;
+    if (drafted > 0 && !suppress_dynamic_record) {
+        ds4_session_dspark_dynamic_verify_record(s, drafted, committed, total_s);
+    }
+}
+
+static bool ds4_session_dspark_draft_prefetch_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_DRAFT_PREFETCH") ||
+           env_flag_enabled("DS4_DSPARK_PREFETCH_DRAFT");
+}
+
+static bool ds4_session_dspark_draft_prefetch_log_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_DRAFT_PREFETCH_LOG") ||
+           env_flag_enabled("DS4_DSPARK_PREFETCH_DRAFT_LOG");
+}
+
+static void ds4_session_dspark_draft_prefetch_clear(ds4_session *s) {
+    if (!s || !s->dspark_draft_prefetch_pending) return;
+#ifndef DS4_NO_GPU
+    (void)ds4_gpu_synchronize();
+#endif
+    if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+        fprintf(stderr,
+                "ds4: dspark draft prefetch discarded len=%d cap=%d last=%d\n",
+                s->dspark_draft_prefetch_checkpoint_len,
+                s->dspark_draft_prefetch_cap,
+                s->dspark_draft_prefetch_last_token);
+    }
+    s->dspark_draft_prefetch_pending = false;
+    s->dspark_draft_prefetch_cap = 0;
+    s->dspark_draft_prefetch_last_token = -1;
+    s->dspark_draft_prefetch_checkpoint_len = -1;
+}
+
+static bool ds4_session_dspark_draft_prefetch_finish(
+        ds4_session *s,
+        int          draft_cap,
+        int          last_token,
+        int         *drafts,
+        int         *draft_n) {
+    if (draft_n) *draft_n = 0;
+    if (!s || !ds4_session_dspark_draft_prefetch_enabled() ||
+        !s->dspark_draft_prefetch_pending || !drafts || !draft_n ||
+        draft_cap <= 0) {
+        return false;
+    }
+    if (s->dspark_draft_prefetch_checkpoint_len != s->checkpoint.len ||
+        s->dspark_draft_prefetch_last_token != last_token ||
+        s->dspark_draft_prefetch_cap < draft_cap) {
+        ds4_session_dspark_draft_prefetch_clear(s);
+        return false;
+    }
+
+    int cached_n = 0;
+    const int cached_cap = s->dspark_draft_prefetch_cap;
+    bool ok = metal_graph_eval_dspark_draft_prefetch_finish(&s->graph,
+                                                            drafts,
+                                                            cached_cap,
+                                                            &cached_n);
+    s->dspark_draft_prefetch_pending = false;
+    s->dspark_draft_prefetch_cap = 0;
+    s->dspark_draft_prefetch_last_token = -1;
+    s->dspark_draft_prefetch_checkpoint_len = -1;
+    if (!ok || cached_n < draft_cap) {
+        if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+            fprintf(stderr,
+                    "ds4: dspark draft prefetch finish failed cached=%d want=%d ok=%d\n",
+                    cached_n,
+                    draft_cap,
+                    ok ? 1 : 0);
+        }
+        return false;
+    }
+    *draft_n = draft_cap;
+    if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+        fprintf(stderr,
+                "ds4: dspark draft prefetch hit cap=%d len=%d last=%d\n",
+                draft_cap,
+                s->checkpoint.len,
+                last_token);
+    }
+    return true;
+}
+
+static void ds4_session_dspark_draft_prefetch_start(
+        ds4_session *s,
+        ds4_engine  *e,
+        int          draft_cap,
+        int          eos_token) {
+    if (!s || !e || !ds4_session_dspark_draft_prefetch_enabled()) return;
+    if (e->draft_kind != DS4_DRAFT_DSPARK || !e->dspark.inference_ready) return;
+    if (ds4_dspark_dynamic_verify_cfg_make(e).enabled) return;
+    if (ds4_dspark_scheduler_is_confidence_hard(e) ||
+        ds4_dspark_scheduler_is_confidence_softmax(e) ||
+        getenv("DS4_DSPARK_CONF_LOG") != NULL ||
+        ds4_dspark_dynamic_trace_enabled()) {
+        return;
+    }
+    if (s->checkpoint.len <= 0 || draft_cap < 2 || draft_cap > 5) return;
+    if (draft_cap > e->dspark.block_size) draft_cap = e->dspark.block_size;
+    if (draft_cap > 5) draft_cap = 5;
+    const int room = s->ctx_size - s->checkpoint.len;
+    if (draft_cap > room) draft_cap = room;
+    if (draft_cap < 2) return;
+    const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
+    if (last_token == eos_token) return;
+    if (s->dspark_draft_prefetch_pending) {
+        ds4_session_dspark_draft_prefetch_clear(s);
+    }
+    if (!metal_graph_ctx_grow_ensure(&s->graph,
+                                     (uint32_t)(s->checkpoint.len + draft_cap))) {
+        return;
+    }
+    const bool ok =
+        metal_graph_eval_dspark_draft_prefetch_start(&s->graph,
+                                                     &e->model,
+                                                     &e->weights,
+                                                     last_token,
+                                                     (uint32_t)(s->checkpoint.len - 1),
+                                                     draft_cap);
+    if (!ok) return;
+    s->dspark_draft_prefetch_pending = true;
+    s->dspark_draft_prefetch_cap = draft_cap;
+    s->dspark_draft_prefetch_last_token = last_token;
+    s->dspark_draft_prefetch_checkpoint_len = s->checkpoint.len;
+    if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+        fprintf(stderr,
+                "ds4: dspark draft prefetch start cap=%d len=%d last=%d\n",
+                draft_cap,
+                s->checkpoint.len,
+                last_token);
+    }
 }
 
 static bool ds4_dspark_env_string_equals(const char *name, const char *value) {
     const char *env = getenv(name);
     return env && value && strcmp(env, value) == 0;
+}
+
+static bool ds4_dspark_relaxed_accept_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_RELAXED_ACCEPT") ||
+           env_flag_enabled("DS4_DSPARK_ACCEPT_DRAFTS") ||
+           env_flag_enabled("DS4_DSPARK_FORCE_ACCEPT");
+}
+
+static bool ds4_dspark_relaxed_unbounded_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_FORCE_ACCEPT") ||
+           env_flag_enabled("DS4_DSPARK_RELAXED_UNBOUNDED") ||
+           env_flag_enabled("DS4_DSPARK_ACCEPT_UNBOUNDED");
+}
+
+static int ds4_dspark_relaxed_topk(bool unbounded) {
+    if (unbounded) return 0;
+    const int default_topk = unbounded ? 0 : 8;
+    const char *env = getenv("DS4_DSPARK_RELAXED_TOPK");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_TOPK");
+    if (!env || !env[0]) return default_topk;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v <= 0 || v > (long)DS4_N_VOCAB) return default_topk;
+    return (int)v;
+}
+
+static float ds4_dspark_relaxed_logit_delta(bool unbounded) {
+    if (unbounded) return -1.0f;
+    const float default_delta = unbounded ? -1.0f : 1.0f;
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOGIT_DELTA");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOGIT_DELTA");
+    if (!env || !env[0]) return default_delta;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v)) return default_delta;
+    return v;
+}
+
+static bool ds4_dspark_relaxed_margin_enabled(bool unbounded) {
+    if (unbounded) return false;
+    return !env_flag_enabled("DS4_DSPARK_RELAXED_MARGIN_DISABLE") &&
+           !env_flag_enabled("DS4_DSPARK_ACCEPT_MARGIN_DISABLE");
+}
+
+static float ds4_dspark_relaxed_target_margin(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_TARGET_MARGIN");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_TARGET_MARGIN");
+    if (!env || !env[0]) return 0.35f;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v)) return 0.35f;
+    return v;
+}
+
+static float ds4_dspark_relaxed_draft_margin(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_DRAFT_MARGIN");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_DRAFT_MARGIN");
+    if (!env || !env[0]) return 0.35f;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v)) return 0.35f;
+    return v;
+}
+
+static float ds4_dspark_relaxed_logit_ratio(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOGIT_RATIO");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOGIT_RATIO");
+    if (!env || !env[0]) return -1.0f;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v) || v < 0.0f || v > 1.0f) return -1.0f;
+    return v;
+}
+
+static float ds4_dspark_relaxed_temperature(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_TEMPERATURE");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_TEMPERATURE");
+    if (!env || !env[0]) return -1.0f;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v) || v <= 0.0f) return -1.0f;
+    if (v < 0.01f) v = 0.01f;
+    if (v > 10.0f) v = 10.0f;
+    return v;
+}
+
+static float ds4_dspark_relaxed_temperature_min_ratio(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_TEMP_MIN_RATIO");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_TEMP_MIN_RATIO");
+    if (!env || !env[0]) return 0.02f;
+    char *end = NULL;
+    float v = strtof(env, &end);
+    if (end == env || !isfinite(v)) return 0.02f;
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    return v;
+}
+
+static bool ds4_dspark_relaxed_temperature_ok(int top_id,
+                                              float top_logit,
+                                              int token,
+                                              float token_logit) {
+    if (token == top_id) return true;
+    const float temp = ds4_dspark_relaxed_temperature();
+    if (temp <= 0.0f) return true;
+    if (!isfinite(top_logit) || !isfinite(token_logit)) return false;
+    const float min_ratio = ds4_dspark_relaxed_temperature_min_ratio();
+    if (min_ratio <= 0.0f) return true;
+    if (min_ratio >= 1.0f) return token_logit >= top_logit;
+    const float allowed_gap = -temp * logf(min_ratio);
+    return top_logit - token_logit <= allowed_gap;
+}
+
+static bool ds4_dspark_relaxed_needs_margin_logits(int topk,
+                                                   float max_logit_delta) {
+    const bool unbounded = topk <= 0 && max_logit_delta < 0.0f;
+    return ds4_dspark_relaxed_margin_enabled(unbounded);
+}
+
+static bool ds4_dspark_relaxed_margin_ok(int target_top,
+                                         float target_top_logit,
+                                         float target_second_logit,
+                                         int token,
+                                         float token_logit,
+                                         bool have_second) {
+    if (token == target_top) return true;
+    if (!isfinite(target_top_logit) || !isfinite(token_logit)) return false;
+    const float target_margin = ds4_dspark_relaxed_target_margin();
+    const float draft_margin = ds4_dspark_relaxed_draft_margin();
+    const float logit_ratio = ds4_dspark_relaxed_logit_ratio();
+    if (logit_ratio >= 0.0f) {
+        if (!have_second || !isfinite(target_second_logit)) return false;
+        if (target_top_logit <= 0.0f) return false;
+        if (target_second_logit / target_top_logit < logit_ratio) return false;
+        if (token_logit / target_top_logit < logit_ratio) return false;
+    }
+    if (target_margin >= 0.0f) {
+        if (!have_second || !isfinite(target_second_logit)) return false;
+        if (target_top_logit - target_second_logit > target_margin) return false;
+    }
+    if (draft_margin >= 0.0f &&
+        target_top_logit - token_logit > draft_margin) {
+        return false;
+    }
+    return true;
+}
+
+static int ds4_dspark_relaxed_loop_ngram(void) {
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_LOOP_GUARD_DISABLE")) return 0;
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOOP_NGRAM");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOOP_NGRAM");
+    if (!env || !env[0]) return 3;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 0 || v > 16) return 4;
+    return (int)v;
+}
+
+static int ds4_dspark_relaxed_loop_window(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOOP_WINDOW");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOOP_WINDOW");
+    if (!env || !env[0]) return 256;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 0 || v > 4096) return 256;
+    return (int)v;
+}
+
+static int ds4_dspark_relaxed_loop_token_window(void) {
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_TOKEN_GUARD_DISABLE")) return 0;
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOOP_TOKEN_WINDOW");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOOP_TOKEN_WINDOW");
+    if (!env || !env[0]) return 192;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 0 || v > 4096) return 192;
+    return (int)v;
+}
+
+static int ds4_dspark_relaxed_loop_token_max(void) {
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_TOKEN_GUARD_DISABLE")) return 0;
+    const char *env = getenv("DS4_DSPARK_RELAXED_LOOP_TOKEN_MAX");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_LOOP_TOKEN_MAX");
+    if (!env || !env[0]) return 12;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 0 || v > 1024) return 24;
+    return (int)v;
+}
+
+static uint32_t ds4_dspark_relaxed_cooldown_blocks(void) {
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_COOLDOWN_DISABLE") ||
+        env_flag_enabled("DS4_DSPARK_ACCEPT_COOLDOWN_DISABLE")) {
+        return 0;
+    }
+    const char *env = getenv("DS4_DSPARK_RELAXED_COOLDOWN_BLOCKS");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_COOLDOWN_BLOCKS");
+    if (!env || !env[0]) return 4u;
+    char *end = NULL;
+    unsigned long v = strtoul(env, &end, 10);
+    if (end == env || v > 1024ul) return 4u;
+    return (uint32_t)v;
+}
+
+static int ds4_dspark_relaxed_max_offargmax_per_block(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_MAX_OFFARGMAX_PER_BLOCK");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_MAX_OFFARGMAX_PER_BLOCK");
+    if (!env || !env[0]) return -1;
+    char *end = NULL;
+    long v = strtol(env, &end, 10);
+    if (end == env || v < 0 || v > 5) return -1;
+    return (int)v;
+}
+
+static uint32_t ds4_dspark_relaxed_offargmax_cooldown_blocks(void) {
+    const char *env = getenv("DS4_DSPARK_RELAXED_OFFARGMAX_COOLDOWN_BLOCKS");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_OFFARGMAX_COOLDOWN_BLOCKS");
+    if (!env || !env[0]) return 0u;
+    char *end = NULL;
+    unsigned long v = strtoul(env, &end, 10);
+    if (end == env || v > 1024ul) return 0u;
+    return (uint32_t)v;
+}
+
+static bool ds4_dspark_relaxed_guard_target_top(void) {
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT") ||
+        env_flag_enabled("DS4_DSPARK_ACCEPT_ALLOW_TARGET_TOP_REPEAT")) {
+        return false;
+    }
+    const char *env = getenv("DS4_DSPARK_RELAXED_GUARD_TARGET_TOP");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_ACCEPT_GUARD_TARGET_TOP");
+    if (!env || !env[0]) return true;
+    return atoi(env) != 0;
+}
+
+enum {
+    DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE = 128,
+};
+
+static uint32_t ds4_dspark_relaxed_suffix_topk_k(int topk,
+                                                 float max_logit_delta) {
+    if (topk <= 1) return 0;
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_SUFFIX_FULL_LOGITS")) return 0;
+    (void)max_logit_delta;
+
+    uint32_t limit = DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE;
+    const char *env = getenv("DS4_DSPARK_RELAXED_SUFFIX_TOPK_MAX");
+    if (env && env[0]) {
+        char *end = NULL;
+        unsigned long v = strtoul(env, &end, 10);
+        if (end != env && v > 0 && v < limit) limit = (uint32_t)v;
+    }
+    if (limit > DS4_N_INDEXER_TOP_K) limit = DS4_N_INDEXER_TOP_K;
+    if (limit > DS4_N_VOCAB) limit = DS4_N_VOCAB;
+    if (limit < 2u) return 0;
+
+    uint32_t k = (uint32_t)topk;
+    if (k > limit) k = limit;
+    return k > 1u ? k : 0u;
+}
+
+static bool ds4_logits_token_relaxed_ok(const float *logits,
+                                        int token,
+                                        int topk,
+                                        float max_logit_delta) {
+    if (!logits || token < 0 || token >= (int)DS4_N_VOCAB) return false;
+    if (topk <= 0 && max_logit_delta < 0.0f) return true;
+    const float token_logit = logits[token];
+    if (!isfinite(token_logit)) return false;
+    int greater = 0;
+    int top_id = -1;
+    float top_logit = -FLT_MAX;
+    float second_logit = -FLT_MAX;
+    for (uint32_t i = 0; i < DS4_N_VOCAB; i++) {
+        const float v = logits[i];
+        if (!isfinite(v)) continue;
+        if (v > top_logit) {
+            second_logit = top_logit;
+            top_logit = v;
+            top_id = (int)i;
+        } else if (v > second_logit) {
+            second_logit = v;
+        }
+        if (topk > 0 && v > token_logit && ++greater >= topk) {
+            return false;
+        }
+    }
+    if (max_logit_delta >= 0.0f && isfinite(top_logit) &&
+        top_logit - token_logit > max_logit_delta) {
+        return false;
+    }
+    if (!ds4_dspark_relaxed_temperature_ok(top_id,
+                                           top_logit,
+                                           token,
+                                           token_logit)) {
+        return false;
+    }
+    if (token != top_id &&
+        ds4_dspark_relaxed_needs_margin_logits(topk, max_logit_delta) &&
+        !ds4_dspark_relaxed_margin_ok(top_id,
+                                      top_logit,
+                                      second_logit,
+                                      token,
+                                      token_logit,
+                                      true)) {
+        return false;
+    }
+    return true;
+}
+
+static bool ds4_topk_token_relaxed_ok(const int *ids,
+                                      const float *values,
+                                      uint32_t k,
+                                      int token,
+                                      float max_logit_delta) {
+    if (!ids || k == 0 || token < 0) return false;
+    int found = -1;
+    for (uint32_t i = 0; i < k; i++) {
+        if (ids[i] == token) {
+            found = (int)i;
+            break;
+        }
+    }
+    if (found < 0) return false;
+    if (max_logit_delta >= 0.0f) {
+        if (!values) {
+            return env_flag_enabled("DS4_DSPARK_RELAXED_SUFFIX_TOPK_IGNORE_DELTA");
+        }
+        const float top_logit = values[0];
+        const float token_logit = values[found];
+        if (!isfinite(top_logit) || !isfinite(token_logit)) return false;
+        if (top_logit - token_logit > max_logit_delta) return false;
+    }
+    if (!values && found != 0 && ds4_dspark_relaxed_temperature() > 0.0f) {
+        return false;
+    }
+    if (!ds4_dspark_relaxed_temperature_ok(ids[0],
+                                           values ? values[0] : 0.0f,
+                                           token,
+                                           values ? values[found] : 0.0f)) {
+        return false;
+    }
+    if (found != 0 && ds4_dspark_relaxed_needs_margin_logits((int)k,
+                                                            max_logit_delta)) {
+        if (!values) return false;
+        const float top_logit = values[0];
+        const float second_logit = k > 1u ? values[1] : -FLT_MAX;
+        const float token_logit = values[found];
+        if (!ds4_dspark_relaxed_margin_ok(ids[0],
+                                          top_logit,
+                                          second_logit,
+                                          token,
+                                          token_logit,
+                                          k > 1u)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static int ds4_dspark_token_with_drafts(const token_vec *checkpoint,
+                                        const int       *drafts,
+                                        int              draft_count,
+                                        int              idx) {
+    if (!checkpoint || idx < 0) return -1;
+    if (idx < checkpoint->len) return checkpoint->v[idx];
+    idx -= checkpoint->len;
+    if (!drafts || idx < 0 || idx >= draft_count) return -1;
+    return drafts[idx];
+}
+
+static bool ds4_dspark_relaxed_would_repeat_ngram(const token_vec *checkpoint,
+                                                  const int       *drafts,
+                                                  int              accepted_drafts,
+                                                  int              ngram,
+                                                  int              window) {
+    if (!checkpoint || !drafts || ngram <= 0 || accepted_drafts <= 0) return false;
+    const int total = checkpoint->len + accepted_drafts;
+    if (total < ngram * 2) return false;
+    const int suffix_start = total - ngram;
+    int search_start = 0;
+    if (window > 0 && suffix_start > window) search_start = suffix_start - window;
+    for (int start = search_start; start + ngram <= suffix_start; start++) {
+        bool same = true;
+        for (int j = 0; j < ngram; j++) {
+            const int a = ds4_dspark_token_with_drafts(checkpoint, drafts,
+                                                       accepted_drafts,
+                                                       start + j);
+            const int b = ds4_dspark_token_with_drafts(checkpoint, drafts,
+                                                       accepted_drafts,
+                                                       suffix_start + j);
+            if (a < 0 || b < 0 || a != b) {
+                same = false;
+                break;
+            }
+        }
+        if (same) return true;
+    }
+    return false;
+}
+
+static bool ds4_dspark_relaxed_token_too_frequent(const token_vec *checkpoint,
+                                                  const int       *drafts,
+                                                  int              accepted_drafts,
+                                                  int              token_window,
+                                                  int              token_max) {
+    if (!checkpoint || !drafts || accepted_drafts <= 0 ||
+        token_window <= 0 || token_max <= 0) {
+        return false;
+    }
+    const int token = drafts[accepted_drafts - 1];
+    const int total = checkpoint->len + accepted_drafts;
+    const int before = total - 1;
+    if (before <= 0) return false;
+    int start = before > token_window ? before - token_window : 0;
+    int count = 0;
+    for (int i = start; i < before; i++) {
+        if (ds4_dspark_token_with_drafts(checkpoint,
+                                         drafts,
+                                         accepted_drafts - 1,
+                                         i) == token) {
+            count++;
+            if (count >= token_max) return true;
+        }
+    }
+    return false;
+}
+
+static bool ds4_dspark_relaxed_loop_guard_ok(const token_vec *checkpoint,
+                                             const int       *drafts,
+                                             int              accepted_drafts,
+                                             int              target_top,
+                                             int              ngram,
+                                             int              window,
+                                             int              token_window,
+                                             int              token_max,
+                                             bool            *loop_rejected) {
+    if (!drafts || accepted_drafts <= 0) return false;
+    if (loop_rejected) *loop_rejected = false;
+    if (ngram <= 0) return true;
+    const int token = drafts[accepted_drafts - 1];
+    const bool guard_target_top = ds4_dspark_relaxed_guard_target_top();
+    if (!guard_target_top && target_top >= 0 && token == target_top) return true;
+    const bool repeats_ngram =
+        ds4_dspark_relaxed_would_repeat_ngram(checkpoint,
+                                              drafts,
+                                              accepted_drafts,
+                                              ngram,
+                                              window);
+    const bool too_frequent =
+        ds4_dspark_relaxed_token_too_frequent(checkpoint,
+                                              drafts,
+                                              accepted_drafts,
+                                              token_window,
+                                              token_max);
+    if (!repeats_ngram && !too_frequent) {
+        return true;
+    }
+    if (loop_rejected) *loop_rejected = true;
+    static uint32_t s_loop_guard_logs = 0;
+    if (env_flag_enabled("DS4_DSPARK_RELAXED_LOOP_LOG") &&
+        s_loop_guard_logs < 16u) {
+        s_loop_guard_logs++;
+        fprintf(stderr,
+                "ds4: dspark relaxed loop guard rejected non-argmax token=%d "
+                "target=%d target_top=%d ngram=%d token_count_guard=%d "
+                "accepted_prefix=%d\n",
+                token,
+                target_top,
+                (target_top >= 0 && token == target_top) ? 1 : 0,
+                ngram,
+                too_frequent ? 1 : 0,
+                accepted_drafts);
+    }
+    return false;
+}
+
+static bool ds4_dspark_state_only_loop_guard_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_STATE_ONLY_LOOP_GUARD") ||
+           env_flag_enabled("DS4_DSPARK_VERIFY_STATE_ONLY_LOOP_GUARD") ||
+           env_flag_enabled("DS4_DSPARK_STATE_ONLY_TAIL_GUARD");
+}
+
+static bool ds4_dspark_state_only_env_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_STATE_ONLY_VERIFY") ||
+           env_flag_enabled("DS4_DSPARK_VERIFY_STATE_ONLY");
+}
+
+static uint32_t ds4_dspark_state_only_verified_suffix_rows(int draft_n) {
+    if (draft_n <= 1 ||
+        !ds4_dspark_state_only_env_enabled() ||
+        !(env_flag_enabled("DS4_DSPARK_STATE_ONLY_TARGET_HEAD") ||
+          env_flag_enabled("DS4_DSPARK_VERIFY_STATE_ONLY_TARGET_HEAD"))) {
+        return 0;
+    }
+
+    const uint32_t top_rows = (uint32_t)(draft_n - 1);
+    if (!(env_flag_enabled("DS4_DSPARK_STATE_ONLY_TARGET_HEAD_LAST_ONLY") ||
+          env_flag_enabled("DS4_DSPARK_VERIFY_STATE_ONLY_TARGET_HEAD_LAST_ONLY"))) {
+        return top_rows;
+    }
+
+    uint32_t rows = 0;
+    const char *env = getenv("DS4_DSPARK_STATE_ONLY_TARGET_PREFIX_ROWS");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_VERIFY_STATE_ONLY_TARGET_PREFIX_ROWS");
+    if (env && env[0]) {
+        char *end = NULL;
+        unsigned long v = strtoul(env, &end, 10);
+        if (end != env && v <= top_rows) rows = (uint32_t)v;
+    }
+    return rows;
+}
+
+static int ds4_dspark_state_only_guard_commit_prefix(
+        const token_vec *checkpoint,
+        const int       *drafts,
+        int              commit_drafts,
+        uint32_t         verified_suffix_rows) {
+    if (!ds4_dspark_state_only_loop_guard_enabled() ||
+        !ds4_dspark_state_only_env_enabled() ||
+        !checkpoint ||
+        !drafts ||
+        commit_drafts <= 0) {
+        return commit_drafts;
+    }
+
+    const int loop_ngram = ds4_dspark_relaxed_loop_ngram();
+    const int loop_window = ds4_dspark_relaxed_loop_window();
+    const int loop_token_window = ds4_dspark_relaxed_loop_token_window();
+    const int loop_token_max = ds4_dspark_relaxed_loop_token_max();
+    const int first_forced = 1 + (int)verified_suffix_rows;
+    if (commit_drafts <= first_forced) {
+        return commit_drafts;
+    }
+    int guarded = first_forced;
+
+    for (int i = first_forced; i < commit_drafts; i++) {
+        bool loop_rejected = false;
+        if (!ds4_dspark_relaxed_loop_guard_ok(checkpoint,
+                                              drafts,
+                                              i + 1,
+                                              -1,
+                                              loop_ngram,
+                                              loop_window,
+                                              loop_token_window,
+                                              loop_token_max,
+                                              &loop_rejected)) {
+            if (loop_rejected &&
+                env_flag_enabled("DS4_DSPARK_STATE_ONLY_LOOP_LOG")) {
+                fprintf(stderr,
+                        "ds4: dspark state-only loop guard shortened commit "
+                        "from %d to %d verified_suffix_rows=%u\n",
+                        commit_drafts,
+                        guarded,
+                        verified_suffix_rows);
+            }
+            break;
+        }
+        guarded++;
+    }
+
+    return guarded;
+}
+
+static int ds4_dspark_relaxed_commit_prefix(ds4_session *s,
+                                            int draft_n,
+                                            const int *drafts,
+                                            const token_vec *checkpoint,
+                                            const float *current_logits,
+                                            const int *row_tops,
+                                            const int *row_topk,
+                                            uint32_t row_topk_k,
+                                            const float *row_topk_logits,
+                                            const float *rows,
+                                            bool rows_all_logits,
+                                            const float *confidence_probs,
+                                            float confidence_threshold,
+                                            int topk,
+                                            float max_logit_delta) {
+    if (draft_n <= 0 || !drafts) return 0;
+    const int loop_ngram = ds4_dspark_relaxed_loop_ngram();
+    const int loop_window = ds4_dspark_relaxed_loop_window();
+    const int loop_token_window = ds4_dspark_relaxed_loop_token_window();
+    const int loop_token_max = ds4_dspark_relaxed_loop_token_max();
+    const uint32_t cooldown_blocks = ds4_dspark_relaxed_cooldown_blocks();
+    const uint32_t offargmax_cooldown_blocks =
+        ds4_dspark_relaxed_offargmax_cooldown_blocks();
+    const int max_offargmax = ds4_dspark_relaxed_max_offargmax_per_block();
+    int offargmax_count = 0;
+    bool cooldown_active = s && s->dspark_relaxed_cooldown > 0;
+    if (s && s->dspark_relaxed_cooldown > 0) {
+        s->dspark_relaxed_cooldown--;
+    }
+    if (!ds4_logits_token_relaxed_ok(current_logits,
+                                     drafts[0],
+                                     topk,
+                                     max_logit_delta)) return 0;
+    const int current_top = sample_argmax(current_logits, DS4_N_VOCAB);
+    if (cooldown_active && drafts[0] != current_top) {
+        return 0;
+    }
+    if (drafts[0] != current_top) {
+        offargmax_count++;
+        if (max_offargmax >= 0 && offargmax_count > max_offargmax) {
+            return 0;
+        }
+    }
+    bool loop_rejected = false;
+    if (!ds4_dspark_relaxed_loop_guard_ok(checkpoint,
+                                          drafts,
+                                          1,
+                                          current_top,
+                                          loop_ngram,
+                                          loop_window,
+                                          loop_token_window,
+                                          loop_token_max,
+                                          &loop_rejected)) {
+        if (loop_rejected && s && cooldown_blocks > 0) {
+            s->dspark_relaxed_cooldown = cooldown_blocks;
+        }
+        return 0;
+    }
+    if (confidence_probs && confidence_threshold > 0.0f &&
+            drafts[0] != current_top &&
+            confidence_probs[0] < confidence_threshold) return 0;
+    int commit = 1;
+    const bool unbounded = topk <= 0 && max_logit_delta < 0.0f;
+    for (int i = 1; i < draft_n; i++) {
+        bool ok = false;
+        int target_top = -1;
+        if (unbounded) {
+            if (row_tops) target_top = row_tops[i - 1];
+            ok = true;
+        } else if (rows_all_logits && rows) {
+            const float *row = rows + (size_t)(i - 1) * DS4_N_VOCAB;
+            target_top = sample_argmax(row, DS4_N_VOCAB);
+            ok = ds4_logits_token_relaxed_ok(row,
+                                             drafts[i],
+                                             topk,
+                                             max_logit_delta);
+        } else if (row_topk && row_topk_k > 1u) {
+            target_top = row_topk[(size_t)(i - 1) * row_topk_k];
+            ok = ds4_topk_token_relaxed_ok(
+                    row_topk + (size_t)(i - 1) * row_topk_k,
+                    row_topk_logits ?
+                        row_topk_logits + (size_t)(i - 1) * row_topk_k : NULL,
+                    row_topk_k,
+                    drafts[i],
+                    max_logit_delta);
+        } else if (row_tops) {
+            target_top = row_tops[i - 1];
+            ok = row_tops[i - 1] == drafts[i];
+        }
+        if (!ok) break;
+        if (cooldown_active && drafts[i] != target_top) break;
+        if (drafts[i] != target_top) {
+            offargmax_count++;
+            if (max_offargmax >= 0 && offargmax_count > max_offargmax) {
+                break;
+            }
+        }
+        if (confidence_probs && confidence_threshold > 0.0f &&
+            drafts[i] != target_top &&
+            confidence_probs[i] < confidence_threshold) break;
+        if (!ds4_dspark_relaxed_loop_guard_ok(checkpoint,
+                                              drafts,
+                                              i + 1,
+                                              target_top,
+                                              loop_ngram,
+                                              loop_window,
+                                              loop_token_window,
+                                              loop_token_max,
+                                              &loop_rejected)) {
+            if (loop_rejected && s && cooldown_blocks > 0) {
+                s->dspark_relaxed_cooldown = cooldown_blocks;
+            }
+            break;
+        }
+        commit++;
+    }
+    if (s && offargmax_count > 0 && offargmax_cooldown_blocks > 0) {
+        s->dspark_relaxed_cooldown = offargmax_cooldown_blocks;
+    }
+    return commit;
 }
 
 static float *ds4_session_dspark_decode_rows(ds4_session *s, size_t rows) {
@@ -27085,6 +29152,7 @@ void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
     if (!opt->moe_slot_bank_explicit || opt->moe_slot_bank <= 0) {
         opt->moe_slot_bank = (int)DS4_N_EXPERT;
     }
+    const bool resident_full_expert_bank = opt->moe_slot_bank >= (int)DS4_N_EXPERT;
     if (opt->ssd_cache && opt->ssd_cache[0]) {
         fprintf(stderr,
                 "%s: --resident ignores --ssd-cache; using resident all-expert slot bank\n",
@@ -27096,7 +29164,9 @@ void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
     ds4_setenv_default_warn("DS4_FLASH_MOE_DIRECT_MMAP_AUTO", "0", program_name);
     ds4_setenv_default_warn("DS4_FLASH_MOE_SLOT_BANK_RESIDENCY", "1", program_name);
     ds4_setenv_default_warn("DS4_FLASH_MOE_SLOT_BANK_TOUCH_PAGES", "1", program_name);
-    ds4_setenv_default_warn("DS4_FLASH_MOE_PRELOAD_SLOT_BANK", "1", program_name);
+    ds4_setenv_default_warn("DS4_FLASH_MOE_PRELOAD_SLOT_BANK",
+                            resident_full_expert_bank ? "1" : "0",
+                            program_name);
     ds4_setenv_default_warn("DS4_MXFP4_NATIVE", "1", program_name);
 }
 
@@ -27842,6 +29912,7 @@ void ds4_session_free(ds4_session *s) {
     }
 #ifndef DS4_NO_GPU
     else {
+        ds4_session_dspark_draft_prefetch_clear(s);
         metal_graph_free(&s->graph);
     }
 #endif
@@ -28594,6 +30665,7 @@ int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out) {
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                      char *err, size_t errlen) {
     if (!s) return 1;
+    ds4_session_dspark_draft_prefetch_clear(s);
     if (glm52_session_active(s)) {
         (void)probe_mtp;
         return glm52_session_eval(s, token, err, errlen);
@@ -28654,10 +30726,13 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                                 (uint32_t)s->checkpoint.len,
                                                 false,
                                                 0,
-                                                false,
-                                                true,
-                                                NULL,
-                                                s->logits) :
+	                                                false,
+	                                                true,
+		                                                NULL,
+		                                                NULL,
+		                                                0,
+		                                                NULL,
+		                                                s->logits) :
         metal_graph_eval_token_raw_swa(&s->graph,
                                        &e->model,
                                        &e->weights,
@@ -28715,8 +30790,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int max_tokens, int eos_token,
                                         int *accepted, int accepted_cap,
                                         int *drafted,
+                                        int *draft_accepted,
                                         char *err, size_t errlen) {
     if (drafted) *drafted = 0;
+    if (draft_accepted) *draft_accepted = -1;
     if (ds4_session_is_cpu(s)) {
         (void)max_tokens;
         (void)eos_token;
@@ -28731,11 +30808,680 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     snprintf(err, errlen, "GPU support is not compiled in");
     return -1;
 #else
-    if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
-    ds4_engine *e = s->engine;
+	    if (!s || max_tokens <= 0 || accepted_cap <= 0) return 0;
+	    ds4_engine *e = s->engine;
+	    const bool dspark_dynamic_verify_enabled =
+	        ds4_dspark_dynamic_verify_cfg_make(e).enabled;
+	    const bool dspark_relaxed_accept =
+	        ds4_dspark_relaxed_accept_enabled();
+	    const bool dspark_relaxed_unbounded =
+	        dspark_relaxed_accept && ds4_dspark_relaxed_unbounded_enabled();
+		    const int dspark_relaxed_topk = dspark_relaxed_accept ?
+		        ds4_dspark_relaxed_topk(dspark_relaxed_unbounded) : 0;
+		    const float dspark_relaxed_logit_delta = dspark_relaxed_accept ?
+		        ds4_dspark_relaxed_logit_delta(dspark_relaxed_unbounded) : -1.0f;
+	    const bool dspark_relaxed_margin_gate =
+	        dspark_relaxed_accept &&
+	        ds4_dspark_relaxed_margin_enabled(dspark_relaxed_unbounded);
+	    const float dspark_relaxed_temp_gate =
+	        dspark_relaxed_accept ? ds4_dspark_relaxed_temperature() : -1.0f;
+	    const float dspark_relaxed_temp_min_ratio =
+	        dspark_relaxed_temp_gate > 0.0f ?
+	        ds4_dspark_relaxed_temperature_min_ratio() : 0.0f;
+	    char dspark_relaxed_temp_desc[64] = "";
+	    if (dspark_relaxed_temp_gate > 0.0f) {
+	        snprintf(dspark_relaxed_temp_desc,
+	                 sizeof(dspark_relaxed_temp_desc),
+	                 " + temp<=%.2f/ratio>=%.3f",
+	                 dspark_relaxed_temp_gate,
+	                 dspark_relaxed_temp_min_ratio);
+	    }
+		    static bool s_dspark_relaxed_accept_logged = false;
+			    if (dspark_relaxed_accept && !s_dspark_relaxed_accept_logged) {
+			        s_dspark_relaxed_accept_logged = true;
+	        if (dspark_relaxed_unbounded ||
+	            (dspark_relaxed_topk <= 0 && dspark_relaxed_logit_delta < 0.0f)) {
+	            fprintf(stderr,
+	                    "ds4: dspark force accept enabled "
+	                    "(ungated non-target-greedy diagnostic; may repeat)\n");
+	        } else if (dspark_relaxed_topk > 0 && dspark_relaxed_logit_delta >= 0.0f) {
+	            fprintf(stderr,
+	                    "ds4: dspark relaxed accept enabled "
+	                    "(target top-%d + logit-delta<=%.2f%s; non-target-greedy)\n",
+	                    dspark_relaxed_topk,
+	                    dspark_relaxed_logit_delta,
+	                    dspark_relaxed_temp_desc);
+	        } else if (dspark_relaxed_topk > 0) {
+	            fprintf(stderr,
+	                    "ds4: dspark relaxed accept enabled "
+	                    "(target top-%d%s; non-target-greedy)\n",
+	                    dspark_relaxed_topk,
+	                    dspark_relaxed_temp_desc);
+	        } else {
+	            fprintf(stderr,
+	                    "ds4: dspark relaxed accept enabled "
+	                    "(target logit-delta<=%.2f%s; non-target-greedy)\n",
+		                    dspark_relaxed_logit_delta,
+	                    dspark_relaxed_temp_desc);
+			        }
+			    }
+			    static bool s_dspark_relaxed_margin_gate_logged = false;
+			    if (dspark_relaxed_margin_gate &&
+			        !s_dspark_relaxed_margin_gate_logged) {
+			        s_dspark_relaxed_margin_gate_logged = true;
+			        fprintf(stderr,
+			                "ds4: dspark relaxed target-margin gate enabled "
+		                "(non-argmax accepts require top1-top2<=%.3f and "
+		                "top1-draft<=%.3f)\n",
+			                ds4_dspark_relaxed_target_margin(),
+			                ds4_dspark_relaxed_draft_margin());
+			    }
+			    static bool s_dspark_relaxed_ratio_gate_logged = false;
+			    const float dspark_relaxed_logit_ratio =
+			        ds4_dspark_relaxed_logit_ratio();
+			    if (dspark_relaxed_accept &&
+			        dspark_relaxed_logit_ratio >= 0.0f &&
+			        !s_dspark_relaxed_ratio_gate_logged) {
+			        s_dspark_relaxed_ratio_gate_logged = true;
+			        fprintf(stderr,
+			                "ds4: dspark relaxed logit-ratio gate enabled "
+			                "(non-argmax accepts require top2/top1 and "
+			                "draft/top1 >= %.3f)\n",
+			                dspark_relaxed_logit_ratio);
+			    }
+			    static bool s_dspark_relaxed_loop_guard_logged = false;
+			    if (dspark_relaxed_accept &&
+			        !s_dspark_relaxed_loop_guard_logged &&
+			        ds4_dspark_relaxed_guard_target_top()) {
+			        s_dspark_relaxed_loop_guard_logged = true;
+			        fprintf(stderr,
+			                "ds4: dspark relaxed loop guard checks target-top "
+			                "draft tokens too "
+			                "(set DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1 "
+			                "for the old bypass)\n");
+			    }
+				    static bool s_dspark_relaxed_confidence_gate_logged = false;
+				    if (dspark_relaxed_accept &&
+				        !s_dspark_relaxed_confidence_gate_logged &&
+		        ds4_dspark_scheduler_is_confidence_hard(e) &&
+		        !env_flag_enabled("DS4_DSPARK_RELAXED_CONFIDENCE_GATE_DISABLE")) {
+		        s_dspark_relaxed_confidence_gate_logged = true;
+		        fprintf(stderr,
+		                "ds4: dspark relaxed confidence gate enabled "
+		                "(non-argmax accepts require draft confidence >= %.3f)\n",
+		                e->dspark.conf_threshold);
+		    }
+		    const bool dspark_frontier_after_full =
+		        env_flag_enabled("DS4_DSPARK_FRONTIER_AFTER_FULL");
+	    const bool dspark_draft_only =
+	        env_flag_enabled("DS4_DSPARK_DRAFT_ONLY") ||
+	        env_flag_enabled("DS4_DSPARK_TRUST_DRAFT");
+	    static bool s_dspark_draft_only_logged = false;
+	    if (dspark_draft_only && !s_dspark_draft_only_logged) {
+	        s_dspark_draft_only_logged = true;
+	        fprintf(stderr,
+	                "ds4: dspark draft-only diagnostic enabled "
+	                "(no target verifier, non-target-greedy, approximate DSpark KV refresh)\n");
+	    }
+	    const bool dspark_frontier_allowed =
+	        !dspark_frontier_after_full || s->dspark_frontier_after_full_ready;
+	    if (dspark_frontier_after_full) {
+	        s->dspark_frontier_after_full_ready = false;
+	    }
 
-    /*
-     * MTP in DeepSeek V4 is a speculative drafter, not a replacement sampler.
+	    if ((env_flag_enabled("DS4_DSPARK_FRONTIER_DRAFT") ||
+	         dspark_draft_only) &&
+	        dspark_frontier_allowed &&
+	        e->draft_kind == DS4_DRAFT_DSPARK &&
+	        e->dspark.inference_ready &&
+	        s->checkpoint.len > 0 &&
+	        first_token != eos_token &&
+	        max_tokens > 1) {
+	        int draft_cap = ds4_session_dspark_effective_verify_budget(s, e);
+	        if (draft_cap > e->dspark.block_size) draft_cap = e->dspark.block_size;
+	        if (draft_cap > 5) draft_cap = 5;
+	        if (draft_cap > max_tokens) draft_cap = max_tokens;
+	        if (draft_cap > accepted_cap) draft_cap = accepted_cap;
+	        int room = s->ctx_size - s->checkpoint.len;
+	        if (draft_cap > room) draft_cap = room;
+		        if (draft_cap >= 2 &&
+		            metal_graph_ctx_grow_ensure(&s->graph,
+		                                         (uint32_t)(s->checkpoint.len + draft_cap))) {
+		            int drafts[5] = {0};
+		            int draft_n = 0;
+		            float confidence_logits[5] = {0};
+		            float confidence_probs[5] = {0};
+		            const bool dspark_frontier_confidence_hard =
+		                ds4_dspark_scheduler_is_confidence_hard(e);
+		            const bool dspark_frontier_confidence_softmax =
+		                ds4_dspark_scheduler_is_confidence_softmax(e);
+		            const bool dspark_frontier_confidence_softmax_long =
+		                ds4_dspark_scheduler_is_confidence_softmax_long(e);
+		            const bool dspark_frontier_relaxed_confidence_gate =
+		                dspark_relaxed_accept &&
+		                dspark_frontier_confidence_hard &&
+		                !env_flag_enabled("DS4_DSPARK_RELAXED_CONFIDENCE_GATE_DISABLE");
+		            const bool dspark_frontier_confidence_scheduler =
+		                (dspark_frontier_confidence_hard ||
+		                 dspark_frontier_confidence_softmax) &&
+		                (dspark_draft_only || !dspark_relaxed_accept);
+		            const bool dspark_frontier_confidence_log =
+		                getenv("DS4_DSPARK_CONF_LOG") != NULL;
+		            const bool dspark_frontier_dynamic_trace =
+		                ds4_dspark_dynamic_trace_enabled();
+		            const bool dspark_frontier_trust_confidence =
+		                !dspark_draft_only && ds4_dspark_trust_confidence_enabled();
+		            const bool dspark_frontier_want_confidence =
+		                dspark_frontier_confidence_scheduler ||
+		                dspark_frontier_relaxed_confidence_gate ||
+		                dspark_frontier_confidence_log ||
+		                dspark_frontier_dynamic_trace ||
+		                dspark_frontier_trust_confidence;
+		            const bool dspark_timing =
+		                getenv("DS4_DSPARK_BLOCK_TIMING") != NULL ||
+		                getenv("DS4_DSPARK_TIMING") != NULL;
+	            const bool dspark_perf_summary = getenv("DS4_DSPARK_PERF") != NULL;
+	            const bool dspark_perf =
+	                dspark_timing || dspark_perf_summary || backend_stats_logs_enabled() ||
+	                dspark_dynamic_verify_enabled;
+	            const double dspark_t0 = dspark_perf ? now_sec() : 0.0;
+	            const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
+	            bool frontier_ok = false;
+	            if (!dspark_frontier_want_confidence) {
+	                frontier_ok =
+	                    ds4_session_dspark_draft_prefetch_finish(s,
+	                                                             draft_cap,
+	                                                             last_token,
+	                                                             drafts,
+	                                                             &draft_n);
+	            }
+	            if (!frontier_ok) {
+	                frontier_ok = metal_graph_eval_dspark_draft(&s->graph,
+	                                                            &e->model,
+	                                                            &e->weights,
+	                                                            last_token,
+	                                                            (uint32_t)(s->checkpoint.len - 1),
+		                                                            drafts,
+		                                                            draft_cap,
+		                                                            dspark_frontier_want_confidence ? confidence_logits : NULL,
+		                                                            dspark_frontier_want_confidence ? confidence_probs : NULL,
+		                                                            &draft_n);
+	            }
+		            const double dspark_draft_done = dspark_perf ? now_sec() : 0.0;
+	            if (frontier_ok && draft_n > 0 && dspark_frontier_dynamic_trace) {
+	                ds4_dspark_dynamic_confidence_trace("frontier",
+	                                                    draft_cap,
+	                                                    draft_n,
+	                                                    drafts,
+	                                                    confidence_probs);
+	            }
+	            const bool frontier_first_ok =
+	                dspark_draft_only ||
+	                drafts[0] == first_token ||
+	                (dspark_relaxed_accept &&
+	                 ds4_logits_token_relaxed_ok(s->logits,
+	                                             drafts[0],
+	                                             dspark_relaxed_topk,
+	                                             dspark_relaxed_logit_delta));
+	            if (frontier_ok &&
+	                draft_n >= 2 &&
+	                frontier_first_ok) {
+		                for (int i = 0; i < draft_n; i++) {
+		                    if (drafts[i] == eos_token) {
+		                        draft_n = i + 1;
+		                        break;
+		                    }
+		                }
+		                if (dspark_frontier_confidence_scheduler) {
+		                    const int raw_draft_n = draft_n;
+		                    const int scheduled = dspark_frontier_confidence_softmax ?
+		                        ds4_dspark_confidence_softmax_prefix_len(
+		                            confidence_logits,
+		                            confidence_probs,
+		                            draft_n,
+		                            draft_cap,
+		                            dspark_frontier_confidence_softmax_long) :
+		                        ds4_dspark_confident_prefix_len(
+		                            confidence_probs,
+		                            draft_n,
+		                            e->dspark.conf_threshold);
+		                    const int min_commit =
+		                        (dspark_draft_only &&
+		                         env_flag_enabled("DS4_DSPARK_DRAFT_ONLY_ALLOW_ZERO_CONF")) ? 0 : 1;
+		                    if (dspark_frontier_confidence_log ||
+		                        getenv("DS4_DSPARK_SPEC_LOG")) {
+		                        fprintf(stderr,
+		                                "ds4: dspark frontier confidence scheduler mode=%s threshold=%.3f raw=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+		                                dspark_frontier_confidence_softmax ? "softmax" : "hard",
+		                                dspark_frontier_confidence_softmax ? 0.0f : e->dspark.conf_threshold,
+		                                draft_n,
+		                                scheduled,
+		                                confidence_probs[0],
+		                                confidence_probs[1],
+		                                confidence_probs[2],
+		                                confidence_probs[3],
+		                                confidence_probs[4]);
+		                    }
+			                    draft_n = scheduled < min_commit ? min_commit : scheduled;
+			                    if (draft_n < raw_draft_n) {
+			                        ds4_session_dspark_dynamic_verify_suppress_next(s);
+			                    }
+			                    if (draft_n <= 0) {
+			                        if (drafted) *drafted = 0;
+		                        if (dspark_perf) {
+		                            ds4_session_dspark_perf_record(s,
+		                                                           0,
+		                                                           0,
+		                                                           dspark_draft_done - dspark_t0,
+		                                                           0.0,
+		                                                           0.0,
+		                                                           0.0,
+		                                                           dspark_draft_done - dspark_t0);
+		                        }
+		                        return 0;
+		                    }
+		                } else if (dspark_frontier_confidence_log) {
+		                    fprintf(stderr,
+		                            "ds4: dspark frontier confidence probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+		                            confidence_probs[0],
+		                            confidence_probs[1],
+		                            confidence_probs[2],
+		                            confidence_probs[3],
+		                            confidence_probs[4]);
+		                }
+		                int dspark_trusted_draft_n = 0;
+		                if (dspark_frontier_trust_confidence) {
+		                    const float trust_threshold =
+		                        ds4_dspark_trust_confidence_threshold();
+		                    const int trust_min_prefix =
+		                        ds4_dspark_trust_confidence_min_prefix();
+		                    const int trust_prefix =
+		                        ds4_dspark_confident_prefix_len(confidence_probs,
+		                                                        draft_n,
+		                                                        trust_threshold);
+		                    if (trust_prefix >= trust_min_prefix) {
+		                        dspark_trusted_draft_n = trust_prefix;
+		                        const int loop_ngram = ds4_dspark_relaxed_loop_ngram();
+		                        const int loop_window = ds4_dspark_relaxed_loop_window();
+		                        const int loop_token_window =
+		                            ds4_dspark_relaxed_loop_token_window();
+		                        const int loop_token_max =
+		                            ds4_dspark_relaxed_loop_token_max();
+		                        int guarded = 0;
+		                        for (int i = 0; i < dspark_trusted_draft_n; i++) {
+		                            bool loop_rejected = false;
+		                            if (!ds4_dspark_relaxed_loop_guard_ok(
+		                                        &s->checkpoint,
+		                                        drafts,
+		                                        i + 1,
+		                                        i == 0 ? sample_argmax(s->logits,
+		                                                              DS4_N_VOCAB) : -1,
+		                                        loop_ngram,
+		                                        loop_window,
+		                                        loop_token_window,
+		                                        loop_token_max,
+		                                        &loop_rejected)) {
+		                                if (loop_rejected &&
+		                                    ds4_dspark_trust_confidence_log_enabled()) {
+		                                    fprintf(stderr,
+		                                            "ds4: dspark trust-confidence loop guard "
+		                                            "shortened prefix from %d to %d\n",
+		                                            dspark_trusted_draft_n,
+		                                            guarded);
+		                                }
+		                                break;
+		                            }
+		                            guarded++;
+		                        }
+		                        dspark_trusted_draft_n = guarded;
+		                        if (dspark_trusted_draft_n < trust_min_prefix) {
+		                            dspark_trusted_draft_n = 0;
+		                        }
+		                    }
+		                    if (ds4_dspark_trust_confidence_log_enabled()) {
+		                        fprintf(stderr,
+		                                "ds4: dspark trust-confidence threshold=%.3f "
+		                                "min=%d prefix=%d trusted=%d draft_n=%d "
+		                                "p=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+		                                trust_threshold,
+		                                trust_min_prefix,
+		                                trust_prefix,
+		                                dspark_trusted_draft_n,
+		                                draft_n,
+		                                confidence_probs[0],
+		                                confidence_probs[1],
+		                                confidence_probs[2],
+		                                confidence_probs[3],
+		                                confidence_probs[4]);
+		                    }
+		                }
+		                if (dspark_draft_only || dspark_trusted_draft_n > 0) {
+		                    const int commit_n =
+		                        dspark_draft_only ? draft_n : dspark_trusted_draft_n;
+		                    const int start = s->checkpoint.len;
+		                    const double commit_t0 = dspark_perf ? now_sec() : 0.0;
+		                    bool commit_ok =
+		                        metal_graph_read_spec_logits_row(&s->graph,
+		                                                         (uint32_t)(commit_n - 1),
+		                                                         s->logits);
+		                    if (commit_ok &&
+		                        !env_flag_enabled("DS4_DSPARK_DRAFT_ONLY_APPROX_KV_DISABLE")) {
+		                        commit_ok =
+		                            metal_graph_dspark_approx_update_main_kv_from_draft_range(
+		                                &s->graph,
+		                                (uint32_t)start,
+		                                (uint32_t)commit_n);
+		                    }
+		                    if (commit_ok) {
+		                        int n_accept = 0;
+		                        for (int i = 0; i < commit_n && n_accept < accepted_cap; i++) {
+		                            token_vec_push(&s->checkpoint, drafts[i]);
+		                            accepted[n_accept++] = drafts[i];
+		                            if (drafts[i] == eos_token) break;
+		                        }
+		                        const double commit_done = dspark_perf ? now_sec() : 0.0;
+		                        if (draft_accepted) *draft_accepted = n_accept;
+		                        if (drafted) *drafted = draft_n;
+		                        s->checkpoint_valid = true;
+		                        s->mtp_draft_valid = false;
+		                        if (dspark_timing) {
+		                            fprintf(stderr,
+		                                    "ds4: dspark timing %s drafted=%d committed=%d draft=%.3f ms commit=%.3f ms total=%.3f ms\n",
+		                                    dspark_draft_only ? "draft-only" : "trust-confidence",
+		                                    draft_n,
+		                                    n_accept,
+		                                    (dspark_draft_done - dspark_t0) * 1000.0,
+		                                    (commit_done - commit_t0) * 1000.0,
+		                                    (commit_done - dspark_t0) * 1000.0);
+		                        }
+		                        if (dspark_perf) {
+		                            ds4_session_dspark_perf_record(s,
+		                                                           draft_n,
+		                                                           n_accept,
+		                                                           dspark_draft_done - dspark_t0,
+		                                                           0.0,
+		                                                           0.0,
+		                                                           commit_done - commit_t0,
+		                                                           commit_done - dspark_t0);
+		                        }
+		                        return n_accept;
+		                    }
+		                }
+		                if (!e->quality &&
+		                    !env_flag_enabled("DS4_DSPARK_EXACT_VERIFY") &&
+		                    !env_flag_enabled("DS4_DSPARK_FAST_VERIFY_DISABLE")) {
+	                    ds4_dspark_enable_default_fast_verifier();
+	                }
+	                const ds4_dspark_decodeN_policy dspark_policy =
+	                    ds4_dspark_decodeN_policy_make(e->quality, draft_n);
+	                if (draft_n >= 2 &&
+	                    !dspark_policy.sequential_verify &&
+	                    dspark_policy.hybrid_allowed &&
+	                    !env_flag_enabled("DS4_DSPARK_DECODEN_DISABLE") &&
+	                    !env_flag_enabled("DS4_DSPARK_DECODE_N_DISABLE")) {
+	                    ds4_spec_frontier frontier;
+	                    memset(&frontier, 0, sizeof(frontier));
+		                    const int start = s->checkpoint.len;
+		                    int row_tops_storage[4] = { -1, -1, -1, -1 };
+		                    int *row_tops = draft_n > 1 ? row_tops_storage : NULL;
+			                    int row_topk_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+			                    float row_topk_logits_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+			                    const uint32_t row_topk_k =
+			                        (!dspark_policy.decodeN_reads_all_logits && dspark_relaxed_accept) ?
+			                        ds4_dspark_relaxed_suffix_topk_k(dspark_relaxed_topk,
+			                                                          dspark_relaxed_logit_delta) :
+			                        0u;
+			                    int *row_topk = row_topk_k ? row_topk_storage : NULL;
+				                    float *row_topk_logits =
+				                        (row_topk_k &&
+				                         (dspark_relaxed_logit_delta >= 0.0f ||
+				                          dspark_relaxed_margin_gate)) ?
+				                        row_topk_logits_storage : NULL;
+		                    const size_t row_count = dspark_policy.decodeN_row_count;
+		                    float *rows = ds4_session_dspark_decode_rows(s, row_count);
+		                    const double snapshot_t0 = dspark_perf ? now_sec() : 0.0;
+		                    bool have_frontier = rows && spec_frontier_snapshot(&frontier, s);
+		                    const double snapshot_done = dspark_perf ? now_sec() : 0.0;
+		                    const double verify_gpu_t0 = dspark_perf ? ds4_gpu_busy_seconds() : 0.0;
+		                    frontier_ok = have_frontier &&
+		                        metal_graph_verify_decodeN_strict_v1(&s->graph,
+		                                                              &e->model,
+		                                                              &e->weights,
+	                                                              drafts,
+	                                                              (uint32_t)draft_n,
+	                                                              (uint32_t)start,
+	                                                              draft_n == 2,
+			                                                              dspark_policy.decodeN_capture_prefix_count,
+				                                                              row_tops,
+				                                                              row_topk,
+				                                                              row_topk_k,
+				                                                              row_topk_logits,
+				                                                              rows,
+				                                                              NULL);
+	                    const double verify_done = dspark_perf ? now_sec() : 0.0;
+	                    if (dspark_perf) {
+	                        s->dspark_perf_verify_gpu_seconds +=
+	                            ds4_gpu_busy_seconds() - verify_gpu_t0;
+	                    }
+	                    if (frontier_ok) {
+	                        int commit_drafts = 1;
+	                        if (dspark_relaxed_accept) {
+	                            commit_drafts =
+	                                ds4_dspark_relaxed_commit_prefix(
+	                                    s,
+	                                    draft_n,
+	                                    drafts,
+			                                    &s->checkpoint,
+			                                    s->logits,
+				                                    row_tops,
+				                                    row_topk,
+				                                    row_topk_k,
+				                                    row_topk_logits,
+					                                    rows,
+					                                    dspark_policy.decodeN_reads_all_logits,
+					                                    dspark_frontier_relaxed_confidence_gate ? confidence_probs : NULL,
+					                                    dspark_frontier_relaxed_confidence_gate ? e->dspark.conf_threshold : 0.0f,
+		                                    dspark_relaxed_topk,
+		                                    dspark_relaxed_logit_delta);
+		                        } else {
+		                            for (int i = 1; i < draft_n; i++) {
+		                                if (row_tops[i - 1] != drafts[i]) break;
+		                                commit_drafts++;
+		                            }
+		                        }
+		                        commit_drafts =
+		                            ds4_dspark_state_only_guard_commit_prefix(
+		                                &s->checkpoint,
+		                                drafts,
+		                                commit_drafts,
+		                                ds4_dspark_state_only_verified_suffix_rows(draft_n));
+		                        int n_accept = 0;
+		                        if (draft_accepted) *draft_accepted = commit_drafts;
+		                        if (drafted) *drafted = draft_n;
+		                        if (commit_drafts == draft_n) {
+	                            frontier_ok =
+	                                metal_graph_commit_spec_batch_hc_row(&s->graph,
+	                                                                      (uint32_t)(draft_n - 1)) &&
+	                                metal_graph_dspark_update_main_kv_range(&s->graph,
+	                                                                        (uint32_t)start,
+	                                                                        (uint32_t)draft_n);
+	                            if (frontier_ok) {
+	                                const float *commit_logits = dspark_policy.decodeN_reads_all_logits ?
+	                                    rows + (size_t)(draft_n - 1) * DS4_N_VOCAB : rows;
+	                                memcpy(s->logits,
+	                                       commit_logits,
+	                                       (size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
+	                                for (int i = 0; i < draft_n && n_accept < accepted_cap; i++) {
+	                                    token_vec_push(&s->checkpoint, drafts[i]);
+	                                    accepted[n_accept++] = drafts[i];
+	                                    if (drafts[i] == eos_token) break;
+	                                }
+	                                s->checkpoint_valid = true;
+	                                s->mtp_draft_valid = false;
+	                                if (dspark_frontier_after_full) {
+	                                    s->dspark_frontier_after_full_ready = true;
+	                                }
+	                                const double commit_done = dspark_perf ? now_sec() : 0.0;
+	                                if (dspark_timing) {
+	                                    fprintf(stderr,
+	                                            "ds4: dspark timing frontier-decodeN drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms dspark_kv=%.3f ms total=%.3f ms\n",
+	                                            draft_n,
+	                                            draft_n,
+	                                            (dspark_draft_done - dspark_t0) * 1000.0,
+	                                            (snapshot_done - snapshot_t0) * 1000.0,
+	                                            (verify_done - snapshot_done) * 1000.0,
+	                                            (commit_done - verify_done) * 1000.0,
+	                                            (commit_done - dspark_t0) * 1000.0);
+	                                }
+	                                if (dspark_perf) {
+	                                    ds4_session_dspark_perf_record(s,
+	                                                                   draft_n,
+	                                                                   draft_n,
+	                                                                   dspark_draft_done - dspark_t0,
+	                                                                   snapshot_done - snapshot_t0,
+	                                                                   verify_done - snapshot_done,
+	                                                                   commit_done - verify_done,
+	                                                                   commit_done - dspark_t0);
+	                                }
+	                                spec_frontier_free(&frontier);
+	                                ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                return n_accept;
+	                            }
+	                        } else if (commit_drafts > 0) {
+	                            if (commit_drafts <= (int)dspark_policy.decodeN_capture_prefix_count) {
+	                                s->checkpoint.len = start;
+	                                const double prefix_t0 = dspark_perf ? now_sec() : 0.0;
+	                                const uint32_t commit_row = (uint32_t)(commit_drafts - 1);
+	                                float *prefix_logits = NULL;
+	                                bool allocated_prefix_logits = false;
+	                                if (dspark_policy.decodeN_reads_all_logits) {
+	                                    prefix_logits = rows + (size_t)commit_row * DS4_N_VOCAB;
+	                                } else {
+	                                    prefix_logits = xmalloc((size_t)DS4_N_VOCAB * sizeof(prefix_logits[0]));
+	                                    allocated_prefix_logits = true;
+	                                }
+	                                bool prefix_ok = true;
+	                                if (allocated_prefix_logits) {
+	                                    prefix_ok = metal_graph_read_spec_logits_row(&s->graph,
+	                                                                                 commit_row,
+	                                                                                 prefix_logits);
+	                                }
+	                                if (prefix_ok) {
+	                                    prefix_ok =
+	                                        spec_frontier_commit_prefix(s, (uint32_t)commit_drafts) &&
+	                                        metal_graph_commit_spec_batch_hc_row(&s->graph, commit_row) &&
+	                                        metal_graph_dspark_update_main_kv_range(&s->graph,
+	                                                                                (uint32_t)start,
+	                                                                                (uint32_t)commit_drafts);
+	                                }
+	                                const double prefix_done = dspark_perf ? now_sec() : 0.0;
+	                                if (prefix_ok) {
+	                                    memcpy(s->logits,
+	                                           prefix_logits,
+	                                           (size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
+	                                    for (int i = 0; i < commit_drafts && n_accept < accepted_cap; i++) {
+	                                        token_vec_push(&s->checkpoint, drafts[i]);
+	                                        accepted[n_accept++] = drafts[i];
+	                                        if (drafts[i] == eos_token) break;
+	                                    }
+	                                    s->checkpoint_valid = true;
+	                                    s->mtp_draft_valid = false;
+	                                    if (dspark_timing) {
+	                                        fprintf(stderr,
+	                                                "ds4: dspark timing frontier-prefix drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms\n",
+	                                                draft_n,
+	                                                commit_drafts,
+	                                                (dspark_draft_done - dspark_t0) * 1000.0,
+	                                                (snapshot_done - snapshot_t0) * 1000.0,
+	                                                (verify_done - snapshot_done) * 1000.0,
+	                                                (prefix_done - prefix_t0) * 1000.0,
+	                                                (prefix_done - dspark_t0) * 1000.0);
+	                                    }
+	                                    if (dspark_perf) {
+	                                        ds4_session_dspark_perf_record(s,
+	                                                                       draft_n,
+	                                                                       commit_drafts,
+	                                                                       dspark_draft_done - dspark_t0,
+	                                                                       snapshot_done - snapshot_t0,
+	                                                                       verify_done - snapshot_done,
+	                                                                       prefix_done - prefix_t0,
+	                                                                       prefix_done - dspark_t0);
+	                                    }
+	                                    if (allocated_prefix_logits) free(prefix_logits);
+	                                    spec_frontier_free(&frontier);
+	                                    ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                    return n_accept;
+	                                }
+	                                if (allocated_prefix_logits) free(prefix_logits);
+	                            }
+	                            s->checkpoint.len = start;
+	                            const double replay_t0 = dspark_perf ? now_sec() : 0.0;
+	                            frontier_ok = have_frontier && spec_frontier_restore(&frontier, s);
+	                            int replayed = 0;
+	                            if (frontier_ok) {
+	                                frontier_ok = ds4_session_replay_spec_prefix_exact(s,
+	                                                                                  e,
+	                                                                                  drafts,
+	                                                                                  commit_drafts,
+	                                                                                  eos_token,
+	                                                                                  accepted,
+	                                                                                  &n_accept,
+	                                                                                  accepted_cap,
+	                                                                                  rows,
+	                                                                                  &replayed);
+	                            }
+	                            const double replay_done = dspark_perf ? now_sec() : 0.0;
+	                            if (frontier_ok) {
+	                                s->checkpoint_valid = true;
+	                                s->mtp_draft_valid = false;
+	                                if (dspark_timing) {
+	                                    fprintf(stderr,
+	                                            "ds4: dspark timing frontier-partial drafted=%d committed=%d replayed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms replay=%.3f ms total=%.3f ms\n",
+	                                            draft_n,
+	                                            commit_drafts,
+	                                            replayed,
+	                                            (dspark_draft_done - dspark_t0) * 1000.0,
+	                                            (snapshot_done - snapshot_t0) * 1000.0,
+	                                            (verify_done - snapshot_done) * 1000.0,
+	                                            (replay_done - replay_t0) * 1000.0,
+	                                            (replay_done - dspark_t0) * 1000.0);
+	                                }
+	                                if (dspark_perf) {
+	                                    ds4_session_dspark_perf_record(s,
+	                                                                   draft_n,
+	                                                                   commit_drafts,
+	                                                                   dspark_draft_done - dspark_t0,
+	                                                                   snapshot_done - snapshot_t0,
+	                                                                   verify_done - snapshot_done,
+	                                                                   replay_done - replay_t0,
+	                                                                   replay_done - dspark_t0);
+	                                }
+	                                spec_frontier_free(&frontier);
+	                                ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                return n_accept;
+	                            }
+	                        }
+	                    }
+	                    if (have_frontier) (void)spec_frontier_restore(&frontier, s);
+	                    spec_frontier_free(&frontier);
+	                }
+	            } else if (frontier_ok && dspark_perf && draft_n > 0) {
+	                ds4_session_dspark_perf_record(s,
+	                                               draft_n,
+	                                               0,
+	                                               dspark_draft_done - dspark_t0,
+	                                               0.0,
+	                                               0.0,
+	                                               0.0,
+	                                               dspark_draft_done - dspark_t0);
+	            }
+	        }
+	    }
+
+	    ds4_session_dspark_draft_prefetch_clear(s);
+
+	    /*
+	     * MTP in DeepSeek V4 is a speculative drafter, not a replacement sampler.
      * The target model still defines the exact output stream.  A cycle starts
      * by accepting one normal target token, then asks the MTP block to propose
      * a short suffix.  The suffix is useful only if the target model can verify
@@ -28748,7 +31494,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
     if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
 
     if (e->draft_kind == DS4_DRAFT_DSPARK && e->dspark.inference_ready) {
-        int draft_cap = e->dspark.verify_budget > 0 ? e->dspark.verify_budget : e->dspark.block_size;
+        int draft_cap = ds4_session_dspark_effective_verify_budget(s, e);
         if (draft_cap > e->dspark.block_size) draft_cap = e->dspark.block_size;
         if (draft_cap > 5) draft_cap = 5;
         if (draft_cap > max_tokens - n_accept) draft_cap = max_tokens - n_accept;
@@ -28767,18 +31513,33 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         int draft_n = 0;
         float confidence_logits[5] = {0};
         float confidence_probs[5] = {0};
+        const bool dspark_confidence_hard =
+            ds4_dspark_scheduler_is_confidence_hard(e);
+        const bool dspark_confidence_softmax =
+            ds4_dspark_scheduler_is_confidence_softmax(e);
+        const bool dspark_confidence_softmax_long =
+            ds4_dspark_scheduler_is_confidence_softmax_long(e);
         const bool dspark_confidence_scheduler =
-            strcmp(e->dspark.scheduler, "confidence") == 0;
+            dspark_confidence_hard || dspark_confidence_softmax;
         const bool dspark_confidence_log =
             getenv("DS4_DSPARK_CONF_LOG") != NULL;
+        const bool dspark_dynamic_trace = ds4_dspark_dynamic_trace_enabled();
+        const bool dspark_relaxed_confidence_gate =
+            dspark_relaxed_accept &&
+            dspark_confidence_hard &&
+            !env_flag_enabled("DS4_DSPARK_RELAXED_CONFIDENCE_GATE_DISABLE");
         const bool want_confidence =
-            dspark_confidence_scheduler || dspark_confidence_log;
+            dspark_confidence_scheduler ||
+            dspark_relaxed_confidence_gate ||
+            dspark_confidence_log ||
+            dspark_dynamic_trace;
         const bool dspark_timing =
             getenv("DS4_DSPARK_BLOCK_TIMING") != NULL ||
             getenv("DS4_DSPARK_TIMING") != NULL;
         const bool dspark_perf_summary = getenv("DS4_DSPARK_PERF") != NULL;
         const bool dspark_perf =
-            dspark_timing || dspark_perf_summary || backend_stats_logs_enabled();
+            dspark_timing || dspark_perf_summary || backend_stats_logs_enabled() ||
+            dspark_dynamic_verify_enabled;
         const double dspark_t0 = dspark_perf ? now_sec() : 0.0;
         bool ok = metal_graph_eval_dspark_draft(&s->graph,
                                                 &e->model,
@@ -28791,6 +31552,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                 want_confidence ? confidence_probs : NULL,
                                                 &draft_n);
         const double dspark_draft_done = dspark_perf ? now_sec() : 0.0;
+        if (ok && draft_n > 0 && dspark_dynamic_trace) {
+            ds4_dspark_dynamic_confidence_trace("normal",
+                                                draft_cap,
+                                                draft_n,
+                                                drafts,
+                                                confidence_probs);
+        }
         if (!ok || draft_n <= 0) {
             if (getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr, "ds4: dspark draft failed, emitted target token only\n");
@@ -28804,14 +31572,23 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
         }
         if (dspark_confidence_scheduler) {
-            const int scheduled = ds4_dspark_confident_prefix_len(
+            const int raw_draft_n = draft_n;
+            const int scheduled = dspark_confidence_softmax ?
+                ds4_dspark_confidence_softmax_prefix_len(
+                    confidence_logits,
+                    confidence_probs,
+                    draft_n,
+                    draft_cap,
+                    dspark_confidence_softmax_long) :
+                ds4_dspark_confident_prefix_len(
                     confidence_probs,
                     draft_n,
                     e->dspark.conf_threshold);
             if (dspark_confidence_log || getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr,
-                        "ds4: dspark confidence scheduler threshold=%.3f raw=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
-                        e->dspark.conf_threshold,
+                        "ds4: dspark confidence scheduler mode=%s threshold=%.3f raw=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+                        dspark_confidence_softmax ? "softmax" : "hard",
+                        dspark_confidence_softmax ? 0.0f : e->dspark.conf_threshold,
                         draft_n,
                         scheduled,
                         confidence_probs[0],
@@ -28821,8 +31598,21 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         confidence_probs[4]);
             }
             draft_n = scheduled;
+            if (draft_n < raw_draft_n) {
+                ds4_session_dspark_dynamic_verify_suppress_next(s);
+            }
             if (draft_n <= 0) {
                 if (drafted) *drafted = 0;
+                if (dspark_perf) {
+                    ds4_session_dspark_perf_record(s,
+                                                   0,
+                                                   0,
+                                                   dspark_draft_done - dspark_t0,
+                                                   0.0,
+                                                   0.0,
+                                                   0.0,
+                                                   dspark_draft_done - dspark_t0);
+                }
                 return n_accept;
             }
         } else if (dspark_confidence_log) {
@@ -28837,14 +31627,20 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (drafted) *drafted = draft_n;
 
         int target_top = sample_argmax(s->logits, DS4_N_VOCAB);
-        if (target_top != drafts[0]) {
+        if (dspark_relaxed_accept &&
+            !ds4_logits_token_relaxed_ok(s->logits,
+                                          drafts[0],
+                                          dspark_relaxed_topk,
+                                          dspark_relaxed_logit_delta)) {
             if (getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr,
-                        "ds4: dspark spec miss first draft=%d target=%d drafted=%d\n",
+                        "ds4: dspark relaxed gate miss first draft=%d topk=%d delta=%.2f drafted=%d\n",
                         drafts[0],
-                        target_top,
+                        dspark_relaxed_topk,
+                        dspark_relaxed_logit_delta,
                         draft_n);
             }
+            if (draft_accepted) *draft_accepted = 0;
             if (dspark_perf) {
                 ds4_session_dspark_perf_record(s,
                                                draft_n,
@@ -28857,6 +31653,26 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
             return n_accept;
         }
+	        if (!dspark_relaxed_accept && target_top != drafts[0]) {
+	            if (getenv("DS4_DSPARK_SPEC_LOG")) {
+	                fprintf(stderr,
+	                        "ds4: dspark spec miss first draft=%d target=%d drafted=%d\n",
+	                        drafts[0],
+	                        target_top,
+	                        draft_n);
+	            }
+	            if (dspark_perf) {
+	                ds4_session_dspark_perf_record(s,
+	                                               draft_n,
+	                                               0,
+	                                               dspark_draft_done - dspark_t0,
+	                                               0.0,
+	                                               0.0,
+	                                               0.0,
+	                                               dspark_draft_done - dspark_t0);
+	            }
+	            return n_accept;
+	        }
 
         if (!e->quality &&
             !env_flag_enabled("DS4_DSPARK_EXACT_VERIFY") &&
@@ -28886,7 +31702,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         const bool dspark_sequential_verify = dspark_policy.sequential_verify;
         const bool dspark_decodeN_hybrid_allowed = dspark_policy.hybrid_allowed;
         if (draft_n >= 2 &&
-            !dspark_batch_canonical &&
+            !dspark_batch_verify &&
             !dspark_sequential_verify &&
             !env_flag_enabled("DS4_DSPARK_DECODEN_DISABLE") &&
             !env_flag_enabled("DS4_DSPARK_DECODE_N_DISABLE") &&
@@ -28921,10 +31737,29 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             const double snapshot_done = dspark_perf ? now_sec() : 0.0;
             const double verify_gpu_t0 = dspark_perf ? ds4_gpu_busy_seconds() : 0.0;
             bool ok = have_frontier;
-            const bool hybrid_layer_hc_audit = dspark_policy.hybrid_layer_hc_audit;
-            const bool hybrid_dspark_kv_audit = dspark_policy.hybrid_dspark_kv_audit;
-            ds4_verify_layer_hc_audit hybrid_hc_audit;
-            ds4_verify_layer_hc_audit exact_hc_audit;
+	            const bool hybrid_layer_hc_audit = dspark_policy.hybrid_layer_hc_audit;
+	            const bool hybrid_dspark_kv_audit = dspark_policy.hybrid_dspark_kv_audit;
+		            int row_topk_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+		            float row_topk_logits_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+	            const bool decodeN_compact_relaxed_topk =
+	                dspark_decodeN_hybrid_allowed &&
+	                !decodeN_reads_all_logits &&
+	                dspark_relaxed_accept &&
+	                !dspark_hybrid_state_audit &&
+	                !hybrid_layer_hc_audit &&
+	                !hybrid_dspark_kv_audit;
+	            const uint32_t row_topk_k = decodeN_compact_relaxed_topk ?
+	                ds4_dspark_relaxed_suffix_topk_k(dspark_relaxed_topk,
+	                                                  dspark_relaxed_logit_delta) :
+	                0u;
+	            int *row_topk = row_topk_k ? row_topk_storage : NULL;
+		            float *row_topk_logits =
+		                (row_topk_k &&
+		                 (dspark_relaxed_logit_delta >= 0.0f ||
+		                  dspark_relaxed_margin_gate)) ?
+		                row_topk_logits_storage : NULL;
+	            ds4_verify_layer_hc_audit hybrid_hc_audit;
+	            ds4_verify_layer_hc_audit exact_hc_audit;
             memset(&hybrid_hc_audit, 0, sizeof(hybrid_hc_audit));
             memset(&exact_hc_audit, 0, sizeof(exact_hc_audit));
             if (ok) {
@@ -28936,10 +31771,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                               (uint32_t)draft_n,
                                                               (uint32_t)start,
                                                               draft_n == 2,
-                                                              decodeN_capture_prefix_count,
-                                                              row_tops,
-                                                              rows,
-                                                              hybrid_layer_hc_audit ? &hybrid_hc_audit : NULL);
+		                                                              decodeN_capture_prefix_count,
+			                                                              row_tops,
+			                                                              row_topk,
+			                                                              row_topk_k,
+			                                                              row_topk_logits,
+			                                                              rows,
+			                                                              hybrid_layer_hc_audit ? &hybrid_hc_audit : NULL);
                     if (ok && dspark_hybrid_state_audit) {
                         ds4_spec_frontier_host hybrid_state;
                         memset(&hybrid_state, 0, sizeof(hybrid_state));
@@ -29109,13 +31947,39 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
             if (ok) {
                 int commit_drafts = 1;
-                for (int i = 1; i < draft_n; i++) {
-                    if (row_tops[i - 1] != drafts[i]) break;
-                    commit_drafts++;
-                }
-                bool decodeN_margin_low = false;
-                float decodeN_min_margin = FLT_MAX;
-                int decodeN_min_row = -1;
+                if (dspark_relaxed_accept) {
+                    commit_drafts =
+                        ds4_dspark_relaxed_commit_prefix(
+                            s,
+                            draft_n,
+                            drafts,
+		                            &s->checkpoint,
+		                            s->logits,
+			                            row_tops,
+			                            row_topk,
+			                            row_topk_k,
+				                            row_topk_logits,
+				                            rows,
+				                            decodeN_reads_all_logits,
+				                            dspark_relaxed_confidence_gate ? confidence_probs : NULL,
+				                            dspark_relaxed_confidence_gate ? e->dspark.conf_threshold : 0.0f,
+                            dspark_relaxed_topk,
+                            dspark_relaxed_logit_delta);
+	                } else {
+	                    for (int i = 1; i < draft_n; i++) {
+	                        if (row_tops[i - 1] != drafts[i]) break;
+	                        commit_drafts++;
+	                    }
+	                }
+	                commit_drafts =
+	                    ds4_dspark_state_only_guard_commit_prefix(
+	                        &s->checkpoint,
+	                        drafts,
+	                        commit_drafts,
+	                        ds4_dspark_state_only_verified_suffix_rows(draft_n));
+	                bool decodeN_margin_low = false;
+	                float decodeN_min_margin = FLT_MAX;
+	                int decodeN_min_row = -1;
                 const bool decodeN_periodic_exact =
                     decodeN_hybrid_exact_every != 0 &&
                     decodeN_hybrid_block_id != 0 &&
@@ -29142,7 +32006,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         }
                     }
                 }
-                if (decodeN_margin_low || decodeN_periodic_exact) {
+                if (!dspark_relaxed_accept &&
+                    (decodeN_margin_low || decodeN_periodic_exact)) {
                     s->checkpoint.len = start;
                     const double replay_t0 = dspark_perf ? now_sec() : 0.0;
                     ok = have_frontier && spec_frontier_restore(&frontier, s);
@@ -29217,6 +32082,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         }
                         s->checkpoint_valid = true;
                         s->mtp_draft_valid = false;
+                        if (dspark_frontier_after_full) {
+                            s->dspark_frontier_after_full_ready = true;
+                        }
                         const double commit_done = dspark_perf ? now_sec() : 0.0;
                         if (dspark_timing) {
                             fprintf(stderr,
@@ -29276,34 +32144,34 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         memcpy(s->logits,
                                prefix_logits,
                                (size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
-                        for (int i = 0; i < commit_drafts && n_accept < accepted_cap; i++) {
-                            token_vec_push(&s->checkpoint, drafts[i]);
-                            accepted[n_accept++] = drafts[i];
-                            if (drafts[i] == eos_token) break;
-                        }
-                        s->checkpoint_valid = true;
-                        s->mtp_draft_valid = false;
-                        if (dspark_timing) {
-                            fprintf(stderr,
-                                    "ds4: dspark timing decodeN-prefix drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms\n",
-                                    draft_n,
-                                    commit_drafts,
-                                    (dspark_draft_done - dspark_t0) * 1000.0,
-                                    (snapshot_done - snapshot_t0) * 1000.0,
-                                    (verify_done - snapshot_done) * 1000.0,
-                                    (prefix_done - prefix_t0) * 1000.0,
-                                    (prefix_done - dspark_t0) * 1000.0);
-                        }
-                        if (dspark_perf) {
-                            ds4_session_dspark_perf_record(s,
-                                                           draft_n,
-                                                           commit_drafts,
-                                                           dspark_draft_done - dspark_t0,
-                                                           snapshot_done - snapshot_t0,
-                                                           verify_done - snapshot_done,
-                                                           prefix_done - prefix_t0,
-                                                           prefix_done - dspark_t0);
-                        }
+	                        for (int i = 0; i < commit_drafts && n_accept < accepted_cap; i++) {
+	                            token_vec_push(&s->checkpoint, drafts[i]);
+	                            accepted[n_accept++] = drafts[i];
+	                            if (drafts[i] == eos_token) break;
+	                        }
+	                        s->checkpoint_valid = true;
+	                        s->mtp_draft_valid = false;
+	                        if (dspark_timing) {
+	                            fprintf(stderr,
+	                                    "ds4: dspark timing decodeN-prefix drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms\n",
+	                                    draft_n,
+	                                    commit_drafts,
+	                                    (dspark_draft_done - dspark_t0) * 1000.0,
+	                                    (snapshot_done - snapshot_t0) * 1000.0,
+	                                    (verify_done - snapshot_done) * 1000.0,
+	                                    (prefix_done - prefix_t0) * 1000.0,
+	                                    (prefix_done - dspark_t0) * 1000.0);
+	                        }
+	                        if (dspark_perf) {
+	                            ds4_session_dspark_perf_record(s,
+	                                                           draft_n,
+	                                                           commit_drafts,
+	                                                           dspark_draft_done - dspark_t0,
+	                                                           snapshot_done - snapshot_t0,
+	                                                           verify_done - snapshot_done,
+	                                                           prefix_done - prefix_t0,
+	                                                           prefix_done - dspark_t0);
+	                        }
                         spec_frontier_free(&frontier);
                         if (allocated_prefix_logits) free(prefix_logits);
                         return n_accept;
@@ -29407,10 +32275,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                                          2,
 		                                                      (uint32_t)start,
 		                                                      true,
-                                                              0,
-		                                                      row_tops,
-		                                                      rows,
-	                                                          NULL);
+	                                                              0,
+				                                                      row_tops,
+				                                                      NULL,
+				                                                      0,
+				                                                      NULL,
+				                                                      rows,
+			                                                          NULL);
 	                    if (ok) {
 	                        row0_top = row_tops[0];
 	                        memcpy(row0_logits,
@@ -29572,6 +32443,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         if (n_accept < accepted_cap) accepted[n_accept++] = drafts[1];
                         s->checkpoint_valid = true;
                         s->mtp_draft_valid = false;
+                        if (dspark_frontier_after_full) {
+                            s->dspark_frontier_after_full_ready = true;
+                        }
                         const double commit_done = dspark_perf ? now_sec() : 0.0;
                         if (dspark_timing) {
                             fprintf(stderr,
@@ -29684,12 +32558,24 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         if (dspark_batch_verify) {
             ds4_spec_frontier frontier;
             memset(&frontier, 0, sizeof(frontier));
-            int *row_tops = draft_n > 1 ?
-                xmalloc((size_t)(draft_n - 1) * sizeof(row_tops[0])) : NULL;
-            float *row_logits = xmalloc((size_t)DS4_N_VOCAB * sizeof(row_logits[0]));
-            const bool batch_approx_state =
-                dspark_batch_canonical ||
-                env_flag_enabled("DS4_DSPARK_BATCH_APPROX_STATE") ||
+	            int *row_tops = draft_n > 1 ?
+	                xmalloc((size_t)(draft_n - 1) * sizeof(row_tops[0])) : NULL;
+		            float *row_logits = xmalloc((size_t)DS4_N_VOCAB * sizeof(row_logits[0]));
+	            int batch_row_topk_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+	            float batch_row_topk_logits_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+	            const uint32_t batch_row_topk_k = dspark_relaxed_accept ?
+	                ds4_dspark_relaxed_suffix_topk_k(dspark_relaxed_topk,
+	                                                  dspark_relaxed_logit_delta) :
+	                0u;
+	            int *batch_row_topk = batch_row_topk_k ? batch_row_topk_storage : NULL;
+	            float *batch_row_topk_logits =
+	                (batch_row_topk_k &&
+	                 (dspark_relaxed_logit_delta >= 0.0f ||
+	                  dspark_relaxed_margin_gate)) ?
+	                batch_row_topk_logits_storage : NULL;
+	            const bool batch_approx_state =
+	                dspark_batch_canonical ||
+	                env_flag_enabled("DS4_DSPARK_BATCH_APPROX_STATE") ||
                 env_flag_enabled("DS4_DSPARK_BATCH_VERIFY_APPROX");
             const bool batch_single_head =
                 env_flag_enabled("DS4_DSPARK_BATCH_SINGLE_HEAD") ||
@@ -29719,17 +32605,26 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             if (batch_margin_env && batch_margin_env[0]) {
                 char *end = NULL;
                 float v = strtof(batch_margin_env, &end);
-                if (end != batch_margin_env && v > 0.0f) batch_margin_guard = v;
-            }
-            float *batch_logits_all = NULL;
-            if ((batch_approx_state && batch_margin_guard > 0.0f) || batch_audit) {
-                batch_logits_all = xmalloc((size_t)draft_n * DS4_N_VOCAB * sizeof(batch_logits_all[0]));
+	                if (end != batch_margin_env && v > 0.0f) batch_margin_guard = v;
+	            }
+	            float *batch_logits_all = NULL;
+	            const bool batch_relaxed_needs_full_logits =
+	                dspark_relaxed_accept && !batch_row_topk;
+	            if (batch_relaxed_needs_full_logits ||
+	                (batch_approx_state && batch_margin_guard > 0.0f) ||
+	                batch_audit) {
+	                batch_logits_all = xmalloc((size_t)draft_n * DS4_N_VOCAB * sizeof(batch_logits_all[0]));
             }
             const int start = s->checkpoint.len;
             const bool capture_prefix1 = draft_n == 2;
+            const bool batch_approx_prefix_commit =
+                batch_approx_state &&
+                !env_flag_enabled("DS4_DSPARK_BATCH_APPROX_PREFIX_COMMIT_DISABLE");
+            const bool batch_prefix_commit =
+                (dspark_batch_canonical || batch_approx_prefix_commit) &&
+                draft_n > 1;
             const uint32_t batch_capture_prefix_count =
-                dspark_batch_canonical && draft_n > 1 ?
-                (uint32_t)(draft_n - 1) : 0u;
+                batch_prefix_commit ? (uint32_t)(draft_n - 1) : 0u;
             const double snapshot_t0 = dspark_perf ? now_sec() : 0.0;
             bool have_frontier = spec_frontier_snapshot(&frontier, s);
             const double snapshot_done = dspark_perf ? now_sec() : 0.0;
@@ -29737,6 +32632,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             const uint64_t batch_verify_block =
                 batch_approx_state ? ++s_dspark_batch_verify_blocks : 0;
             bool batch_ok = have_frontier;
+            const double batch_verify_gpu_t0 =
+                dspark_perf ? ds4_gpu_busy_seconds() : 0.0;
             if (batch_ok) {
                 for (int i = 0; i < draft_n; i++) token_vec_push(&s->checkpoint, drafts[i]);
                 batch_ok = dspark_unified_greedy ?
@@ -29750,26 +32647,58 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                             capture_prefix1,
                                                             batch_capture_prefix_count,
                                                             false,
-                                                            false,
-                                                            row_tops,
-                                                            batch_logits_all) :
-                    metal_graph_verify_suffix_tops(&s->graph,
-                                                   &e->model,
+		                                                            false,
+			                                                            row_tops,
+			                                                            batch_row_topk,
+			                                                            batch_row_topk_k,
+			                                                            batch_row_topk_logits,
+			                                                            batch_logits_all) :
+	                    metal_graph_verify_suffix_tops(&s->graph,
+	                                                   &e->model,
                                                    &e->weights,
                                                    &s->checkpoint,
                                                    (uint32_t)start,
                                                    (uint32_t)draft_n,
-                                                   capture_prefix1,
-                                                   batch_capture_prefix_count,
-                                                   row_tops,
-                                                   batch_logits_all);
+		                                                   capture_prefix1,
+		                                                   batch_capture_prefix_count,
+			                                                   row_tops,
+			                                                   batch_row_topk,
+			                                                   batch_row_topk_k,
+			                                                   batch_row_topk_logits,
+			                                                   batch_logits_all);
             }
             const double batch_verify_done = dspark_perf ? now_sec() : 0.0;
-            if (batch_ok) {
-                int commit_drafts = 1;
-                for (int i = 1; i < draft_n; i++) {
-                    if (row_tops[i - 1] != drafts[i]) break;
-                    commit_drafts++;
+            if (dspark_perf) {
+                s->dspark_perf_verify_gpu_seconds +=
+                    ds4_gpu_busy_seconds() - batch_verify_gpu_t0;
+            }
+	            if (batch_ok) {
+		                int commit_drafts = 1;
+		                if (dspark_relaxed_accept) {
+		                    token_vec batch_accept_checkpoint = s->checkpoint;
+		                    batch_accept_checkpoint.len = start;
+		                    commit_drafts =
+		                        ds4_dspark_relaxed_commit_prefix(
+		                            s,
+		                            draft_n,
+		                            drafts,
+				                            &batch_accept_checkpoint,
+		                            s->logits,
+		                            row_tops,
+				                            batch_row_topk,
+			                            batch_row_topk_k,
+				                            batch_row_topk_logits,
+				                            batch_logits_all,
+				                            batch_logits_all != NULL,
+				                            dspark_relaxed_confidence_gate ? confidence_probs : NULL,
+				                            dspark_relaxed_confidence_gate ? e->dspark.conf_threshold : 0.0f,
+	                            dspark_relaxed_topk,
+	                            dspark_relaxed_logit_delta);
+                } else {
+                    for (int i = 1; i < draft_n; i++) {
+                        if (row_tops[i - 1] != drafts[i]) break;
+                        commit_drafts++;
+                    }
                 }
                 if (batch_audit && batch_logits_all) {
                     ds4_spec_frontier_host batch_state;
@@ -29921,7 +32850,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                     }
                 }
                 if (batch_ok &&
-                    dspark_batch_canonical &&
+                    batch_prefix_commit &&
                     commit_drafts > 0 &&
                     commit_drafts < draft_n) {
                     if (commit_drafts <= (int)batch_capture_prefix_count) {
@@ -29962,7 +32891,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                             s->mtp_draft_valid = false;
                             if (dspark_timing) {
                                 fprintf(stderr,
-                                        "ds4: dspark timing batch-canonical-prefix-commit drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms\n",
+                                        "ds4: dspark timing %s drafted=%d committed=%d draft=%.3f ms snapshot=%.3f ms verify=%.3f ms prefix=%.3f ms total=%.3f ms\n",
+                                        dspark_batch_canonical ?
+                                            "batch-canonical-prefix-commit" :
+                                            "batch-approx-prefix-commit",
                                         draft_n,
                                         commit_drafts,
                                         (dspark_draft_done - dspark_t0) * 1000.0,
@@ -29983,7 +32915,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                             }
                             if (getenv("DS4_DSPARK_SPEC_LOG")) {
                                 fprintf(stderr,
-                                        "ds4: dspark spec batch-canonical-prefix-commit drafted=%d committed=%d accepted=%d\n",
+                                        "ds4: dspark spec %s drafted=%d committed=%d accepted=%d\n",
+                                        dspark_batch_canonical ?
+                                            "batch-canonical-prefix-commit" :
+                                            "batch-approx-prefix-commit",
                                         draft_n,
                                         commit_drafts,
                                         n_accept);
@@ -30016,9 +32951,12 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                                   (uint32_t)start,
                                                                   (uint32_t)commit_drafts,
                                                                   false,
-                                                                  0,
-                                                                  row_tops,
-                                                                  NULL);
+	                                                                  0,
+		                                                                  row_tops,
+		                                                                  NULL,
+		                                                                  0,
+		                                                                  NULL,
+		                                                                  NULL);
                     }
                     if (batch_ok) {
                         batch_ok = metal_graph_read_spec_logits_row(&s->graph,
@@ -31260,6 +34198,18 @@ int ds4_session_runtime_status(ds4_session *s, ds4_runtime_status *out) {
         out->dspark_perf_verify_gpu_seconds = s->dspark_perf_verify_gpu_seconds;
         out->dspark_perf_commit_seconds = s->dspark_perf_commit_seconds;
         out->dspark_perf_total_seconds = s->dspark_perf_total_seconds;
+        if (s->engine && s->engine->draft_kind == DS4_DRAFT_DSPARK) {
+            ds4_dspark_dynamic_verify_cfg cfg =
+                ds4_dspark_dynamic_verify_cfg_make(s->engine);
+            out->dspark_verify_dynamic = cfg.enabled && cfg.min_budget < cfg.max_budget;
+            if (out->dspark_verify_dynamic) {
+                int budget = s->dspark_dynamic_verify_initialized ?
+                    s->dspark_dynamic_verify_budget : cfg.max_budget;
+                if (budget < cfg.min_budget) budget = cfg.min_budget;
+                if (budget > cfg.max_budget) budget = cfg.max_budget;
+                out->dspark_active_verify_budget = (uint32_t)budget;
+            }
+        }
         ds4_gpu_vm_stats vm;
         memset(&vm, 0, sizeof(vm));
         if (ds4_gpu_get_vm_stats(&vm)) {
