@@ -54,6 +54,29 @@ This builds:
 CUDA sources are inherited from upstream DS4 and kept in tree, but the alpha
 validation focus is Apple Silicon SSD streaming.
 
+## Local TUI Wrapper
+
+For a guided local setup, run:
+
+```sh
+./ds4-tui.sh
+```
+
+On first run it creates `./ds4-tui.conf` in the current directory. Later runs
+read that file. The config keeps the Hugging Face repo, local model path,
+optional SSD-backed cache root, optional Hugging Face cache path, context size,
+sidecar slot-bank or SSD cache budget, generation settings, server bind
+settings, and optional server KV disk cache path as separate editable
+parameters. By default it downloads the SSD
+sidecar model with the installed `hf` CLI into
+`./models/dsv4-iq2xxs-expert-major`; edit `MODEL_DIR` later if you move the
+model files to another storage device.
+
+The same config exposes DSpark speculative decoding controls. Use menu option
+`2` to download the DSpark draft package, then set `DSPARK_ENABLED='1'`.
+DSpark is greedy-only: CLI runs should use `TEMP='0'`, and server clients should
+send requests with `temperature: 0` when they want speculative decoding.
+
 ## Run SSD Sidecar Mode
 
 Download the prebuilt sidecar package:
