@@ -9068,7 +9068,7 @@ static void print_vec_stats(const char *name, const float *x, uint64_t n) {
  * tensor names follow the model stages rather than generic graph nodes.
  */
 
-#define DS4_SPEC_PREFIX_SLOTS 4
+#define DS4_SPEC_PREFIX_SLOTS 5
 
 struct ds4_gpu_graph {
     /* One-token decode tensors.  These stay allocated for the life of a
@@ -14152,7 +14152,7 @@ static bool metal_graph_encode_layer_attention_batch(
     const bool q_stage_profile = getenv("DS4_METAL_Q_STAGE_PROFILE") != NULL;
     const bool dspark_attn_subprofile =
         g->mtp_enabled &&
-        n_tokens <= 5u &&
+        n_tokens <= 6u &&
         ds4_dspark_attn_subprofile_enabled();
     const bool dspark_hc_pre_subprofile =
         dspark_attn_subprofile &&
@@ -14197,26 +14197,26 @@ static bool metal_graph_encode_layer_attention_batch(
     if (ext_factor != 0.0f && freq_scale > 0.0f) {
         attn_factor /= 1.0f + 0.1f * logf(1.0f / freq_scale);
     }
-	    uint32_t comp_counts_small[5] = {0, 0, 0, 0, 0};
-	    uint32_t index_counts_small[5] = {0, 0, 0, 0, 0};
-	    uint32_t raw_counts_small[5] = {0, 0, 0, 0, 0};
-	    uint32_t raw_starts_small[5] = {0, 0, 0, 0, 0};
+	    uint32_t comp_counts_small[6] = {0, 0, 0, 0, 0, 0};
+	    uint32_t index_counts_small[6] = {0, 0, 0, 0, 0, 0};
+	    uint32_t raw_counts_small[6] = {0, 0, 0, 0, 0, 0};
+	    uint32_t raw_starts_small[6] = {0, 0, 0, 0, 0, 0};
 	    uint32_t *comp_counts = NULL;
 	    uint32_t *index_counts = NULL;
     if (compressed) {
-        comp_counts = n_tokens <= 5u
+        comp_counts = n_tokens <= 6u
             ? comp_counts_small
             : xcalloc(n_tokens, sizeof(comp_counts[0]));
     }
     if (ratio == 4) {
-        index_counts = n_tokens <= 5u
+        index_counts = n_tokens <= 6u
             ? index_counts_small
             : xcalloc(n_tokens, sizeof(index_counts[0]));
     }
 	    const bool qkv_rms_fused = !metal_graph_use_reference_qkv_norm();
 	    const bool spec_decode_order =
 	        g->mtp_enabled &&
-	        n_tokens <= 5u &&
+	        n_tokens <= 6u &&
 	        (capture_prefix_count != 0 ||
 	         env_flag_enabled("DS4_SPEC_VERIFY_DECODE_ORDER") ||
 	         env_flag_enabled("DS4_DSPARK_BATCH_DECODE_ORDER") ||
@@ -14292,7 +14292,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	    bool ok = hc_mix_view && hc_split_view && attn_cur_view && after_attn_hc_view;
 	    const bool spec_fuse_hc_norm =
 	        g->mtp_enabled &&
-	        n_tokens <= 5u &&
+	        n_tokens <= 6u &&
 	        !metal_graph_use_reference_hc_decode() &&
 	        !metal_graph_use_reference_hc_norm_decode();
 	    const bool spec_row_qkv_requested =
@@ -15915,7 +15915,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	                spec_decode_order &&
 	                ratio == 4 &&
 	                raw_prefix_tokens == 0 &&
-	                n_tokens <= 5u &&
+	                n_tokens <= 6u &&
 	                spec_defer_batch_heads &&
 	                !spec_defer_row_exact_heads &&
 	                g->layer_n_comp[il] > deferred_top_k &&
@@ -15924,7 +15924,7 @@ static bool metal_graph_encode_layer_attention_batch(
                 spec_decode_order &&
                 ratio != 0 &&
                 raw_prefix_tokens == 0 &&
-                n_tokens <= 5u &&
+                n_tokens <= 6u &&
                 spec_defer_batch_heads &&
                 !defer_indexed_heads &&
                 (ratio != 4 || g->layer_n_comp[il] + n_tokens <= deferred_top_k);
@@ -15945,7 +15945,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	                const uint32_t pos = pos0 + t;
 	                const uint32_t n_raw = metal_graph_raw_span_for_batch(g, pos, 1);
 	                const uint32_t raw_start = metal_graph_raw_start_for_span(g, pos, n_raw);
-	                if (t < 5u) {
+	                if (t < 6u) {
 	                    raw_counts_small[t] = n_raw;
 	                    raw_starts_small[t] = raw_start;
 	                }
@@ -16370,7 +16370,7 @@ static bool metal_graph_encode_layer_attention_batch(
 	                ds4_gpu_tensor_free(q_view);
 	            }
             if (ok && (spec_shared_prefix_profile || spec_attn_rows_shape_profile) &&
-                spec_decode_order && n_tokens <= 5u) {
+                spec_decode_order && n_tokens <= 6u) {
                 for (uint32_t t = 0; t < n_tokens; t++) {
                     if (raw_counts_small[t] == 0u) {
                         const uint32_t pos = pos0 + t;
@@ -16488,7 +16488,7 @@ static bool metal_graph_encode_layer_attention_batch(
                         /* Case E produced the attention heads; skip the strict path.
                          * On failure (unsupported hardware / shape) nax_ok stays
                          * false and we fall through to the strict ALU path below. */
-                    } else if (defer_plain_row_exact && n_tokens <= 5u && comp_counts) {
+                    } else if (defer_plain_row_exact && n_tokens <= 6u && comp_counts) {
 		                        static bool logged_row_exact = false;
 		                        if (!logged_row_exact && !backend_diagnostic_logs_suppressed()) {
 			                            fprintf(stderr,
@@ -17045,7 +17045,7 @@ static bool metal_graph_encode_layer_attention_batch(
 		                                        DS4_N_HEAD_DIM) != 0;
 		                            }
 		                        }
-		                    } else if (defer_plain_varlen && n_tokens <= 5u && comp_counts) {
+		                    } else if (defer_plain_varlen && n_tokens <= 6u && comp_counts) {
 		                        static bool logged_varlen = false;
 		                        if (!logged_varlen && !backend_diagnostic_logs_suppressed()) {
 		                            fprintf(stderr,
@@ -17122,9 +17122,11 @@ static bool metal_graph_encode_layer_attention_batch(
         const bool fuse_attn_out_hc =
             !metal_graph_directional_steering_attn_enabled(g) &&
             !metal_graph_use_reference_attn_out_hc();
+        /* Tail fusion sub-kernels grown to 6 rows (attn_out_low NT=6 +
+         * early-return, hc_expand4 row-generic); gate matches. */
         const bool batch_hc_tail =
             fuse_attn_out_hc &&
-            n_tokens <= 5u &&
+            n_tokens <= 6u &&
             !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_OUTPUT_BATCH_HC_DISABLE");
         if (batch_hc_tail) {
             const bool batch_inv_rope =
@@ -17875,6 +17877,29 @@ static bool metal_graph_encode_layer_routed_exact_rows(
 	    const uint64_t down_expert_bytes = routed_out_dim * down_row_bytes;
 	    const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
 
+	    if (n_tokens > 1 && env_flag_enabled("DS4_DSPARK_DIAG_FORCE_ROW0_ROUTES")) {
+	        /* Diagnostic ONLY (output is invalid): every verifier row reuses row
+	         * 0's expert routes/weights so all rows hit identical expert weights.
+	         * The speed delta vs control is the upper bound of any route-dedup
+	         * kernel win; it must never be enabled outside sizing probes. */
+	        static bool logged_force_row0 = false;
+	        if (!logged_force_row0 && !backend_diagnostic_logs_suppressed()) {
+	            logged_force_row0 = true;
+	            fprintf(stderr,
+	                    "ds4: dspark DIAG force-row0-routes active (output invalid; dedup sizing probe)\n");
+	        }
+	        for (uint32_t t = 1; t < n_tokens; t++) {
+	            ds4_gpu_tensor_copy(g->batch_router_selected,
+	                                (uint64_t)t * active_expert_used * sizeof(int32_t),
+	                                g->batch_router_selected, 0,
+	                                (uint64_t)active_expert_used * sizeof(int32_t));
+	            ds4_gpu_tensor_copy(g->batch_router_weights,
+	                                (uint64_t)t * active_expert_used * sizeof(float),
+	                                g->batch_router_weights, 0,
+	                                (uint64_t)active_expert_used * sizeof(float));
+	        }
+	    }
+
 		    if (g->flash_moe &&
 		        env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_BATCH_ROW_EXACT") &&
 		        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_SLOTWISE") &&
@@ -18122,7 +18147,7 @@ static bool metal_graph_encode_layer_ffn_batch_ex(
     const uint64_t down_row_bytes = routed_expert_row_bytes(layer->ffn_down_exps);
     const uint64_t down_expert_bytes = routed_out_dim * down_row_bytes;
     const bool layer_stage_profile = getenv("DS4_METAL_LAYER_STAGE_PROFILE") != NULL;
-    const bool spec_decode_ffn = g->mtp_enabled && n_tokens <= 5u;
+    const bool spec_decode_ffn = g->mtp_enabled && n_tokens <= 6u;
     const bool keep_ffn_out = metal_graph_needs_ffn_out(g, il, pos0);
     const bool spec_decode_shared_gate_up =
         spec_decode_ffn &&
@@ -18166,7 +18191,7 @@ static bool metal_graph_encode_layer_ffn_batch_ex(
     bool ok = hc_mix_view && hc_split_view && ffn_cur_view && next_hc_view;
     const bool spec_fuse_hc_norm =
         g->mtp_enabled &&
-        n_tokens <= 5u &&
+        n_tokens <= 6u &&
         !metal_graph_use_reference_hc_decode() &&
         !metal_graph_use_reference_hc_norm_decode();
     if (!skip_hc_pre_norm) {
@@ -18345,7 +18370,7 @@ static bool metal_graph_encode_layer_ffn_batch_ex(
         g->batch_routed_mid_is_f16 = false;
     } else if (ok && g->flash_moe &&
         g->mtp_enabled &&
-        n_tokens <= 5u &&
+        n_tokens <= 6u &&
         getenv("DS4_MTP_SIDECAR_BATCH_SLOTBANK_DISABLE") == NULL &&
         (metal_graph_flash_moe_run_tiny_batch_slotbank(g,
                                                        layer,
@@ -26047,6 +26072,7 @@ static void ds4_session_dspark_draft_prefetch_start(
         int          draft_cap,
         int          eos_token) {
     if (!s || !e || !ds4_session_dspark_draft_prefetch_enabled()) return;
+    const bool prefetch_rows6 = ds4_dspark_verify_rows6_enabled();
     if (e->draft_kind != DS4_DRAFT_DSPARK || !e->dspark.inference_ready) return;
     if (ds4_dspark_dynamic_verify_cfg_make(e).enabled) return;
     if (ds4_dspark_scheduler_is_confidence_hard(e) ||
@@ -26061,33 +26087,46 @@ static void ds4_session_dspark_draft_prefetch_start(
     const int room = s->ctx_size - s->checkpoint.len;
     if (draft_cap > room) draft_cap = room;
     if (draft_cap < 2) return;
-    const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
-    if (last_token == eos_token) return;
+    /* Rows-6 seeds the chain with the next block's first token, which at
+     * commit time is simply the argmax of the freshly committed logits (the
+     * caller derives first_token from the same buffer via the same helper,
+     * so the seed matches deterministically at finish time). */
+    int seed_token;
+    uint32_t seed_pos;
+    if (prefetch_rows6) {
+        seed_token = sample_argmax(s->logits, DS4_N_VOCAB);
+        seed_pos = (uint32_t)s->checkpoint.len;
+    } else {
+        seed_token = s->checkpoint.v[s->checkpoint.len - 1];
+        seed_pos = (uint32_t)(s->checkpoint.len - 1);
+    }
+    if (seed_token == eos_token) return;
     if (s->dspark_draft_prefetch_pending) {
         ds4_session_dspark_draft_prefetch_clear(s);
     }
     if (!metal_graph_ctx_grow_ensure(&s->graph,
-                                     (uint32_t)(s->checkpoint.len + draft_cap))) {
+                                     (uint32_t)(s->checkpoint.len + draft_cap + 1))) {
         return;
     }
     const bool ok =
         metal_graph_eval_dspark_draft_prefetch_start(&s->graph,
                                                      &e->model,
                                                      &e->weights,
-                                                     last_token,
-                                                     (uint32_t)(s->checkpoint.len - 1),
+                                                     seed_token,
+                                                     seed_pos,
                                                      draft_cap);
     if (!ok) return;
     s->dspark_draft_prefetch_pending = true;
     s->dspark_draft_prefetch_cap = draft_cap;
-    s->dspark_draft_prefetch_last_token = last_token;
+    s->dspark_draft_prefetch_last_token = seed_token;
     s->dspark_draft_prefetch_checkpoint_len = s->checkpoint.len;
     if (ds4_session_dspark_draft_prefetch_log_enabled()) {
         fprintf(stderr,
-                "ds4: dspark draft prefetch start cap=%d len=%d last=%d\n",
+                "ds4: dspark draft prefetch start cap=%d len=%d seed=%d rows6=%d\n",
                 draft_cap,
                 s->checkpoint.len,
-                last_token);
+                seed_token,
+                prefetch_rows6 ? 1 : 0);
     }
 }
 
@@ -30947,10 +30986,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		        if (draft_cap >= 2 &&
 		            metal_graph_ctx_grow_ensure(&s->graph,
 		                                         (uint32_t)(s->checkpoint.len + draft_cap))) {
-		            int drafts[5] = {0};
+		            int drafts[6] = {0};
 		            int draft_n = 0;
-		            float confidence_logits[5] = {0};
-		            float confidence_probs[5] = {0};
+		            float confidence_logits[6] = {0};
+		            float confidence_probs[6] = {0};
 		            const bool dspark_frontier_confidence_hard =
 		                ds4_dspark_scheduler_is_confidence_hard(e);
 		            const bool dspark_frontier_confidence_softmax =
@@ -30987,7 +31026,58 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	            const double dspark_t0 = dspark_perf ? now_sec() : 0.0;
 	            const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
 	            bool frontier_ok = false;
-	            if (!dspark_frontier_want_confidence) {
+	            bool frontier_rows6 = false;
+	            if (ds4_dspark_verify_rows6_enabled() &&
+	                !dspark_frontier_want_confidence &&
+	                !dspark_relaxed_accept &&
+	                !dspark_draft_only) {
+	                /* Rows-6: seed the Markov chain WITH the known-correct first
+	                 * token so its five outputs become drafts[1..5]; row 0 is the
+	                 * first token itself (argmax of the committed logits). */
+	                int chain_n = 0;
+	                /* A prefetched chain (seeded with argmax of the commit logits ==
+	                 * first_token) is validated against first_token and the unchanged
+	                 * checkpoint length; any mismatch falls through to the live eval. */
+	                frontier_ok = ds4_session_dspark_draft_prefetch_finish(s,
+	                                                                       draft_cap,
+	                                                                       first_token,
+	                                                                       drafts + 1,
+	                                                                       &chain_n);
+	                if (!frontier_ok) {
+	                    frontier_ok = metal_graph_eval_dspark_draft(&s->graph,
+	                                                            &e->model,
+	                                                            &e->weights,
+	                                                            first_token,
+	                                                            (uint32_t)s->checkpoint.len,
+	                                                            drafts + 1,
+	                                                            draft_cap,
+	                                                            NULL,
+	                                                            NULL,
+	                                                            &chain_n);
+	                }
+	                if (getenv("DS4_DSPARK_SPEC_LOG")) {
+	                    fprintf(stderr,
+	                            "ds4: rows6 eval ok=%d chain_n=%d first=%d len=%d\n",
+	                            frontier_ok ? 1 : 0, chain_n, first_token,
+	                            (int)s->checkpoint.len);
+	                }
+	                if (frontier_ok && chain_n > 0) {
+	                    drafts[0] = first_token;
+	                    draft_n = chain_n + 1;
+	                    frontier_rows6 = true;
+	                    static bool rows6_logged = false;
+	                    if (!rows6_logged && !backend_diagnostic_logs_suppressed()) {
+	                        rows6_logged = true;
+	                        fprintf(stderr,
+	                                "ds4: dspark frontier rows-6 verify enabled (first token + 5 drafts)\n");
+	                    }
+	                } else {
+	                    frontier_ok = false;
+	                }
+	            }
+	            (void)frontier_rows6;
+	            if (!frontier_ok && !dspark_frontier_want_confidence &&
+	                !ds4_dspark_verify_rows6_enabled()) {
 	                frontier_ok =
 	                    ds4_session_dspark_draft_prefetch_finish(s,
 	                                                             draft_cap,
@@ -31023,6 +31113,12 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                             drafts[0],
 	                                             dspark_relaxed_topk,
 	                                             dspark_relaxed_logit_delta));
+	            if (getenv("DS4_DSPARK_SPEC_LOG")) {
+	                fprintf(stderr,
+	                        "ds4: frontier gate ok=%d draft_n=%d first_ok=%d d0=%d ft=%d\n",
+	                        frontier_ok ? 1 : 0, draft_n,
+	                        frontier_first_ok ? 1 : 0, drafts[0], first_token);
+	            }
 	            if (frontier_ok &&
 	                draft_n >= 2 &&
 	                frontier_first_ok) {
@@ -31222,10 +31318,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                    ds4_spec_frontier frontier;
 	                    memset(&frontier, 0, sizeof(frontier));
 		                    const int start = s->checkpoint.len;
-		                    int row_tops_storage[4] = { -1, -1, -1, -1 };
+		                    int row_tops_storage[5] = { -1, -1, -1, -1, -1 };
 		                    int *row_tops = draft_n > 1 ? row_tops_storage : NULL;
-			                    int row_topk_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
-			                    float row_topk_logits_storage[4 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+			                    int row_topk_storage[5 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
+			                    float row_topk_logits_storage[5 * DS4_DSPARK_RELAXED_SUFFIX_TOPK_STORAGE];
 			                    const uint32_t row_topk_k =
 			                        (!dspark_policy.decodeN_reads_all_logits && dspark_relaxed_accept) ?
 			                        ds4_dspark_relaxed_suffix_topk_k(dspark_relaxed_topk,
@@ -31263,6 +31359,11 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                        s->dspark_perf_verify_gpu_seconds +=
 	                            ds4_gpu_busy_seconds() - verify_gpu_t0;
 	                    }
+	                    if (!frontier_ok && getenv("DS4_DSPARK_SPEC_LOG")) {
+	                        fprintf(stderr,
+	                                "ds4: rows6 frontier verify FAILED n=%d start=%d\n",
+	                                draft_n, start);
+	                    }
 	                    if (frontier_ok) {
 	                        int commit_drafts = 1;
 	                        if (dspark_relaxed_accept) {
@@ -31285,7 +31386,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                                    dspark_relaxed_logit_delta);
 		                        } else {
 		                            for (int i = 1; i < draft_n; i++) {
-		                                if (row_tops[i - 1] != drafts[i]) break;
+		                                if (row_tops[i - 1] != drafts[i]) {
+		                                    ds4_dspark_tree_opp_report(i, row_tops[i - 1], drafts[i]);
+		                                    break;
+		                                }
 		                                commit_drafts++;
 		                            }
 		                        }
@@ -31295,6 +31399,14 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                                drafts,
 		                                commit_drafts,
 		                                ds4_dspark_state_only_verified_suffix_rows(draft_n));
+		                        if (getenv("DS4_DSPARK_SPEC_LOG")) {
+		                            fprintf(stderr,
+		                                    "ds4: frontier block start=%d commit=%d/%d tok0=%d\n",
+		                                    start,
+		                                    commit_drafts,
+		                                    draft_n,
+		                                    drafts[0]);
+		                        }
 		                        int n_accept = 0;
 		                        if (draft_accepted) *draft_accepted = commit_drafts;
 		                        if (drafted) *drafted = draft_n;
@@ -31967,7 +32079,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                             dspark_relaxed_logit_delta);
 	                } else {
 	                    for (int i = 1; i < draft_n; i++) {
-	                        if (row_tops[i - 1] != drafts[i]) break;
+	                        if (row_tops[i - 1] != drafts[i]) {
+	                            ds4_dspark_tree_opp_report(i, row_tops[i - 1], drafts[i]);
+	                            break;
+	                        }
 	                        commit_drafts++;
 	                    }
 	                }

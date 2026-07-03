@@ -152,6 +152,77 @@ kernel void kernel_dsv4_mxfp4_copy_selected_planes(
 // n_expert == 6.
 // ---------------------------------------------------------------------------
 
+// Dense plane-split MXFP4 matvec for DSpark draft records converted from FP8
+// (scripts/dspark_convert_fp8_to_mxfp4.py). Same dispatch shape and reduction
+// order as kernel_mul_mv_fp8_e4m3_f32_rows5 (metal/dense.metal): one 32-thread
+// threadgroup per output row, up to 5 token columns.
+typedef struct {
+    uint in_dim;
+    uint out_dim;
+    uint scale_cols;   // in_dim / 32 (one E8M0 per 32-block per row)
+    uint n_tokens;     // 1..5
+} ds4mx_plane_matmul_args;
+
+kernel void kernel_dsv4_mxfp4_plane_matmul_rows5_f32(
+        constant ds4mx_plane_matmul_args & args [[buffer(0)]],
+        device const uchar *data    [[buffer(1)]],
+        device const uchar *scales  [[buffer(2)]],
+        device const float *x       [[buffer(3)]],
+        device       float *dst     [[buffer(4)]],
+        uint   row   [[threadgroup_position_in_grid]],
+        ushort tiisg [[thread_index_in_simdgroup]])
+{
+    if (row >= args.out_dim) {
+        return;
+    }
+    device const uchar *drow = data + (ulong)row * (ulong)(args.in_dim / 2u);
+    device const uchar *srow = scales + (ulong)row * (ulong)args.scale_cols;
+
+    float sum0 = 0.0f;
+    float sum1 = 0.0f;
+    float sum2 = 0.0f;
+    float sum3 = 0.0f;
+    float sum4 = 0.0f;
+    for (uint k = tiisg; k < args.in_dim; k += 32u) {
+        const float scale = ds4mx_e8m0_to_float(srow[k >> 5u]);
+        const float w = ds4mx_e2m1_lut_f32[ds4mx_nibble_seqpair(drow, k)] * scale;
+        sum0 += x[k] * w;
+        if (args.n_tokens > 1u) {
+            sum1 += x[(ulong)args.in_dim + k] * w;
+        }
+        if (args.n_tokens > 2u) {
+            sum2 += x[2ul * (ulong)args.in_dim + k] * w;
+        }
+        if (args.n_tokens > 3u) {
+            sum3 += x[3ul * (ulong)args.in_dim + k] * w;
+        }
+        if (args.n_tokens > 4u) {
+            sum4 += x[4ul * (ulong)args.in_dim + k] * w;
+        }
+    }
+
+    sum0 = simd_sum(sum0);
+    sum1 = simd_sum(sum1);
+    sum2 = simd_sum(sum2);
+    sum3 = simd_sum(sum3);
+    sum4 = simd_sum(sum4);
+    if (tiisg == 0) {
+        dst[row] = sum0;
+        if (args.n_tokens > 1u) {
+            dst[(ulong)args.out_dim + row] = sum1;
+        }
+        if (args.n_tokens > 2u) {
+            dst[2ul * (ulong)args.out_dim + row] = sum2;
+        }
+        if (args.n_tokens > 3u) {
+            dst[3ul * (ulong)args.out_dim + row] = sum3;
+        }
+        if (args.n_tokens > 4u) {
+            dst[4ul * (ulong)args.out_dim + row] = sum4;
+        }
+    }
+}
+
 inline void ds4mx_plane_dot2_accum(
         device const uchar *data,
         device const uchar *scales,

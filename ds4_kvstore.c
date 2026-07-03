@@ -26,7 +26,15 @@
 #define KV_CACHE_MAGIC0 'K'
 #define KV_CACHE_MAGIC1 'V'
 #define KV_CACHE_MAGIC2 'C'
-#define KV_CACHE_VERSION 1u
+/* Persisted KV-cache format/layout version. The stored payload is the raw
+ * attention KV state, so it is only valid for a build whose attention / RoPE /
+ * KV-compression / routed-MoE-quant layout matches the writer's. A stale cache
+ * from an incompatible build (same magic+quant+text) would otherwise load and
+ * be misinterpreted -> corrupted attention -> degenerate/looping generation.
+ * BUMP THIS whenever any KV-affecting layout changes (was left at 1 across the
+ * dspark attention/KV rework, which let old sysprompt.kv poison new builds until
+ * users manually delete the cached files under ~/.ds4/kvcache). */
+#define KV_CACHE_VERSION 2u
 #define KV_CACHE_DEFAULT_MIN_TOKENS 512
 #define KV_CACHE_DEFAULT_COLD_MAX_TOKENS 30000
 /* Tokenizers may merge text across the prompt boundary. Trimming a small tail

@@ -2370,13 +2370,13 @@ kernel void kernel_dsv4_attn_out_low_q8_0_rows5_f32(
         ushort tiisg[[thread_index_in_simdgroup]],
         ushort sgitg[[simdgroup_index_in_threadgroup]]) {
     const uint group = tgpig.z;
-    if (group >= (uint)args.nei0 || args.nei1 <= 0 || args.nei1 > 5) return;
+    if (group >= (uint)args.nei0 || args.nei1 <= 0 || args.nei1 > 6) return;
 
     const short NSG = FC_mul_mv_nsg;
 
     constexpr short NW = N_SIMDWIDTH;
     constexpr short NQ = 8;
-    constexpr short NT = 5;
+    constexpr short NT = 6;
     constexpr short NR0 = N_R0_Q8_0;
 
     const int nb = args.ne00/QK8_0;

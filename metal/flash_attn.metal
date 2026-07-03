@@ -2102,7 +2102,7 @@ kernel void kernel_flash_attn_varmap_rows5_f16_dk512_dv512(
         if (raw_union_stage_ok) {
             uint32_t union_begin = row_raw_base[0] + ic;
             uint32_t union_end = union_begin + C;
-            FOR_UNROLL (short rr = 0; rr < 5; ++rr) {
+            FOR_UNROLL (short rr = 0; rr < 6; ++rr) {
                 if ((uint32_t)rr < args.ne01) {
                     if (ic + (uint32_t)C > row_n_raw[rr]) {
                         raw_union_stage_ok = false;
@@ -2136,7 +2136,7 @@ kernel void kernel_flash_attn_varmap_rows5_f16_dk512_dv512(
         if (raw_tile_intersection_valid) {
             uint32_t intersection_begin = row_raw_base[0] + ic;
             uint32_t intersection_end = intersection_begin + C;
-            FOR_UNROLL (short rr = 0; rr < 5; ++rr) {
+            FOR_UNROLL (short rr = 0; rr < 6; ++rr) {
                 if ((uint32_t)rr < args.ne01) {
                     if (ic + (uint32_t)C > row_n_raw[rr]) {
                         raw_tile_intersection_valid = false;
@@ -2172,7 +2172,7 @@ kernel void kernel_flash_attn_varmap_rows5_f16_dk512_dv512(
         if (comp_union_kstage_cap != 0u || comp_union_vstage_cap != 0u) {
             uint32_t comp_union_end = 0;
             comp_union_begin = UINT_MAX;
-            FOR_UNROLL (short rr = 0; rr < 5; ++rr) {
+            FOR_UNROLL (short rr = 0; rr < 6; ++rr) {
                 if ((uint32_t)rr < args.ne01) {
                     const uint32_t rr_n_raw = row_n_raw[rr];
                     const uint32_t rr_n_keys = rr_n_raw + row_n_comp[rr];
@@ -2211,7 +2211,7 @@ kernel void kernel_flash_attn_varmap_rows5_f16_dk512_dv512(
         if (mixed_chunk_union_kstage_cap != 0u ||
             mixed_chunk_union_vstage_cap != 0u) {
             uint32_t mixed_chunk_union_end = 0;
-            FOR_UNROLL (short rr = 0; rr < 5; ++rr) {
+            FOR_UNROLL (short rr = 0; rr < 6; ++rr) {
                 if ((uint32_t)rr < args.ne01) {
                     const uint32_t rr_n_raw = row_n_raw[rr];
                     const uint32_t rr_n_keys = rr_n_raw + row_n_comp[rr];

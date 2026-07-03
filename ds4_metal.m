@@ -220,6 +220,7 @@ static id<MTLComputePipelineState> g_mxfp4_plane_id_batch_sum6_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_plane_id_batch_pair_swiglu_strided_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_plane_id_batch_sum6_strided_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_plane_slots6_sum6_pipeline;
+static id<MTLComputePipelineState> g_mxfp4_plane_matmul_rows5_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_plane_id_chunked_pair_swiglu_pipeline;
 static id<MTLComputePipelineState> g_mxfp4_plane_id_chunked_sum6_pipeline;
 static id<MTLComputePipelineState> g_mpp_iq2_fused_pipeline;
@@ -4547,9 +4548,9 @@ typedef struct {
     uint32_t pos0;
     uint32_t window;
     uint32_t ratio;
-    uint32_t n_raw_row[5];
-    uint32_t raw_start_row[5];
-    uint32_t n_comp_row[5];
+    uint32_t n_raw_row[6];
+    uint32_t raw_start_row[6];
+    uint32_t n_comp_row[6];
     uint64_t q_token_stride;
     uint64_t q_head_stride;
     uint64_t raw_row_stride;
@@ -7698,6 +7699,7 @@ void ds4_gpu_cleanup(void) {
         g_mxfp4_plane_id_batch_pair_swiglu_strided_pipeline = nil;
         g_mxfp4_plane_id_batch_sum6_strided_pipeline = nil;
         g_mxfp4_plane_slots6_sum6_pipeline = nil;
+        g_mxfp4_plane_matmul_rows5_pipeline = nil;
         g_mxfp4_plane_id_chunked_pair_swiglu_pipeline = nil;
         g_mxfp4_plane_id_chunked_sum6_pipeline = nil;
         g_mpp_iq2_fused_pipeline = nil;
@@ -9487,7 +9489,7 @@ int ds4_gpu_matmul_q8_0_rows_exact_tensor(
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 5u ||
+    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 6u ||
         (in_dim & 31u) != 0 ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX) {
         return 0;
@@ -9536,7 +9538,7 @@ int ds4_gpu_matmul_q8_0_rows_exact_tensor(
 	            ds4_gpu_env_flag_enabled("DS4_DSPARK_VERIFY_NO_Q8_ROWS5");
 	        const int q8_rows5_shared =
 	            !q8_rows5_seq && !q8_rows5_disable;
-	        if ((q8_rows5_seq || q8_rows5_shared) && n_tokens > 1u && n_tokens <= 5u) {
+	        if ((q8_rows5_seq || q8_rows5_shared) && n_tokens > 1u && n_tokens <= 6u) {
 	            const char *rows5_name = q8_rows5_seq
 	                ? "kernel_mul_mv_q8_0_f32_rows5_seq_exact"
 	                : "kernel_mul_mv_q8_0_f32_rows5_exact";
@@ -9615,7 +9617,7 @@ int ds4_gpu_matmul_q8_0_pair_rows_exact_tensor(
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!out_a || !out_b || !model_map || !x || n_tokens == 0 || n_tokens > 5u ||
+    if (!out_a || !out_b || !model_map || !x || n_tokens == 0 || n_tokens > 6u ||
         (in_dim & 31u) != 0 ||
         in_dim > UINT32_MAX || out_a_dim > UINT32_MAX || out_b_dim > UINT32_MAX) {
         return 0;
@@ -10310,7 +10312,7 @@ int ds4_gpu_shared_gate_up_swiglu_q8_0_rows_exact_tensor(
         uint32_t                n_tokens) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!gate || !up || !mid || !x || !model_map ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         (in_dim & 31u) != 0 ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX) {
         return 0;
@@ -12422,7 +12424,7 @@ int ds4_gpu_matmul_f16_rows_exact_tensor(
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 5u ||
+    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 6u ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX) {
         return 0;
     }
@@ -12469,7 +12471,7 @@ int ds4_gpu_matmul_f16_rows_exact_tensor(
         const int f16_rows5_seq = ds4_gpu_env_flag_enabled("DS4_DSPARK_VERIFY_F16_ROWS5_SEQ");
         const int f16_rows5_shared = ds4_gpu_env_flag_enabled("DS4_DSPARK_VERIFY_F16_ROWS5");
         if ((f16_rows5_seq || f16_rows5_shared) &&
-            n_tokens > 1u && n_tokens <= 5u &&
+            n_tokens > 1u && n_tokens <= 6u &&
             in_dim >= 32u && (in_dim % 4u) == 0) {
             const char *rows5_name = f16_rows5_seq
                 ? "kernel_mul_mv_f16_f32_4_rows5_seq_exact"
@@ -12550,7 +12552,7 @@ int ds4_gpu_matmul_f16_hc_scaled_rows_exact_tensor(
         uint32_t                n_tokens,
         float                   rms_eps) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 5u ||
+    if (!out || !model_map || !x || n_tokens == 0 || n_tokens > 6u ||
         in_dim > UINT32_MAX || out_dim > UINT32_MAX ||
         (in_dim & 3u) != 0 || in_dim < 32u) {
         return 0;
@@ -12990,6 +12992,105 @@ int ds4_gpu_matmul_fp8_e4m3_tensor(
         ds4_gpu_end_compute_encoder(cb, enc);
 
         if (!ds4_gpu_finish_command_buffer(cb, owned, "FP8 E4M3 tensor matmul")) return 0;
+    }
+
+    return 1;
+}
+
+int ds4_gpu_matmul_mxfp4_plane_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                scale_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        uint64_t                scale_rows,
+        uint64_t                scale_cols,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!model_map || !out || !x || n_tok == 0 || n_tok > 5u ||
+        in_dim == 0 || out_dim == 0 || (in_dim % 32u) != 0 ||
+        in_dim > UINT32_MAX || out_dim > UINT32_MAX ||
+        scale_cols > UINT32_MAX) {
+        return 0;
+    }
+    ds4_gpu_ensure_mxfp4_native_library();
+    if (!g_mxfp4_plane_matmul_rows5_pipeline) return 0;
+    if (scale_rows < out_dim || scale_cols < in_dim / 32u) {
+        fprintf(stderr, "ds4: Metal MXFP4 plane matmul received undersized scale plane\n");
+        return 0;
+    }
+
+    @autoreleasepool {
+        id<MTLBuffer> xbuf = ds4_gpu_tensor_buffer(x);
+        id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+        const uint64_t x_bytes = n_tok * in_dim * sizeof(float);
+        const uint64_t out_bytes = n_tok * out_dim * sizeof(float);
+        if (!xbuf || !outbuf ||
+            ds4_gpu_tensor_bytes(x) < x_bytes ||
+            ds4_gpu_tensor_bytes(out) < out_bytes) {
+            fprintf(stderr, "ds4: Metal MXFP4 plane matmul received undersized activation buffers\n");
+            return 0;
+        }
+
+        const uint64_t weight_bytes = out_dim * (in_dim / 2u);
+        const uint64_t scale_bytes = scale_rows * scale_cols;
+        if (weight_offset > model_size || weight_bytes > model_size - weight_offset ||
+            scale_offset > model_size || scale_bytes > model_size - scale_offset) {
+            fprintf(stderr, "ds4: Metal MXFP4 plane matmul range is outside the mapped model\n");
+            return 0;
+        }
+
+        uint64_t weight_inner = 0;
+        uint64_t scale_inner = 0;
+        id<MTLBuffer> wbuf = ds4_gpu_wrap_dense_weight_range(model_map,
+                                                             model_size,
+                                                             weight_offset,
+                                                             weight_bytes,
+                                                             &weight_inner);
+        id<MTLBuffer> sbuf = ds4_gpu_wrap_dense_weight_range(model_map,
+                                                             model_size,
+                                                             scale_offset,
+                                                             scale_bytes,
+                                                             &scale_inner);
+        if (!wbuf || !sbuf) return 0;
+
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        static bool logged = false;
+        if (!logged) {
+            fprintf(stderr, "ds4: dspark draft MXFP4 plane rows5 kernel enabled\n");
+            logged = true;
+        }
+
+        struct {
+            uint32_t in_dim;
+            uint32_t out_dim;
+            uint32_t scale_cols;
+            uint32_t n_tokens;
+        } args = {
+            (uint32_t)in_dim,
+            (uint32_t)out_dim,
+            (uint32_t)scale_cols,
+            (uint32_t)n_tok,
+        };
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:g_mxfp4_plane_matmul_rows5_pipeline];
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:wbuf offset:(NSUInteger)weight_inner atIndex:1];
+        [enc setBuffer:sbuf offset:(NSUInteger)scale_inner atIndex:2];
+        [enc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:3];
+        [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:4];
+        [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)out_dim, 1, 1)
+             threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        ds4_gpu_end_compute_encoder(cb, enc);
+
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "MXFP4 plane tensor matmul")) return 0;
     }
 
     return 1;
@@ -14825,7 +14926,7 @@ int ds4_gpu_kv_fp8_store_raw_rows_tensor(
         uint32_t          head_dim,
         uint32_t          n_rot) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
-    if (!kv || !raw_cache || raw_cap == 0 || n_tokens == 0 || n_tokens > 5u ||
+    if (!kv || !raw_cache || raw_cap == 0 || n_tokens == 0 || n_tokens > 6u ||
         head_dim == 0 || n_rot > head_dim || raw_cap > INT32_MAX) {
         return 0;
     }
@@ -17176,7 +17277,7 @@ int ds4_gpu_attention_output_low_q8_rows_tensor(
         uint32_t                n_tokens) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!low || !heads || !model_map || group_dim == 0 || rank == 0 ||
-        n_groups == 0 || n_tokens == 0 || n_tokens > 5u ||
+        n_groups == 0 || n_tokens == 0 || n_tokens > 6u ||
         group_dim > UINT32_MAX || rank > UINT32_MAX) {
         return 0;
     }
@@ -19957,7 +20058,7 @@ int ds4_gpu_attention_decode_raw_vec_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !q || !raw_kv || !model_map ||
         !n_raw_rows || !raw_start_rows ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         raw_cap == 0 || n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -20358,7 +20459,7 @@ int ds4_gpu_attention_decode_mixed_vec_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !q || !raw_kv || !comp_kv || !model_map ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         ratio == 0 || n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -20679,7 +20780,7 @@ int ds4_gpu_attention_decode_varstream_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -21076,7 +21177,7 @@ static void ds4_gpu_dspark_attn_mixed_phase_ranges_build(
     if (!stats) return;
     memset(stats, 0, sizeof(*stats));
     if (!row_raw_base || !row_n_raw || !row_n_comp ||
-        n_tokens == 0u || n_tokens > 5u) {
+        n_tokens == 0u || n_tokens > 6u) {
         return;
     }
     if (nwg == 0u) nwg = 1u;
@@ -21458,7 +21559,7 @@ static void ds4_gpu_dspark_attn_phase_ranges_build(
     if (!stats) return;
     memset(stats, 0, sizeof(*stats));
     if (!row_raw_base || !row_n_raw || !row_n_comp ||
-        n_tokens == 0u || n_tokens > 5u) {
+        n_tokens == 0u || n_tokens > 6u) {
         return;
     }
     if (nwg == 0u) nwg = 1u;
@@ -21860,7 +21961,7 @@ static void ds4_gpu_varmap_attention_profile_record_shape(
         int             direct) {
     if (!ds4_gpu_varmap_attention_profile_enabled() ||
         !raw_base_rows || !n_raw_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u) {
+        n_tokens == 0 || n_tokens > 6u) {
         return;
     }
 
@@ -22036,7 +22137,7 @@ int ds4_gpu_attention_decode_varmap_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -22853,6 +22954,15 @@ int ds4_gpu_attention_decode_varmap_rows_tensor(
                                  mixed_chunk_union_vstage_bytes,
                                  16u);
 
+        if (getenv("DS4_DSPARK_VARMAP_SHMEM_LOG")) {
+            static int logged_rows = -1;
+            if ((int)n_tokens != logged_rows) {
+                logged_rows = (int)n_tokens;
+                fprintf(stderr,
+                        "ds4: varmap shmem rows=%u shared_bytes=%lu (limit 32768)\n",
+                        n_tokens, (unsigned long)shared_bytes);
+            }
+        }
         id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
         if (mixed_prefix_commit_this_call) {
             id<MTLComputePipelineState> mixed_prefix_pipeline =
@@ -23433,7 +23543,7 @@ int ds4_gpu_attention_decode_varmap_direct_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -23742,7 +23852,7 @@ int ds4_gpu_attention_decode_mixed_rows_shared_exact_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv || !comp_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         ratio == 0 || n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -24011,7 +24121,7 @@ int ds4_gpu_attention_decode_mixed_batch_heads_varlen_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv || !comp_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0 ||
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0 ||
         ratio == 0 || n_head == 0 || head_dim != 512) {
         return 0;
     }
@@ -24839,7 +24949,7 @@ static void ds4_gpu_rows_exact_attention_profile_record(
         uint32_t        raw_cap) {
     if (!ds4_gpu_rows_exact_attention_profile_enabled() ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u || raw_cap == 0) {
+        n_tokens == 0 || n_tokens > 6u || raw_cap == 0) {
         return;
     }
 
@@ -24976,7 +25086,7 @@ int ds4_gpu_attention_decode_heads_rows_exact_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!heads || !model_map || !q || !raw_kv ||
         !n_raw_rows || !raw_start_rows || !n_comp_rows ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         raw_cap == 0 || n_head == 0 || head_dim == 0) {
         return 0;
     }
@@ -25326,6 +25436,53 @@ int ds4_gpu_add_tensor(
         ds4_gpu_end_compute_encoder(cb, enc);
 
         if (!ds4_gpu_finish_command_buffer(cb, owned, "tensor add")) return 0;
+    }
+
+    return 1;
+}
+
+static int ds4_gpu_encode_scale_f32_rows(
+        id<MTLCommandBuffer> cb,
+        id<MTLBuffer>        src,
+        NSUInteger           src_off,
+        id<MTLBuffer>        dst,
+        NSUInteger           dst_off,
+        uint32_t             width,
+        uint32_t             rows,
+        float                scale);
+
+int ds4_gpu_scale_f32_tensor(
+        ds4_gpu_tensor       *dst,
+        const ds4_gpu_tensor *src,
+        uint32_t                n,
+        float                   scale) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!dst || !src || n == 0 || (n & 3u) != 0) return 0;
+
+    @autoreleasepool {
+        id<MTLBuffer> srcbuf = ds4_gpu_tensor_buffer(src);
+        id<MTLBuffer> dstbuf = ds4_gpu_tensor_buffer(dst);
+        const uint64_t bytes = (uint64_t)n * sizeof(float);
+        if (!srcbuf || !dstbuf ||
+            ds4_gpu_tensor_bytes(src) < bytes ||
+            ds4_gpu_tensor_bytes(dst) < bytes) {
+            fprintf(stderr, "ds4: Metal tensor scale received undersized buffers\n");
+            return 0;
+        }
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+        if (!ds4_gpu_encode_scale_f32_rows(cb,
+                                           srcbuf,
+                                           (NSUInteger)ds4_gpu_tensor_offset(src),
+                                           dstbuf,
+                                           (NSUInteger)ds4_gpu_tensor_offset(dst),
+                                           n,
+                                           1,
+                                           scale)) {
+            return 0;
+        }
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "tensor scale")) return 0;
     }
 
     return 1;
@@ -30238,7 +30395,7 @@ static int ds4_gpu_encode_dspark_moe_group_routes_n5(
         n_total_expert == 0 ||
         n_expert == 0 ||
         n_tokens == 0 ||
-        n_tokens > 5u ||
+        n_tokens > 6u ||
         n_expert > 6u) {
         return 0;
     }
@@ -31623,7 +31780,7 @@ int ds4_gpu_routed_moe_banked_batch_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out || !gate || !up || !mid || !x || !gate_bank || !up_bank ||
         !down_bank || !selected || !weights || n_slots == 0 ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         n_expert == 0 || n_expert > 8) {
         return 0;
     }
@@ -31701,7 +31858,7 @@ int ds4_gpu_routed_moe_banked_batch_tensor(
                                                          x,
                                                          n_tokens);
         }
-        if (n_tokens > 5u ||
+        if (n_tokens > 6u ||
             !ds4_gpu_mxfp4_native_decode2_available(gate_type,
                                                     down_type,
                                                     gate_row_bytes,
@@ -31862,7 +32019,7 @@ int ds4_gpu_routed_moe_banked_rows_exact_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out || !gate || !up || !mid || !x || !gate_bank || !up_bank ||
         !down_bank || !selected || !weights || n_slots == 0 ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         n_expert == 0 || n_expert > DS4_METAL_N_EXPERT_USED) {
         return 0;
     }
@@ -32324,7 +32481,7 @@ int ds4_gpu_dspark_mxfp4_routed_batch_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out || !gate || !up || !mid || !x || !selected || !weights ||
         !gate_map || !up_map || !down_map ||
-        n_slots == 0 || n_expert != 6 || n_tokens == 0 || n_tokens > 5u ||
+        n_slots == 0 || n_expert != 6 || n_tokens == 0 || n_tokens > 6u ||
         expert_in_dim == 0 || expert_mid_dim == 0 || out_dim == 0 ||
         (expert_in_dim % 32u) != 0 || (expert_mid_dim % 32u) != 0 ||
         gate_data_stride == 0 || gate_scale_stride == 0 ||
@@ -40718,6 +40875,8 @@ static void ds4_gpu_ensure_mxfp4_native_library(void) {
         ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_plane_id_batch_sum6_strided_f32");
     g_mxfp4_plane_slots6_sum6_pipeline =
         ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_plane_slots6_sum6_f32");
+    g_mxfp4_plane_matmul_rows5_pipeline =
+        ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_plane_matmul_rows5_f32");
     g_mxfp4_plane_id_chunked_pair_swiglu_pipeline =
         ds4_gpu_make_mpp_pipeline(g_mxfp4_native_library, @"kernel_dsv4_mxfp4_plane_id_chunked_pair_swiglu_f32");
     g_mxfp4_plane_id_chunked_sum6_pipeline =
@@ -41070,7 +41229,7 @@ static int ds4_gpu_encode_mxfp4_plane_id_batch_decode2(
     if (!cb || !x || !gate || !up || !selected || !weights ||
         !gate_out || !up_out || !mid || !down || !out ||
         in_dim == 0 || mid_dim == 0 || out_dim == 0 ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         (in_dim % 32u) != 0 || (mid_dim % 32u) != 0 ||
         gate_slot_stride == 0 || down_slot_stride == 0) {
         return 0;
@@ -41162,7 +41321,7 @@ static int ds4_gpu_encode_mxfp4_plane_id_batch_decode2_row_exact(
         !gate_out || !up_out || !mid || !down || !out ||
         in_dim == 0 || mid_dim == 0 || out_dim == 0 ||
         n_expert == 0 || n_expert > 8 ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         (in_dim % 32u) != 0 || (mid_dim % 32u) != 0 ||
         gate_slot_stride == 0 || down_slot_stride == 0) {
         return 0;
@@ -41235,7 +41394,7 @@ static int ds4_gpu_encode_mxfp4_plane_id_batch_sum6(
         uint32_t             n_tokens) {
     if (!cb || !down || !selected || !mid || !out ||
         mid_dim == 0 || out_dim == 0 || (mid_dim % 32u) != 0 ||
-        slot_stride == 0 || n_tokens == 0 || n_tokens > 5u) {
+        slot_stride == 0 || n_tokens == 0 || n_tokens > 6u) {
         return 0;
     }
     ds4_gpu_ensure_mxfp4_native_library();
@@ -41299,7 +41458,7 @@ static int ds4_gpu_encode_mxfp4_plane_id_batch_decode2_strided(
     if (!cb || !x || !gate || !up || !selected || !weights ||
         !gate_out || !up_out || !mid || !down || !out ||
         in_dim == 0 || mid_dim == 0 || out_dim == 0 ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         (in_dim % 32u) != 0 || (mid_dim % 32u) != 0 ||
         gate_data_slot_stride == 0 || gate_scale_slot_stride == 0 ||
         down_data_slot_stride == 0 || down_scale_slot_stride == 0) {
@@ -44009,9 +44168,18 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
          * weight bank, half activations, matmul2d half x half. Tile (N) swept
          * 32/64/128/256 via DS4_RESIDENT_MOE_NAX_HALF_TILE (default 128). */
         const char *nax_half_env = getenv("DS4_RESIDENT_MOE_NAX_HALF");
+        /* CORRECTNESS FLOOR (defense-in-depth): the h_h_f matmul2d tiles M in
+         * fixed units of 64 and over-reads a partial M-tile, so NAX-half is only
+         * valid when n_tokens is a full multiple of 64. Callers route through the
+         * safe wrapper (which demotes non-64 chunks to int8 / splits partial
+         * expert groups; see the guard near the DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS
+         * branch and ssd_flash_moe_resident_prefill.c), but guard here too so a
+         * future direct caller can't silently run corrupt partial-tile NAX-half.
+         * ds4_gpu_resident_nax_half_safe() honors DS4_RESIDENT_MOE_NAX_HALF_ALLOW_PARTIAL. */
         const bool use_h_h =
-            (nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0) ||
-            no_int8_paths;
+            ((nax_half_env && nax_half_env[0] && atoi(nax_half_env) != 0) ||
+             no_int8_paths) &&
+            ds4_gpu_resident_nax_half_safe(n_tokens);
         uint32_t h_h_tile = ds4_gpu_env_u32_default("DS4_RESIDENT_MOE_NAX_HALF_TILE", 128u);
         h_h_tile = (h_h_tile >= 256u) ? 256u :
                    (h_h_tile >= 128u) ? 128u :
@@ -48216,7 +48384,7 @@ int ds4_gpu_shared_down_hc_expand_q8_0_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out_hc || !shared_out || !model_map || !shared_mid || !routed_out ||
         !residual_hc || !split || n_embd == 0 || n_hc == 0 ||
-        n_hc != 4 || out_dim != n_embd || n_tokens == 0 || n_tokens > 5u ||
+        n_hc != 4 || out_dim != n_embd || n_tokens == 0 || n_tokens > 6u ||
         (in_dim & 31u) != 0 || in_dim > UINT32_MAX || out_dim > UINT32_MAX) {
         return 0;
     }
@@ -48453,7 +48621,7 @@ int ds4_gpu_matmul_q8_0_hc_expand_rows_tensor(
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out_hc || !block_out || !model_map || !x || !residual_hc || !split ||
         n_embd == 0 || n_hc == 0 || n_hc != 4 || out_dim != n_embd ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         (in_dim & 31u) != 0 || in_dim > UINT32_MAX || out_dim > UINT32_MAX) {
         return 0;
     }

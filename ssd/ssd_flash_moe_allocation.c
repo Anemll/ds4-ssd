@@ -514,12 +514,14 @@ static bool metal_graph_alloc_raw_cap(
     g->logits = ds4_gpu_tensor_alloc(vocab_dim * sizeof(float));
     g->dspark_hc_mean_weights = ds4_gpu_tensor_alloc((uint64_t)DS4_N_HC * sizeof(float));
     g->dspark_target_hidden = ds4_gpu_tensor_alloc(128ull * 3ull * DS4_N_EMBD * sizeof(float));
-    g->dspark_main_proj = ds4_gpu_tensor_alloc(5ull * DS4_N_EMBD * sizeof(float));
-    g->dspark_main_x = ds4_gpu_tensor_alloc(5ull * DS4_N_EMBD * sizeof(float));
-    g->dspark_input_ids = ds4_gpu_tensor_alloc(6ull * sizeof(int32_t));
-    g->dspark_h = ds4_gpu_tensor_alloc(5ull * (uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
+    /* 6 rows: verify batch may carry first_token + 5 drafts (rows-6 frontier);
+     * the draft chain itself stays at 5. */
+    g->dspark_main_proj = ds4_gpu_tensor_alloc(6ull * DS4_N_EMBD * sizeof(float));
+    g->dspark_main_x = ds4_gpu_tensor_alloc(6ull * DS4_N_EMBD * sizeof(float));
+    g->dspark_input_ids = ds4_gpu_tensor_alloc(7ull * sizeof(int32_t));
+    g->dspark_h = ds4_gpu_tensor_alloc(6ull * (uint64_t)DS4_N_HC * DS4_N_EMBD * sizeof(float));
     for (uint32_t i = 0; i < 3u; i++) {
-        g->dspark_main_kv[i] = ds4_gpu_tensor_alloc(5ull * DS4_N_HEAD_DIM * sizeof(float));
+        g->dspark_main_kv[i] = ds4_gpu_tensor_alloc(6ull * DS4_N_HEAD_DIM * sizeof(float));
         g->dspark_kv_cache[i] = ds4_gpu_tensor_alloc(128ull * DS4_N_HEAD_DIM * sizeof(float));
         if (g->dspark_kv_cache[i]) {
             state_init_ok = state_init_ok &&

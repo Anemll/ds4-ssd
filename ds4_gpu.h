@@ -525,6 +525,21 @@ int ds4_gpu_matmul_fp8_e4m3_tensor(
         const ds4_gpu_tensor *x,
         uint64_t                n_tok);
 
+/* Dense plane-split MXFP4 matvec (FP4_E2M1_SEQPAIR data + per-row per-32
+ * E8M0 scales) for DSpark draft records converted from FP8. n_tok 1..5. */
+int ds4_gpu_matmul_mxfp4_plane_tensor(
+        ds4_gpu_tensor       *out,
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                weight_offset,
+        uint64_t                scale_offset,
+        uint64_t                in_dim,
+        uint64_t                out_dim,
+        uint64_t                scale_rows,
+        uint64_t                scale_cols,
+        const ds4_gpu_tensor *x,
+        uint64_t                n_tok);
+
 int ds4_gpu_matmul_fp8_e4m3_strided_rows5_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
@@ -1185,6 +1200,14 @@ int ds4_gpu_add_tensor(
         const ds4_gpu_tensor *a,
         const ds4_gpu_tensor *b,
         uint32_t                n);
+
+/* dst = src * scale, n floats (n % 4 == 0). Encodes into the current batch
+ * command buffer when one is open. */
+int ds4_gpu_scale_f32_tensor(
+        ds4_gpu_tensor       *dst,
+        const ds4_gpu_tensor *src,
+        uint32_t                n,
+        float                   scale);
 
 int ds4_gpu_directional_steering_project_tensor(
         ds4_gpu_tensor       *x,

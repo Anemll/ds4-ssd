@@ -410,7 +410,7 @@ void kernel_mul_mv_q8_0_f32_rows5_exact_impl(
 
     constexpr short NW = N_SIMDWIDTH;
     constexpr short NQ = 8;
-    constexpr short NT = 5;
+    constexpr short NT = 6;
 
     const int nb = args.ne00/QK8_0;
     const int r0 = tgpig.x*NR0;
@@ -433,7 +433,7 @@ void kernel_mul_mv_q8_0_f32_rows5_exact_impl(
     }
 
     float sumf[NT][NR0] = {
-        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
     };
 
     const short ix = tiisg/(NW/NQ);
@@ -508,7 +508,7 @@ void kernel_mul_mv_q8_0_f32_rows5_seq_exact_impl(
         uint3  tgpig,
         ushort tiisg,
         ushort sgitg) {
-    constexpr short NT = 5;
+    constexpr short NT = 6;
 
     FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
         if (tok < args.ne11) {
@@ -945,7 +945,7 @@ void kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_impl(
     constexpr short NB  = 32;
     constexpr short NF  = 16;
     constexpr short NF4 = NF/4;
-    constexpr short NT  = 5;
+    constexpr short NT  = 6;
 
     const int nb = args.ne00/NB;
     const int r0 = tgpig.x*NR0;
@@ -972,7 +972,7 @@ void kernel_mul_mv_f16_f32_4_hc_scaled_rows5_exact_impl(
     }
 
     float sumf[NT][NR0] = {
-        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
     };
 
     const short ix = tiisg/(NW/NF);
@@ -1085,7 +1085,7 @@ void kernel_mul_mv_f16_f32_4_rows5_exact_impl(
     constexpr short NB  = 32;
     constexpr short NF  = 16;
     constexpr short NF4 = NF/4;
-    constexpr short NT  = 5;
+    constexpr short NT  = 6;
 
     const int nb = args.ne00/NB;
     const int r0 = tgpig.x*NR0;
@@ -1112,7 +1112,7 @@ void kernel_mul_mv_f16_f32_4_rows5_exact_impl(
     }
 
     float sumf[NT][NR0] = {
-        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
+        { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }, { 0.f }
     };
 
     const short ix = tiisg/(NW/NF);
@@ -1213,7 +1213,7 @@ void kernel_mul_mv_f16_f32_4_rows5_seq_exact_impl(
         uint3  tgpig,
         ushort tiisg,
         ushort sgitg) {
-    constexpr short NT = 5;
+    constexpr short NT = 6;
 
     FOR_UNROLL (short tok = 0; tok < NT; ++tok) {
         if (tok < args.ne11) {

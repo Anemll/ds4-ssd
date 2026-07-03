@@ -66,11 +66,12 @@ resident_args=()
 [[ "$RESIDENT" != "0" ]] && resident_args+=(--resident)
 
 gate_check() {
-  # Refuse to run while another ds4 process is active (excludes this script's grep).
-  # Uses portable `grep -E` (not rg) so the harness runs on any system.
-  if ps -axo pid,command 2>/dev/null | grep -E -q '[./](ds4|ds4-agent|ds4-server)( |$)'; then
+  # Refuse to run while another ds4 process is active. Exact process-name
+  # match (pgrep -x): immune to unrelated command lines that merely contain
+  # './ds4' text (a ps|grep gate once deadlocked on an orphaned wrapper).
+  if pgrep -x ds4 >/dev/null || pgrep -x ds4-agent >/dev/null || pgrep -x ds4-server >/dev/null; then
     echo "GATE: another ds4 process is active — aborting to protect bench validity." >&2
-    ps -axo pid,command 2>/dev/null | grep -E '[./](ds4|ds4-agent|ds4-server)( |$)' >&2 || true
+    pgrep -lx ds4 >&2 || true; pgrep -lx ds4-agent >&2 || true; pgrep -lx ds4-server >&2 || true
     return 1
   fi
   return 0

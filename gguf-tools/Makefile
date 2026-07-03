@@ -25,7 +25,7 @@ endif
 CFLAGS ?= -O3 -Wall -Wextra -std=c11 $(NATIVE_CPU_FLAG)
 CPPFLAGS ?= -D_GNU_SOURCE
 
-.PHONY: all clean quality-score
+.PHONY: all clean quality-score quality-generate quality-compare-generated
 
 all: deepseek4-quantize
 
@@ -36,5 +36,17 @@ quality-score:
 	$(MAKE) -C .. $(QUALITY_TARGETS)
 	$(QUALITY_LINK) quality-testing/score_official quality-testing/score_official.c $(QUALITY_OBJS) $(QUALITY_LDLIBS)
 
+quality-generate:
+	$(MAKE) -C .. $(QUALITY_TARGETS)
+	$(QUALITY_LINK) quality-testing/generate_samples quality-testing/generate_samples.c $(QUALITY_OBJS) $(QUALITY_LDLIBS)
+
+quality-compare-generated:
+	$(MAKE) -C .. $(QUALITY_TARGETS)
+	$(QUALITY_LINK) quality-testing/compare_generated_official quality-testing/compare_generated_official.c $(QUALITY_OBJS) $(QUALITY_LDLIBS)
+
+quality-flip-gap:
+	$(MAKE) -C .. $(QUALITY_TARGETS)
+	$(QUALITY_LINK) quality-testing/flip_gap_audit quality-testing/flip_gap_audit.c $(QUALITY_OBJS) $(QUALITY_LDLIBS)
+
 clean:
-	rm -f deepseek4-quantize quality-testing/score_official
+	rm -f deepseek4-quantize quality-testing/score_official quality-testing/generate_samples quality-testing/compare_generated_official

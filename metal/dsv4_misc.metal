@@ -86,9 +86,9 @@ struct ds4_metal_args_dsv4_varlen_attention {
     uint32_t pos0;
     uint32_t window;
     uint32_t ratio;
-    uint32_t n_raw_row[5];
-    uint32_t raw_start_row[5];
-    uint32_t n_comp_row[5];
+    uint32_t n_raw_row[6];
+    uint32_t raw_start_row[6];
+    uint32_t n_comp_row[6];
     uint64_t q_token_stride;
     uint64_t q_head_stride;
     uint64_t raw_row_stride;
@@ -884,7 +884,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_varlen5(
         ushort sg    [[simdgroup_index_in_threadgroup]]) {
     const uint token = tgpig.x;
     const uint head = tgpig.y * 8u + (uint)sg;
-    if (token >= args.n_tokens || token >= 5u || head >= args.n_head) {
+    if (token >= args.n_tokens || token >= 6u || head >= args.n_head) {
         return;
     }
 
@@ -974,7 +974,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads2_rows5_exact(
     const uint token = (uint)sg / HEADS_PER_TG;
     const uint local_head = (uint)sg - token * HEADS_PER_TG;
     const uint head = tgpig * HEADS_PER_TG + local_head;
-    const bool active = token < args.n_tokens && token < 5u && head < args.n_head;
+    const bool active = token < args.n_tokens && token < 6u && head < args.n_head;
 
     half4 q0 = 0.0h;
     half4 q1 = 0.0h;
@@ -999,7 +999,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads2_rows5_exact(
 
     uint raw_first = UINT_MAX;
     uint raw_last = args.pos0 + args.n_tokens - 1u;
-    for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+    for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
         const uint qpos = args.pos0 + row;
         const uint n_raw = args.n_raw_row[row];
         if (n_raw != 0u) {
@@ -1013,7 +1013,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads2_rows5_exact(
         for (uint pos = raw_first; pos <= raw_last; pos++) {
             bool found = false;
             uint raw_row = 0u;
-            for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+            for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
                 const uint qpos = args.pos0 + row;
                 const uint n_raw = args.n_raw_row[row];
                 if (n_raw == 0u) continue;
@@ -1052,7 +1052,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads2_rows5_exact(
     }
 
     uint max_comp = 0u;
-    for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+    for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
         max_comp = max(max_comp, args.n_comp_row[row]);
     }
     for (uint idx = 0; idx < max_comp; idx++) {
@@ -1106,19 +1106,19 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
     const uint head = tgpig * HEADS_PER_TG + (uint)sg;
     const bool head_active = head < args.n_head;
 
-    half4 q0[5];
-    half4 q1[5];
-    half4 q2[5];
-    half4 q3[5];
-    float M[5];
-    float S[5];
-    float4 o0[5];
-    float4 o1[5];
-    float4 o2[5];
-    float4 o3[5];
-    bool active[5];
+    half4 q0[6];
+    half4 q1[6];
+    half4 q2[6];
+    half4 q3[6];
+    float M[6];
+    float S[6];
+    float4 o0[6];
+    float4 o1[6];
+    float4 o2[6];
+    float4 o3[6];
+    bool active[6];
 
-    for (uint token = 0; token < 5u; token++) {
+    for (uint token = 0; token < 6u; token++) {
         active[token] = token < args.n_tokens && head_active;
         q0[token] = 0.0h;
         q1[token] = 0.0h;
@@ -1143,7 +1143,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
 
     uint raw_first = UINT_MAX;
     uint raw_last = args.pos0 + args.n_tokens - 1u;
-    for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+    for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
         const uint qpos = args.pos0 + row;
         const uint n_raw = args.n_raw_row[row];
         if (n_raw != 0u) {
@@ -1157,7 +1157,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
         for (uint pos = raw_first; pos <= raw_last; pos++) {
             bool found = false;
             uint raw_row = 0u;
-            for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+            for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
                 const uint qpos = args.pos0 + row;
                 const uint n_raw = args.n_raw_row[row];
                 if (n_raw == 0u) continue;
@@ -1177,7 +1177,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
             }
             threadgroup_barrier(mem_flags::mem_threadgroup);
             if (head_active && found) {
-                for (uint token = 0; token < args.n_tokens && token < 5u; token++) {
+                for (uint token = 0; token < args.n_tokens && token < 6u; token++) {
                     const uint qpos = args.pos0 + token;
                     const uint n_raw = args.n_raw_row[token];
                     if (n_raw == 0u) continue;
@@ -1204,7 +1204,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
     }
 
     uint max_comp = 0u;
-    for (uint row = 0; row < args.n_tokens && row < 5u; row++) {
+    for (uint row = 0; row < args.n_tokens && row < 6u; row++) {
         max_comp = max(max_comp, args.n_comp_row[row]);
     }
     for (uint idx = 0; idx < max_comp; idx++) {
@@ -1213,7 +1213,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
         if (tid < 128) kv_shared[tid] = src[tid];
         threadgroup_barrier(mem_flags::mem_threadgroup);
         if (head_active) {
-            for (uint token = 0; token < args.n_tokens && token < 5u; token++) {
+            for (uint token = 0; token < args.n_tokens && token < 6u; token++) {
                 const uint qpos = args.pos0 + token;
                 uint visible = args.ratio == 0u ? 0u : (qpos + 1u) / args.ratio;
                 visible = min(visible, args.n_comp_row[token]);
@@ -1237,7 +1237,7 @@ kernel void kernel_dsv4_plain_mixed_attention_heads8_rows5_exact(
 
     if (head_active) {
         const float sink = ((device const float *)sinks)[head];
-        for (uint token = 0; token < args.n_tokens && token < 5u; token++) {
+        for (uint token = 0; token < args.n_tokens && token < 6u; token++) {
             if (!active[token]) continue;
             dsv4_attend_sink(sink,
                              M[token],

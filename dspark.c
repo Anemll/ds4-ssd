@@ -127,6 +127,17 @@ static void ds4_dspark_enable_default_fast_verifier(void) {
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTED_BATCH_ROW_EXACT", "1");
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTED_DECODE2_ROWS", "1");
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_SHARED", "1");
+    /* Async draft submit at commit; cmp=0 and >=control in a 3-pair interleaved
+     * repeat A/B (bench-results/loop55_prefetch_repeat_152217). Set
+     * DS4_DSPARK_DRAFT_PREFETCH=0 to disable. */
+    ds4_setenv_default("DS4_DSPARK_DRAFT_PREFETCH", "1");
+    /* Verify encode/execute pipelining: commit the verify command buffer every
+     * 4 layers so the GPU starts while the CPU keeps encoding. Reclaims the
+     * measured 8% verify encode-idle: 42.0 -> 44.2 t/s, idle 8.0 -> 1.5%,
+     * cmp=0 at n=1000 x2 interleaved pairs and n=2500
+     * (bench-results/loop55_split_sweep_161123, loop55_split_confirm_161903).
+     * Set DS4_DSPARK_VERIFY_SPLIT_LAYERS=0 to restore one command buffer. */
+    ds4_setenv_default("DS4_DSPARK_VERIFY_SPLIT_LAYERS", "4");
     if (!env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_ROWS_DISABLE")) {
         ds4_setenv_default("DS4_DSPARK_ATTN_VARMAP_ROWS", "1");
     }
@@ -540,7 +551,13 @@ static bool ds4_dspark_require_record(
         fprintf(stderr, "ds4: DSpark draft package is missing record %s\n", name);
         return false;
     }
-    if (r->kind != kind) {
+    if (r->kind != kind &&
+        !(kind == DS4_DSPARK_REC_FP8_E4M3 &&
+          r->kind == DS4_DSPARK_REC_MXFP4_NATIVE &&
+          r->scale_ndim == 2)) {
+        /* Converted packages (scripts/dspark_convert_fp8_to_mxfp4.py) carry
+         * dense MXFP4 plane records where FP8 is nominally expected; the
+         * matmul dispatch handles both. */
         fprintf(stderr,
                 "ds4: DSpark record %s has kind %s, expected %s\n",
                 name,
@@ -566,11 +583,17 @@ static bool ds4_dspark_require_record(
 }
 
 static bool ds4_dspark_validate_records(const ds4_dspark_draft *d) {
+    /* FP8 records may be converted to dense MXFP4 planes
+     * (scripts/dspark_convert_fp8_to_mxfp4.py), so only the combined
+     * FP8+MXFP4 count is fixed; per-record kind/shape checks below still
+     * validate each record individually. */
+    const int fp8_like =
+        d->record_kind_count[DS4_DSPARK_REC_FP8_E4M3] +
+        d->record_kind_count[DS4_DSPARK_REC_MXFP4_NATIVE];
     if (d->record_count != 81 ||
         d->record_kind_count[DS4_DSPARK_REC_F32] != 41 ||
         d->record_kind_count[DS4_DSPARK_REC_F16] != 6 ||
-        d->record_kind_count[DS4_DSPARK_REC_FP8_E4M3] != 25 ||
-        d->record_kind_count[DS4_DSPARK_REC_MXFP4_NATIVE] != 9) {
+        fp8_like != 34) {
         fprintf(stderr,
                 "ds4: DSpark draft package has unexpected record counts "
                 "(entries=%d F32=%d F16=%d FP8=%d MXFP4=%d; expected 81/41/6/25/9)\n",
@@ -841,6 +864,21 @@ static bool ds4_dspark_matmul_record(
                                               r->scale_shape[1],
                                               x,
                                               n_tok) != 0;
+    case DS4_DSPARK_REC_MXFP4_NATIVE:
+        /* Dense plane-split MXFP4 (converted FP8 records; per-row per-32
+         * scales). Routed-expert MXFP4 records never reach this dispatch. */
+        if (r->scale_ndim != 2) return false;
+        return ds4_gpu_matmul_mxfp4_plane_tensor(out,
+                                                 f->map,
+                                                 f->size,
+                                                 r->plane_data_offset,
+                                                 r->plane_scale_offset,
+                                                 in_dim,
+                                                 out_dim,
+                                                 r->scale_shape[0],
+                                                 r->scale_shape[1],
+                                                 x,
+                                                 n_tok) != 0;
     default:
         return false;
     }
@@ -1082,9 +1120,11 @@ static bool ds4_dspark_cache_resident_experts(const ds4_dspark_draft *d) {
 
     uint64_t total_bytes = 0;
     int cached = 0;
+    int cached_experts = 0;
     for (int i = 0; i < d->record_count; i++) {
         const ds4_dspark_record *r = &d->records[i];
         if (r->kind != DS4_DSPARK_REC_MXFP4_NATIVE) continue;
+        if (r->expert_major) cached_experts++;
         const ds4_dspark_file *f = ds4_dspark_record_file(d, r);
         if (!f) return false;
         if (r->plane_data_offset > UINT64_MAX - r->plane_data_bytes ||
@@ -1115,7 +1155,10 @@ static bool ds4_dspark_cache_resident_experts(const ds4_dspark_draft *d) {
             "(persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)\n",
             cached,
             (double)total_bytes / (1024.0 * 1024.0 * 1024.0));
-    if (cached != 9) return false;
+    /* Exactly 9 expert-major MXFP4 banks are required; converted packages
+     * additionally make their dense MXFP4 draft records resident (harmless
+     * and read every block). */
+    if (cached_experts != 9 || cached < 9) return false;
     return ds4_gpu_commit_sidecar_residency("DSpark") != 0;
 }
 #endif
@@ -1412,7 +1455,7 @@ static bool metal_graph_dspark_project_main_range(
         uint32_t       n_tokens) {
     if (!g || !g->dspark || !g->dspark->loaded) return true;
     if (n_tokens == 0) return true;
-    if (n_tokens > 5u) return false;
+    if (n_tokens > 6u) return false;
     if (!g->dspark_target_hidden || !g->dspark_main_proj || !g->dspark_main_x) {
         return false;
     }
@@ -1459,13 +1502,13 @@ static bool metal_graph_dspark_seed_block(
         !g->dspark_input_ids || !g->dspark_h) {
         return false;
     }
-    if (n_tokens == 0 || n_tokens > 5u) return false;
+    if (n_tokens == 0 || n_tokens > 6u) return false;
     if (g->dspark->block_size != 5 || token < 0 ||
         token >= (int)weights->token_embd->dim[1]) {
         return false;
     }
 
-    int32_t ids[5];
+    int32_t ids[6];
     ids[0] = (int32_t)token;
     for (uint32_t i = 1; i < 5u; i++) {
         ids[i] = (int32_t)g->dspark->noise_token_id;
@@ -1555,7 +1598,7 @@ static bool metal_graph_dspark_update_main_kv_batch(
         uint32_t       n_tokens) {
     if (!g || !g->dspark || !g->dspark->loaded) return true;
     if (n_tokens == 0) return true;
-    if (n_tokens > 5u) return false;
+    if (n_tokens > 6u) return false;
     if (!g->dspark_main_x) return false;
     const uint32_t ring = start % 128u;
     if (ring + n_tokens > 128u) return false;
@@ -1677,7 +1720,7 @@ static bool metal_graph_dspark_approx_update_main_kv_from_draft_range(
         uint32_t       n_tokens) {
     if (!g || !g->dspark || !g->dspark->loaded) return true;
     if (n_tokens == 0) return true;
-    if (n_tokens > 5u) return false;
+    if (n_tokens > 6u) return false;
     if (!g->batch_next_hc || !g->dspark_target_hidden ||
         !g->dspark_hc_mean_weights) {
         return false;
@@ -1756,7 +1799,7 @@ static bool metal_graph_dspark_block_forward(
                           env_flag_enabled("DS4_DSPARK_SPEC_LOG");
     if (!g || !g->dspark || !g->dspark->loaded || !input_hc || !output_hc) return false;
     if (il >= 3u) return false;
-    if (n_tokens == 0 || n_tokens > 5u) return false;
+    if (n_tokens == 0 || n_tokens > 6u) return false;
 
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
     const uint64_t mix_hc = 2ull * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
@@ -2272,7 +2315,7 @@ static bool metal_graph_dspark_output_head_probe(
         !final_hc || !g->spec_logits) {
         return false;
     }
-    if (n_tokens == 0 || n_tokens > 5u) return false;
+    if (n_tokens == 0 || n_tokens > 6u) return false;
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
 
     const ds4_dspark_record *hc_head_fn =
@@ -2360,7 +2403,7 @@ static bool metal_graph_dspark_output_head_probe(
 
     if (log_probe && ok && ds4_gpu_flush_commands_blocking() != 0) {
         float *row = xmalloc((size_t)DS4_N_VOCAB * sizeof(row[0]));
-        int top[5] = { -1, -1, -1, -1, -1 };
+        int top[6] = { -1, -1, -1, -1, -1, -1 };
         for (uint32_t i = 0; ok && i < n_tokens; i++) {
             ok = ds4_gpu_tensor_read(g->spec_logits,
                                      (uint64_t)i * DS4_N_VOCAB * sizeof(float),
@@ -2406,7 +2449,7 @@ static bool metal_graph_dspark_three_layer_forward(
         }
         return false;
     }
-    if (n_tokens == 0 || n_tokens > 5u) {
+    if (n_tokens == 0 || n_tokens > 6u) {
         if (fail_log) {
             fprintf(stderr,
                     "ds4: dspark three-layer fail bad_n n=%u pos=%u\n",
@@ -2417,6 +2460,12 @@ static bool metal_graph_dspark_three_layer_forward(
     }
 
     const bool profile = getenv("DS4_DSPARK_GRAPH_PROFILE") != NULL;
+    /* Same encode/execute pipelining as the verify split: commit the draft
+     * command buffer after each block so the GPU starts block 0 while the CPU
+     * encodes blocks 1-2. Disable with DS4_DSPARK_DRAFT_SPLIT_BLOCKS=0. */
+    const bool draft_split = !profile &&
+        !(getenv("DS4_DSPARK_DRAFT_SPLIT_BLOCKS") &&
+          atoi(getenv("DS4_DSPARK_DRAFT_SPLIT_BLOCKS")) == 0);
     double t_stage = profile ? now_sec() : 0.0;
     bool ok = metal_graph_dspark_block_forward(g, 0, pos, n_tokens,
                                                g->dspark_h,
@@ -2434,6 +2483,7 @@ static bool metal_graph_dspark_three_layer_forward(
         fprintf(stderr, "ds4: dspark graph profile block0=%.3f ms\n", (now - t_stage) * 1000.0);
         t_stage = now;
     }
+    if (draft_split && ok) ok = ds4_gpu_flush_commands() != 0;
     if (ok) {
         ok = metal_graph_dspark_block_forward(g, 1, pos, n_tokens,
                                               g->batch_next_hc,
@@ -2452,6 +2502,7 @@ static bool metal_graph_dspark_three_layer_forward(
         fprintf(stderr, "ds4: dspark graph profile block1=%.3f ms\n", (now - t_stage) * 1000.0);
         t_stage = now;
     }
+    if (draft_split && ok) ok = ds4_gpu_flush_commands() != 0;
     if (ok) {
         ok = metal_graph_dspark_block_forward(g, 2, pos, n_tokens,
                                               g->batch_cur_hc,
@@ -2588,6 +2639,61 @@ static bool metal_graph_dspark_markov_step(
     return ok;
 }
 
+/* Tree-drafting opportunity diagnostic (DS4_DSPARK_TREE_OPP_LOG=1): record the
+ * Markov chain's 2nd choice per step so the strict accept loop can report how
+ * often the target argmax at a miss equals the drafter's runner-up. Sizing
+ * data only; run with DS4_DSPARK_DRAFT_PREFETCH=0 (prefetch path not patched). */
+static int32_t g_dspark_tree_opp_second[5] = {-1, -1, -1, -1, -1};
+static bool g_dspark_tree_opp_valid = false;
+
+static bool ds4_dspark_tree_opp_log_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_TREE_OPP_LOG");
+}
+
+/* Rows-6 frontier verify (Mode-B milestone 1): the verify batch carries the
+ * known-correct first token as row 0 plus all five Markov drafts, replacing
+ * the per-cycle first-token decode with one marginal verify row. Byte-exact:
+ * row 0 is the committed-logits argmax by construction and every row is still
+ * verified. v1 is measure-first: incompatible with confidence schedulers,
+ * relaxed accept, and draft prefetch (those fall back to the 5-row path). */
+static bool ds4_dspark_verify_rows6_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_VERIFY_ROWS6");
+}
+
+/* DS4_DSPARK_MARKOV_SCALE=F rescales the Markov logit contribution relative to
+ * the base head (draft logits = base + F*markov; default 1.0). Draft-side
+ * only: affects acceptance, never committed output. Implemented by scaling the
+ * gathered rank-256 Markov embedding, which scales W*e linearly. */
+static float ds4_dspark_markov_scale(void) {
+    static float cached = -1.0f;
+    if (cached < 0.0f) {
+        const char *env = getenv("DS4_DSPARK_MARKOV_SCALE");
+        cached = 1.0f;
+        if (env && env[0]) {
+            const float v = (float)atof(env);
+            if (v > 0.0f && v < 16.0f) cached = v;
+        }
+    }
+    return cached;
+}
+
+static void ds4_dspark_tree_opp_report(int miss_i, int32_t target, int32_t draft_tok) {
+    if (!ds4_dspark_tree_opp_log_enabled() || !g_dspark_tree_opp_valid) return;
+    /* Both chain-row alignments logged; the correct one shows a plausible hit
+     * rate in postprocess, the wrong one ~0. */
+    const int32_t sec_i = (miss_i >= 0 && miss_i < 5) ? g_dspark_tree_opp_second[miss_i] : -1;
+    const int32_t sec_im1 = (miss_i >= 1 && miss_i <= 5) ? g_dspark_tree_opp_second[miss_i - 1] : -1;
+    fprintf(stderr,
+            "ds4: tree-opp miss_i=%d target=%d draft=%d sec_i=%d hit_i=%d sec_im1=%d hit_im1=%d\n",
+            miss_i,
+            target,
+            draft_tok,
+            sec_i,
+            target == sec_i,
+            sec_im1,
+            target == sec_im1);
+}
+
 static bool metal_graph_dspark_markov_chain_fast(
         ds4_gpu_graph *g,
         int            last_token,
@@ -2672,6 +2778,12 @@ static bool metal_graph_dspark_markov_chain_fast(
                                      0,
                                      rank_bytes) != 0;
         }
+        if (ok && ds4_dspark_markov_scale() != 1.0f) {
+            ok = ds4_gpu_scale_f32_tensor(markov_embed,
+                                          markov_embed,
+                                          rank,
+                                          ds4_dspark_markov_scale()) != 0;
+        }
         if (ok) {
             ok = ds4_dspark_matmul_record(g->dspark,
                                           markov_output,
@@ -2680,6 +2792,7 @@ static bool metal_graph_dspark_markov_chain_fast(
                                           1);
         }
         const bool fused_select =
+            !ds4_dspark_tree_opp_log_enabled() &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
         if (ok && fused_select) {
@@ -2741,6 +2854,36 @@ static bool metal_graph_dspark_markov_chain_fast(
                     i == 0 ? last_token : drafts[i - 1],
                     drafts[i],
                     " fast-markov");
+        }
+    }
+    if (ok && ds4_dspark_tree_opp_log_enabled()) {
+        /* Non-fused select left the summed draft logits in spec_logits rows;
+         * pull each row's top-2 and stash the runner-up for the accept-loop
+         * diagnostic. Best effort: failure only invalidates the sample. */
+        g_dspark_tree_opp_valid = false;
+        int32_t pairs[10] = {0};
+        bool opp_ok = ds4_gpu_begin_commands() != 0;
+        if (opp_ok) {
+            opp_ok = ds4_gpu_indexer_topk_tensor(g->comp_selected,
+                                                 g->spec_logits,
+                                                 DS4_N_VOCAB,
+                                                 (uint32_t)draft_cap,
+                                                 2) != 0;
+            opp_ok = (ds4_gpu_end_commands() != 0) && opp_ok;
+        }
+        if (opp_ok) {
+            opp_ok = ds4_gpu_tensor_read(g->comp_selected,
+                                         0,
+                                         pairs,
+                                         (uint64_t)draft_cap * 2u * sizeof(pairs[0])) != 0;
+        }
+        if (opp_ok) {
+            for (int i = 0; i < draft_cap && i < 5; i++) {
+                const int32_t a = pairs[i * 2];
+                const int32_t b = pairs[i * 2 + 1];
+                g_dspark_tree_opp_second[i] = (a == drafts[i]) ? b : a;
+            }
+            g_dspark_tree_opp_valid = true;
         }
     }
     return ok && draft_cap > 0;
@@ -2810,6 +2953,12 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
                     1,
                     rank) != 0;
         }
+        if (ok && ds4_dspark_markov_scale() != 1.0f) {
+            ok = ds4_gpu_scale_f32_tensor(markov_embed,
+                                          markov_embed,
+                                          rank,
+                                          ds4_dspark_markov_scale()) != 0;
+        }
         if (ok) {
             ok = ds4_dspark_matmul_record(g->dspark,
                                           markov_output,
@@ -2818,6 +2967,7 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
                                           1);
         }
         const bool fused_select =
+            !ds4_dspark_tree_opp_log_enabled() &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
         if (ok && fused_select) {
@@ -4649,9 +4799,9 @@ static ds4_dspark_decodeN_policy ds4_dspark_decodeN_policy_make(
         !env_flag_enabled("DS4_DSPARK_HYBRID_BATCH_ATTN_PREFIXN_DISABLE");
     const uint32_t hybrid_decode_order_max_clean =
         get_env_u32_clamped("DS4_DSPARK_HYBRID_BATCH_ATTN_MAX_CLEAN",
-                            5u,
+                            6u,
                             2u,
-                            5u);
+                            6u);
 
     p.hybrid_allowed =
         p.decodeN_attn_ffn_batch &&
@@ -4733,7 +4883,7 @@ static bool metal_graph_verify_decodeN_exact(
         float                 *row_logits,
         ds4_verify_layer_hc_audit *hc_audit) {
     if (!g || !model || !weights || !tokens ||
-        n_tokens == 0 || n_tokens > 5u ||
+        n_tokens == 0 || n_tokens > 6u ||
         n_tokens > g->prefill_cap || !g->spec_logits || g->raw_cap == 0) {
         return false;
     }
@@ -4755,8 +4905,8 @@ static bool metal_graph_verify_decodeN_exact(
 	    double exact_profile_head_s = 0.0;
 	    double exact_profile_read_s = 0.0;
 
-	    ds4_gpu_tensor *cur[5] = { NULL, NULL, NULL, NULL, NULL };
-	    ds4_gpu_tensor *next[5] = { NULL, NULL, NULL, NULL, NULL };
+	    ds4_gpu_tensor *cur[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+	    ds4_gpu_tensor *next[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     bool ok = true;
     for (uint32_t t = 0; ok && t < n_tokens; t++) {
         cur[t] = metal_graph_tensor_row_view(g->batch_cur_hc, t, hc_dim);
@@ -4949,6 +5099,11 @@ static bool metal_graph_verify_decodeN_exact(
 	                                     row_bytes) != 0;
 	        }
 	    }
+	    metal_graph_debug_dump_tensor("spec_verify_logits",
+	                                  g->spec_logits,
+	                                  (uint64_t)n_tokens * DS4_N_VOCAB,
+	                                  0u,
+	                                  start);
 	    if (exact_stage_profile) {
 	        exact_profile_read_s = now_sec() - exact_profile_read_t0;
 	        fprintf(stderr,
@@ -4991,7 +5146,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
         float                 *row_topk_logits,
         float                 *row_logits,
         ds4_verify_layer_hc_audit *hc_audit) {
-    if (!g || !model || !weights || !tokens || n_tokens == 0 || n_tokens > 5u ||
+    if (!g || !model || !weights || !tokens || n_tokens == 0 || n_tokens > 6u ||
         n_tokens > g->prefill_cap || !g->spec_logits || g->raw_cap == 0) {
         return false;
     }
@@ -5007,7 +5162,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
     }
     if (!metal_graph_ensure_prefill_scratch_rows(g, weights, &weights->layer[0], n_tokens)) return false;
 
-    int32_t token_ids[5] = {0, 0, 0, 0, 0};
+    int32_t token_ids[6] = {0, 0, 0, 0, 0, 0};
     for (uint32_t i = 0; i < n_tokens; i++) token_ids[i] = (int32_t)tokens[i];
     if (ds4_gpu_tensor_write(g->prefill_tokens,
                              0,
@@ -5169,6 +5324,20 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 		    bool commands_open = false;
 		    ok = ds4_gpu_begin_commands() != 0;
 	    commands_open = ok;
+	    /* DS4_DSPARK_VERIFY_SPLIT_LAYERS=N pipelines CPU encode with GPU
+	     * execution: commit the in-flight command buffer every N layers
+	     * (non-blocking flush; serial queue keeps execution order, so the
+	     * math and output are unchanged). Sized by the 8% verify GPU-idle
+	     * measurement — the GPU otherwise waits for the whole 43-layer
+	     * encode before starting. 0 (default) keeps one command buffer. */
+	    uint32_t verify_split_layers = 0;
+	    {
+	        const char *split_env = getenv("DS4_DSPARK_VERIFY_SPLIT_LAYERS");
+	        if (split_env && split_env[0]) {
+	            const int split_v = atoi(split_env);
+	            if (split_v > 0 && split_v < 64) verify_split_layers = (uint32_t)split_v;
+	        }
+	    }
 #define DS4_DSPARK_HYBRID_PROFILE_STAGE(accum_) do { \
         if (ok && hybrid_stage_profile) { \
             if (commands_open) { \
@@ -5181,6 +5350,13 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
         } \
     } while (0)
 	    for (uint32_t il = 0; ok && il < n_layers; il++) {
+	        if (verify_split_layers > 0 && il > 0 &&
+	            (il % verify_split_layers) == 0 && commands_open &&
+	            !hybrid_stage_profile) {
+	            ok = ds4_gpu_flush_commands() != 0;
+	            commands_open = ok;
+	            if (!ok) break;
+	        }
         if (il < exact_prefix_layers) {
             for (uint32_t t = 0; ok && t < n_tokens; t++) {
                 const uint32_t pos = start + t;
@@ -5329,7 +5505,8 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 	                                                           hybrid_batch_attn_decode_order,
 	                                                           hybrid_batch_attn_row_output);
 	            }
-	            DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_attention_s);
+	            metal_graph_debug_dump_tensor("v_attn", g->batch_after_attn_hc, (uint64_t)n_tokens * DS4_N_HC * DS4_N_EMBD, il, start);
+		            DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_attention_s);
 		            if (ok && row_exact_ffn_pre) {
 		                ok = metal_graph_encode_layer_ffn_pre_exact_rows(g,
 		                                                                 model,
@@ -5338,6 +5515,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 		                if (ok && hybrid_dispatch_profile) {
 		                    hybrid_dispatch_stats.ffn_pre_dispatches += 1u;
 		                }
+		                metal_graph_debug_dump_tensor("v_ffnpre", g->batch_ffn_norm, (uint64_t)n_tokens * DS4_N_EMBD, il, start);
 		                DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_row_ffn_pre_s);
 		            }
 			            if (ok && row_exact_router_effective) {
@@ -5349,6 +5527,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 			                if (ok && hybrid_dispatch_profile) {
 			                    hybrid_dispatch_stats.router_dispatches += 1u;
 			                }
+			                metal_graph_debug_dump_tensor("v_router", g->batch_router_weights, (uint64_t)n_tokens * 6u, il, start);
 			                DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_row_router_s);
 			            }
 			            if (ok && batch_router_row_routed) {
@@ -5409,6 +5588,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 		                if (ok && hybrid_dispatch_profile) {
 		                    hybrid_dispatch_stats.shared_dispatches += 1u;
 		                }
+		                metal_graph_debug_dump_tensor("v_shared", g->batch_shared_out, (uint64_t)n_tokens * DS4_N_EMBD, il, start);
 		                DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_row_shared_s);
 		            }
 		            if (ok) {
@@ -5427,6 +5607,7 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 		                if (ok && hybrid_dispatch_profile) {
 		                    hybrid_dispatch_stats.post_hc_dispatches += 1u;
 		                }
+		                metal_graph_debug_dump_tensor("v_routedout", g->batch_routed_out, (uint64_t)n_tokens * DS4_N_EMBD, il, start);
 		                DS4_DSPARK_HYBRID_PROFILE_STAGE(hybrid_profile_batch_tail_s);
 		            }
 		        }
@@ -5607,6 +5788,11 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 			            }
 			            ds4_gpu_tensor_free(last_hc);
 			        } else {
+			            metal_graph_debug_dump_tensor("v_headin",
+			                                          g->batch_cur_hc,
+			                                          (uint64_t)n_tokens * DS4_N_HC * DS4_N_EMBD,
+			                                          0u,
+			                                          start);
 			            ok = ds4_gpu_begin_commands() != 0;
 			            if (ok) ok = metal_graph_encode_output_head_batch(g,
 			                                                              model,
@@ -5702,6 +5888,11 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 	                                     row_logits,
 	                                     row_bytes) != 0;
 	        }
+	    metal_graph_debug_dump_tensor("spec_verify_logits",
+	                                  g->spec_logits,
+	                                  (uint64_t)n_tokens * DS4_N_VOCAB,
+	                                  0u,
+	                                  start);
         if (ok && hybrid_dispatch_profile) {
             hybrid_dispatch_stats.readbacks += 1u;
         }
