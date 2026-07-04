@@ -615,6 +615,9 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where available; implies --no-int8.\n"
         "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
+        "  --ane                  Enable ANE prefill profile defaults (off by default:\n"
+        "                         the async ANE i8 arm is lower precision and\n"
+        "                         non-reproducible run to run).\n"
         "  --warm-weights         Touch mapped tensor pages before generation.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -693,6 +696,7 @@ static void agent_enable_dspark_fast_relaxed(void) {
 
 static void agent_enable_resident_ane_prefill(agent_config *c) {
     c->resident_ane_prefill = true;
+    agent_setenv_or_die("DS4_ANE", "1"); /* explicit ANE opt-in */
 
     /* This is the resident/full-model path, not the Flash-MoE sidecar path.
      * Clear sidecar knobs so stale launcher env does not schedule nonexistent
@@ -943,6 +947,8 @@ static agent_config parse_options(int argc, char **argv) {
         } else if (!strcmp(arg, "--no-int8")) {
             c.engine.no_int8 = true;
             agent_setenv_or_die("DS4_NO_INT8", "1");
+        } else if (!strcmp(arg, "--ane")) {
+            agent_setenv_or_die("DS4_ANE", "1");
         } else if (!strcmp(arg, "--warm-weights")) {
             c.engine.warm_weights = true;
         } else if (!strcmp(arg, "--resident-ane-prefill") ||
@@ -6061,12 +6067,34 @@ static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t e
             agent_publish_system_status(w, "Updating system prompt cache...");
         ds4_tokens_free(&w->transcript);
         ds4_tokens_copy(&w->transcript, &sys);
+        /* This checkpoint is persisted to sysprompt.kv and reloaded by every
+         * future session, so its KV must be reproducible.  The async
+         * Flash-MoE ANE prefill arm is non-deterministic run to run (the
+         * ANE/GPU work split depends on queue timing, and the ANE i8 arm uses
+         * static activation scales), so it would freeze one random numeric
+         * draw into the shared bootstrap cache.  Prefill this one checkpoint
+         * on the deterministic GPU arm; ANE prefill is restored for normal
+         * turn prefills.  DS4_AGENT_SYSPROMPT_ANE_PREFILL=1 opts out. */
+        const char *ane_env = getenv("DS4_FLASH_MOE_ANE_PREFILL");
+        char ane_saved[32] = {0};
+        bool ane_forced_off = false;
+        if (w->sysprompt_path && ane_env && atoi(ane_env) != 0 &&
+            !agent_parse_bool_default(getenv("DS4_AGENT_SYSPROMPT_ANE_PREFILL"),
+                                      false)) {
+            snprintf(ane_saved, sizeof(ane_saved), "%s", ane_env);
+            agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", "0");
+            ane_forced_off = true;
+        }
         if (agent_worker_sync_tokens(w, &w->transcript, true,
                                      "sync system", err, err_len) != 0) {
+            if (ane_forced_off)
+                agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", ane_saved);
             free(text);
             ds4_tokens_free(&sys);
             return false;
         }
+        if (ane_forced_off)
+            agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", ane_saved);
         if (w->sysprompt_path) {
             char save_err[160] = {0};
             char ignored_sha[41];

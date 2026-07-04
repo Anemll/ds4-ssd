@@ -84,6 +84,7 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where applicable; implies --no-int8.\n"
         "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
+        "  --ane                  Enable ANE prefill profile defaults (off by default).\n"
         "  --warm-weights         Touch mapped tensor pages before benchmarking.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -165,6 +166,7 @@ static void bench_setenv_int_or_die(const char *name, int value) {
 
 static void bench_enable_resident_ane_prefill(bench_config *c) {
     c->resident_ane_prefill = true;
+    bench_setenv_or_die("DS4_ANE", "1"); /* explicit ANE opt-in */
 
     bench_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", "0");
     bench_setenv_or_die("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "0");
@@ -348,6 +350,8 @@ static bench_config parse_options(int argc, char **argv) {
         } else if (!strcmp(arg, "--no-int8")) {
             c.no_int8 = true;
             bench_setenv_or_die("DS4_NO_INT8", "1");
+        } else if (!strcmp(arg, "--ane")) {
+            bench_setenv_or_die("DS4_ANE", "1");
         } else if (!strcmp(arg, "--warm-weights")) {
             c.warm_weights = true;
         } else if (!strcmp(arg, "--resident-ane-prefill") ||

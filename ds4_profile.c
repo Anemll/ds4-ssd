@@ -24,6 +24,17 @@ static bool profile_env_flag_enabled(const char *name) {
     return env && env[0] && atoi(env) != 0;
 }
 
+/* ANE compute paths are off by default until the ANE i8 arms reach GPU
+ * precision: the async ANE prefill work split is queue-timing dependent and
+ * the i8 arm uses static activation scales, so ANE-computed prefills drift
+ * run to run (measured 2026-07-03: 35% deep-layer KV rms on the agent
+ * sysprompt vs bit-exact without ANE).  The frontends' --ane flag (or
+ * DS4_ANE=1) opts back in; explicitly exported per-path ANE env vars always
+ * win over profile defaults either way. */
+static bool profile_ane_allowed(void) {
+    return profile_env_flag_enabled("DS4_ANE");
+}
+
 /* ------------------------------------------------------------------ */
 /* Minimal JSON parser (objects, arrays, strings, numbers, bool, null) */
 /* ------------------------------------------------------------------ */
@@ -337,6 +348,7 @@ static bool profile_matches(const jval *match, const char *chip, uint64_t ram_by
 
 static void apply_resident_ane_prefill_defaults(void) {
     if (profile_env_flag_enabled("DS4_NO_INT8")) return;
+    if (!profile_ane_allowed()) return;
 
     /* Profile-level equivalent of the safe parts of --resident-ane-prefill.
      * Do not set DS4_RESIDENT_MOE_BACKEND here: the prefill_by_tokens table must
@@ -420,7 +432,7 @@ void ds4_profile_load_and_apply(void) {
         if (!profile_matches(jobj_get(prof, "match"), chip, ram)) continue;
 
         const jval *env = jobj_get(prof, g_profile_sidecar_mode ? "sidecar_env" : "env");
-        int applied = 0, skipped = 0;
+        int applied = 0, skipped = 0, ane_skipped = 0;
         if (env && env->t == JOBJ) {
             for (int k = 0; k < env->nkeys; k++) {
                 const jval *val = env->vals[k];
@@ -437,9 +449,21 @@ void ds4_profile_load_and_apply(void) {
                         snprintf(numbuf, sizeof(numbuf), "%g", val->num);
                     sval = numbuf;
                 } else continue;
+                /* ANE knobs are only profile DEFAULTS; without the --ane
+                 * opt-in leave them unset so every ANE path stays off. */
+                if (!profile_ane_allowed() && strstr(env->keys[k], "ANE") != NULL) {
+                    ane_skipped++;
+                    continue;
+                }
                 if (getenv(env->keys[k]) != NULL) { skipped++; continue; } /* user env wins */
                 if (setenv(env->keys[k], sval, 0) == 0) applied++;
             }
+        }
+        if (ane_skipped > 0) {
+            fprintf(stderr,
+                    "ds4: profile: %d ANE env defaults skipped (ANE off by default "
+                    "until precision work lands; enable with --ane or DS4_ANE=1)\n",
+                    ane_skipped);
         }
 
         /* Per-token backend ranges. "prefill_by_tokens" is a list of
@@ -456,22 +480,36 @@ void ds4_profile_load_and_apply(void) {
             char tbl[512];
             size_t tl = 0;
             tbl[0] = '\0';
+            bool ane_remapped = false;
             for (int r = 0; r < pbt->nitems; r++) {
                 const jval *rng = pbt->items[r];
                 if (!rng || rng->t != JOBJ) continue;
                 const jval *bk = jobj_get(rng, "backend");
                 const jval *mx = jobj_get(rng, "max_tokens");
                 if (!(bk && bk->t == JSTR && mx && mx->t == JNUM && mx->num >= 0)) continue;
+                const char *backend = bk->str;
+                /* Without the --ane opt-in, route ane* ranges to the grouped
+                 * ALU baseline instead (correct on all chips). */
+                if (!profile_ane_allowed() && strncmp(backend, "ane", 3) == 0) {
+                    backend = "mulmm";
+                    ane_remapped = true;
+                }
                 /* (1) general selector table: "max:backend,..." in file order. */
                 int w = snprintf(tbl + tl, sizeof(tbl) - tl, "%s%lld:%s",
-                                 tl ? "," : "", (long long)mx->num, bk->str);
+                                 tl ? "," : "", (long long)mx->num, backend);
                 if (w > 0 && (size_t)w < sizeof(tbl) - tl) tl += (size_t)w;
                 /* (2) legacy fallback: highest NAX-half range -> NAX_HALF_MAX_TOKENS. */
-                if (strstr(bk->str, "half")) {
+                if (strstr(backend, "half")) {
                     long b = (long)mx->num + 1;
                     if (b > half_boundary) half_boundary = b;
                 }
-                if (strncmp(bk->str, "ane", 3) == 0) has_ane = true;
+                if (strncmp(backend, "ane", 3) == 0) has_ane = true;
+            }
+            if (ane_remapped) {
+                fprintf(stderr,
+                        "ds4: profile prefill_by_tokens: ane* ranges remapped to mulmm "
+                        "(ANE off by default until precision work lands; enable with "
+                        "--ane or DS4_ANE=1)\n");
             }
             /* The engine's per-chunk resolver (precedence: param > this table > gates). */
             if (tl > 0 && getenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS") == NULL) {

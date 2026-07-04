@@ -1491,6 +1491,7 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where applicable; implies --no-int8.\n"
         "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
+        "  --ane                  Enable ANE prefill profile defaults (off by default).\n"
         "  --warm-weights         Touch mapped tensor pages before evaluation.\n"
         "\n"
         "Evaluation:\n"
@@ -1584,6 +1585,11 @@ static eval_config parse_options(int argc, char **argv) {
             c.no_int8 = true;
             if (setenv("DS4_NO_INT8", "1", 1) != 0) {
                 fprintf(stderr, "ds4-eval: setenv DS4_NO_INT8: %s\n", strerror(errno));
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--ane")) {
+            if (setenv("DS4_ANE", "1", 1) != 0) {
+                fprintf(stderr, "ds4-eval: setenv DS4_ANE: %s\n", strerror(errno));
                 exit(2);
             }
         } else if (!strcmp(arg, "--warm-weights")) {

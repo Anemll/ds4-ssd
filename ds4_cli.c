@@ -149,6 +149,9 @@ static void usage(FILE *fp) {
         "      Prefer exact kernels where faster approximate paths exist; implies --no-int8.\n"
         "  --no-int8\n"
         "      Disable int8 accelerator paths; use NAX-half/GPU fallbacks for quality-preserving runs.\n"
+        "  --ane\n"
+        "      Enable ANE prefill profile defaults (off by default: the async ANE i8 arm\n"
+        "      is lower precision and non-reproducible run to run).\n"
         "  --dir-steering-file FILE\n"
         "      Load one f32 direction vector per layer for directional steering.\n"
         "  --dir-steering-ffn F\n"
@@ -2007,6 +2010,11 @@ static cli_config parse_options(int argc, char **argv) {
             c.engine.no_int8 = true;
             if (setenv("DS4_NO_INT8", "1", 1) != 0) {
                 fprintf(stderr, "ds4: setenv DS4_NO_INT8: %s\n", strerror(errno));
+                exit(2);
+            }
+        } else if (!strcmp(arg, "--ane")) {
+            if (setenv("DS4_ANE", "1", 1) != 0) {
+                fprintf(stderr, "ds4: setenv DS4_ANE: %s\n", strerror(errno));
                 exit(2);
             }
         } else if (!strcmp(arg, "--dir-steering-file")) {

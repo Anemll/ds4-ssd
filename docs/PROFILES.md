@@ -54,6 +54,14 @@ hybrid prefill paths. Sidecar profiles tune the Flash-MoE SSD slot-bank path,
 including routed expert execution on GPU or ANE where the measured profile says
 it wins.
 
+ANE defaults are opt-in: the profile loader skips all ANE-enabling defaults
+(and remaps `ane*` `prefill_by_tokens` ranges to `mulmm`) unless the frontend
+was launched with `--ane` or `DS4_ANE=1`. The async ANE i8 prefill arm is
+lower precision than the GPU arms and its ANE/GPU work split is queue-timing
+dependent, so ANE prefills are not reproducible run to run; the default stays
+off until that precision work lands. Explicitly exported per-path ANE
+environment variables still win either way.
+
 ## Current Apple Silicon Coverage
 
 - M5 and M5 Max profiles cover NAX-backed resident routes on resident-capable

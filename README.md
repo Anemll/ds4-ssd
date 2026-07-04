@@ -144,8 +144,14 @@ prebuilt Hugging Face sidecar remains the turnkey low-RAM package.
 
 Machine-specific defaults for M5, M5 Max, M3 Ultra, and M1 Max are selected
 from `ds4_profile.json`. Profiles set defaults only; exported environment
-variables still win. Profiles choose ANE only for chunk shapes where it has
-measured faster than GPU or NAX on that machine. See
+variables still win. ANE compute paths are disabled by default: the async
+ANE i8 prefill arm is lower precision than the GPU arms and its ANE/GPU work
+split is queue-timing dependent, so ANE-computed prefills are not reproducible
+run to run (this also poisoned persisted KV caches such as the agent's
+`sysprompt.kv`). Pass `--ane` (or export `DS4_ANE=1`) to re-enable the
+profile's ANE defaults until the ANE precision work lands; profiles choose ANE
+only for chunk shapes where it has measured faster than GPU or NAX on that
+machine. See
 [docs/PROFILES.md](docs/PROFILES.md) and
 [docs/STREAMING_KNOBS.md](docs/STREAMING_KNOBS.md).
 
