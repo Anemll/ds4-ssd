@@ -56,6 +56,14 @@ typedef struct {
 } cli_config;
 
 static volatile sig_atomic_t cli_interrupted;
+static double cli_process_start_t;
+static double cli_engine_open_start_t;
+static double cli_engine_open_end_t;
+static double cli_prompt_build_seconds;
+static double cli_first_emit_t;
+static bool cli_first_emit_recorded;
+
+static double cli_now_sec(void);
 
 static void cli_sigint_handler(int sig) {
     (void)sig;
@@ -68,6 +76,13 @@ static bool cli_interrupt_requested(void) {
 
 static void cli_interrupt_clear(void) {
     cli_interrupted = 0;
+}
+
+static void cli_note_first_emit(void) {
+    if (!cli_first_emit_recorded) {
+        cli_first_emit_t = cli_now_sec();
+        cli_first_emit_recorded = true;
+    }
 }
 
 static void usage(FILE *fp) {
@@ -103,10 +118,12 @@ static void usage(FILE *fp) {
         "      Adapt active DSpark verify budget from 2 up to --draft-verify based on recent accepted tokens.\n"
         "  --draft-mode strict|batch|unified\n"
         "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch/unified are experimental.\n"
-        "  --draft-scheduler static|confidence|confidence-softmax|confidence-softmax-long\n"
-        "      DSpark verification scheduler. Default: static\n"
+        "  --draft-scheduler static|confidence|confidence-cost|confidence-softmax|confidence-softmax-long\n"
+        "      DSpark verification scheduler. confidence truncates the draft prefix at the\n"
+        "      learned confidence-head threshold; confidence-cost scores the confidence\n"
+        "      head against measured per-budget verify-cost EMAs. Default: confidence\n"
         "  --draft-conf-threshold F\n"
-        "      DSpark confidence threshold for the confidence scheduler. Default: 0\n"
+        "      DSpark confidence threshold for the confidence scheduler. Default: 0.4\n"
         "  --dspark-attn-force-mma\n"
         "      Diagnostic: force DSpark verifier MMA attention path.\n"
         "  --draft-fast-relaxed\n"
@@ -769,6 +786,7 @@ static void print_generated_token(void *ud, int token) {
     token_printer *p = ud;
     size_t len = 0;
     char *text = ds4_token_text(p->engine, token, &len);
+    cli_note_first_emit();
     token_printer_write_text(p, text, len);
     fflush(p->fp);
     free(text);
@@ -785,10 +803,12 @@ static void build_prompt(ds4_engine *engine, const cli_generation_options *gen, 
 
 static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, const ds4_tokens *prompt) {
     ds4_session *session = NULL;
+    const double t_session0 = cli_now_sec();
     if (ds4_session_create(&session, engine, cfg->gen.ctx_size) != 0) {
         fprintf(stderr, "ds4: sampled CLI generation requires a session backend\n");
         return 1;
     }
+    const double t_session1 = cli_now_sec();
 
     char err[160];
     ds4_think_mode think_mode = cli_effective_think_mode(&cfg->gen);
@@ -856,6 +876,10 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
     }
     bool stopped = false;
     const double t_decode0 = cli_now_sec();
+    const bool progress_1k = getenv("DS4_PROGRESS_1K") != NULL;
+    int progress_next = 1000;
+    int progress_last_tokens = 0;
+    double progress_last_t = t_decode0;
     while (generated < max_tokens && !cli_interrupt_requested()) {
         int token = ds4_session_sample(session, cfg->gen.temperature, 0,
                                        cfg->gen.top_p, cfg->gen.min_p, &rng);
@@ -930,11 +954,32 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
             }
             size_t piece_len = 0;
             char *piece = ds4_token_text(engine, toks[j], &piece_len);
+            cli_note_first_emit();
             stop = cli_glm_stop_filter_write(&stop_filter, piece, piece_len);
             free(piece);
             if (stop) break;
             fflush(stdout);
             generated++;
+            if (progress_1k) {
+                while (generated >= progress_next) {
+                    const double now = cli_now_sec();
+                    const int window_tokens = progress_next - progress_last_tokens;
+                    const double window_s = now - progress_last_t;
+                    const double total_s = now - t_decode0;
+                    fprintf(stderr,
+                            "ds4: decode-progress: tokens=%d window=%.2f t/s "
+                            "(%d tokens in %.3fs) cumulative=%.2f t/s elapsed=%.3fs\n",
+                            progress_next,
+                            window_s > 0.0 ? (double)window_tokens / window_s : 0.0,
+                            window_tokens,
+                            window_s,
+                            total_s > 0.0 ? (double)progress_next / total_s : 0.0,
+                            total_s);
+                    progress_last_tokens = progress_next;
+                    progress_last_t = now;
+                    progress_next += 1000;
+                }
+            }
             if (generated >= max_tokens) break;
         }
         if (stop) {
@@ -956,6 +1001,23 @@ static int run_sampled_generation(ds4_engine *engine, const cli_config *cfg, con
             decode_s > 0.0 ? (double)generated / decode_s : 0.0,
             generated,
             decode_s);
+    if (cli_process_start_t > 0.0 && cli_engine_open_end_t >= cli_engine_open_start_t) {
+        const double total_s = t_decode1 - cli_process_start_t;
+        const double engine_s = cli_engine_open_end_t - cli_engine_open_start_t;
+        const double session_s = t_session1 - t_session0;
+        const double first_s =
+            cli_first_emit_recorded ? (cli_first_emit_t - cli_process_start_t) : 0.0;
+        fprintf(stderr,
+                "ds4: ttf: first-output=%.3fs total=%.3fs "
+                "(engine=%.3fs session=%.3fs prompt=%.3fs prefill=%.3fs decode=%.3fs)\n",
+                first_s,
+                total_s,
+                engine_s,
+                session_s,
+                cli_prompt_build_seconds,
+                prefill_s,
+                decode_s);
+    }
     if (getenv("DS4_AGENT_ALLOW_BACKEND_STATS") ||
         getenv("DS4_DSPARK_PERF") ||
         getenv("DS4_DSPARK_BLOCK_TIMING") ||
@@ -1194,7 +1256,9 @@ static int run_logprob_dump(ds4_engine *engine, const cli_config *cfg, const ds4
 
 static int run_generation(ds4_engine *engine, const cli_config *cfg) {
     ds4_tokens prompt = {0};
+    const double t_prompt0 = cli_now_sec();
     build_prompt(engine, &cfg->gen, &prompt);
+    cli_prompt_build_seconds = cli_now_sec() - t_prompt0;
 
     int rc = 0;
     if (cfg->gen.metal_graph_test) {
@@ -1804,13 +1868,15 @@ static ds4_draft_kind parse_draft_kind(const char *s) {
 static const char *parse_draft_scheduler(const char *s) {
     if (!strcmp(s, "static") ||
         !strcmp(s, "confidence") ||
+        !strcmp(s, "confidence-cost") ||
+        !strcmp(s, "cost") ||
         !strcmp(s, "confidence-softmax") ||
         !strcmp(s, "softmax") ||
         !strcmp(s, "confidence-softmax-long") ||
         !strcmp(s, "softmax-long")) return s;
     fprintf(stderr,
             "ds4: invalid --draft-scheduler value: %s "
-            "(expected static, confidence, confidence-softmax, or confidence-softmax-long)\n",
+            "(expected static, confidence, confidence-cost, confidence-softmax, or confidence-softmax-long)\n",
             s);
     exit(2);
 }
@@ -1878,7 +1944,7 @@ static cli_config parse_options(int argc, char **argv) {
             .mtp_margin = 3.0f,
             .draft_kind = DS4_DRAFT_NONE,
             .draft_verify = 5,
-            .draft_scheduler = "static",
+            .draft_scheduler = "confidence",
             .draft_conf_threshold = 0.0f,
             .moe_mode = DS4_MOE_MODE_OFF,
             .moe_slot_bank = 32,
@@ -2124,6 +2190,7 @@ static cli_config parse_options(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+    cli_process_start_t = cli_now_sec();
     cli_config cfg = parse_options(argc, argv);
     ds4_engine_options_autodetect_sidecar_package(&cfg.engine, "ds4");
     ds4_engine_options_apply_resident_preset(&cfg.engine, "ds4");
@@ -2140,10 +2207,12 @@ int main(int argc, char **argv) {
         cli_warn_think_max_downgraded(&cfg.gen, "--think-max");
     }
     ds4_engine *engine = NULL;
+    cli_engine_open_start_t = cli_now_sec();
     if (ds4_engine_open(&engine, &cfg.engine) != 0) {
         free(cfg.prompt_owned);
         return 1;
     }
+    cli_engine_open_end_t = cli_now_sec();
     const char *dspark_partial = getenv("DS4_DSPARK_ALLOW_PARTIAL");
     const bool dspark_partial_allowed =
         dspark_partial && dspark_partial[0] && atoi(dspark_partial) != 0;
