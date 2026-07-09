@@ -12098,10 +12098,12 @@ static void usage(FILE *fp) {
         "      Adapt active DSpark verify budget from 2 up to --draft-verify based on recent accepted tokens.\n"
         "  --draft-mode strict|batch|unified\n"
         "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch/unified are experimental fast modes.\n"
-        "  --draft-scheduler static|confidence|confidence-softmax|confidence-softmax-long\n"
-        "      DSpark verification scheduler. Default: static\n"
+        "  --draft-scheduler static|confidence|confidence-cost|confidence-softmax|confidence-softmax-long\n"
+        "      DSpark verification scheduler. confidence truncates the draft prefix at the\n"
+        "      learned confidence-head threshold; confidence-cost scores the confidence\n"
+        "      head against measured per-budget verify-cost EMAs. Default: confidence\n"
         "  --draft-conf-threshold F\n"
-        "      DSpark confidence threshold for the confidence scheduler. Default: 0\n"
+        "      DSpark confidence threshold for the confidence scheduler. Default: 0.4\n"
         "  --dspark-attn-force-mma\n"
         "      Diagnostic: force DSpark verifier MMA attention path.\n"
         "  --draft-fast-relaxed\n"
@@ -12239,13 +12241,15 @@ static ds4_draft_kind parse_draft_kind_arg(const char *s, const char *arg) {
 static const char *parse_draft_scheduler_arg(const char *s, const char *arg) {
     if (!strcmp(s, "static") ||
         !strcmp(s, "confidence") ||
+        !strcmp(s, "confidence-cost") ||
+        !strcmp(s, "cost") ||
         !strcmp(s, "confidence-softmax") ||
         !strcmp(s, "softmax") ||
         !strcmp(s, "confidence-softmax-long") ||
         !strcmp(s, "softmax-long")) return s;
     server_log(DS4_LOG_DEFAULT, "ds4-server: invalid %s value: %s", arg, s);
     server_log(DS4_LOG_DEFAULT,
-               "ds4-server: valid DSpark schedulers are: static, confidence, confidence-softmax, confidence-softmax-long");
+               "ds4-server: valid DSpark schedulers are: static, confidence, confidence-cost, confidence-softmax, confidence-softmax-long");
     exit(2);
 }
 
@@ -12311,7 +12315,7 @@ static server_config parse_options(int argc, char **argv) {
             .mtp_margin = 3.0f,
             .draft_kind = DS4_DRAFT_NONE,
             .draft_verify = 4,
-            .draft_scheduler = "static",
+            .draft_scheduler = "confidence",
             .draft_conf_threshold = 0.0f,
             .moe_mode = DS4_MOE_MODE_OFF,
             .moe_slot_bank = 32,

@@ -293,6 +293,73 @@ kernel void kernel_dsv4_indexer_score_one_direct(
     }
 }
 
+// Diagnostic decode scorer variant: one threadgroup scores four candidate rows
+// serially.  Each candidate still uses the same four-simdgroup, staged-K,
+// barriered head accumulation order as kernel_dsv4_indexer_score_one_direct;
+// only the threadgroup scheduling granularity changes.
+kernel void kernel_dsv4_indexer_score_one_sg4_direct(
+        constant ds4_metal_args_dsv4_indexer_scores_fused & args,
+        device const char *q,
+        device const char *weights,
+        device const char *index_comp,
+        device       char *scores,
+        threadgroup float *shared [[threadgroup(0)]],
+        uint tg [[threadgroup_position_in_grid]],
+        ushort tid [[thread_index_in_threadgroup]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sg [[simdgroup_index_in_threadgroup]]) {
+    if (args.n_head != 64u || args.head_dim != 128u) {
+        return;
+    }
+
+    threadgroup float *ktg = shared;        // [128]
+    threadgroup float *psum = ktg + 128u;   // [4]
+
+    for (uint slot = 0; slot < 4u; slot++) {
+        const uint row = tg * 4u + slot;
+        if (row >= args.n_comp) {
+            return;
+        }
+
+        if (tid < 128u) {
+            device const float *krow = (device const float *)(index_comp +
+                (uint64_t)row * args.index_row_stride);
+            ktg[tid] = krow[tid];
+        }
+
+        float acc = 0.0f;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        for (uint head0 = 0; head0 < 64u; head0 += 4u) {
+            const uint head = head0 + (uint)sg;
+            device const float4 *q4 = (device const float4 *)(q +
+                (uint64_t)head * args.q_head_stride);
+            threadgroup const float4 *k4 = (threadgroup const float4 *)ktg;
+
+            float s = dot(q4[lane], k4[lane]);
+            s = simd_sum(s);
+            if (lane == 0) {
+                device const float *w = (device const float *)weights;
+                psum[sg] = max(s, 0.0f) * (w[head] * args.scale);
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+            if (tid == 0) {
+                acc += psum[0];
+                acc += psum[1];
+                acc += psum[2];
+                acc += psum[3];
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        if (tid == 0) {
+            device float *dst = (device float *)scores;
+            dst[row] = acc;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+}
+
 // Decode router post-processing for one token. The selected expert ids are
 // already known; this gathers their probabilities, normalizes by the selected
 // sum, clamps the denominator like the reference path, and applies DS4 Flash's 1.5
@@ -416,6 +483,18 @@ kernel void kernel_dsv4_topk_mask_scatter(
     if (idx >= 0 && (int64_t)idx < args.ne0) {
         *((device float *) (dst + (int64_t)idx*args.nb0 + it*args.nb1)) = 0.0f;
     }
+}
+
+kernel void kernel_dsv4_indexer_firstk(
+        constant ds4_metal_args_dsv4_topk_mask & args,
+        device char * selected,
+        uint gid [[thread_position_in_grid]]) {
+    const int64_t n = args.ne0 * args.ne1;
+    if ((int64_t)gid >= n) {
+        return;
+    }
+    const int64_t ik = gid % args.ne0;
+    *((device int32_t *)selected + gid) = (int32_t)ik;
 }
 
 // Sorts each token's selected compressed rows by row id. The indexer selects by

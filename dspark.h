@@ -67,6 +67,8 @@ static bool metal_graph_dspark_three_layer_probe(
         const ds4_model   *model,
         const ds4_weights *weights,
         uint32_t           pos);
+/* force_first_token: when >= 0, teacher-force drafts[0] to this token
+ * (target argmax) and continue the Markov chain from it.  -1 disables. */
 static bool metal_graph_eval_dspark_draft(
         ds4_gpu_graph     *g,
         const ds4_model   *model,
@@ -77,6 +79,9 @@ static bool metal_graph_eval_dspark_draft(
         int                draft_cap,
         float             *confidence_logits,
         float             *confidence_probs,
+        int                force_first_token,
+        uint32_t           repair_main_kv_start,
+        uint32_t           repair_main_kv_end,
         int               *drafted);
 static bool metal_graph_eval_dspark_draft_prefetch_start(
         ds4_gpu_graph     *g,
@@ -90,6 +95,17 @@ static bool metal_graph_eval_dspark_draft_prefetch_finish(
         int           *drafts,
         int            draft_cap,
         int           *drafted);
+/* A4 overlap: normal-path eval-seam launch (DS4_DSPARK_OVERLAP_DRAFT=1).
+ * Called by the single-token decode executor in place of its blocking
+ * end_commands when the session armed a request; *handled reports whether the
+ * seam consumed the command buffer (submit + mirror draft + synchronize). */
+static bool metal_graph_dspark_overlap_eval_seam(
+        ds4_gpu_graph     *g,
+        const ds4_model   *model,
+        const ds4_weights *weights,
+        int                token,
+        uint32_t           pos,
+        bool              *handled);
 static int ds4_dspark_confident_prefix_len(
         const float *confidence_probs,
         int          draft_n,

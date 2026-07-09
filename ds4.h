@@ -141,6 +141,9 @@ typedef struct {
     uint64_t dspark_perf_blocks;
     uint64_t dspark_perf_drafted_tokens;
     uint64_t dspark_perf_committed_tokens;
+    /* Pre-draft skips (eval-margin / dormant) vs post-draft verify skips (rate k=0). */
+    uint64_t dspark_perf_skip_pre_draft;
+    uint64_t dspark_perf_skip_verify;
     double dspark_perf_draft_seconds;
     double dspark_perf_snapshot_seconds;
     double dspark_perf_verify_seconds;

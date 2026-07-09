@@ -124,9 +124,16 @@ static void ds4_dspark_enable_default_fast_verifier(void) {
     ds4_setenv_default("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS", "1");
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTER", "1");
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTED", "1");
-    ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTED_BATCH_ROW_EXACT", "1");
+    /* The multi-row routed reduction is fast, but it changes reduction order
+     * and has produced target-argmax flips on rows6. Keep it diagnostic-only;
+     * strict mode uses the per-row reduction unless explicitly requested. */
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_ROUTED_DECODE2_ROWS", "1");
     ds4_setenv_default("DS4_DSPARK_HYBRID_ROW_SHARED", "1");
+    /* Keep the verifier and draft split flushes for CPU/GPU pipelining, but
+     * eliminate their redundant terminal waits. Both paths are byte-identical
+     * and non-regressing in paired 1K controls. */
+    ds4_setenv_default("DS4_DSPARK_VERIFY_SINGLE_DRAIN", "1");
+    ds4_setenv_default("DS4_DSPARK_DRAFT_SINGLE_DRAIN", "1");
     /* Async draft submit at commit; cmp=0 and >=control in a 3-pair interleaved
      * repeat A/B (bench-results/loop55_prefetch_repeat_152217). Set
      * DS4_DSPARK_DRAFT_PREFETCH=0 to disable. */
@@ -1205,9 +1212,27 @@ static bool ds4_dspark_open(ds4_dspark_draft *d, const ds4_engine_options *opt) 
     d->manifest_path = manifest_path;
     d->verify_budget = opt->draft_verify > 0 ? opt->draft_verify : 5;
     if (d->verify_budget > 5) d->verify_budget = 5;
+    /* Default scheduler is the learned-confidence-head prefix scheduler
+     * (byte-safe: it only changes how many draft rows get verified).  A/B
+     * across text types (2026-07-03) showed threshold 0.4 is the most robust
+     * operating point: it keeps the code-path win (~1.27x) and rescues the
+     * low-acceptance regressions (json 0.95x -> 1.15x).  "static" restores
+     * the old fixed-k behavior. */
     snprintf(d->scheduler, sizeof(d->scheduler), "%s",
-             (opt->draft_scheduler && opt->draft_scheduler[0]) ? opt->draft_scheduler : "static");
-    d->conf_threshold = opt->draft_conf_threshold;
+             (opt->draft_scheduler && opt->draft_scheduler[0]) ? opt->draft_scheduler : "confidence");
+    d->conf_threshold = opt->draft_conf_threshold > 0.0f ?
+        opt->draft_conf_threshold : 0.4f;
+    /* Env override for A/B without re-parsing CLI (scheduling-only). */
+    {
+        const char *cth = getenv("DS4_DSPARK_CONF_THRESHOLD");
+        if (cth && cth[0]) {
+            char *end = NULL;
+            float v = strtof(cth, &end);
+            if (end != cth && isfinite(v) && v >= 0.0f && v <= 1.0f) {
+                d->conf_threshold = v;
+            }
+        }
+    }
 
     ok = dspark_json_int_required(json, json_len, "hidden_size", &d->hidden_size) &&
          dspark_json_int_required(json, json_len, "layer_count", &d->layer_count) &&
@@ -1529,6 +1554,55 @@ static bool metal_graph_dspark_seed_block(
                                           DS4_N_HC) != 0;
 }
 
+/* GPU-seeded variant of metal_graph_dspark_seed_block for the A4 overlap
+ * draft: the seed token is not known on the CPU yet (the verifier readback
+ * has not happened), so slot 0 of dspark_input_ids is filled by a GPU argmax
+ * of the given logits row before the embedding gather runs.  kernel_argmax
+ * breaks ties toward the lowest index, matching CPU sample_argmax(). */
+static bool metal_graph_dspark_seed_block_gpu_argmax(
+        ds4_gpu_graph        *g,
+        const ds4_model      *model,
+        const ds4_weights    *weights,
+        const ds4_gpu_tensor *seed_logits,
+        uint32_t              n_tokens) {
+    if (!g || !g->dspark || !g->dspark->loaded) return true;
+    if (!model || !weights || !weights->token_embd ||
+        !g->dspark_input_ids || !g->dspark_h || !seed_logits) {
+        return false;
+    }
+    if (n_tokens == 0 || n_tokens > 6u) return false;
+    if (g->dspark->block_size != 5) return false;
+
+    int32_t ids[6];
+    for (uint32_t i = 0; i < 6u; i++) {
+        ids[i] = (int32_t)g->dspark->noise_token_id;
+    }
+    if (ds4_gpu_tensor_write(g->dspark_input_ids,
+                             0,
+                             ids,
+                             (uint64_t)n_tokens * sizeof(ids[0])) == 0) {
+        return false;
+    }
+    ds4_gpu_tensor *seed_id =
+        ds4_gpu_tensor_view(g->dspark_input_ids, 0, sizeof(int32_t));
+    bool ok = seed_id &&
+              ds4_gpu_argmax_f32_tensor(seed_id,
+                                        seed_logits,
+                                        DS4_N_VOCAB,
+                                        1) != 0;
+    ds4_gpu_tensor_free(seed_id);
+    if (!ok) return false;
+    return ds4_gpu_embed_tokens_hc_tensor(g->dspark_h,
+                                          g->dspark_input_ids,
+                                          model->map,
+                                          model->size,
+                                          weights->token_embd->abs_offset,
+                                          (uint32_t)weights->token_embd->dim[1],
+                                          n_tokens,
+                                          DS4_N_EMBD,
+                                          DS4_N_HC) != 0;
+}
+
 static bool metal_graph_dspark_update_main_kv(
         ds4_gpu_graph *g,
         uint32_t       pos) {
@@ -1681,6 +1755,68 @@ static bool metal_graph_dspark_rebuild_main_kv_window(
                 end_pos - 1u);
     }
     return ok;
+}
+
+/* Encode-only suffix repair. The caller owns an open command buffer, allowing
+ * a resumed draft to import its missing mirror rows and encode the draft trunk
+ * behind them without an intermediate CPU/GPU drain. */
+static bool metal_graph_dspark_repair_main_kv_range_encode(
+        ds4_gpu_graph *g,
+        uint32_t       start,
+        uint32_t       end_pos) {
+    if (!g || !g->dspark || !g->dspark->loaded) return true;
+    if (start >= end_pos) return true;
+    if (end_pos - start > 128u) start = end_pos - 128u;
+
+    bool ok = true;
+    uint32_t pos = start;
+    while (ok && pos < end_pos) {
+        uint32_t chunk = end_pos - pos;
+        if (chunk > 5u) chunk = 5u;
+        const uint32_t ring_room = 128u - (pos % 128u);
+        if (chunk > ring_room) chunk = ring_room;
+
+        if (!env_flag_enabled("DS4_DSPARK_MAIN_KV_BATCH_DISABLE")) {
+            ok = metal_graph_dspark_project_main_range(g, pos, chunk) &&
+                 metal_graph_dspark_update_main_kv_batch(g, pos, chunk);
+        } else {
+            for (uint32_t i = 0; ok && i < chunk; i++) {
+                ok = metal_graph_dspark_project_main(g, pos + i) &&
+                     metal_graph_dspark_update_main_kv(g, pos + i);
+            }
+        }
+        pos += chunk;
+    }
+    return ok;
+}
+
+/* Encode-only variant of metal_graph_dspark_update_main_kv_range: emits the
+ * DSpark main-KV import into the CURRENTLY OPEN command buffer (no begin/end).
+ * Used by the A4 overlap-draft path so the speculative import rides the same
+ * submit as the prefetched draft trunk.  Writes are overwrite-by-position
+ * (ring slot = pos % 128, full row rewrite), so a misspeculated import is
+ * repaired by the authoritative commit-time call over the same positions. */
+static bool metal_graph_dspark_update_main_kv_range_encode(
+        ds4_gpu_graph *g,
+        uint32_t       start,
+        uint32_t       n_tokens) {
+    if (!g || !g->dspark || !g->dspark->loaded) return true;
+    if (n_tokens == 0) return true;
+    if (n_tokens <= 5u && !env_flag_enabled("DS4_DSPARK_MAIN_KV_BATCH_DISABLE")) {
+        const uint32_t ring = start % 128u;
+        if (ring + n_tokens <= 128u) {
+            return metal_graph_dspark_project_main_range(g, start, n_tokens) &&
+                   metal_graph_dspark_update_main_kv_batch(g, start, n_tokens);
+        }
+    }
+    for (uint32_t i = 0; i < n_tokens; i++) {
+        const uint32_t pos = start + i;
+        if (!(metal_graph_dspark_project_main(g, pos) &&
+              metal_graph_dspark_update_main_kv(g, pos))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static bool metal_graph_dspark_update_main_kv_range(
@@ -2652,12 +2788,18 @@ static bool ds4_dspark_tree_opp_log_enabled(void) {
 
 /* Rows-6 frontier verify (Mode-B milestone 1): the verify batch carries the
  * known-correct first token as row 0 plus all five Markov drafts, replacing
- * the per-cycle first-token decode with one marginal verify row. Byte-exact:
- * row 0 is the committed-logits argmax by construction and every row is still
- * verified. v1 is measure-first: incompatible with confidence schedulers,
- * relaxed accept, and draft prefetch (those fall back to the 5-row path). */
+ * the per-cycle first-token decode with one marginal verify row. Strict target
+ * argmax: row 0 is the committed-logits argmax by construction and every row
+ * is still verified. Confidence-aware rows6 is a separate opt-in while its
+ * scheduler economics are validated; relaxed accept remains on the 5-row path. */
 static bool ds4_dspark_verify_rows6_enabled(void) {
     return env_flag_enabled("DS4_DSPARK_VERIFY_ROWS6");
+}
+
+static bool ds4_dspark_rows6_confidence_enabled(void) {
+    const char *env = getenv("DS4_DSPARK_ROWS6_CONFIDENCE");
+    if (!env || !env[0]) env = getenv("DS4_DSPARK_VERIFY_ROWS6_CONFIDENCE");
+    return env && env[0] && atoi(env) != 0;
 }
 
 /* DS4_DSPARK_MARKOV_SCALE=F rescales the Markov logit contribution relative to
@@ -2675,6 +2817,16 @@ static float ds4_dspark_markov_scale(void) {
         }
     }
     return cached;
+}
+
+/* Byte-exact draft improvement: after target eval the next token is already
+ * known (argmax of the committed logits).  Teacher-force drafts[0] to that
+ * token and continue the Markov chain from it.  Eliminates first-miss waste
+ * (~15-25% of blocks) and re-conditions the suffix on the correct prefix.
+ * Committed bytes unchanged: verify still checks every draft against target. */
+static bool ds4_dspark_force_target_first_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_FORCE_TARGET_FIRST") ||
+           env_flag_enabled("DS4_DSPARK_DRAFT_FORCE_FIRST");
 }
 
 static void ds4_dspark_tree_opp_report(int miss_i, int32_t target, int32_t draft_tok) {
@@ -2700,6 +2852,7 @@ static bool metal_graph_dspark_markov_chain_fast(
         int           *drafts,
         int            draft_cap,
         bool           save_markov_embeddings,
+        int            force_first_token,
         int           *drafted) {
     if (!g || !g->dspark || !g->dspark->loaded || !g->spec_logits ||
         !g->logits || !g->comp_selected || !g->dspark_input_ids ||
@@ -2707,6 +2860,7 @@ static bool metal_graph_dspark_markov_chain_fast(
         last_token < 0 || last_token >= (int)DS4_N_VOCAB) {
         return false;
     }
+    if (force_first_token >= (int)DS4_N_VOCAB) force_first_token = -1;
 
     const ds4_dspark_record *markov_embd =
         ds4_dspark_find_record(g->dspark, "dspark.markov_embd.weight");
@@ -2742,7 +2896,27 @@ static bool metal_graph_dspark_markov_chain_fast(
                                    &prev0,
                                    sizeof(prev0)) != 0 &&
               ds4_gpu_begin_commands() != 0;
+    /* When force-first is active, conf[0] is forced to 1.0 after the chain
+     * (caller) so row0 Markov gather/matmul is pure waste — skip it unless
+     * DS4_DSPARK_FORCE_KEEP_ROW0_MM=1 (diagnostic). */
+    const bool skip_row0_mm =
+        force_first_token >= 0 &&
+        !env_flag_enabled("DS4_DSPARK_FORCE_KEEP_ROW0_MM");
     for (int row = 0; ok && row < draft_cap; row++) {
+        if (row == 0 && skip_row0_mm) {
+            int32_t forced = (int32_t)force_first_token;
+            ok = ds4_gpu_tensor_write(g->dspark_input_ids,
+                                      sizeof(int32_t),
+                                      &forced,
+                                      sizeof(forced)) != 0;
+            /* Zero the unused conf-slot embed so saved layouts stay defined. */
+            if (ok && save_markov_embeddings && g->batch_low_tmp) {
+                ok = ds4_gpu_tensor_fill_f32(g->batch_low_tmp,
+                                             0.0f,
+                                             rank) != 0;
+            }
+            continue;
+        }
         ds4_gpu_tensor *prev_id =
             ds4_gpu_tensor_view(g->dspark_input_ids,
                                 (uint64_t)row * sizeof(int32_t),
@@ -2795,7 +2969,14 @@ static bool metal_graph_dspark_markov_chain_fast(
             !ds4_dspark_tree_opp_log_enabled() &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
-        if (ok && fused_select) {
+        if (ok && row == 0 && force_first_token >= 0) {
+            /* Teacher-force path when KEEP_ROW0_MM is on. */
+            int32_t forced = (int32_t)force_first_token;
+            ok = ds4_gpu_tensor_write(g->dspark_input_ids,
+                                      (uint64_t)(row + 1) * sizeof(int32_t),
+                                      &forced,
+                                      sizeof(forced)) != 0;
+        } else if (ok && fused_select) {
             ds4_gpu_tensor *next_id =
                 ds4_gpu_tensor_view(g->dspark_input_ids,
                                     (uint64_t)(row + 1) * sizeof(int32_t),
@@ -2849,11 +3030,12 @@ static bool metal_graph_dspark_markov_chain_fast(
         if (drafted) *drafted = i + 1;
         if (getenv("DS4_DSPARK_SPEC_LOG")) {
             fprintf(stderr,
-                    "ds4: dspark draft row=%d prev=%d next=%d%s\n",
+                    "ds4: dspark draft row=%d prev=%d next=%d%s%s\n",
                     i,
                     i == 0 ? last_token : drafts[i - 1],
                     drafts[i],
-                    " fast-markov");
+                    " fast-markov",
+                    (i == 0 && force_first_token >= 0) ? " force-first" : "");
         }
     }
     if (ok && ds4_dspark_tree_opp_log_enabled()) {
@@ -2889,16 +3071,24 @@ static bool metal_graph_dspark_markov_chain_fast(
     return ok && draft_cap > 0;
 }
 
+/* last_token == -1 means the seed token is already in dspark_input_ids[0]
+ * (written GPU-side by the A4 overlap argmax seed); skip the CPU seed write.
+ * save_markov_embeddings keeps the unscaled per-row Markov embeds in
+ * batch_low_tmp (same layout as metal_graph_dspark_markov_chain_fast) so the
+ * confidence head can score a prefetched chain at consumption time. */
 static bool metal_graph_dspark_markov_chain_fast_encode(
         ds4_gpu_graph *g,
         int            last_token,
-        int            draft_cap) {
+        int            draft_cap,
+        bool           save_markov_embeddings,
+        int            force_first_token) {
     if (!g || !g->dspark || !g->dspark->loaded || !g->spec_logits ||
         !g->logits || !g->comp_selected || !g->dspark_input_ids ||
         draft_cap <= 0 || draft_cap > 5 ||
-        last_token < 0 || last_token >= (int)DS4_N_VOCAB) {
+        last_token < -1 || last_token >= (int)DS4_N_VOCAB) {
         return false;
     }
+    if (force_first_token >= (int)DS4_N_VOCAB) force_first_token = -1;
 
     const ds4_dspark_record *markov_embd =
         ds4_dspark_find_record(g->dspark, "dspark.markov_embd.weight");
@@ -2920,19 +3110,47 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
     const uint32_t rank = (uint32_t)g->dspark->markov_rank;
     const uint64_t rank_bytes = (uint64_t)rank * sizeof(float);
     if (!rank || rank > 1024u) return false;
+    if (save_markov_embeddings &&
+        (!g->batch_low_tmp ||
+         ds4_gpu_tensor_bytes(g->batch_low_tmp) < (uint64_t)draft_cap * rank_bytes ||
+         !g->batch_attn_low ||
+         ds4_gpu_tensor_bytes(g->batch_attn_low) < rank_bytes)) {
+        return false;
+    }
 
-    int32_t prev0 = (int32_t)last_token;
-    bool ok = ds4_gpu_tensor_write(g->dspark_input_ids,
-                                   0,
-                                   &prev0,
-                                   sizeof(prev0)) != 0;
+    bool ok = true;
+    if (last_token >= 0) {
+        int32_t prev0 = (int32_t)last_token;
+        ok = ds4_gpu_tensor_write(g->dspark_input_ids,
+                                  0,
+                                  &prev0,
+                                  sizeof(prev0)) != 0;
+    }
+    const bool skip_row0_mm =
+        force_first_token >= 0 &&
+        !env_flag_enabled("DS4_DSPARK_FORCE_KEEP_ROW0_MM");
     for (int row = 0; ok && row < draft_cap; row++) {
+        if (row == 0 && skip_row0_mm) {
+            int32_t forced = (int32_t)force_first_token;
+            ok = ds4_gpu_tensor_write(g->dspark_input_ids,
+                                      sizeof(int32_t),
+                                      &forced,
+                                      sizeof(forced)) != 0;
+            if (ok && save_markov_embeddings && g->batch_low_tmp) {
+                ok = ds4_gpu_tensor_fill_f32(g->batch_low_tmp,
+                                             0.0f,
+                                             rank) != 0;
+            }
+            continue;
+        }
         ds4_gpu_tensor *prev_id =
             ds4_gpu_tensor_view(g->dspark_input_ids,
                                 (uint64_t)row * sizeof(int32_t),
                                 sizeof(int32_t));
         ds4_gpu_tensor *markov_embed = NULL;
-        if (g->batch_low_tmp && ds4_gpu_tensor_bytes(g->batch_low_tmp) >= rank_bytes) {
+        if (save_markov_embeddings) {
+            markov_embed = ds4_gpu_tensor_view(g->batch_attn_low, 0, rank_bytes);
+        } else if (g->batch_low_tmp && ds4_gpu_tensor_bytes(g->batch_low_tmp) >= rank_bytes) {
             markov_embed = ds4_gpu_tensor_view(g->batch_low_tmp, 0, rank_bytes);
         } else if (g->batch_attn_low && ds4_gpu_tensor_bytes(g->batch_attn_low) >= rank_bytes) {
             markov_embed = ds4_gpu_tensor_view(g->batch_attn_low, 0, rank_bytes);
@@ -2953,6 +3171,13 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
                     1,
                     rank) != 0;
         }
+        if (ok && save_markov_embeddings) {
+            ok = ds4_gpu_tensor_copy(g->batch_low_tmp,
+                                     (uint64_t)row * rank_bytes,
+                                     markov_embed,
+                                     0,
+                                     rank_bytes) != 0;
+        }
         if (ok && ds4_dspark_markov_scale() != 1.0f) {
             ok = ds4_gpu_scale_f32_tensor(markov_embed,
                                           markov_embed,
@@ -2970,7 +3195,13 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
             !ds4_dspark_tree_opp_log_enabled() &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
             !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
-        if (ok && fused_select) {
+        if (ok && row == 0 && force_first_token >= 0) {
+            int32_t forced = (int32_t)force_first_token;
+            ok = ds4_gpu_tensor_write(g->dspark_input_ids,
+                                      (uint64_t)(row + 1) * sizeof(int32_t),
+                                      &forced,
+                                      sizeof(forced)) != 0;
+        } else if (ok && fused_select) {
             ds4_gpu_tensor *next_id =
                 ds4_gpu_tensor_view(g->dspark_input_ids,
                                     (uint64_t)(row + 1) * sizeof(int32_t),
@@ -3009,17 +3240,29 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
     return ok;
 }
 
-static bool metal_graph_eval_dspark_draft_prefetch_start(
-        ds4_gpu_graph     *g,
-        const ds4_model   *model,
-        const ds4_weights *weights,
-        int                last_token,
-        uint32_t           pos,
-        int                draft_cap) {
+/* Routed prefetch-draft body.  gpu_seed_logits == NULL reproduces the classic
+ * post-commit prefetch (CPU seed token).  For the A4 overlap-draft launch,
+ * gpu_seed_logits names the (shared-bank) verifier logits row whose GPU argmax
+ * seeds the chain, and spec_kv_n > 0 additionally encodes the speculative
+ * full-accept DSpark main-KV import for [spec_kv_start, spec_kv_start+spec_kv_n)
+ * ahead of the draft trunk, all in one non-blocking submit. */
+static bool metal_graph_eval_dspark_draft_prefetch_start_ex(
+        ds4_gpu_graph        *g,
+        const ds4_model      *model,
+        const ds4_weights    *weights,
+        int                   last_token,
+        uint32_t              pos,
+        int                   draft_cap,
+        const ds4_gpu_tensor *gpu_seed_logits,
+        uint32_t              spec_kv_start,
+        uint32_t              spec_kv_n,
+        bool                  save_confidence_inputs) {
     const bool fail_log = env_flag_enabled("DS4_DSPARK_DRAFT_FAIL_LOG") ||
                           env_flag_enabled("DS4_DSPARK_SPEC_LOG");
+    const bool gpu_seed = gpu_seed_logits != NULL;
     if (!g || !g->dspark || !g->dspark->loaded || !model || !weights ||
-        draft_cap <= 0 || last_token < 0 || last_token >= (int)DS4_N_VOCAB) {
+        draft_cap <= 0 ||
+        (!gpu_seed && (last_token < 0 || last_token >= (int)DS4_N_VOCAB))) {
         if (fail_log) {
             fprintf(stderr,
                     "ds4: dspark draft prefetch fail precheck cap=%d last=%d loaded=%d\n",
@@ -3032,10 +3275,10 @@ static bool metal_graph_eval_dspark_draft_prefetch_start(
     if (draft_cap > g->dspark->block_size) draft_cap = g->dspark->block_size;
     if (draft_cap > 5) draft_cap = 5;
     if (draft_cap <= 0) return false;
-    if (!metal_graph_ensure_prefill_scratch_rows(g,
-                                                 weights,
-                                                 &weights->layer[0],
-                                                 (uint32_t)draft_cap)) {
+    if (!metal_graph_ensure_dspark_draft_scratch_rows(g,
+                                                      weights,
+                                                      &weights->layer[0],
+                                                      (uint32_t)draft_cap)) {
         if (fail_log) {
             fprintf(stderr,
                     "ds4: dspark draft prefetch fail stage=scratch cap=%d pos=%u last=%d\n",
@@ -3046,10 +3289,121 @@ static bool metal_graph_eval_dspark_draft_prefetch_start(
         return false;
     }
 
+    /* Route the prefetched draft trunk at the private dspark_draft_* bank so
+     * the shared batch_* / spec_logits / dspark_input_ids / dspark_h tensors
+     * the verifier still reads after commit stay untouched (same save/restore
+     * idiom as the verifier HC swap).  prefetch_finish reads the drafted ids
+     * back from the dspark_draft_input_ids mirror. */
+    ds4_gpu_tensor *const saved_batch_cur_hc = g->batch_cur_hc;
+    ds4_gpu_tensor *const saved_batch_next_hc = g->batch_next_hc;
+    ds4_gpu_tensor *const saved_batch_flat_hc = g->batch_flat_hc;
+    ds4_gpu_tensor *const saved_batch_hc_mix = g->batch_hc_mix;
+    ds4_gpu_tensor *const saved_batch_hc_split = g->batch_hc_split;
+    ds4_gpu_tensor *const saved_batch_attn_cur = g->batch_attn_cur;
+    ds4_gpu_tensor *const saved_batch_attn_norm = g->batch_attn_norm;
+    ds4_gpu_tensor *const saved_batch_qr = g->batch_qr;
+    ds4_gpu_tensor *const saved_batch_qr_norm = g->batch_qr_norm;
+    ds4_gpu_tensor *const saved_batch_q = g->batch_q;
+    ds4_gpu_tensor *const saved_batch_kv_raw = g->batch_kv_raw;
+    ds4_gpu_tensor *const saved_batch_kv = g->batch_kv;
+    ds4_gpu_tensor *const saved_batch_heads = g->batch_heads;
+    ds4_gpu_tensor *const saved_batch_attn_low = g->batch_attn_low;
+    ds4_gpu_tensor *const saved_batch_attn_out = g->batch_attn_out;
+    ds4_gpu_tensor *const saved_batch_low_tmp = g->batch_low_tmp;
+    ds4_gpu_tensor *const saved_batch_after_attn_hc = g->batch_after_attn_hc;
+    ds4_gpu_tensor *const saved_batch_ffn_cur = g->batch_ffn_cur;
+    ds4_gpu_tensor *const saved_batch_ffn_norm = g->batch_ffn_norm;
+    ds4_gpu_tensor *const saved_batch_shared_gate = g->batch_shared_gate;
+    ds4_gpu_tensor *const saved_batch_shared_up = g->batch_shared_up;
+    ds4_gpu_tensor *const saved_batch_shared_mid = g->batch_shared_mid;
+    ds4_gpu_tensor *const saved_batch_shared_out = g->batch_shared_out;
+    ds4_gpu_tensor *const saved_batch_router_logits = g->batch_router_logits;
+    ds4_gpu_tensor *const saved_batch_router_probs = g->batch_router_probs;
+    ds4_gpu_tensor *const saved_batch_router_selected = g->batch_router_selected;
+    ds4_gpu_tensor *const saved_batch_router_weights = g->batch_router_weights;
+    ds4_gpu_tensor *const saved_batch_routed_gate = g->batch_routed_gate;
+    ds4_gpu_tensor *const saved_batch_routed_up = g->batch_routed_up;
+    ds4_gpu_tensor *const saved_batch_routed_mid = g->batch_routed_mid;
+    ds4_gpu_tensor *const saved_batch_routed_out = g->batch_routed_out;
+    ds4_gpu_tensor *const saved_spec_logits = g->spec_logits;
+    ds4_gpu_tensor *const saved_logits = g->logits;
+    ds4_gpu_tensor *const saved_dspark_input_ids = g->dspark_input_ids;
+    ds4_gpu_tensor *const saved_dspark_h = g->dspark_h;
+    g->batch_cur_hc = g->dspark_draft_cur_hc;
+    g->batch_next_hc = g->dspark_draft_next_hc;
+    g->batch_flat_hc = g->dspark_draft_flat_hc;
+    g->batch_hc_mix = g->dspark_draft_hc_mix;
+    g->batch_hc_split = g->dspark_draft_hc_split;
+    g->batch_attn_cur = g->dspark_draft_attn_cur;
+    g->batch_attn_norm = g->dspark_draft_attn_norm;
+    g->batch_qr = g->dspark_draft_qr;
+    g->batch_qr_norm = g->dspark_draft_qr_norm;
+    g->batch_q = g->dspark_draft_q;
+    g->batch_kv_raw = g->dspark_draft_kv_raw;
+    g->batch_kv = g->dspark_draft_kv;
+    g->batch_heads = g->dspark_draft_heads;
+    g->batch_attn_low = g->dspark_draft_attn_low;
+    g->batch_attn_out = g->dspark_draft_attn_out;
+    g->batch_low_tmp = g->dspark_draft_low_tmp;
+    g->batch_after_attn_hc = g->dspark_draft_after_attn_hc;
+    g->batch_ffn_cur = g->dspark_draft_ffn_cur;
+    g->batch_ffn_norm = g->dspark_draft_ffn_norm;
+    g->batch_shared_gate = g->dspark_draft_shared_gate;
+    g->batch_shared_up = g->dspark_draft_shared_up;
+    g->batch_shared_mid = g->dspark_draft_shared_mid;
+    g->batch_shared_out = g->dspark_draft_shared_out;
+    g->batch_router_logits = g->dspark_draft_router_logits;
+    g->batch_router_probs = g->dspark_draft_router_probs;
+    g->batch_router_selected = g->dspark_draft_router_selected;
+    g->batch_router_weights = g->dspark_draft_router_weights;
+    g->batch_routed_gate = g->dspark_draft_routed_gate;
+    g->batch_routed_up = g->dspark_draft_routed_up;
+    g->batch_routed_mid = g->dspark_draft_routed_mid;
+    g->batch_routed_out = g->dspark_draft_routed_out;
+    g->spec_logits = g->dspark_draft_spec_logits;
+    /* Route the chain's per-row Markov logits scratch too: the eval-seam
+     * overlap encodes before the decode's g->logits readback. */
+    g->logits = g->dspark_draft_markov_logits;
+    g->dspark_input_ids = g->dspark_draft_input_ids;
+    g->dspark_h = g->dspark_draft_h;
+
     bool ok = ds4_gpu_begin_commands() != 0;
     const char *fail_stage = ok ? NULL : "begin";
+    if (ok && spec_kv_n > 0) {
+        /* Speculative full-accept DSpark main-KV import for the block being
+         * verified.  The ring slots being written alias valid 128-window
+         * history (position p and p-128 share slot p % 128), so snapshot the
+         * rows first: on a misspeculation the un-committed suffix rows must be
+         * RESTORED (the authoritative commit-time update only rewrites the
+         * committed prefix). */
+        ok = spec_kv_n <= 6u && g->dspark_draft_kv_backup != NULL;
+        const uint64_t row_bytes = (uint64_t)DS4_N_HEAD_DIM * sizeof(float);
+        for (uint32_t il = 0; ok && il < 3u; il++) {
+            if (!g->dspark_kv_cache[il]) { ok = false; break; }
+            for (uint32_t i = 0; ok && i < spec_kv_n; i++) {
+                const uint64_t ring = (uint64_t)((spec_kv_start + i) % 128u);
+                ok = ds4_gpu_tensor_copy(g->dspark_draft_kv_backup,
+                                         ((uint64_t)il * 6u + i) * row_bytes,
+                                         g->dspark_kv_cache[il],
+                                         ring * row_bytes,
+                                         row_bytes) != 0;
+            }
+        }
+        if (ok) {
+            ok = metal_graph_dspark_update_main_kv_range_encode(g,
+                                                                spec_kv_start,
+                                                                spec_kv_n);
+        }
+        if (!ok) fail_stage = "spec_kv";
+    }
     if (ok) {
-        ok = metal_graph_dspark_seed_block(g, model, weights, last_token, (uint32_t)draft_cap);
+        ok = gpu_seed ?
+            metal_graph_dspark_seed_block_gpu_argmax(g,
+                                                     model,
+                                                     weights,
+                                                     gpu_seed_logits,
+                                                     (uint32_t)draft_cap) :
+            metal_graph_dspark_seed_block(g, model, weights, last_token, (uint32_t)draft_cap);
         if (!ok) fail_stage = "seed";
     }
     if (ok) {
@@ -3057,7 +3411,11 @@ static bool metal_graph_eval_dspark_draft_prefetch_start(
         if (!ok) fail_stage = "three_layer";
     }
     if (ok) {
-        ok = metal_graph_dspark_markov_chain_fast_encode(g, last_token, draft_cap);
+        ok = metal_graph_dspark_markov_chain_fast_encode(g,
+                                                         gpu_seed ? -1 : last_token,
+                                                         draft_cap,
+                                                         save_confidence_inputs,
+                                                         -1);
         if (!ok) fail_stage = "markov_fast";
     }
     if (ok) {
@@ -3066,6 +3424,43 @@ static bool metal_graph_eval_dspark_draft_prefetch_start(
     } else {
         (void)ds4_gpu_synchronize();
     }
+
+    g->batch_cur_hc = saved_batch_cur_hc;
+    g->batch_next_hc = saved_batch_next_hc;
+    g->batch_flat_hc = saved_batch_flat_hc;
+    g->batch_hc_mix = saved_batch_hc_mix;
+    g->batch_hc_split = saved_batch_hc_split;
+    g->batch_attn_cur = saved_batch_attn_cur;
+    g->batch_attn_norm = saved_batch_attn_norm;
+    g->batch_qr = saved_batch_qr;
+    g->batch_qr_norm = saved_batch_qr_norm;
+    g->batch_q = saved_batch_q;
+    g->batch_kv_raw = saved_batch_kv_raw;
+    g->batch_kv = saved_batch_kv;
+    g->batch_heads = saved_batch_heads;
+    g->batch_attn_low = saved_batch_attn_low;
+    g->batch_attn_out = saved_batch_attn_out;
+    g->batch_low_tmp = saved_batch_low_tmp;
+    g->batch_after_attn_hc = saved_batch_after_attn_hc;
+    g->batch_ffn_cur = saved_batch_ffn_cur;
+    g->batch_ffn_norm = saved_batch_ffn_norm;
+    g->batch_shared_gate = saved_batch_shared_gate;
+    g->batch_shared_up = saved_batch_shared_up;
+    g->batch_shared_mid = saved_batch_shared_mid;
+    g->batch_shared_out = saved_batch_shared_out;
+    g->batch_router_logits = saved_batch_router_logits;
+    g->batch_router_probs = saved_batch_router_probs;
+    g->batch_router_selected = saved_batch_router_selected;
+    g->batch_router_weights = saved_batch_router_weights;
+    g->batch_routed_gate = saved_batch_routed_gate;
+    g->batch_routed_up = saved_batch_routed_up;
+    g->batch_routed_mid = saved_batch_routed_mid;
+    g->batch_routed_out = saved_batch_routed_out;
+    g->spec_logits = saved_spec_logits;
+    g->logits = saved_logits;
+    g->dspark_input_ids = saved_dspark_input_ids;
+    g->dspark_h = saved_dspark_h;
+
     if (!ok && fail_log) {
         fprintf(stderr,
                 "ds4: dspark draft prefetch fail stage=%s cap=%d pos=%u last=%d\n",
@@ -3077,13 +3472,32 @@ static bool metal_graph_eval_dspark_draft_prefetch_start(
     return ok;
 }
 
+static bool metal_graph_eval_dspark_draft_prefetch_start(
+        ds4_gpu_graph     *g,
+        const ds4_model   *model,
+        const ds4_weights *weights,
+        int                last_token,
+        uint32_t           pos,
+        int                draft_cap) {
+    return metal_graph_eval_dspark_draft_prefetch_start_ex(g,
+                                                           model,
+                                                           weights,
+                                                           last_token,
+                                                           pos,
+                                                           draft_cap,
+                                                           NULL,
+                                                           0,
+                                                           0,
+                                                           false);
+}
+
 static bool metal_graph_eval_dspark_draft_prefetch_finish(
         ds4_gpu_graph *g,
         int           *drafts,
         int            draft_cap,
         int           *drafted) {
     if (drafted) *drafted = 0;
-    if (!g || !g->dspark || !g->dspark->loaded || !g->dspark_input_ids ||
+    if (!g || !g->dspark || !g->dspark->loaded || !g->dspark_draft_input_ids ||
         !drafts || draft_cap <= 0) {
         return false;
     }
@@ -3092,8 +3506,11 @@ static bool metal_graph_eval_dspark_draft_prefetch_finish(
     if (draft_cap <= 0) return false;
     if (ds4_gpu_synchronize() == 0) return false;
 
+    /* prefetch_start routed the draft trunk at the private mirror bank, so
+     * the drafted ids live in dspark_draft_input_ids (not the shared
+     * dspark_input_ids). */
     int32_t ids[5] = {0, 0, 0, 0, 0};
-    bool ok = ds4_gpu_tensor_read(g->dspark_input_ids,
+    bool ok = ds4_gpu_tensor_read(g->dspark_draft_input_ids,
                                   sizeof(int32_t),
                                   ids,
                                   (uint64_t)draft_cap * sizeof(ids[0])) != 0;
@@ -3112,6 +3529,202 @@ static bool metal_graph_eval_dspark_draft_prefetch_finish(
         }
     }
     return ok && draft_cap > 0;
+}
+
+/*
+ * Stage A4 overlap draft (DS4_DSPARK_OVERLAP_DRAFT=1, default OFF): the
+ * session requests a speculative next-block draft before calling the strict_v1
+ * verifier; the verifier submits its head command buffer non-blocking, encodes
+ * the speculative main-KV import plus the mirror-bank draft trunk, and drains
+ * verify+draft with a single synchronize before the readbacks.  Consumption
+ * reuses the existing prefetch pending/finish guard; a misspeculation falls
+ * back to the live draft.
+ */
+typedef struct {
+    bool requested;         /* one-shot: set pre-verify, consumed by verifier */
+    bool eval_requested;    /* one-shot: normal-path seam, consumed by the
+                             * next single-token decode (draft rides the
+                             * decode's drain; seed/pos = the decode's own) */
+    bool seed_from_argmax;  /* GPU argmax of spec_logits row n-1 seeds ids[0] */
+    bool want_confidence;   /* save per-row Markov embeds for the conf head  */
+    int  cpu_seed_token;    /* frontier non-rows6: tokens[n-1] (CPU-known)    */
+    int  draft_cap;         /* clamped next-block cap                        */
+    bool ran;               /* overlap draft was encoded+submitted           */
+    bool ran_confidence;    /* confidence inputs were saved on the mirror    */
+    int  ran_cap;
+    uint32_t ran_kv_start;  /* verifier seam: speculative KV import range    */
+    uint32_t ran_kv_n;      /* 0 = no speculative import (eval seam)         */
+} ds4_dspark_overlap_state;
+static ds4_dspark_overlap_state g_dspark_overlap;
+static uint64_t g_dspark_overlap_launched;
+static uint64_t g_dspark_overlap_hits;
+static uint64_t g_dspark_overlap_fallbacks;
+
+static void ds4_dspark_overlap_draft_report(void) {
+    if (g_dspark_overlap_launched == 0) return;
+    fprintf(stderr,
+            "ds4: dspark overlap-draft: launched=%llu hits=%llu fallbacks=%llu\n",
+            (unsigned long long)g_dspark_overlap_launched,
+            (unsigned long long)g_dspark_overlap_hits,
+            (unsigned long long)g_dspark_overlap_fallbacks);
+}
+
+static bool ds4_dspark_overlap_draft_enabled(void) {
+    static int cached = -1;
+    if (cached < 0) {
+        cached = env_flag_enabled("DS4_DSPARK_OVERLAP_DRAFT") ? 1 : 0;
+        if (cached) atexit(ds4_dspark_overlap_draft_report);
+    }
+    return cached != 0;
+}
+
+/* Encode + submit (non-blocking) the speculative next-block draft on the
+ * mirror bank; called by the verifier after its head command buffer has been
+ * submitted and before its readback drain.  start/n_tokens describe the block
+ * being verified; full accept is assumed. */
+static bool metal_graph_dspark_overlap_prefetch_launch(
+        ds4_gpu_graph     *g,
+        const ds4_model   *model,
+        const ds4_weights *weights,
+        uint32_t           start,
+        uint32_t           n_tokens) {
+    const int cap = g_dspark_overlap.draft_cap;
+    if (!g || cap < 2 || n_tokens == 0) return false;
+    bool ok;
+    if (g_dspark_overlap.seed_from_argmax) {
+        ds4_gpu_tensor *seed_row =
+            metal_graph_tensor_row_view(g->spec_logits,
+                                        n_tokens - 1u,
+                                        DS4_N_VOCAB);
+        ok = seed_row != NULL &&
+             metal_graph_eval_dspark_draft_prefetch_start_ex(g,
+                                                             model,
+                                                             weights,
+                                                             -1,
+                                                             start + n_tokens,
+                                                             cap,
+                                                             seed_row,
+                                                             start,
+                                                             n_tokens,
+                                                             g_dspark_overlap.want_confidence);
+        ds4_gpu_tensor_free(seed_row);
+    } else {
+        ok = metal_graph_eval_dspark_draft_prefetch_start_ex(
+                g,
+                model,
+                weights,
+                g_dspark_overlap.cpu_seed_token,
+                start + n_tokens - 1u,
+                cap,
+                NULL,
+                start,
+                n_tokens,
+                g_dspark_overlap.want_confidence);
+    }
+    if (ok) {
+        g_dspark_overlap.ran = true;
+        g_dspark_overlap.ran_confidence = g_dspark_overlap.want_confidence;
+        g_dspark_overlap.ran_cap = cap;
+        g_dspark_overlap.ran_kv_start = start;
+        g_dspark_overlap.ran_kv_n = n_tokens;
+        g_dspark_overlap_launched++;
+    }
+    return ok;
+}
+
+/* Misspeculation repair for the verifier-seam KV import: restore the rows the
+ * authoritative commit did NOT rewrite (rows committed..n-1) from the
+ * pre-speculation snapshot so the 128-window DSpark KV history matches the
+ * non-overlap run byte for byte (ring slot p%128 aliases position p-128). */
+static bool metal_graph_dspark_overlap_restore_kv(
+        ds4_gpu_graph *g,
+        uint32_t       start,
+        uint32_t       committed,
+        uint32_t       n_rows) {
+    if (!g || n_rows == 0 || committed >= n_rows) return true;
+    if (n_rows > 6u || !g->dspark_draft_kv_backup) return false;
+    const uint64_t row_bytes = (uint64_t)DS4_N_HEAD_DIM * sizeof(float);
+    bool ok = ds4_gpu_begin_commands() != 0;
+    for (uint32_t il = 0; ok && il < 3u; il++) {
+        if (!g->dspark_kv_cache[il]) { ok = false; break; }
+        for (uint32_t i = committed; ok && i < n_rows; i++) {
+            const uint64_t ring = (uint64_t)((start + i) % 128u);
+            ok = ds4_gpu_tensor_copy(g->dspark_kv_cache[il],
+                                     ring * row_bytes,
+                                     g->dspark_draft_kv_backup,
+                                     ((uint64_t)il * 6u + i) * row_bytes,
+                                     row_bytes) != 0;
+        }
+    }
+    if (ok) ok = ds4_gpu_end_commands() != 0;
+    else (void)ds4_gpu_synchronize();
+    return ok;
+}
+
+/* Normal-path eval-seam overlap (definition of metal_graph_dspark_overlap_eval_seam,
+ * declared in dspark.h for the decode executor): if the session armed an
+ * eval-seam request, the single-token decode ends its command buffer with a
+ * non-blocking submit, the next block's draft trunk + Markov chain are encoded
+ * on the mirror bank (the decode already encoded the DSpark main-KV import for
+ * this position, so the chain sees byte-identical inputs to the live draft it
+ * replaces), and one synchronize drains decode+draft before the logits
+ * readback. */
+static bool metal_graph_dspark_overlap_eval_seam(
+        ds4_gpu_graph     *g,
+        const ds4_model   *model,
+        const ds4_weights *weights,
+        int                token,
+        uint32_t           pos,
+        bool              *handled) {
+    if (handled) *handled = false;
+    if (!g || !g_dspark_overlap.eval_requested) return true;
+    g_dspark_overlap.eval_requested = false;
+    g_dspark_overlap.ran = false;
+    if (!g->dspark || !g->dspark->loaded || !model || !weights) return true;
+    const int cap = g_dspark_overlap.draft_cap;
+    if (cap < 2) return true;
+    if (handled) *handled = true;
+    bool ok = ds4_gpu_submit_commands() != 0;
+    if (ok) {
+        const bool launched = metal_graph_eval_dspark_draft_prefetch_start_ex(
+                g,
+                model,
+                weights,
+                token,
+                pos,
+                cap,
+                NULL,
+                0,
+                0,
+                g_dspark_overlap.want_confidence);
+        if (launched) {
+            g_dspark_overlap.ran = true;
+            g_dspark_overlap.ran_confidence = g_dspark_overlap.want_confidence;
+            g_dspark_overlap.ran_cap = cap;
+            g_dspark_overlap.ran_kv_start = 0;
+            g_dspark_overlap.ran_kv_n = 0;
+            g_dspark_overlap_launched++;
+        }
+    }
+    if (ds4_gpu_synchronize() == 0) ok = false;
+    return ok;
+}
+
+/* After the overlap drain, the actual seeded token sits in mirror ids[0]
+ * (written either by the GPU argmax or the CPU seed write). */
+static bool metal_graph_dspark_overlap_seed_token(
+        ds4_gpu_graph *g,
+        int           *token_out) {
+    if (!g || !g->dspark_draft_input_ids || !token_out) return false;
+    int32_t id = -1;
+    if (ds4_gpu_tensor_read(g->dspark_draft_input_ids,
+                            0,
+                            &id,
+                            sizeof(id)) == 0) {
+        return false;
+    }
+    *token_out = (int)id;
+    return true;
 }
 
 static float ds4_sigmoidf_clamped(float x) {
@@ -3240,6 +3853,28 @@ static bool metal_graph_dspark_confidence_scores_saved(
     return ok;
 }
 
+/* Confidence-head scoring for an A4 overlap prefetch: the drafted chain lives
+ * on the mirror bank, so score dspark_draft_ffn_cur / dspark_draft_low_tmp by
+ * temporarily repointing the two tensors the saved-scores reader uses. */
+static bool metal_graph_dspark_overlap_confidence_scores(
+        ds4_gpu_graph *g,
+        int            n_rows,
+        float         *logits_out,
+        float         *probs_out) {
+    if (!g || !g->dspark_draft_ffn_cur || !g->dspark_draft_low_tmp) return false;
+    ds4_gpu_tensor *const saved_ffn_cur = g->batch_ffn_cur;
+    ds4_gpu_tensor *const saved_low_tmp = g->batch_low_tmp;
+    g->batch_ffn_cur = g->dspark_draft_ffn_cur;
+    g->batch_low_tmp = g->dspark_draft_low_tmp;
+    const bool ok = metal_graph_dspark_confidence_scores_saved(g,
+                                                               n_rows,
+                                                               logits_out,
+                                                               probs_out);
+    g->batch_ffn_cur = saved_ffn_cur;
+    g->batch_low_tmp = saved_low_tmp;
+    return ok;
+}
+
 static int ds4_dspark_confident_prefix_len(
         const float *confidence_probs,
         int          draft_n,
@@ -3261,6 +3896,9 @@ static bool metal_graph_eval_dspark_draft(
         int                draft_cap,
         float             *confidence_logits,
         float             *confidence_probs,
+        int                force_first_token,
+        uint32_t           repair_main_kv_start,
+        uint32_t           repair_main_kv_end,
         int               *drafted) {
     if (drafted) *drafted = 0;
     const bool fail_log = env_flag_enabled("DS4_DSPARK_DRAFT_FAIL_LOG") ||
@@ -3277,6 +3915,7 @@ static bool metal_graph_eval_dspark_draft(
         }
         return false;
     }
+    if (force_first_token >= (int)DS4_N_VOCAB) force_first_token = -1;
     if (draft_cap > g->dspark->block_size) draft_cap = g->dspark->block_size;
     if (draft_cap > 5) draft_cap = 5;
     if (draft_cap <= 0) return false;
@@ -3294,10 +3933,37 @@ static bool metal_graph_eval_dspark_draft(
         return false;
     }
 
+    const bool want_confidence = confidence_logits || confidence_probs;
+    const char *markov_disable = getenv("DS4_DSPARK_MARKOV_CHAIN_DISABLE");
+    const bool conf_fast_markov =
+        want_confidence &&
+        !env_flag_enabled("DS4_DSPARK_CONF_FAST_MARKOV_DISABLE");
+    const bool fast_markov =
+        (!want_confidence || conf_fast_markov) &&
+        !(markov_disable && markov_disable[0] && atoi(markov_disable) != 0);
+    const bool draft_single_drain =
+        fast_markov &&
+        env_flag_enabled("DS4_DSPARK_DRAFT_SINGLE_DRAIN") &&
+        !ds4_dspark_tree_opp_log_enabled();
+    if (draft_single_drain) {
+        static bool logged = false;
+        if (!logged && !backend_diagnostic_logs_suppressed()) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: dspark draft single-drain enabled "
+                    "(trunk + Markov share one wait)\n");
+        }
+    }
     const bool draft_profile = getenv("DS4_DSPARK_DRAFT_PROFILE") != NULL;
     const double t0 = draft_profile ? now_sec() : 0.0;
     bool ok = ds4_gpu_begin_commands() != 0;
     const char *fail_stage = ok ? NULL : "begin";
+    if (ok && repair_main_kv_start < repair_main_kv_end) {
+        ok = metal_graph_dspark_repair_main_kv_range_encode(g,
+                                                            repair_main_kv_start,
+                                                            repair_main_kv_end);
+        if (!ok) fail_stage = "repair_main_kv";
+    }
     if (ok) {
         ok = metal_graph_dspark_seed_block(g, model, weights, last_token, (uint32_t)draft_cap);
         if (!ok) fail_stage = "seed";
@@ -3305,6 +3971,14 @@ static bool metal_graph_eval_dspark_draft(
     if (ok) {
         ok = metal_graph_dspark_three_layer_forward(g, model, weights, pos, (uint32_t)draft_cap, false);
         if (!ok) fail_stage = "three_layer";
+    }
+    if (ok && draft_single_drain) {
+        ok = metal_graph_dspark_markov_chain_fast_encode(g,
+                                                         last_token,
+                                                         draft_cap,
+                                                         want_confidence,
+                                                         force_first_token);
+        if (!ok) fail_stage = "markov_encode";
     }
     if (ok) {
         ok = ds4_gpu_end_commands() != 0;
@@ -3327,29 +4001,47 @@ static bool metal_graph_eval_dspark_draft(
     const double graph_done = draft_profile ? now_sec() : 0.0;
 
     int n = 0;
-    const bool want_confidence = confidence_logits || confidence_probs;
-    const char *markov_disable = getenv("DS4_DSPARK_MARKOV_CHAIN_DISABLE");
-    const bool conf_fast_markov =
-        want_confidence &&
-        !env_flag_enabled("DS4_DSPARK_CONF_FAST_MARKOV_DISABLE");
-    const bool fast_markov =
-        (!want_confidence || conf_fast_markov) &&
-        !(markov_disable && markov_disable[0] && atoi(markov_disable) != 0);
     if (fast_markov) {
-        ok = metal_graph_dspark_markov_chain_fast(g,
-                                                  last_token,
-                                                  drafts,
-                                                  draft_cap,
-                                                  want_confidence,
-                                                  drafted);
+        if (draft_single_drain) {
+            int32_t ids[5] = {0, 0, 0, 0, 0};
+            ok = ds4_gpu_tensor_read(g->dspark_input_ids,
+                                     sizeof(int32_t),
+                                     ids,
+                                     (uint64_t)draft_cap * sizeof(ids[0])) != 0;
+            for (int i = 0; ok && i < draft_cap; i++) {
+                if (ids[i] < 0 || ids[i] >= (int32_t)DS4_N_VOCAB) {
+                    ok = false;
+                    break;
+                }
+                drafts[i] = ids[i];
+                if (drafted) *drafted = i + 1;
+                if (getenv("DS4_DSPARK_SPEC_LOG")) {
+                    fprintf(stderr,
+                            "ds4: dspark draft row=%d prev=%d next=%d fused-drain%s\n",
+                            i,
+                            i == 0 ? last_token : drafts[i - 1],
+                            drafts[i],
+                            (i == 0 && force_first_token >= 0) ? " force-first" : "");
+                }
+            }
+        } else {
+            ok = metal_graph_dspark_markov_chain_fast(g,
+                                                      last_token,
+                                                      drafts,
+                                                      draft_cap,
+                                                      want_confidence,
+                                                      force_first_token,
+                                                      drafted);
+        }
         if (!ok) {
             if (fail_log) {
                 fprintf(stderr,
-                        "ds4: dspark draft fail stage=markov_fast cap=%d pos=%u last=%d want_conf=%d\n",
+                        "ds4: dspark draft fail stage=markov_fast cap=%d pos=%u last=%d want_conf=%d force=%d\n",
                         draft_cap,
                         pos,
                         last_token,
-                        want_confidence ? 1 : 0);
+                        want_confidence ? 1 : 0,
+                        force_first_token);
             }
             return false;
         }
@@ -3369,28 +4061,44 @@ static bool metal_graph_eval_dspark_draft(
                 }
                 return false;
             }
+            /* Forced first draft is correct by construction; tell the
+             * scheduler so it does not truncate a free accept. */
+            if (force_first_token >= 0 && n > 0) {
+                if (confidence_probs) confidence_probs[0] = 1.0f;
+                if (confidence_logits) confidence_logits[0] = 20.0f;
+            }
         }
     } else {
         int prev = last_token;
         for (; n < draft_cap; n++) {
             int next = -1;
-            ok = ds4_gpu_begin_commands() != 0;
-            if (ok) ok = metal_graph_dspark_markov_step(g, (uint32_t)n, prev, &next);
-            if (ok) ok = ds4_gpu_end_commands() != 0;
-            else (void)ds4_gpu_synchronize();
-            if (ok) {
-                ok = ds4_gpu_tensor_read(g->comp_selected,
-                                         0,
-                                         &next,
-                                         sizeof(next)) != 0;
+            if (n == 0 && force_first_token >= 0) {
+                next = force_first_token;
+                ok = true;
+            } else {
+                ok = ds4_gpu_begin_commands() != 0;
+                if (ok) ok = metal_graph_dspark_markov_step(g, (uint32_t)n, prev, &next);
+                if (ok) ok = ds4_gpu_end_commands() != 0;
+                else (void)ds4_gpu_synchronize();
+                if (ok) {
+                    ok = ds4_gpu_tensor_read(g->comp_selected,
+                                             0,
+                                             &next,
+                                             sizeof(next)) != 0;
+                }
             }
             if (ok && want_confidence) {
-                ok = metal_graph_dspark_confidence_score(
-                        g,
-                        (uint32_t)n,
-                        0,
-                        confidence_logits ? &confidence_logits[n] : NULL,
-                        confidence_probs ? &confidence_probs[n] : NULL);
+                if (n == 0 && force_first_token >= 0) {
+                    if (confidence_logits) confidence_logits[n] = 20.0f;
+                    if (confidence_probs) confidence_probs[n] = 1.0f;
+                } else {
+                    ok = metal_graph_dspark_confidence_score(
+                            g,
+                            (uint32_t)n,
+                            0,
+                            confidence_logits ? &confidence_logits[n] : NULL,
+                            confidence_probs ? &confidence_probs[n] : NULL);
+                }
             }
             if (!ok || next < 0) {
                 if (fail_log) {
@@ -3410,10 +4118,11 @@ static bool metal_graph_eval_dspark_draft(
             if (drafted) *drafted = n + 1;
             if (getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr,
-                        "ds4: dspark draft row=%d prev=%d next=%d\n",
+                        "ds4: dspark draft row=%d prev=%d next=%d%s\n",
                         n,
                         n == 0 ? last_token : drafts[n - 1],
-                        next);
+                        next,
+                        (n == 0 && force_first_token >= 0) ? " force-first" : "");
             }
         }
     }
@@ -3495,8 +4204,14 @@ static void metal_graph_log_dspark_main(ds4_gpu_graph *g) {
 }
 
 static void metal_graph_log_dspark_capture(ds4_gpu_graph *g) {
-    const char *env = getenv("DS4_DSPARK_CAPTURE_LOG");
-    if (!g || !g->dspark_target_hidden || !env || !env[0] || atoi(env) == 0) return;
+    static bool initialized;
+    static bool enabled;
+    if (!initialized) {
+        initialized = true;
+        const char *env = getenv("DS4_DSPARK_CAPTURE_LOG");
+        enabled = env && env[0] && atoi(env) != 0;
+    }
+    if (!g || !g->dspark_target_hidden || !enabled) return;
     float *buf = xmalloc(3ull * DS4_N_EMBD * sizeof(buf[0]));
     if (ds4_gpu_tensor_read(g->dspark_target_hidden,
                             0,
@@ -5160,6 +5875,12 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
     if (capture_prefix_count >= n_tokens) {
         capture_prefix_count = n_tokens > 0 ? n_tokens - 1u : 0u;
     }
+    /* A4 overlap draft: one-shot request armed by the session immediately
+     * before this call; consumed here so it can never leak into another
+     * verifier invocation (e.g. the decode2 fallback). */
+    const bool overlap_requested = g_dspark_overlap.requested;
+    g_dspark_overlap.requested = false;
+    g_dspark_overlap.ran = false;
     if (!metal_graph_ensure_prefill_scratch_rows(g, weights, &weights->layer[0], n_tokens)) return false;
 
     int32_t token_ids[6] = {0, 0, 0, 0, 0, 0};
@@ -5172,7 +5893,25 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
     }
 
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    const bool verify_single_drain =
+        env_flag_enabled("DS4_DSPARK_VERIFY_SINGLE_DRAIN") &&
+        !hc_audit &&
+        !env_flag_enabled("DS4_DSPARK_HYBRID_STAGE_PROFILE") &&
+        !env_flag_enabled("DS4_DSPARK_STATE_ONLY_VERIFY") &&
+        !env_flag_enabled("DS4_DSPARK_VERIFY_STATE_ONLY") &&
+        getenv("DS4_METAL_GRAPH_DUMP_PREFIX") == NULL;
+    if (verify_single_drain) {
+        static bool logged = false;
+        if (!logged && !backend_diagnostic_logs_suppressed()) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: dspark verifier single-drain enabled "
+                    "(embed + layers + head share one terminal wait)\n");
+        }
+    }
+    bool commands_open = false;
     bool ok = ds4_gpu_begin_commands() != 0;
+    commands_open = ok;
     for (uint32_t t = 0; ok && t < n_tokens; t++) {
         ds4_gpu_tensor *row_hc = metal_graph_tensor_row_view(g->batch_cur_hc, t, hc_dim);
         ok = row_hc &&
@@ -5186,8 +5925,13 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
                                            DS4_N_HC) != 0;
         ds4_gpu_tensor_free(row_hc);
     }
-    if (ok) ok = ds4_gpu_end_commands() != 0;
-    else (void)ds4_gpu_synchronize();
+    if (ok && !verify_single_drain) {
+        ok = ds4_gpu_end_commands() != 0;
+        commands_open = false;
+    } else if (!ok) {
+        (void)ds4_gpu_synchronize();
+        commands_open = false;
+    }
     if (!ok) return false;
 
     ds4_gpu_tensor *saved_cur = g->cur_hc;
@@ -5321,9 +6065,10 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 	    double hybrid_profile_target_hidden_s = 0.0;
 	    double hybrid_profile_head_s = 0.0;
 	    double hybrid_profile_read_s = 0.0;
-		    bool commands_open = false;
-		    ok = ds4_gpu_begin_commands() != 0;
-	    commands_open = ok;
+		    if (!commands_open) {
+		        ok = ds4_gpu_begin_commands() != 0;
+		        commands_open = ok;
+		    }
 	    /* DS4_DSPARK_VERIFY_SPLIT_LAYERS=N pipelines CPU encode with GPU
 	     * execution: commit the in-flight command buffer every N layers
 	     * (non-blocking flush; serial queue keeps execution order, so the
@@ -5651,8 +6396,13 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 	            }
         }
     }
-    if (ok && commands_open) ok = ds4_gpu_end_commands() != 0;
-    else (void)ds4_gpu_synchronize();
+    if (ok && commands_open && !verify_single_drain) {
+        ok = ds4_gpu_end_commands() != 0;
+        commands_open = false;
+    } else if (!ok) {
+        (void)ds4_gpu_synchronize();
+        commands_open = false;
+    }
     if (ok && hybrid_attn_subprofile) {
         ds4_dspark_attn_subprofile_print("hybrid");
     }
@@ -5793,7 +6543,10 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 			                                          (uint64_t)n_tokens * DS4_N_HC * DS4_N_EMBD,
 			                                          0u,
 			                                          start);
-			            ok = ds4_gpu_begin_commands() != 0;
+			            if (!commands_open) {
+			                ok = ds4_gpu_begin_commands() != 0;
+			                commands_open = ok;
+			            }
 			            if (ok) ok = metal_graph_encode_output_head_batch(g,
 			                                                              model,
 			                                                              weights,
@@ -5812,8 +6565,28 @@ static bool metal_graph_verify_decodeN_attn_exact_ffn_batch(
 			                    hybrid_dispatch_stats.topk_dispatches += 1u;
 			                }
 			            }
-			            if (ok) ok = ds4_gpu_end_commands() != 0;
-			            else (void)ds4_gpu_synchronize();
+			            if (ok && overlap_requested && !state_only_verify && top_rows > 0u) {
+			                /* A4 overlap: submit the head command buffer without
+			                 * blocking, encode + submit the speculative next-block
+			                 * draft on the mirror bank, then drain verify+draft with
+			                 * one synchronize before the readbacks below. */
+			                ok = ds4_gpu_submit_commands() != 0;
+			                commands_open = false;
+			                if (ok) {
+			                    (void)metal_graph_dspark_overlap_prefetch_launch(g,
+			                                                                     model,
+			                                                                     weights,
+			                                                                     start,
+			                                                                     n_tokens);
+			                }
+			                if (ds4_gpu_synchronize() == 0) ok = false;
+			            } else if (ok) {
+			                ok = ds4_gpu_end_commands() != 0;
+			                commands_open = false;
+			            } else {
+			                (void)ds4_gpu_synchronize();
+			                commands_open = false;
+			            }
 			        }
 			        if (hybrid_stage_profile) {
 			            hybrid_profile_head_s += now_sec() - hybrid_profile_head_t0;

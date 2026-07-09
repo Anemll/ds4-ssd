@@ -1,6 +1,7 @@
 #include "ds4.h"
 #include "ds4_kvstore.h"
 #include "ds4_profile.h"
+#include "ds4_web.h"
 #include "linenoise.h"
 
 #include <errno.h>
@@ -121,6 +122,8 @@ typedef struct {
     uint64_t debug_draft_slots;
     uint64_t debug_draft_accepted;
     uint64_t debug_draft_blocks;
+    uint64_t debug_draft_skipped_blocks;
+    uint64_t debug_draft_verify_skipped_blocks;
     char error[256];
 } agent_status;
 
@@ -133,7 +136,9 @@ static void agent_status_set_draft_debug(agent_status *st,
                                          uint32_t active_budget,
                                          uint64_t accepted,
                                          uint64_t slots,
-                                         uint64_t blocks);
+                                         uint64_t blocks,
+                                         uint64_t skipped_blocks,
+                                         uint64_t verify_skipped_blocks);
 
 typedef struct {
     ds4_engine *engine;
@@ -167,6 +172,12 @@ typedef struct {
     char *out;
     size_t out_len;
     size_t out_cap;
+    ds4_web *web;
+    bool web_approval_pending;
+    bool web_approval_answered;
+    bool web_approval_result;
+    char web_approval_message[256];
+    char web_approval_error[160];
     char more_path[PATH_MAX];
     int more_next_line;
     bool more_bare;
@@ -501,13 +512,15 @@ static ds4_draft_kind parse_draft_kind(const char *s) {
 static const char *parse_draft_scheduler(const char *s) {
     if (!strcmp(s, "static") ||
         !strcmp(s, "confidence") ||
+        !strcmp(s, "confidence-cost") ||
+        !strcmp(s, "cost") ||
         !strcmp(s, "confidence-softmax") ||
         !strcmp(s, "softmax") ||
         !strcmp(s, "confidence-softmax-long") ||
         !strcmp(s, "softmax-long")) return s;
     fprintf(stderr,
             "ds4-agent: invalid --draft-scheduler value: %s "
-            "(expected static, confidence, confidence-softmax, or confidence-softmax-long)\n",
+            "(expected static, confidence, confidence-cost, confidence-softmax, or confidence-softmax-long)\n",
             s);
     exit(2);
 }
@@ -559,9 +572,10 @@ static void usage(FILE *fp) {
         "  --draft-verify N       Fixed DSpark verification budget, 1..5. Default: 5\n"
         "  --draft-verify-dynamic Adapt active DSpark budget from 2 up to --draft-verify.\n"
         "  --draft-mode NAME      strict, batch, or unified. Default: strict\n"
-        "  --draft-scheduler NAME static, confidence, confidence-softmax, or confidence-softmax-long. Default: static\n"
+        "  --draft-scheduler NAME static, confidence, confidence-cost, confidence-softmax, or\n"
+        "                         confidence-softmax-long. Default: confidence\n"
         "  --draft-conf-threshold F\n"
-        "                         Confidence threshold for confidence scheduler.\n"
+        "                         Confidence threshold for confidence scheduler. Default: 0.4\n"
         "  --dspark-attn-force-mma\n"
         "                         Diagnostic: force DSpark verifier MMA attention path.\n"
         "  --draft-fast-relaxed  Non-byte DSpark speed preset: frontier draft,\n"
@@ -761,7 +775,7 @@ static agent_config parse_options(int argc, char **argv) {
             .mtp_margin = 3.0f,
             .draft_kind = DS4_DRAFT_NONE,
             .draft_verify = 5,
-            .draft_scheduler = "static",
+            .draft_scheduler = "confidence",
             .draft_conf_threshold = 0.0f,
             .moe_mode = DS4_MOE_MODE_OFF,
             .moe_slot_bank = 32,
@@ -1064,9 +1078,9 @@ static ds4_think_mode effective_think_mode(const agent_config *cfg, const ds4_en
  */
 
 static const char agent_tools_prompt_intro[] =
-    "You are a coding agent running in a local workspace. When the user asks you to inspect, create, "
-    "modify, build, test, or otherwise operate on local files, use tools instead of printing large file "
-    "contents as the answer.\n\n"
+    "You are a coding agent running in a local workspace. Use tools for local file and system work. "
+    "Avoid printing large file contents or large code blocks as answers; create or edit files with tools, "
+    "then summarize results briefly.\n\n"
     "## Tools\n\n"
     "You have access to native DSML tools. Invoke tools by writing exactly this shape:\n\n"
     "<｜DSML｜tool_calls>\n"
@@ -1074,13 +1088,11 @@ static const char agent_tools_prompt_intro[] =
     "<｜DSML｜parameter name=\"$PARAMETER_NAME\" string=\"true|false\">$PARAMETER_VALUE</｜DSML｜parameter>\n"
     "</｜DSML｜invoke>\n"
     "</｜DSML｜tool_calls>\n\n"
-    "Tool calls are not allowed inside <think></think>; close thinking first, then emit exactly one DSML block. "
-    "Never use <arg_key>/<arg_value>, JSON wrappers, emoji tool labels, or shorthand like `list path=.`.\n\n"
-    "String parameters use raw text and string=\"true\". Numbers and booleans use JSON text and string=\"false\". "
-    "For coding tasks, prefer a tool call over printing a complete source file inline. Also in final replies avoid "
-    "replying to the user with large amount of code if not strictly needed. After tools run, summarize the result briefly.\n\n"
+    "Tool calls are not allowed inside <think></think>; finish thinking before emitting DSML.\n\n"
+    "String parameters use raw text and string=\"true\". Numbers and booleans use JSON text and string=\"false\".\n\n"
     "Read defaults to a bounded chunk: path alone returns the first 500 lines, not the whole file. "
-    "If read says more lines are available, call the more tool with count=500 to read the next chunk. "
+    "If read says more lines are available, call more with count=<lines> to read the next chunk; "
+    "more defaults to the next 500 lines. "
     "The read result also reports continue_offset=N, which is the next start_line if you need to jump manually. "
     "If the user explicitly asks you to read a complete file into context, call read with whole=true. "
     "A whole-file read may fail if the result would not fit the current context; then explain that and use chunks.\n\n";
@@ -1098,62 +1110,220 @@ static const char agent_tools_prompt_intro_glm[] =
 
 static const char agent_tools_prompt_edit_line[] =
     "## Editing files\n\n"
-    "Read and search output use plain line numbers. Prefer line/range edits with `new`; do not retype old text unless "
-    "you need the old/new fallback. The edit tool remembers the exact lines you saw from read/search and rejects a "
-    "line/range edit if those lines changed or were never shown to you. If that happens, read the range again and retry.\n"
-    "Use for example: edit path=\"/tmp/example.c\" range=\"16:20\" new=\"... new text ...\" without the old parameter.\n"
-    "For a single line, use line=16 new=\"... new line ...\". Use new=\"\" to delete the line or range. "
-    "Use range=\"all\" when replacing the whole file; this is "
-    "an explicit whole-file rewrite and does not require a previous read.\n"
-    "If you use old/new, old must match exactly once in the current file; line/range are ignored in that mode.\n"
-    "Use read raw=true only when you need undecorated file text.\n\n";
+    "Use write for new files or deliberate whole-file replacement. Use edit with path, old, and new for changes. "
+    "For edit, always put the edited file path as the first parameter. "
+    "The old text must match exactly once in the current file; otherwise edit fails for safety.\n"
+    "For large replacements, prefer anchored old text: write the first lines, then [upto], then the final lines. "
+    "The tool replaces everything from the head through the tail. If the head or tail is ambiguous, the edit fails.\n"
+    "After [upto], always write unique final lines before closing old; never close old immediately after [upto].\n"
+    "Do not use a generic tail anchor like:\n"
+    "- BigNum bignum_add(BigNum *a, BigNum *b) {\n"
+    "- [upto]\n"
+    "- }\n"
+    "because the closing brace may match many functions. Instead include final lines that are unique near that function, "
+    "for example its last calculation and return line before the brace.\n"
+    "Example anchored edit:\n"
+    "<｜DSML｜tool_calls>\n"
+    "<｜DSML｜invoke name=\"edit\">\n"
+    "<｜DSML｜parameter name=\"path\" string=\"true\">/tmp/example.c</｜DSML｜parameter>\n"
+    "<｜DSML｜parameter name=\"old\" string=\"true\">static int parse(void) {\n"
+    "    int ok = 0;\n"
+    "[upto]\n"
+    "    return ok;\n"
+    "}</｜DSML｜parameter>\n"
+    "<｜DSML｜parameter name=\"new\" string=\"true\">static int parse(void) {\n"
+    "    return parse_impl();\n"
+    "}</｜DSML｜parameter>\n"
+    "</｜DSML｜invoke>\n"
+    "</｜DSML｜tool_calls>\n"
+    "To insert text, use edit with old set to an exact unique anchor and new set to that anchor plus the added text.\n"
+    "Use read raw=true only when you need plain file text without line numbers or read annotations.\n\n";
 
 static const char agent_tools_prompt_after_edit_legacy[] =
     "For long-running bash commands, pass refresh_sec. If a bash job is still running, use "
     "bash_status to check it early or bash_stop to terminate it.\n\n"
+    "Use google_search to find web pages. Use visit_page to read a known URL with a visible browser. "
+    "The first web call may ask the user for permission to start Chrome.\n\n"
     "### Available Tool Schemas\n\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"bash\",\"description\":\"Run a shell command.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"command\":{\"type\":\"string\"},"
-    "\"timeout_sec\":{\"type\":\"number\"},\"refresh_sec\":{\"type\":\"number\"}},"
-    "\"required\":[\"command\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"bash_status\",\"description\":\"Report current status and new output for a bash job.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"job\":{\"type\":\"number\"},"
-    "\"pid\":{\"type\":\"number\"},\"refresh_sec\":{\"type\":\"number\"}},\"required\":[\"job\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"bash_stop\",\"description\":\"Terminate a running bash job and report its final output.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"job\":{\"type\":\"number\"},"
-    "\"pid\":{\"type\":\"number\"},\"refresh_sec\":{\"type\":\"number\"}},\"required\":[\"job\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"read\",\"description\":\"Read a text file or a range of lines.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},"
-    "\"start_line\":{\"type\":\"number\"},\"max_lines\":{\"type\":\"number\"},"
-    "\"whole\":{\"type\":\"boolean\"},\"raw\":{\"type\":\"boolean\"}},\"required\":[\"path\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"more\",\"description\":\"Continue the previous read-like output.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"count\":{\"type\":\"number\"}}}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"write\",\"description\":\"Create or overwrite a text file.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},"
-    "\"content\":{\"type\":\"string\"}},\"required\":[\"path\",\"content\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"edit\",\"description\":\"Edit a file by line/range or old/new text.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"},"
-    "\"line\":{\"type\":\"number\"},\"start_line\":{\"type\":\"number\"},\"end_line\":{\"type\":\"number\"},"
-    "\"range\":{\"type\":\"string\"},\"old\":{\"type\":\"string\"},\"new\":{\"type\":\"string\"}},"
-    "\"required\":[\"path\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"search\",\"description\":\"Search files and return compact edit-friendly matches.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},"
-    "\"path\":{\"type\":\"string\"},\"mode\":{\"type\":\"string\"},\"glob\":{\"type\":\"string\"},"
-    "\"context\":{\"type\":\"number\"},\"max_results\":{\"type\":\"number\"},"
-    "\"case_sensitive\":{\"type\":\"boolean\"}},\"required\":[\"query\"]}}}\n"
-    "{\"type\":\"function\",\"function\":{\"name\":\"list\",\"description\":\"List one directory compactly.\","
-    "\"parameters\":{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"]}}}\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"google_search\",\n"
+    "    \"description\": \"Search Google in a visible browser and return compact Markdown links.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"query\": {\"type\": \"string\"}\n"
+    "      },\n"
+    "      \"required\": [\"query\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"visit_page\",\n"
+    "    \"description\": \"Open a URL in a visible browser and return rendered page Markdown.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"url\": {\"type\": \"string\"}\n"
+    "      },\n"
+    "      \"required\": [\"url\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"bash\",\n"
+    "    \"description\": \"Run a shell command.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"command\": {\"type\": \"string\"},\n"
+    "        \"timeout_sec\": {\"type\": \"number\"},\n"
+    "        \"refresh_sec\": {\"type\": \"number\"}\n"
+    "      },\n"
+    "      \"required\": [\"command\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"bash_status\",\n"
+    "    \"description\": \"Report current status and new output for a bash job.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"job\": {\"type\": \"number\"},\n"
+    "        \"pid\": {\"type\": \"number\"},\n"
+    "        \"refresh_sec\": {\"type\": \"number\"}\n"
+    "      },\n"
+    "      \"required\": [\"job\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"bash_stop\",\n"
+    "    \"description\": \"Terminate a running bash job and report its final output.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"job\": {\"type\": \"number\"},\n"
+    "        \"pid\": {\"type\": \"number\"},\n"
+    "        \"refresh_sec\": {\"type\": \"number\"}\n"
+    "      },\n"
+    "      \"required\": [\"job\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"read\",\n"
+    "    \"description\": \"Read a text file or a range of lines.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"path\": {\"type\": \"string\"},\n"
+    "        \"start_line\": {\"type\": \"number\"},\n"
+    "        \"max_lines\": {\"type\": \"number\"},\n"
+    "        \"whole\": {\"type\": \"boolean\"},\n"
+    "        \"raw\": {\"type\": \"boolean\"}\n"
+    "      },\n"
+    "      \"required\": [\"path\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"more\",\n"
+    "    \"description\": \"Continue the previous read-like output.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"count\": {\"type\": \"number\"}\n"
+    "      }\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"write\",\n"
+    "    \"description\": \"Create or overwrite a text file.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"path\": {\"type\": \"string\"},\n"
+    "        \"content\": {\"type\": \"string\"}\n"
+    "      },\n"
+    "      \"required\": [\"path\", \"content\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"edit\",\n"
+    "    \"description\": \"Replace exactly one old text match; old may contain [upto] between unique head and tail anchors.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"path\": {\"type\": \"string\"},\n"
+    "        \"old\": {\"type\": \"string\"},\n"
+    "        \"new\": {\"type\": \"string\"}\n"
+    "      },\n"
+    "      \"required\": [\"path\", \"old\", \"new\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"search\",\n"
+    "    \"description\": \"Search files and return compact edit-friendly matches.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"query\": {\"type\": \"string\"},\n"
+    "        \"path\": {\"type\": \"string\"},\n"
+    "        \"mode\": {\"type\": \"string\"},\n"
+    "        \"glob\": {\"type\": \"string\"},\n"
+    "        \"context\": {\"type\": \"number\"},\n"
+    "        \"max_results\": {\"type\": \"number\"},\n"
+    "        \"case_sensitive\": {\"type\": \"boolean\"}\n"
+    "      },\n"
+    "      \"required\": [\"query\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n\n"
+    "{\n"
+    "  \"type\": \"function\",\n"
+    "  \"function\": {\n"
+    "    \"name\": \"list\",\n"
+    "    \"description\": \"List one directory compactly.\",\n"
+    "    \"parameters\": {\n"
+    "      \"type\": \"object\",\n"
+    "      \"properties\": {\n"
+    "        \"path\": {\"type\": \"string\"}\n"
+    "      },\n"
+    "      \"required\": [\"path\"]\n"
+    "    }\n"
+    "  }\n"
+    "}\n"
     "\n"
     "# Rules\n\n"
     "- Always use strict syntax for DSML tool stanzas.\n"
     "- This system runs on local inference of a few hundred tokens/s of prefill, "
-    "and a few tens of tokens/s decoding speed. Use tools and file/output reading "
-    "wisely to avoid very long pauses. Use line-based edit tools instead of "
-    "retyping old text whenever possible.\n"
-    "- If the user asks how a local binary such as ./ds4 works, inspect source "
-    "with search/read first. Do not run ./ds4, ds4-agent, ds4-server, ds4-bench, "
-    "or ds4-eval just to inspect behavior; use --help only when usage text is "
-    "specifically needed, and pass -m/--model for any real inference run.\n"
+    "and a few tens of tokens/s decoding speed. Use read/search to get the "
+    "anchors you need, then use anchored edit to avoid having to "
+    "retype large text.\n"
     "- Write code that is reliable and works well; always have a mental model of "
     "what is going on in complex parts of the code.\n"
     "- Work in a way that preserves the current system configuration integrity, "
@@ -1464,6 +1634,8 @@ static void agent_status_clear_draft_debug(agent_status *st) {
     st->debug_draft_slots = 0;
     st->debug_draft_accepted = 0;
     st->debug_draft_blocks = 0;
+    st->debug_draft_skipped_blocks = 0;
+    st->debug_draft_verify_skipped_blocks = 0;
 }
 
 static void agent_status_set_draft_debug(agent_status *st,
@@ -1471,7 +1643,9 @@ static void agent_status_set_draft_debug(agent_status *st,
                                          uint32_t active_budget,
                                          uint64_t accepted,
                                          uint64_t slots,
-                                         uint64_t blocks) {
+                                         uint64_t blocks,
+                                         uint64_t skipped_blocks,
+                                         uint64_t verify_skipped_blocks) {
     if (!st) return;
     snprintf(st->debug_draft_label,
              sizeof(st->debug_draft_label),
@@ -1481,6 +1655,8 @@ static void agent_status_set_draft_debug(agent_status *st,
     st->debug_draft_slots = slots;
     st->debug_draft_accepted = accepted;
     st->debug_draft_blocks = blocks;
+    st->debug_draft_skipped_blocks = skipped_blocks;
+    st->debug_draft_verify_skipped_blocks = verify_skipped_blocks;
 }
 
 static bool agent_dspark_stats_enabled(void) {
@@ -1519,6 +1695,12 @@ static void agent_dspark_runtime_delta(ds4_runtime_status *out,
     out->dspark_perf_committed_tokens =
         agent_u64_delta(after->dspark_perf_committed_tokens,
                         before->dspark_perf_committed_tokens);
+    out->dspark_perf_skip_pre_draft =
+        agent_u64_delta(after->dspark_perf_skip_pre_draft,
+                        before->dspark_perf_skip_pre_draft);
+    out->dspark_perf_skip_verify =
+        agent_u64_delta(after->dspark_perf_skip_verify,
+                        before->dspark_perf_skip_verify);
     out->dspark_perf_draft_seconds =
         agent_double_delta(after->dspark_perf_draft_seconds,
                            before->dspark_perf_draft_seconds);
@@ -1574,7 +1756,7 @@ static void agent_print_dspark_runtime_status(agent_worker *w,
             "\nds4-agent: dspark perf round=%d: draft=%.1f tok/s, verify=%.1f proposed tok/s, "
             "verify-accepted=%.1f tok/s, block=%.2f ms "
             "(draft=%.2f verify=%.2f overhead=%.2f commit=%.2f, "
-            "tau=%.2f, blocks=%llu)\n",
+            "tau=%.2f, blocks=%llu, skip-pre=%llu, skip-verify=%llu)\n",
             tool_round,
             draft_tps,
             verify_prop_tps,
@@ -1585,7 +1767,9 @@ static void agent_print_dspark_runtime_status(agent_worker *w,
             avg_overhead_ms,
             avg_commit_ms,
             tau,
-            (unsigned long long)rt.dspark_perf_blocks);
+            (unsigned long long)rt.dspark_perf_blocks,
+            (unsigned long long)rt.dspark_perf_skip_pre_draft,
+            (unsigned long long)rt.dspark_perf_skip_verify);
 
     const double avg_verify_gpu_ms =
         1000.0 * rt.dspark_perf_verify_gpu_seconds / (double)rt.dspark_perf_blocks;
@@ -4120,6 +4304,8 @@ static const char *agent_tool_viz_prefix(const char *name) {
     if (!strcmp(name, "write")) return "write ";
     if (!strcmp(name, "edit")) return "edit ";
     if (!strcmp(name, "search")) return "search ";
+    if (!strcmp(name, "google_search")) return "google ";
+    if (!strcmp(name, "visit_page")) return "visit ";
     return NULL;
 }
 
@@ -5991,6 +6177,94 @@ static void agent_publish_system_status(agent_worker *w, const char *msg) {
         agent_publish(w, msg, strlen(msg));
         agent_publish(w, "\n", 1);
     }
+}
+
+static void agent_publishf_system_status(agent_worker *w, const char *fmt, ...) {
+    char buf[512];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    agent_publish_system_status(w, buf);
+}
+
+/* ============================================================================
+ * Browser Web Tools: approval flow
+ * ============================================================================
+ *
+ * The browser subsystem lives in ds4_web.c: it owns visible Chrome and CDP.
+ * ds4_web calls back into agent_web_confirm on the worker thread to request
+ * permission to launch Chrome; the request is parked as web_approval_* state
+ * and answered by the UI thread. */
+static int agent_web_confirm(void *privdata, const char *message,
+                             char *err, size_t err_len) {
+    agent_worker *w = privdata;
+    if (!w || w->cfg->non_interactive) {
+        snprintf(err, err_len,
+                 "visible Chrome browser startup requires interactive approval");
+        return 0;
+    }
+
+    pthread_mutex_lock(&w->mu);
+    w->web_approval_pending = true;
+    w->web_approval_answered = false;
+    w->web_approval_result = false;
+    w->web_approval_error[0] = '\0';
+    snprintf(w->web_approval_message, sizeof(w->web_approval_message),
+             "%s", message ? message : "Start visible Chrome browser? (y/n) ");
+    agent_wake_locked(w);
+    while (!w->stop && !w->interrupt && !w->web_approval_answered)
+        pthread_cond_wait(&w->cond, &w->mu);
+    bool ok = w->web_approval_result;
+    if (!w->web_approval_answered && (w->stop || w->interrupt)) {
+        ok = false;
+        w->web_approval_pending = false;
+        snprintf(w->web_approval_error, sizeof(w->web_approval_error),
+                 "interrupted");
+    }
+    if (!ok) {
+        snprintf(err, err_len, "%s",
+                 w->web_approval_error[0] ? w->web_approval_error :
+                 "user denied Chrome browser start");
+    }
+    pthread_mutex_unlock(&w->mu);
+    return ok ? 1 : 0;
+}
+
+static void agent_web_log(void *privdata, const char *message) {
+    agent_worker *w = privdata;
+    if (!w || !message || !message[0]) return;
+    agent_trace(w, "web: %s", message);
+}
+
+static bool agent_web_cancel(void *privdata) {
+    return worker_should_interrupt(privdata);
+}
+
+static bool worker_take_web_approval_request(agent_worker *w,
+                                             char *message, size_t message_len) {
+    pthread_mutex_lock(&w->mu);
+    bool pending = w->web_approval_pending;
+    if (pending) {
+        snprintf(message, message_len, "%s", w->web_approval_message);
+        w->web_approval_pending = false;
+    }
+    pthread_mutex_unlock(&w->mu);
+    return pending;
+}
+
+static void worker_answer_web_approval(agent_worker *w, bool allow,
+                                       const char *deny_error) {
+    pthread_mutex_lock(&w->mu);
+    w->web_approval_result = allow;
+    w->web_approval_answered = true;
+    if (!allow)
+        snprintf(w->web_approval_error, sizeof(w->web_approval_error),
+                 "%s", deny_error && deny_error[0] ? deny_error :
+                 "user denied Chrome browser start");
+    pthread_cond_signal(&w->cond);
+    agent_wake_locked(w);
+    pthread_mutex_unlock(&w->mu);
 }
 
 /* Synchronize the live DS4 session to a transcript.  This is the agent's main
@@ -8918,6 +9192,147 @@ static bool agent_tool_repeat_blocked(agent_worker *w,
 /* Execute one parsed DSML tool call and return the text that will be appended as
  * the tool-role result.  UI visualization already happened while streaming; this
  * function is only about side effects and the model-visible observation. */
+/* ============================================================================
+ * Browser Web Tools: dispatch
+ * ============================================================================ */
+
+#define AGENT_WEB_HEAD_BYTES (8*1024)
+#define AGENT_WEB_HEAD_LINES 100
+
+static int agent_count_lines(const char *s) {
+    if (!s || !s[0]) return 0;
+    int lines = 0;
+    for (const char *p = s; *p; p++) {
+        if (*p == '\n') lines++;
+    }
+    if (s[strlen(s) - 1] != '\n') lines++;
+    return lines;
+}
+
+static char *agent_string_head(const char *s, int max_lines, size_t max_bytes,
+                               int *lines_read, bool *byte_limited) {
+    if (lines_read) *lines_read = 0;
+    if (byte_limited) *byte_limited = false;
+    if (!s) return xstrdup("");
+    size_t used = 0;
+    int lines = 0;
+    while (s[used] && used < max_bytes && lines < max_lines) {
+        if (s[used++] == '\n') lines++;
+    }
+    if (s[used] && used >= max_bytes && byte_limited) *byte_limited = true;
+    if (used && s[used - 1] != '\n' && lines < max_lines) lines++;
+    if (lines_read) *lines_read = lines;
+    return xstrndup(s, used);
+}
+
+static bool agent_write_temp_text(const char *prefix, const char *text,
+                                  char *path, size_t path_len,
+                                  char *err, size_t err_len) {
+    char tmpl[PATH_MAX];
+    snprintf(tmpl, sizeof(tmpl), "/tmp/%s_XXXXXX", prefix);
+    int fd = mkstemp(tmpl);
+    if (fd < 0) {
+        snprintf(err, err_len, "failed to create temporary file: %s", strerror(errno));
+        return false;
+    }
+    size_t len = text ? strlen(text) : 0;
+    const char *p = text ? text : "";
+    size_t left = len;
+    while (left) {
+        ssize_t n = write(fd, p, left);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) {
+            snprintf(err, err_len, "failed to write temporary file: %s", strerror(errno));
+            close(fd);
+            unlink(tmpl);
+            return false;
+        }
+        p += n;
+        left -= (size_t)n;
+    }
+    if (close(fd) != 0) {
+        snprintf(err, err_len, "failed to close temporary file: %s", strerror(errno));
+        unlink(tmpl);
+        return false;
+    }
+    snprintf(path, path_len, "%s", tmpl);
+    return true;
+}
+
+static char *agent_tool_google_search(agent_worker *w, const agent_tool_call *call) {
+    const char *query = agent_tool_arg_value(call, "query");
+    if (!query || !query[0]) return xstrdup("Tool error: google_search requires query\n");
+    char err[256] = {0};
+    agent_publishf_system_status(w, "Searching Google for %s...", query);
+    char *md = ds4_web_google_search(w->web, query, err, sizeof(err));
+    if (!md) {
+        agent_buf b = {0};
+        agent_buf_puts(&b, "Tool error: google_search failed: ");
+        agent_buf_puts(&b, err[0] ? err : "unknown error");
+        agent_buf_puts(&b, "\n");
+        return agent_buf_take(&b);
+    }
+    return md;
+}
+
+static char *agent_tool_visit_page(agent_worker *w, const agent_tool_call *call) {
+    const char *url = agent_tool_arg_value(call, "url");
+    if (!url || !url[0]) return xstrdup("Tool error: visit_page requires url\n");
+    char err[256] = {0};
+    agent_publishf_system_status(w, "Opening page %s...", url);
+    char *md = ds4_web_visit_page(w->web, url, err, sizeof(err));
+    if (!md) {
+        agent_buf b = {0};
+        agent_buf_puts(&b, "Tool error: visit_page failed: ");
+        agent_buf_puts(&b, err[0] ? err : "unknown error");
+        agent_buf_puts(&b, "\n");
+        return agent_buf_take(&b);
+    }
+
+    char path[PATH_MAX];
+    if (!agent_write_temp_text("ds4_agent_web", md, path, sizeof(path),
+                               err, sizeof(err)))
+    {
+        free(md);
+        agent_buf b = {0};
+        agent_buf_puts(&b, "Tool error: visit_page failed: ");
+        agent_buf_puts(&b, err[0] ? err : "could not store rendered page");
+        agent_buf_puts(&b, "\n");
+        return agent_buf_take(&b);
+    }
+
+    int total_lines = agent_count_lines(md);
+    int shown_lines = 0;
+    bool byte_limited = false;
+    char *head = agent_string_head(md, AGENT_WEB_HEAD_LINES, AGENT_WEB_HEAD_BYTES,
+                                   &shown_lines, &byte_limited);
+    bool truncated = byte_limited || shown_lines < total_lines;
+    agent_buf out = {0};
+    char line[PATH_MAX + 256];
+    snprintf(line, sizeof(line),
+             "visit_page url=%s\noutput_path=%s (%zu bytes, %d lines)\n",
+             url, path, strlen(md), total_lines);
+    agent_buf_puts(&out, line);
+    if (truncated) {
+        snprintf(line, sizeof(line), "<head -%d %s>\n",
+                 AGENT_WEB_HEAD_LINES, path);
+        agent_buf_puts(&out, line);
+        agent_buf_puts(&out, head);
+        if (head[0] && head[strlen(head) - 1] != '\n') agent_buf_puts(&out, "\n");
+        agent_buf_puts(&out, "</head>\n");
+        agent_buf_puts(&out,
+            "Use read path=<output_path> start_line=<line> max_lines=<count> raw=true to inspect more rendered Markdown.\n");
+    } else {
+        agent_buf_puts(&out, "<markdown>\n");
+        agent_buf_puts(&out, head);
+        if (head[0] && head[strlen(head) - 1] != '\n') agent_buf_puts(&out, "\n");
+        agent_buf_puts(&out, "</markdown>\n");
+    }
+    free(head);
+    free(md);
+    return agent_buf_take(&out);
+}
+
 static char *agent_execute_tool_call(agent_worker *w, const agent_tool_call *call) {
     agent_buf result = {0};
     if (!call->name) return xstrdup("Tool error: missing tool name\n");
@@ -8938,6 +9353,8 @@ static char *agent_execute_tool_call(agent_worker *w, const agent_tool_call *cal
     if (!strcmp(call->name, "list")) return agent_tool_list(call);
     if (!strcmp(call->name, "edit")) return agent_tool_edit(w, call);
     if (!strcmp(call->name, "search")) return agent_tool_search(w, call);
+    if (!strcmp(call->name, "google_search")) return agent_tool_google_search(w, call);
+    if (!strcmp(call->name, "visit_page")) return agent_tool_visit_page(w, call);
 
     if (!strcmp(call->name, "bash")) {
         const char *cmd = agent_tool_arg_value(call, "command");
@@ -10301,6 +10718,8 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         uint64_t draft_slots = 0;
         uint64_t draft_accepted = 0;
         uint64_t draft_blocks = 0;
+        uint64_t draft_skipped_blocks = 0;
+        uint64_t draft_verify_skipped_blocks = 0;
         uint64_t draft_pos_slots[16] = {0};
         uint64_t draft_pos_cond_slots[16] = {0};
         uint64_t draft_pos_accepted[16] = {0};
@@ -10353,25 +10772,35 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                     agent_set_error(w, err);
                     return 1;
                 }
-                int accepted_drafts = accepted_draft_count >= 0 ?
-                    accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
-                if (accepted_drafts < 0) accepted_drafts = 0;
-                draft_slots += (uint64_t)drafted;
-                if (drafted > 0) {
-                    draft_blocks++;
-                    const int pos_cap = drafted < 16 ? drafted : 16;
-                    for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
-                    if (accepted_drafts > drafted) accepted_drafts = drafted;
-                    const int accepted_cap_pos =
-                        accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
-                    for (int i = 0; i < pos_cap; i++) {
-                        if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+                /* draft_accepted == -2: drafted but post-draft rate/margin-rate
+                 * gate skipped verify (k=0).  Distinct from pre-draft skip
+                 * (drafted==0) and first-miss after verify (accepted==0). */
+                if (accepted_draft_count == -2) {
+                    if (drafted > 0) draft_slots += (uint64_t)drafted;
+                    if (max_tokens - generated > 1) draft_verify_skipped_blocks++;
+                } else {
+                    int accepted_drafts = accepted_draft_count >= 0 ?
+                        accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
+                    if (accepted_drafts < 0) accepted_drafts = 0;
+                    draft_slots += (uint64_t)drafted;
+                    if (drafted > 0) {
+                        draft_blocks++;
+                        const int pos_cap = drafted < 16 ? drafted : 16;
+                        for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
+                        if (accepted_drafts > drafted) accepted_drafts = drafted;
+                        const int accepted_cap_pos =
+                            accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
+                        for (int i = 0; i < pos_cap; i++) {
+                            if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+                        }
+                        for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
+                        if (accepted_drafts == drafted) draft_full_accept_blocks++;
+                        if (accepted_drafts == 0) draft_first_miss_blocks++;
+                    } else if (max_tokens - generated > 1) {
+                        draft_skipped_blocks++;
                     }
-                    for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
-                    if (accepted_drafts == drafted) draft_full_accept_blocks++;
-                    if (accepted_drafts == 0) draft_first_miss_blocks++;
+                    if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
                 }
-                if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
             } else {
                 if (ds4_session_eval(w->session, first_token, err, sizeof(err)) != 0) {
                     agent_dsml_parser_free(&dsml);
@@ -10435,7 +10864,9 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                                                 rt.dspark_active_verify_budget : 0,
                                              draft_accepted,
                                              draft_slots,
-                                             draft_blocks);
+                                             draft_blocks,
+                                             draft_skipped_blocks,
+                                             draft_verify_skipped_blocks);
             }
             w->status.generated = generated;
             w->status.gen_tps = dt > 0.0 ? (double)generated / dt : 0.0;
@@ -10568,6 +10999,15 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                         draft_blocks > 0 ? (double)draft_slots / (double)draft_blocks : 0.0,
                         (unsigned long long)draft_blocks);
             }
+        }
+        if (draft_skipped_blocks > 0 || draft_verify_skipped_blocks > 0) {
+            agent_publishf(w,
+                    "ds4-agent: %s skipped round=%d: pre-draft=%llu "
+                    "verify-skip=%llu speculative opportunities\n",
+                    draft_label,
+                    tool_round,
+                    (unsigned long long)draft_skipped_blocks,
+                    (unsigned long long)draft_verify_skipped_blocks);
         }
 
         const char *turn_stats_env = getenv("DS4_AGENT_TURN_STATS");
@@ -11079,26 +11519,40 @@ static void agent_format_bytes(size_t bytes, char *buf, size_t len) {
 }
 
 static void build_status_debug_text(const agent_status *st, char *buf, size_t len) {
-    if (!st || ((!st->debug_runtime || st->debug_moe_slots == 0) &&
-                st->debug_draft_slots == 0)) {
+    if (!st || (!st->debug_runtime &&
+                st->debug_draft_slots == 0 &&
+                st->debug_draft_skipped_blocks == 0 &&
+                st->debug_draft_verify_skipped_blocks == 0)) {
         if (len) buf[0] = '\0';
         return;
     }
 
     char compression[96] = "";
-    if (st->debug_runtime && st->debug_moe_slots != 0) {
-        snprintf(compression,
-                 sizeof(compression),
-                 "slot:%u | Cmp: GPU: %.1f  Sys: %.1f GB",
-                 st->debug_moe_slots,
-                 (double)st->debug_gpu_compressed_bytes / 1073741824.0,
-                 (double)st->debug_system_compressed_bytes / 1073741824.0);
+    if (st->debug_runtime) {
+        if (st->debug_moe_slots != 0) {
+            snprintf(compression,
+                     sizeof(compression),
+                     "slot:%u | Cmp: GPU: %.1f  Sys: %.1f GB",
+                     st->debug_moe_slots,
+                     (double)st->debug_gpu_compressed_bytes / 1073741824.0,
+                     (double)st->debug_system_compressed_bytes / 1073741824.0);
+        } else {
+            snprintf(compression,
+                     sizeof(compression),
+                     "moe:mono | Cmp: GPU: %.1f  Sys: %.1f GB",
+                     (double)st->debug_gpu_compressed_bytes / 1073741824.0,
+                     (double)st->debug_system_compressed_bytes / 1073741824.0);
+        }
     }
 
-    char draft[96] = "";
-    if (st->debug_draft_slots != 0) {
+    char draft[128] = "";
+    if (st->debug_draft_slots != 0 ||
+        st->debug_draft_skipped_blocks != 0 ||
+        st->debug_draft_verify_skipped_blocks != 0) {
         const double acc =
-            100.0 * (double)st->debug_draft_accepted / (double)st->debug_draft_slots;
+            st->debug_draft_slots != 0 ?
+                100.0 * (double)st->debug_draft_accepted / (double)st->debug_draft_slots :
+                0.0;
         const double tau = st->debug_draft_blocks != 0 ?
             (double)st->debug_draft_accepted / (double)st->debug_draft_blocks :
             0.0;
@@ -11115,12 +11569,34 @@ static void build_status_debug_text(const agent_status *st, char *buf, size_t le
                      "%s",
                      st->debug_draft_label[0] ? st->debug_draft_label : "draft");
         }
-        snprintf(draft,
-                 sizeof(draft),
-                 "%s acc:%.1f%% tau:%.2f",
-                 label,
-                 acc,
-                 tau);
+        if (st->debug_draft_skipped_blocks != 0 ||
+            st->debug_draft_verify_skipped_blocks != 0) {
+            if (st->debug_draft_verify_skipped_blocks != 0) {
+                snprintf(draft,
+                         sizeof(draft),
+                         "%s acc:%.1f%% tau:%.2f skip:%llu vskip:%llu",
+                         label,
+                         acc,
+                         tau,
+                         (unsigned long long)st->debug_draft_skipped_blocks,
+                         (unsigned long long)st->debug_draft_verify_skipped_blocks);
+            } else {
+                snprintf(draft,
+                         sizeof(draft),
+                         "%s acc:%.1f%% tau:%.2f skip:%llu",
+                         label,
+                         acc,
+                         tau,
+                         (unsigned long long)st->debug_draft_skipped_blocks);
+            }
+        } else {
+            snprintf(draft,
+                     sizeof(draft),
+                     "%s acc:%.1f%% tau:%.2f",
+                     label,
+                     acc,
+                     tau);
+        }
     }
 
     if (compression[0] && draft[0]) snprintf(buf, len, "%s | %s", compression, draft);
@@ -12189,6 +12665,17 @@ static int agent_worker_init(agent_worker *w, ds4_engine *engine, agent_config *
                 w->cache_dir, strerror(errno));
         return -1;
     }
+    ds4_web_config web_cfg = {
+        .home_dir = getenv("HOME"),
+        .port = 9333,
+        .confirm = agent_web_confirm,
+        .confirm_privdata = w,
+        .log = agent_web_log,
+        .log_privdata = w,
+        .cancel = agent_web_cancel,
+        .cancel_privdata = w,
+    };
+    w->web = ds4_web_create(&web_cfg);
     w->sysprompt_path = ds4_kvstore_path_join(w->cache_dir, "sysprompt.kv");
     if (cfg->gen.trace_path && cfg->gen.trace_path[0]) {
         w->trace = fopen(cfg->gen.trace_path, "ab");
@@ -12208,6 +12695,8 @@ static void agent_worker_free(agent_worker *w) {
     worker_stop(w);
     if (w->thread) pthread_join(w->thread, NULL);
     agent_bash_jobs_free(w);
+    ds4_web_free(w->web);
+    w->web = NULL;
     agent_file_views_clear(w);
     ds4_session_free(w->session);
     ds4_tokens_free(&w->transcript);
@@ -12229,6 +12718,85 @@ static bool agent_prompt_yes_no(const char *prompt) {
         printf("%s", prompt);
         fflush(stdout);
         if (!fgets(buf, sizeof(buf), stdin)) return false;
+        char *p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == 'y' || *p == 'Y') return true;
+        if (*p == 'n' || *p == 'N') return false;
+    }
+}
+
+typedef enum {
+    AGENT_YES_NO_AUTO_NONE,
+    AGENT_YES_NO_AUTO_NO,
+    AGENT_YES_NO_AUTO_YES,
+} agent_yes_no_auto;
+
+typedef struct {
+    int timeout_sec;
+    agent_yes_no_auto timeout_answer;
+} agent_yes_no_options;
+
+static const char *agent_yes_no_auto_name(agent_yes_no_auto answer) {
+    switch (answer) {
+    case AGENT_YES_NO_AUTO_NO: return "no";
+    case AGENT_YES_NO_AUTO_YES: return "yes";
+    default: return "";
+    }
+}
+
+/* y/n prompt with an optional auto-answer timeout.  Crucially, while the
+ * linenoise editor is active stdin is O_NONBLOCK, so a plain fgets would return
+ * immediately (EAGAIN) and read as "no"; temporarily clear O_NONBLOCK so the
+ * prompt actually waits for the user.  Used for the mid-turn Chrome-approval
+ * request, which fires while the worker is busy and the editor is live. */
+static bool agent_prompt_yes_no_ex(const char *prompt,
+                                   const agent_yes_no_options *opts,
+                                   bool *timed_out) {
+    char buf[32];
+    int timeout_sec = opts ? opts->timeout_sec : 0;
+    agent_yes_no_auto auto_answer = opts ?
+        opts->timeout_answer : AGENT_YES_NO_AUTO_NONE;
+    bool use_timeout = timeout_sec > 0 && auto_answer != AGENT_YES_NO_AUTO_NONE;
+    double deadline = use_timeout ? now_sec() + timeout_sec : 0.0;
+
+    if (timed_out) *timed_out = false;
+    for (;;) {
+        printf("%s", prompt);
+        if (use_timeout) {
+            int rem = (int)(deadline - now_sec() + 0.999);
+            if (rem < 0) rem = 0;
+            printf("[auto-%s in %ds] ", agent_yes_no_auto_name(auto_answer), rem);
+        }
+        fflush(stdout);
+        if (use_timeout) {
+            double rem_sec = deadline - now_sec();
+            if (rem_sec <= 0.0) {
+                if (timed_out) *timed_out = true;
+                printf("\n");
+                return auto_answer == AGENT_YES_NO_AUTO_YES;
+            }
+            struct pollfd pfd = {.fd = STDIN_FILENO, .events = POLLIN};
+            int timeout_ms = (int)(rem_sec * 1000.0) + 1;
+            int rc;
+            do {
+                rc = poll(&pfd, 1, timeout_ms);
+            } while (rc < 0 && errno == EINTR);
+            if (rc == 0) {
+                if (timed_out) *timed_out = true;
+                printf("\n");
+                return auto_answer == AGENT_YES_NO_AUTO_YES;
+            }
+            if (rc < 0) return false;
+        }
+        int saved_flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        if (saved_flags >= 0 && (saved_flags & O_NONBLOCK)) {
+            fcntl(STDIN_FILENO, F_SETFL, saved_flags & ~O_NONBLOCK);
+        }
+        bool got_line = fgets(buf, sizeof(buf), stdin) != NULL;
+        if (saved_flags >= 0 && (saved_flags & O_NONBLOCK)) {
+            fcntl(STDIN_FILENO, F_SETFL, saved_flags);
+        }
+        if (!got_line) return false;
         char *p = buf;
         while (*p == ' ' || *p == '\t') p++;
         if (*p == 'y' || *p == 'Y') return true;
@@ -12384,7 +12952,7 @@ static void agent_print_resume_hint(agent_worker *w) {
             printf(" --draft-mode %s", cfg->draft_mode);
         }
         if (cfg->engine.draft_scheduler &&
-            strcmp(cfg->engine.draft_scheduler, "static")) {
+            strcmp(cfg->engine.draft_scheduler, "confidence")) {
             printf(" --draft-scheduler %s", cfg->engine.draft_scheduler);
         }
         if (cfg->engine.draft_conf_threshold > 0.0f) {
@@ -12698,6 +13266,34 @@ static int run_agent(ds4_engine *engine, agent_config *cfg) {
         }
 
         if (rc > 0 && (pfd[1].revents & POLLIN)) drain_wake_fd(worker.wake_fd[0]);
+
+        char web_approval_msg[256];
+        if (worker_take_web_approval_request(&worker, web_approval_msg,
+                                             sizeof(web_approval_msg)))
+        {
+            char *saved_input = NULL;
+            if (editor.active && editor.edit.buf && editor.edit.len)
+                saved_input = xstrndup(editor.edit.buf, editor.edit.len);
+            editor_stop(&editor);
+            editor_restore_terminal_layout(&editor);
+            agent_yes_no_options approval_opts = {
+                .timeout_sec = 30,
+                .timeout_answer = AGENT_YES_NO_AUTO_NO,
+            };
+            bool approval_timed_out = false;
+            bool allow = agent_prompt_yes_no_ex(web_approval_msg,
+                                                &approval_opts,
+                                                &approval_timed_out);
+            worker_answer_web_approval(&worker, allow,
+                approval_timed_out ? "Chrome browser start approval timed out" : NULL);
+            worker_get_status(&worker, &st);
+            build_prompt_text(&st, prompt, sizeof(prompt));
+            int restart_cols = editor.edit.cols > 0 ? (int)editor.edit.cols : 80;
+            build_footer_text(&st, &queue, restart_cols, statusline, sizeof(statusline));
+            editor_start(&editor, prompt, statusline, saved_input);
+            free(saved_input);
+            continue;
+        }
 
         char *out = NULL;
         size_t out_len = 0;

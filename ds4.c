@@ -9271,6 +9271,51 @@ struct ds4_gpu_graph {
     uint32_t batch_routed_compact_rows;
     uint32_t batch_routed_scratch_cap;
     bool batch_routed_mid_is_f16;
+
+    /* DSpark draft-prefetch private scratch bank.  Mirrors of the shared
+     * batch_* / spec_logits / dspark_input_ids / dspark_h tensors so the
+     * prefetched draft trunk can run without clobbering state the verifier
+     * still reads after commit.  Only
+     * metal_graph_eval_dspark_draft_prefetch_start() repoints the graph at
+     * these mirrors; the live draft path keeps using the shared bank. */
+    ds4_gpu_tensor *dspark_draft_cur_hc;
+    ds4_gpu_tensor *dspark_draft_next_hc;
+    ds4_gpu_tensor *dspark_draft_flat_hc;
+    ds4_gpu_tensor *dspark_draft_hc_mix;
+    ds4_gpu_tensor *dspark_draft_hc_split;
+    ds4_gpu_tensor *dspark_draft_attn_cur;
+    ds4_gpu_tensor *dspark_draft_attn_norm;
+    ds4_gpu_tensor *dspark_draft_qr;
+    ds4_gpu_tensor *dspark_draft_qr_norm;
+    ds4_gpu_tensor *dspark_draft_q;
+    ds4_gpu_tensor *dspark_draft_kv_raw;
+    ds4_gpu_tensor *dspark_draft_kv;
+    ds4_gpu_tensor *dspark_draft_heads;
+    ds4_gpu_tensor *dspark_draft_attn_low;
+    ds4_gpu_tensor *dspark_draft_attn_out;
+    ds4_gpu_tensor *dspark_draft_after_attn_hc;
+    ds4_gpu_tensor *dspark_draft_ffn_cur;
+    ds4_gpu_tensor *dspark_draft_ffn_norm;
+    ds4_gpu_tensor *dspark_draft_shared_gate;
+    ds4_gpu_tensor *dspark_draft_shared_up;
+    ds4_gpu_tensor *dspark_draft_shared_mid;
+    ds4_gpu_tensor *dspark_draft_shared_out;
+    ds4_gpu_tensor *dspark_draft_router_logits;
+    ds4_gpu_tensor *dspark_draft_router_probs;
+    ds4_gpu_tensor *dspark_draft_router_selected;
+    ds4_gpu_tensor *dspark_draft_router_weights;
+    ds4_gpu_tensor *dspark_draft_routed_gate;
+    ds4_gpu_tensor *dspark_draft_routed_up;
+    ds4_gpu_tensor *dspark_draft_routed_mid;
+    ds4_gpu_tensor *dspark_draft_routed_out;
+    ds4_gpu_tensor *dspark_draft_low_tmp;
+    ds4_gpu_tensor *dspark_draft_spec_logits;
+    ds4_gpu_tensor *dspark_draft_markov_logits;
+    ds4_gpu_tensor *dspark_draft_kv_backup;
+    ds4_gpu_tensor *dspark_draft_input_ids;
+    ds4_gpu_tensor *dspark_draft_h;
+    uint32_t dspark_draft_scratch_cap;
+
     ds4_gpu_tensor *batch_ffn_out;
     bool materialize_ffn_out;
     ds4_gpu_tensor *directional_steering_dirs;
@@ -9976,6 +10021,42 @@ static void metal_graph_free(ds4_gpu_graph *g) {
     ds4_gpu_tensor_free(g->batch_next_hc);
     ds4_gpu_tensor_free(g->batch_cur_hc);
     ds4_gpu_tensor_free(g->prefill_tokens);
+    ds4_gpu_tensor_free(g->dspark_draft_h);
+    ds4_gpu_tensor_free(g->dspark_draft_input_ids);
+    ds4_gpu_tensor_free(g->dspark_draft_kv_backup);
+    ds4_gpu_tensor_free(g->dspark_draft_markov_logits);
+    ds4_gpu_tensor_free(g->dspark_draft_spec_logits);
+    ds4_gpu_tensor_free(g->dspark_draft_low_tmp);
+    ds4_gpu_tensor_free(g->dspark_draft_routed_out);
+    ds4_gpu_tensor_free(g->dspark_draft_routed_mid);
+    ds4_gpu_tensor_free(g->dspark_draft_routed_up);
+    ds4_gpu_tensor_free(g->dspark_draft_routed_gate);
+    ds4_gpu_tensor_free(g->dspark_draft_router_weights);
+    ds4_gpu_tensor_free(g->dspark_draft_router_selected);
+    ds4_gpu_tensor_free(g->dspark_draft_router_probs);
+    ds4_gpu_tensor_free(g->dspark_draft_router_logits);
+    ds4_gpu_tensor_free(g->dspark_draft_shared_out);
+    ds4_gpu_tensor_free(g->dspark_draft_shared_mid);
+    ds4_gpu_tensor_free(g->dspark_draft_shared_up);
+    ds4_gpu_tensor_free(g->dspark_draft_shared_gate);
+    ds4_gpu_tensor_free(g->dspark_draft_ffn_norm);
+    ds4_gpu_tensor_free(g->dspark_draft_ffn_cur);
+    ds4_gpu_tensor_free(g->dspark_draft_after_attn_hc);
+    ds4_gpu_tensor_free(g->dspark_draft_attn_out);
+    ds4_gpu_tensor_free(g->dspark_draft_attn_low);
+    ds4_gpu_tensor_free(g->dspark_draft_heads);
+    ds4_gpu_tensor_free(g->dspark_draft_kv);
+    ds4_gpu_tensor_free(g->dspark_draft_kv_raw);
+    ds4_gpu_tensor_free(g->dspark_draft_q);
+    ds4_gpu_tensor_free(g->dspark_draft_qr_norm);
+    ds4_gpu_tensor_free(g->dspark_draft_qr);
+    ds4_gpu_tensor_free(g->dspark_draft_attn_norm);
+    ds4_gpu_tensor_free(g->dspark_draft_attn_cur);
+    ds4_gpu_tensor_free(g->dspark_draft_hc_split);
+    ds4_gpu_tensor_free(g->dspark_draft_hc_mix);
+    ds4_gpu_tensor_free(g->dspark_draft_flat_hc);
+    ds4_gpu_tensor_free(g->dspark_draft_next_hc);
+    ds4_gpu_tensor_free(g->dspark_draft_cur_hc);
     ds4_gpu_tensor_free(g->logits);
     ds4_gpu_tensor_free(g->dspark_target_hidden);
     ds4_gpu_tensor_free(g->dspark_main_proj);
@@ -10538,6 +10619,39 @@ static uint32_t metal_graph_decode_indexer_top_k(const ds4_gpu_graph *g) {
     return DS4_N_INDEXER_TOP_K;
 }
 
+static uint32_t metal_graph_decode_indexer_sparse_threshold(const ds4_gpu_graph *g) {
+    (void)g;
+    static int parsed = -1;
+    static uint32_t cached = 0;
+    if (parsed < 0) {
+        parsed = 0;
+#ifndef DS4_ROCM_BUILD
+        const char *env = getenv("DS4_METAL_DECODE_INDEXER_SPARSE_THRESHOLD");
+        if (env && env[0]) {
+            char *end = NULL;
+            unsigned long v = strtoul(env, &end, 10);
+            while (end && isspace((unsigned char)*end)) end++;
+            if (end != env && end && *end == '\0' &&
+                (v == 64ul || v == 128ul || v == 256ul || v == 512ul ||
+                 v == 1024ul || v == 2048ul || v == 4096ul)) {
+                cached = (uint32_t)v;
+                parsed = 1;
+            } else {
+                fprintf(stderr,
+                        "ds4: invalid DS4_METAL_DECODE_INDEXER_SPARSE_THRESHOLD=%s; "
+                        "expected 64, 128, 256, 512, 1024, 2048, or 4096\n",
+                        env);
+            }
+        }
+#endif
+    }
+    if (parsed > 0) return cached;
+
+    /* Keep dense attention through the 512-row frontier.  Around 2K context,
+     * sparse decode pays score/top-k setup before it has enough rows to win. */
+    return 1024u;
+}
+
 /* Encode one DS4 decode layer on Metal.  This is the release single-token
  * layer path; diagnostics reuse it so they compare exactly what generation
  * runs. */
@@ -10620,6 +10734,7 @@ static bool metal_graph_copy_tensor_to_batch_row(
         uint32_t        row,
         uint64_t        row_dim,
         ds4_gpu_tensor *src);
+static bool metal_graph_decode_debug_enabled(void);
 
 static bool metal_graph_encode_decode_layer_ex(
         ds4_gpu_graph  *g,
@@ -10657,13 +10772,14 @@ static bool metal_graph_encode_decode_layer_ex(
     const bool qkv_rms_fused = !metal_graph_use_reference_qkv_norm();
 
     bool ok = true;
-    const bool decode_stage_profile = getenv("DS4_METAL_DECODE_STAGE_PROFILE") != NULL;
+    const bool decode_stage_profile = metal_graph_decode_stage_profile_enabled(il);
     double decode_stage_t0 = decode_stage_profile ? now_sec() : 0.0;
     ds4_flash_decode_prefetch decode_pf;
     memset(&decode_pf, 0, sizeof(decode_pf));
     bool decode_pf_active = false;
     bool decode_overlap = false;
     bool flash_moe_async_handout_done = false;
+    const bool decode_debug = metal_graph_decode_debug_enabled();
     const char *decode_debug_stage = "entry";
 #define DS4_METAL_PROFILE_DECODE_STAGE(name) do { \
         if (decode_stage_profile) { \
@@ -11031,7 +11147,11 @@ static bool metal_graph_encode_decode_layer_ex(
                                                             DS4_RMS_EPS) != 0;
             if (ok && emit) g->layer_n_index_comp[il]++;
             const uint32_t decode_top_k = metal_graph_decode_indexer_top_k(g);
-            if (ok && g->layer_n_comp[il] > decode_top_k) {
+            const uint32_t decode_sparse_threshold =
+                metal_graph_decode_indexer_sparse_threshold(g);
+            if (ok &&
+                g->layer_n_comp[il] > decode_sparse_threshold &&
+                g->layer_n_index_comp[il] > decode_top_k) {
                 const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
                 if (!layer->indexer_attn_q_b ||
                     layer->indexer_attn_q_b->type != DS4_TENSOR_F16 ||
@@ -11348,6 +11468,7 @@ static bool metal_graph_encode_decode_layer_ex(
         g->flash_moe &&
         !g->flash_direct_mmap_bank &&
         !g->flash_per_expert_buffers &&
+        g->flash_slot_bank < DS4_N_EXPERT &&
         !flash_identity_gpu_selected_decode &&
         !decode_pf_active &&
         flash_moe_decode_prefetch_enabled() &&
@@ -11390,8 +11511,7 @@ static bool metal_graph_encode_decode_layer_ex(
                 decode_debug_stage = "flash_moe.prepare_decode";
                 ok = metal_graph_flash_moe_prepare_decode(g, il, pos);
                 if (!ok && (g->flash_per_expert_buffers || g->flash_per_slot_buffers) &&
-                    (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-                     env_flag_enabled("DS4_DEBUG_RESUME"))) {
+                    decode_debug) {
                     fprintf(stderr,
                             "ds4: Flash-MoE per-expert prepare decode failed layer=%u pos=%u\n",
                             il,
@@ -11470,8 +11590,7 @@ static bool metal_graph_encode_decode_layer_ex(
             decode_debug_stage = g->flash_per_expert_buffers ?
                 "flash_moe.per_expert_slots6" : "flash_moe.per_slot_slots6";
             if (!g->flash_decode_ids_valid[il]) {
-                if (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-                    env_flag_enabled("DS4_DEBUG_RESUME")) {
+                if (decode_debug) {
                     fprintf(stderr,
                             "ds4: Flash-MoE per-expert decode ids missing layer=%u pos=%u\n",
                             il,
@@ -11532,8 +11651,7 @@ static bool metal_graph_encode_decode_layer_ex(
                                                                  (uint32_t)expert_in_dim,
                                                                  (uint32_t)down_in_dim,
                                                                  (uint32_t)routed_out_dim);
-                if (!ok && (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-                            env_flag_enabled("DS4_DEBUG_RESUME"))) {
+                if (!ok && decode_debug) {
                     fprintf(stderr,
                             "ds4: Flash-MoE per-expert decode route failed layer=%u pos=%u route=%u slot=%d\n",
                             il,
@@ -11814,8 +11932,7 @@ decode_layer_done:
     if (decode_pf_active) {
         metal_graph_flash_moe_decode_prefetch_cleanup(&decode_pf);
     }
-    if (!ok && (env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-                env_flag_enabled("DS4_DEBUG_RESUME"))) {
+    if (!ok && decode_debug) {
         fprintf(stderr,
                 "ds4: metal decode layer failed layer=%u pos=%u stage=%s per_expert=%d slots=%u\n",
                 il,
@@ -12697,6 +12814,55 @@ static bool metal_graph_prepare_decode_model_views_one(const ds4_model *model) {
                                                   model->size - model->tensor_data_pos) != 0;
 }
 
+static uint32_t metal_graph_token_split_after_layers(void) {
+    static bool initialized;
+    static uint32_t split_after_layers;
+    if (initialized) return split_after_layers;
+    initialized = true;
+    split_after_layers = 4;
+    const char *split_env = getenv("DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS");
+    if (split_env && split_env[0]) {
+        char *end = NULL;
+        unsigned long v = strtoul(split_env, &end, 10);
+        if (end != split_env && v <= DS4_N_LAYER) split_after_layers = (uint32_t)v;
+    }
+    return split_after_layers;
+}
+
+static uint32_t metal_graph_decode_flush_every(void) {
+    static bool initialized;
+    static uint32_t flush_every;
+    if (initialized) return flush_every;
+    initialized = true;
+    const char *flush_env = getenv("DS4_METAL_DECODE_FLUSH_EVERY");
+    if (flush_env && flush_env[0]) {
+        char *end = NULL;
+        unsigned long v = strtoul(flush_env, &end, 10);
+        if (end != flush_env && v <= DS4_N_LAYER) flush_every = (uint32_t)v;
+    }
+    return flush_every;
+}
+
+static bool metal_graph_decode_debug_enabled(void) {
+    static bool initialized;
+    static bool enabled;
+    if (initialized) return enabled;
+    initialized = true;
+    enabled = env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
+              env_flag_enabled("DS4_DEBUG_RESUME");
+    return enabled;
+}
+
+static bool metal_graph_token_profile_enabled(void) {
+    static bool initialized;
+    static bool enabled;
+    if (initialized) return enabled;
+    initialized = true;
+    const char *env = getenv("DS4_METAL_GRAPH_TOKEN_PROFILE");
+    enabled = env && env[0] && strcmp(env, "0") != 0;
+    return enabled;
+}
+
 /* Encode a full single-token decode step on Metal.  This is the generation
  * hot path: update caches, run all layers, then produce logits. */
 static bool metal_graph_encode_token_raw_swa(
@@ -12707,7 +12873,8 @@ static bool metal_graph_encode_token_raw_swa(
         uint32_t               pos,
         bool                   need_logits,
         bool                   allow_split_flush,
-        bool                   dspark_prepare_next) {
+        bool                   dspark_prepare_next,
+        bool                   dspark_update_main_kv) {
     if (g->raw_cap == 0) {
         fprintf(stderr, "ds4: Metal graph raw KV cache is not allocated\n");
         return false;
@@ -12715,9 +12882,7 @@ static bool metal_graph_encode_token_raw_swa(
     const uint32_t raw_row = pos % g->raw_cap;
     const uint32_t n_raw = metal_graph_raw_span_for_batch(g, pos, 1);
 
-    const bool decode_debug =
-        env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-        env_flag_enabled("DS4_DEBUG_RESUME");
+    const bool decode_debug = metal_graph_decode_debug_enabled();
     const char *decode_stage = "embed_token_hc";
     bool ok = ds4_gpu_embed_token_hc_tensor(g->cur_hc,
                                               model->map,
@@ -12743,13 +12908,7 @@ static bool metal_graph_encode_token_raw_swa(
      * point where the prefix is large enough to hide useful work without
      * starving the second command buffer.
      */
-    uint32_t split_after_layers = 4;
-    const char *split_env = getenv("DS4_METAL_GRAPH_TOKEN_SPLIT_LAYERS");
-    if (split_env && split_env[0]) {
-        char *end = NULL;
-        unsigned long v = strtoul(split_env, &end, 10);
-        if (end != split_env && v <= DS4_N_LAYER) split_after_layers = (uint32_t)v;
-    }
+    const uint32_t split_after_layers = metal_graph_token_split_after_layers();
 
     /*
      * Optional bounded periodic split. When set, commit-and-drain every N layers
@@ -12760,13 +12919,7 @@ static bool metal_graph_encode_token_raw_swa(
      * The cost is lost CPU/GPU overlap across each split, so it is off (0) by
      * default; the single latency split above still runs.
      */
-    uint32_t flush_every = 0;
-    const char *flush_env = getenv("DS4_METAL_DECODE_FLUSH_EVERY");
-    if (flush_env && flush_env[0]) {
-        char *end = NULL;
-        unsigned long v = strtoul(flush_env, &end, 10);
-        if (end != flush_env && v <= DS4_N_LAYER) flush_every = (uint32_t)v;
-    }
+    const uint32_t flush_every = metal_graph_decode_flush_every();
 
     for (uint32_t il = 0; ok && il < DS4_N_LAYER; il++) {
         decode_stage = "decode_layer";
@@ -12821,10 +12974,14 @@ static bool metal_graph_encode_token_raw_swa(
         }
     }
 
-    if (ok && ds4_dspark_is_loaded(g->dspark)) {
+    const bool dspark_update = dspark_update_main_kv || dspark_prepare_next;
+    if (ok && ds4_dspark_is_loaded(g->dspark) &&
+        (dspark_update || dspark_prepare_next)) {
         decode_stage = "dspark_main_kv";
-        ok = metal_graph_dspark_update_main_kv(g, pos);
-        if (ok) metal_graph_log_dspark_kv(g);
+        if (dspark_update) {
+            ok = metal_graph_dspark_update_main_kv(g, pos);
+            if (ok) metal_graph_log_dspark_kv(g);
+        }
         if (ok && dspark_prepare_next) {
             decode_stage = "dspark_seed";
             ok = metal_graph_dspark_seed_block(g, model, weights, token, 5);
@@ -14124,6 +14281,31 @@ static void ds4_dspark_attn_rows_shape_profile_record(
     memset(s, 0, sizeof(*s));
 }
 
+/* Rows-batched indexer scoring for the decode-order verifier.  A/B'd both
+ * ways: costs ~+2ms/block at short context (loop55_indexer_ab_110411, verify
+ * 65.5->67.8 ms) but saves ~3-4% verify at 16K/32K (2026-07-05 sidecar A/B,
+ * byte-consistent: tau/acceptance identical in paired runs).  Auto-enable at
+ * long context.  DS4_DSPARK_HYBRID_INDEXER_ROWS=0/1 still forces either way;
+ * DS4_DSPARK_INDEXER_ROWS_AUTO_POS tunes the crossover (0 disables auto). */
+static bool ds4_dspark_hybrid_indexer_rows_enabled(uint32_t pos0) {
+    const char *env = getenv("DS4_DSPARK_HYBRID_INDEXER_ROWS");
+    if (env && env[0]) return atoi(env) != 0;
+    const char *auto_env = getenv("DS4_DSPARK_INDEXER_ROWS_AUTO_POS");
+    const long auto_pos = auto_env && auto_env[0] ? atol(auto_env) : 16384;
+    /* Compare in the wider type: a huge env value must never wrap to a small
+     * uint32_t threshold and enable the gate early. */
+    if (auto_pos <= 0 || (long)pos0 < auto_pos) return false;
+    static bool logged = false;
+    if (!logged && !backend_diagnostic_logs_suppressed()) {
+        fprintf(stderr,
+                "ds4: dspark verifier indexer rows auto-enabled at pos >= %ld "
+                "(long-context batching; force with DS4_DSPARK_HYBRID_INDEXER_ROWS=0/1)\n",
+                auto_pos);
+        logged = true;
+    }
+    return true;
+}
+
 /* Encode the batched prefill attention half for one layer.  It mirrors the CPU
  * layer-major path: HC pre/norm, Q/KV, cache/compression, prefix attention. */
 static bool metal_graph_encode_layer_attention_batch(
@@ -14331,7 +14513,7 @@ static bool metal_graph_encode_layer_attention_batch(
         spec_decode_order &&
         !spec_prefix_capture_batch_canonical &&
         ratio == 4 &&
-        env_flag_enabled("DS4_DSPARK_HYBRID_INDEXER_ROWS");
+        ds4_dspark_hybrid_indexer_rows_enabled(pos0);
     const bool spec_use_batch_ratio4_indexer_rows =
         spec_row_local_ratio4_indexer_rows ||
         (spec_prefix_capture_batch_canonical && ratio == 4);
@@ -15928,12 +16110,12 @@ static bool metal_graph_encode_layer_attention_batch(
                 spec_defer_batch_heads &&
                 !defer_indexed_heads &&
                 (ratio != 4 || g->layer_n_comp[il] + n_tokens <= deferred_top_k);
-            bool deferred_heads_used = false;
-            if (defer_indexed_heads || defer_plain_heads) {
-                static bool logged = false;
-                if (!logged && !backend_diagnostic_logs_suppressed()) {
-                    const bool force_mma_diag_log =
-                        defer_plain_heads && env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
+	            bool deferred_heads_used = false;
+	            if (defer_indexed_heads || defer_plain_heads) {
+	                static bool logged = false;
+	                if (!logged && !backend_diagnostic_logs_suppressed()) {
+	                    const bool force_mma_diag_log =
+	                        defer_plain_heads && env_flag_enabled("DS4_DSPARK_ATTN_FORCE_MMA");
                     fprintf(stderr,
                             "ds4: dspark hybrid verifier deferring %s attention heads to %s\n",
                             defer_indexed_heads ? "indexed" : "plain",
@@ -16180,11 +16362,11 @@ static bool metal_graph_encode_layer_attention_batch(
 			                    ds4_gpu_tensor_free(attn_norm_row);
 			                }
 
-		                const uint32_t decode_top_k = metal_graph_decode_indexer_top_k(g);
-		                if (ratio == 4 && cur_comp > decode_top_k) {
-	                    const uint64_t indexer_q_dim =
-	                        (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
-	                    if (!layer->indexer_attn_q_b ||
+			                const uint32_t decode_top_k = metal_graph_decode_indexer_top_k(g);
+			                if (ratio == 4 && cur_comp > decode_top_k) {
+		                    const uint64_t indexer_q_dim =
+		                        (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
+		                    if (!layer->indexer_attn_q_b ||
 	                        layer->indexer_attn_q_b->type != DS4_TENSOR_F16 ||
 	                        layer->indexer_attn_q_b->dim[0] != q_rank ||
 	                        layer->indexer_attn_q_b->dim[1] != indexer_q_dim) {
@@ -16202,94 +16384,138 @@ static bool metal_graph_encode_layer_attention_batch(
 		                    ds4_gpu_tensor *indexer_w_view = NULL;
 		                    ds4_gpu_tensor *qr_norm_row = NULL;
 		                    ds4_gpu_tensor *attn_norm_row = NULL;
-		                    if (ok && spec_use_batch_ratio4_indexer_rows) {
-		                        indexer_q_view = metal_graph_tensor_row_view(g->batch_indexer_q,
-		                                                                       t,
-		                                                                       indexer_q_dim);
-		                        indexer_w_view = metal_graph_tensor_row_view(g->batch_indexer_weights,
-		                                                                       t,
-		                                                                       DS4_N_INDEXER_HEAD);
-		                        if (!indexer_q_view || !indexer_w_view) ok = false;
-		                    } else if (ok) {
-		                        qr_norm_row = metal_graph_tensor_row_view(g->batch_qr_norm, t, q_rank);
-		                        attn_norm_row = metal_graph_tensor_row_view(g->batch_attn_norm, t, DS4_N_EMBD);
-		                        if (!qr_norm_row || !attn_norm_row) ok = false;
-		                        if (ok) ok = ds4_gpu_matmul_f16_tensor(g->indexer_q,
-		                                                                model->map,
-		                                                                model->size,
-		                                                                layer->indexer_attn_q_b->abs_offset,
-		                                                                q_rank,
-		                                                                indexer_q_dim,
-		                                                                qr_norm_row,
-		                                                                1) != 0;
-		                        if (ok) ok = ds4_gpu_rope_tail_tensor(g->indexer_q,
-		                                                               1,
-		                                                               DS4_N_INDEXER_HEAD,
-		                                                               DS4_N_INDEXER_HEAD_DIM,
-		                                                               DS4_N_ROT,
-		                                                               pos,
-		                                                               compressed ? (uint32_t)DS4_ROPE_ORIG_CTX : 0,
-		                                                               false,
-		                                                               freq_base,
-		                                                               freq_scale,
-		                                                               ext_factor,
-		                                                               attn_factor,
-		                                                               DS4_ROPE_YARN_BETA_FAST,
-		                                                               DS4_ROPE_YARN_BETA_SLOW) != 0;
-		                        if (ok) ok = ds4_gpu_matmul_f16_tensor(g->indexer_weights,
-		                                                                model->map,
-		                                                                model->size,
-		                                                                layer->indexer_proj->abs_offset,
-		                                                                DS4_N_EMBD,
-		                                                                DS4_N_INDEXER_HEAD,
-		                                                                attn_norm_row,
-		                                                                1) != 0;
-		                        if (ok) {
-		                            indexer_q_view = g->indexer_q;
-		                            indexer_w_view = g->indexer_weights;
+		                        if (ok && spec_use_batch_ratio4_indexer_rows) {
+		                            indexer_q_view = metal_graph_tensor_row_view(g->batch_indexer_q,
+		                                                                           t,
+		                                                                           indexer_q_dim);
+		                            indexer_w_view = metal_graph_tensor_row_view(g->batch_indexer_weights,
+		                                                                           t,
+		                                                                           DS4_N_INDEXER_HEAD);
+		                            if (!indexer_q_view || !indexer_w_view) ok = false;
+		                        } else if (ok) {
+		                            qr_norm_row = metal_graph_tensor_row_view(g->batch_qr_norm, t, q_rank);
+		                            attn_norm_row = metal_graph_tensor_row_view(g->batch_attn_norm, t, DS4_N_EMBD);
+		                            if (!qr_norm_row || !attn_norm_row) ok = false;
+		                            if (ok) ok = ds4_gpu_matmul_f16_tensor(g->indexer_q,
+		                                                                    model->map,
+		                                                                    model->size,
+		                                                                    layer->indexer_attn_q_b->abs_offset,
+		                                                                    q_rank,
+		                                                                    indexer_q_dim,
+		                                                                    qr_norm_row,
+		                                                                    1) != 0;
+		                            if (ok) ok = ds4_gpu_rope_tail_tensor(g->indexer_q,
+		                                                                   1,
+		                                                                   DS4_N_INDEXER_HEAD,
+		                                                                   DS4_N_INDEXER_HEAD_DIM,
+		                                                                   DS4_N_ROT,
+		                                                                   pos,
+		                                                                   compressed ? (uint32_t)DS4_ROPE_ORIG_CTX : 0,
+		                                                                   false,
+		                                                                   freq_base,
+		                                                                   freq_scale,
+		                                                                   ext_factor,
+		                                                                   attn_factor,
+		                                                                   DS4_ROPE_YARN_BETA_FAST,
+		                                                                   DS4_ROPE_YARN_BETA_SLOW) != 0;
+		                            if (ok) ok = ds4_gpu_matmul_f16_tensor(g->indexer_weights,
+		                                                                    model->map,
+		                                                                    model->size,
+		                                                                    layer->indexer_proj->abs_offset,
+		                                                                    DS4_N_EMBD,
+		                                                                    DS4_N_INDEXER_HEAD,
+		                                                                    attn_norm_row,
+		                                                                    1) != 0;
+		                            if (ok) {
+		                                indexer_q_view = g->indexer_q;
+		                                indexer_w_view = g->indexer_weights;
+		                            }
 		                        }
-		                    }
             DS4_METAL_PROFILE_ATTN_FINE_STAGE("index_query");
-			                    const float index_scale =
-			                        1.0f / sqrtf((float)(DS4_N_INDEXER_HEAD_DIM * DS4_N_INDEXER_HEAD));
-		                    if (ok) {
-		                        ok = ds4_gpu_indexer_score_one_tensor(g->indexer_scores,
-		                                                               indexer_q_view,
-		                                                               indexer_w_view,
-		                                                               g->layer_index_comp_cache[il],
-		                                                               cur_index,
-		                                                               DS4_N_INDEXER_HEAD,
-		                                                               DS4_N_INDEXER_HEAD_DIM,
-			                                                               index_scale) != 0;
-			                    }
-            DS4_METAL_PROFILE_ATTN_FINE_STAGE("index_score");
-				                    if (ok) {
-				                        ok = ds4_gpu_indexer_topk_tensor(g->comp_selected,
-			                                                         g->indexer_scores,
-			                                                         cur_index,
-			                                                         1,
-			                                                         decode_top_k) != 0;
-			                    }
+			                        const float index_scale =
+			                            1.0f / sqrtf((float)(DS4_N_INDEXER_HEAD_DIM * DS4_N_INDEXER_HEAD));
+		                        /* Skip-bound profiling probes (diagnostic only, default off):
+		                         * CAND_CAP clamps the candidate count fed to score+topk (keep it
+		                         * >= decode_top_k so the selection stays valid); SKIP_SCORE drops
+		                         * the scorer dispatch (topk runs over stale scores; indices stay
+		                         * in range). FORCE_FIRSTK replaces topk output with iota rows.
+		                         * TOPK_THEN_FIRSTK runs topk and then overwrites with the same iota
+		                         * rows, giving a locality-controlled topk cost vs FORCE_FIRSTK.
+		                         * Outputs change; use verify-ms only. */
+		                        uint32_t prof_cur_index = cur_index;
+		                        {
+		                            static long prof_cap = -2;
+		                            if (prof_cap == -2) {
+		                                const char *e = getenv("DS4_DSPARK_PROF_INDEXER_CAND_CAP");
+		                                prof_cap = e && e[0] ? atol(e) : 0;
+		                            }
+		                            if (prof_cap > 0 && prof_cur_index > (uint32_t)prof_cap)
+		                                prof_cur_index = (uint32_t)prof_cap;
+		                        }
+			                        static int prof_skip_score = -1;
+			                        if (prof_skip_score < 0) {
+			                            const char *e = getenv("DS4_DSPARK_PROF_SKIP_INDEXER_SCORE");
+			                            prof_skip_score = e && e[0] && atoi(e) != 0;
+			                        }
+			                        static int prof_force_firstk = -1;
+			                        if (prof_force_firstk < 0) {
+			                            const char *e = getenv("DS4_DSPARK_PROF_INDEXER_FORCE_FIRSTK");
+			                            prof_force_firstk = e && e[0] && atoi(e) != 0;
+			                        }
+			                        static int prof_topk_then_firstk = -1;
+			                        if (prof_topk_then_firstk < 0) {
+			                            const char *e = getenv("DS4_DSPARK_PROF_INDEXER_TOPK_THEN_FIRSTK");
+			                            prof_topk_then_firstk = e && e[0] && atoi(e) != 0;
+			                        }
+			                        if (ok && !prof_skip_score) {
+			                            ok = ds4_gpu_indexer_score_one_tensor(g->indexer_scores,
+			                                                                   indexer_q_view,
+			                                                                   indexer_w_view,
+		                                                                   g->layer_index_comp_cache[il],
+		                                                                   prof_cur_index,
+		                                                                   DS4_N_INDEXER_HEAD,
+		                                                                   DS4_N_INDEXER_HEAD_DIM,
+			                                                                   index_scale) != 0;
+				                        }
+	            DS4_METAL_PROFILE_ATTN_FINE_STAGE("index_score");
+					                        if (ok) {
+					                            if (prof_force_firstk) {
+					                                ok = ds4_gpu_indexer_firstk_tensor(g->comp_selected,
+					                                                                      1,
+					                                                                      decode_top_k) != 0;
+					                            } else {
+					                                ok = ds4_gpu_indexer_topk_tensor(g->comp_selected,
+				                                                                 g->indexer_scores,
+				                                                                 prof_cur_index,
+				                                                                 1,
+				                                                                 decode_top_k) != 0;
+					                                if (ok && prof_topk_then_firstk) {
+					                                    ok = ds4_gpu_indexer_firstk_tensor(g->comp_selected,
+					                                                                          1,
+					                                                                          decode_top_k) != 0;
+					                                }
+					                            }
+				                        }
             DS4_METAL_PROFILE_ATTN_FINE_STAGE("index_topk");
-	                            if (ok && defer_indexed_heads) {
-	                                ok = ds4_gpu_tensor_copy(g->comp_mask,
-                                                         (uint64_t)t * decode_top_k * sizeof(int32_t),
-                                                         g->comp_selected,
-                                                         0,
-	                                                         (uint64_t)decode_top_k * sizeof(int32_t)) != 0;
-	                            }
+	                                if (ok && defer_indexed_heads) {
+	                                    ok = ds4_gpu_tensor_copy(g->comp_mask,
+                                                             (uint64_t)t * decode_top_k * sizeof(int32_t),
+                                                             g->comp_selected,
+                                                             0,
+	                                                             (uint64_t)decode_top_k * sizeof(int32_t)) != 0;
+	                                }
             if (defer_indexed_heads) DS4_METAL_PROFILE_ATTN_FINE_STAGE("index_mask");
-		                    if (spec_use_batch_ratio4_indexer_rows) {
-			                        ds4_gpu_tensor_free(indexer_w_view);
-			                        ds4_gpu_tensor_free(indexer_q_view);
-			                    }
-		                    ds4_gpu_tensor_free(attn_norm_row);
-		                    ds4_gpu_tensor_free(qr_norm_row);
-	                    if (ok) {
-	                        use_indexed_comp = true;
-	                        n_selected = decode_top_k < cur_index ? decode_top_k : cur_index;
-	                    }
-	                }
+		                        if (spec_use_batch_ratio4_indexer_rows) {
+			                            ds4_gpu_tensor_free(indexer_w_view);
+			                            ds4_gpu_tensor_free(indexer_q_view);
+			                        }
+		                        ds4_gpu_tensor_free(attn_norm_row);
+		                        ds4_gpu_tensor_free(qr_norm_row);
+		                    if (ok) {
+		                        use_indexed_comp = true;
+		                        n_selected = decode_top_k < cur_index ? decode_top_k : cur_index;
+		                    }
+		                }
 
                 ds4_gpu_tensor *q_view = metal_graph_tensor_row_view(g->batch_q, t, q_dim);
                 ds4_gpu_tensor *kv_cache_view = metal_graph_tensor_row_view(g->batch_kv, t, DS4_N_HEAD_DIM);
@@ -16400,26 +16626,26 @@ static bool metal_graph_encode_layer_attention_batch(
                                                               g->raw_cap);
                 }
             }
-            if (ok && deferred_heads_used) {
-                const uint32_t n_raw = metal_graph_raw_span_for_batch(g, pos0, n_tokens);
-                const uint32_t raw_start = metal_graph_raw_start_for_span(g,
-                                                                          pos0 + n_tokens - 1u,
-                                                                          n_raw);
-                if (defer_indexed_heads) {
+	            if (ok && deferred_heads_used) {
+	                const uint32_t n_raw = metal_graph_raw_span_for_batch(g, pos0, n_tokens);
+	                const uint32_t raw_start = metal_graph_raw_start_for_span(g,
+	                                                                          pos0 + n_tokens - 1u,
+	                                                                          n_raw);
+	                if (defer_indexed_heads) {
                     bool nax_indexed_ok = false;
                     if (env_flag_enabled("DS4_DSPARK_ATTN_NAX") &&
                         env_flag_enabled("DS4_DSPARK_ATTN_NAX_TOPK") &&
                         g->layer_n_comp[il] > deferred_top_k * n_tokens) {
                         nax_indexed_ok = ds4_gpu_dspark_nax_attention_tensor(
-                                g->batch_heads,
-                                g->batch_q,
-                                g->layer_raw_cache[il],
-                                g->layer_attn_comp_cache[il],
-                                g->comp_mask,
-                                deferred_top_k,
-                                raw_counts_small,
-                                comp_counts,
-                                raw_starts_small,
+	                                g->batch_heads,
+	                                g->batch_q,
+	                                g->layer_raw_cache[il],
+	                                g->layer_attn_comp_cache[il],
+	                                g->comp_mask,
+	                                deferred_top_k,
+	                                raw_counts_small,
+	                                comp_counts,
+	                                raw_starts_small,
                                 n_tokens,
                                 DS4_N_HEAD,
                                 g->layer_n_comp[il],
@@ -16433,14 +16659,14 @@ static bool metal_graph_encode_layer_attention_batch(
                         ok = ds4_gpu_attention_indexed_mixed_batch_heads_tensor(g->batch_heads,
 	                                                                              model->map,
 	                                                                              model->size,
-	                                                                              layer->attn_sinks->abs_offset,
-	                                                                              g->batch_q,
-	                                                                              g->layer_raw_cache[il],
-	                                                                              g->layer_attn_comp_cache[il],
-	                                                                              g->comp_mask,
-	                                                                              n_tokens,
-	                                                                              pos0,
-	                                                                              n_raw,
+		                                                                              layer->attn_sinks->abs_offset,
+		                                                                              g->batch_q,
+		                                                                              g->layer_raw_cache[il],
+		                                                                              g->layer_attn_comp_cache[il],
+		                                                                              g->comp_mask,
+		                                                                              n_tokens,
+		                                                                              pos0,
+		                                                                              n_raw,
 	                                                                              g->raw_cap,
 	                                                                              raw_start,
 	                                                                              g->layer_n_comp[il],
@@ -17903,7 +18129,7 @@ static bool metal_graph_encode_layer_routed_exact_rows(
 		    if (g->flash_moe &&
 		        env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_BATCH_ROW_EXACT") &&
 		        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_SLOTWISE") &&
-		        n_tokens <= 5u &&
+		        n_tokens <= 6u &&
 	        metal_graph_flash_moe_identity_gpu_selected_active(g, il)) {
 	        const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
 	        const uint64_t gate_slot_stride =
@@ -17958,7 +18184,7 @@ static bool metal_graph_encode_layer_routed_exact_rows(
 		        env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_DECODE2_ROWS") &&
 		        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_SLOTWISE") &&
 		        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_BATCH_ROW_EXACT") &&
-		        n_tokens <= 5u &&
+		        n_tokens <= 6u &&
 		        metal_graph_flash_moe_identity_gpu_selected_active(g, il)) {
 		        const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
 		        const uint64_t gate_slot_stride =
@@ -18008,6 +18234,53 @@ static bool metal_graph_encode_layer_routed_exact_rows(
 		                    "ds4: dspark hybrid row-routed exact row-loop path unavailable; falling back to per-row exact\n");
 		        }
 		    }
+
+    /* NOT byte-exact despite living in the exact-rows arm: one tiled call
+     * over all rows groups the expert reductions differently from the
+     * per-row calls that bit-match single-token decode, so verify logits
+     * drift by ULPs and near-tie argmaxes flip vs no-draft (strict contract
+     * violation; root-caused 2026-07-08, seg char-74 divergence).  Opt-in
+     * only until the kernel reduces per-row in decode order. */
+    if (!g->flash_moe &&
+        env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_MONO_BATCH") &&
+        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_SLOTWISE") &&
+        !env_flag_enabled("DS4_DSPARK_HYBRID_ROW_ROUTED_MONO_BATCH_DISABLE") &&
+        n_tokens <= 5u) {
+        bool mid_is_f16 = false;
+        const bool ok_batch =
+            metal_graph_routed_moe_batch_tiled(g,
+                                               g->batch_routed_out,
+                                               model,
+                                               layer,
+                                               n_tokens,
+                                               gate_expert_bytes,
+                                               gate_row_bytes,
+                                               down_expert_bytes,
+                                               down_row_bytes,
+                                               (uint32_t)expert_in_dim,
+                                               (uint32_t)down_in_dim,
+                                               (uint32_t)routed_out_dim,
+                                               g->batch_router_selected,
+                                               g->batch_router_weights,
+                                               g->batch_ffn_norm,
+                                               &mid_is_f16);
+        if (ok_batch) {
+            g->batch_routed_mid_is_f16 = mid_is_f16;
+            static bool logged = false;
+            if (!logged && !backend_diagnostic_logs_suppressed()) {
+                logged = true;
+                fprintf(stderr,
+                        "ds4: dspark hybrid row-routed verifier using monolithic row-exact tiny batch path\n");
+            }
+            return true;
+        }
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            fprintf(stderr,
+                    "ds4: dspark hybrid monolithic row-routed tiny batch path unavailable; falling back to per-row exact\n");
+        }
+    }
 
 		    bool ok = true;
     for (uint32_t t = 0; ok && t < n_tokens; t++) {
@@ -20477,18 +20750,20 @@ static bool metal_graph_eval_token_raw_swa_ex(
         int                    token,
         uint32_t               pos,
         float                 *logits,
-        bool                   dspark_prepare_next) {
-    const bool profile = getenv("DS4_METAL_GRAPH_TOKEN_PROFILE") != NULL;
+        bool                   dspark_prepare_next,
+        bool                   dspark_update_main_kv) {
+    const bool profile = metal_graph_token_profile_enabled();
     const double t0 = profile ? now_sec() : 0.0;
-    if (!metal_graph_flash_moe_residency_stats_tick(g)) return false;
+    if (g && g->flash_moe && g->flash_slot_bank != 0 &&
+        !metal_graph_flash_moe_residency_stats_tick(g)) {
+        return false;
+    }
 
     /* Decode extends the context one token at a time; grow the compressed caches
      * to cover this position before opening the command batch (no-op until a
      * block boundary is crossed, and disabled unless DS4_CTX_GROW). */
-    const bool decode_debug =
-        env_flag_enabled("DS4_FLASH_MOE_PER_EXPERT_DEBUG") ||
-        env_flag_enabled("DS4_DEBUG_RESUME");
-    if (!metal_graph_ctx_grow_ensure(g, pos + 1u)) {
+    const bool decode_debug = metal_graph_decode_debug_enabled();
+    if (ds4_ctx_grow_enabled() && !metal_graph_ctx_grow_ensure(g, pos + 1u)) {
         if (decode_debug) {
             fprintf(stderr,
                     "ds4: metal graph token failed pos=%u stage=ctx_grow per_expert=%d slots=%u\n",
@@ -20514,7 +20789,8 @@ static bool metal_graph_eval_token_raw_swa_ex(
                                                   pos,
                                                   logits != NULL,
                                                   true,
-                                                  dspark_prepare_next);
+                                                  dspark_prepare_next,
+                                                  dspark_update_main_kv);
     if (!ok && decode_debug) {
         fprintf(stderr,
                 "ds4: metal graph token failed pos=%u stage=encode_token per_expert=%d slots=%u\n",
@@ -20523,7 +20799,21 @@ static bool metal_graph_eval_token_raw_swa_ex(
                 g ? g->flash_slot_bank : 0);
     }
     const double t_encoded = profile ? now_sec() : 0.0;
-    if (ok) ok = ds4_gpu_end_commands() != 0;
+    if (ok) {
+        /* A4 overlap eval seam: when armed, the decode command buffer is
+         * submitted without blocking, the next dspark draft is encoded on the
+         * private mirror bank, and one synchronize drains decode+draft before
+         * the logits readback below.  Otherwise this is the classic blocking
+         * end_commands. */
+        bool overlap_handled = false;
+        ok = metal_graph_dspark_overlap_eval_seam(g,
+                                                  model,
+                                                  weights,
+                                                  token,
+                                                  pos,
+                                                  &overlap_handled);
+        if (ok && !overlap_handled) ok = ds4_gpu_end_commands() != 0;
+    }
     if (!ok && decode_debug) {
         fprintf(stderr,
                 "ds4: metal graph token failed pos=%u stage=end_commands per_expert=%d slots=%u\n",
@@ -20570,7 +20860,14 @@ static bool metal_graph_eval_token_raw_swa(
         int                    token,
         uint32_t               pos,
         float                 *logits) {
-    return metal_graph_eval_token_raw_swa_ex(g, model, weights, token, pos, logits, true);
+    return metal_graph_eval_token_raw_swa_ex(g,
+                                             model,
+                                             weights,
+                                             token,
+                                             pos,
+                                             logits,
+                                             true,
+                                             true);
 }
 
 /* Greedy verifier helper.  Speculative decoding only needs the target model's
@@ -20586,10 +20883,11 @@ static bool metal_graph_eval_token_raw_swa_top_ex(
         uint32_t               pos,
         int                   *top_id,
         float                 *logits,
-        bool                   dspark_prepare_next) {
+        bool                   dspark_prepare_next,
+        bool                   dspark_update_main_kv) {
     if (!top_id) return false;
 
-    if (!metal_graph_ctx_grow_ensure(g, pos + 1u)) return false;
+    if (ds4_ctx_grow_enabled() && !metal_graph_ctx_grow_ensure(g, pos + 1u)) return false;
 
     bool ok = ds4_gpu_begin_commands() != 0;
     if (ok) ok = metal_graph_encode_token_raw_swa(g,
@@ -20599,7 +20897,8 @@ static bool metal_graph_eval_token_raw_swa_top_ex(
                                                   pos,
                                                   true,
                                                   true,
-                                                  dspark_prepare_next);
+                                                  dspark_prepare_next,
+                                                  dspark_update_main_kv);
     if (ok) {
         ok = ds4_gpu_indexer_topk_tensor(g->comp_selected,
                                            g->logits,
@@ -20628,7 +20927,15 @@ static bool metal_graph_eval_token_raw_swa_top(
         uint32_t               pos,
         int                   *top_id,
         float                 *logits) {
-    return metal_graph_eval_token_raw_swa_top_ex(g, model, weights, token, pos, top_id, logits, true);
+    return metal_graph_eval_token_raw_swa_top_ex(g,
+                                                 model,
+                                                 weights,
+                                                 token,
+                                                 pos,
+                                                 top_id,
+                                                 logits,
+                                                 true,
+                                                 true);
 }
 
 static bool metal_graph_verify_suffix_tops(
@@ -20973,7 +21280,8 @@ static bool metal_graph_target_forward_rows_unified(
                                                    pos0,
                                                    &top,
                                                    row_logits,
-                                                   dspark_prepare_next);
+                                                   dspark_prepare_next,
+                                                   true);
         if (ok && row_tops) row_tops[0] = top;
         goto done;
     }
@@ -20988,7 +21296,8 @@ static bool metal_graph_target_forward_rows_unified(
                                            tokens[0],
                                            pos0,
                                            row_logits,
-                                           dspark_prepare_next);
+                                           dspark_prepare_next,
+                                           true);
 
 done:
     if (profile) {
@@ -21477,7 +21786,12 @@ static bool metal_graph_prefill_layer_major(
     metal_graph_prefill_trace_phase("layer-major", "scratch", "begin",
                                     0, (uint32_t)n_tokens, prompt->len,
                                     prefill_wall_t0);
-    if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
+    if (!metal_graph_ensure_prefill_scratch_rows(g,
+                                                 weights,
+                                                 &weights->layer[0],
+                                                 (uint32_t)n_tokens)) {
+        return false;
+    }
     metal_graph_prefill_trace_phase("layer-major", "scratch", "end",
                                     0, (uint32_t)n_tokens, prompt->len,
                                     prefill_wall_t0);
@@ -22019,6 +22333,8 @@ static void metal_graph_log_prefill_compute_once(
         routed = "NAX-half (no int8; GPU fallback for unsafe chunks)";
     } else if (try_mpp) {
         routed = "GPU MPP-int8 / NAX (W8A8)";
+    } else if (g && g->flash_direct_mmap_bank) {
+        routed = "GPU fp32 (direct-mmap tiny groups prefer mul_mv_id)";
     } else {
         routed = "GPU fp32";
     }
@@ -22043,16 +22359,23 @@ static void metal_graph_log_prefill_compute_once(
     /* I/O + prefetch settings actually in effect, for prefill and decode. */
     const int prefill_split = flash_moe_prefill_io_split();
     const int decode_split  = flash_moe_cache_io_split();
-    const bool async_pread  = env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
+    const bool partial_streaming_bank =
+        g &&
+        !g->flash_per_expert_buffers &&
+        !g->flash_direct_mmap_bank &&
+        g->flash_slot_bank < DS4_N_EXPERT;
+    const bool async_pread  =
+        partial_streaming_bank &&
+        env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
     const int  pread_thr    = ds4_flash_prefill_reader_threads();
     const int  readahead    = ds4_flash_prefill_readahead();
-    const int  bank_pf      = get_prefill_dedup_prefetch();
+    const int  bank_pf      = partial_streaming_bank ? get_prefill_dedup_prefetch() : 0;
     const bool per_expert   = g && g->flash_per_expert_buffers;
     const bool per_slot     = g && g->flash_per_slot_buffers;
     const bool auto_per_slot = g && g->flash_per_slot_buffers_auto;
     const bool lazy_per_slot = per_slot && g->flash_per_slot_lazy_alloc;
     const bool decode_router_prefetch =
-        !per_expert &&
+        partial_streaming_bank &&
         flash_moe_decode_prefetch_enabled() &&
         flash_moe_decode_prefetch_max_loads() > 0;
     const char *xl_env      = getenv("DS4_FLASH_MOE_XLAYER_PREFETCH");
@@ -22071,7 +22394,7 @@ static void metal_graph_log_prefill_compute_once(
             pread_thr,
             readahead,
             bank_pf,
-            get_prefill_slot_cache_target(slot_bank),
+            partial_streaming_bank ? get_prefill_slot_cache_target(slot_bank) : 0,
             xlayer_desc);
         fprintf(stderr,
             "ds4: decode  I/O: io-split=%d router-prefetch=%s scratch-prefetch=%s max-loads=%u layer-stride=%u miss-direct-slot-pread=%s prefetch-direct-slot-pread=%s did-modify=%s shared-down=%s reset-after-prefill=%s realloc-after-prefill=%s restore-after-prefill=%s resident=%s slots=%u\n",
@@ -22117,17 +22440,22 @@ static bool metal_graph_prefill_chunked_range(
     if (display_progress) {
         display_progress(display_progress_ud, "prefill_setup", (int)start, prompt->len);
     }
-    metal_graph_prefill_trace_phase("chunked", "scratch", "begin",
-                                    start, n_tokens, prompt->len, prefill_wall_t0);
-    if (!metal_graph_ensure_prefill_scratch(g, weights, &weights->layer[0])) return false;
-    metal_graph_prefill_trace_phase("chunked", "scratch", "end",
-                                    start, n_tokens, prompt->len, prefill_wall_t0);
 
     uint32_t chunk_cap = metal_graph_effective_prefill_cap(g);
     const uint32_t raw_window = g->raw_window ? g->raw_window : DS4_N_SWA;
     const uint32_t raw_chunk_cap = g->raw_cap > raw_window ? g->raw_cap - raw_window : 1u;
     if (chunk_cap > raw_chunk_cap) chunk_cap = raw_chunk_cap;
     if (chunk_cap == 0) return false;
+    metal_graph_prefill_trace_phase("chunked", "scratch", "begin",
+                                    start, n_tokens, prompt->len, prefill_wall_t0);
+    if (!metal_graph_ensure_prefill_scratch_rows(g,
+                                                 weights,
+                                                 &weights->layer[0],
+                                                 chunk_cap)) {
+        return false;
+    }
+    metal_graph_prefill_trace_phase("chunked", "scratch", "end",
+                                    start, n_tokens, prompt->len, prefill_wall_t0);
 
     uint32_t first_chunk = n_tokens < chunk_cap ? n_tokens : chunk_cap;
     if (start != 0 && g->prefill_cap != 0) {
@@ -22873,7 +23201,8 @@ static int metal_graph_prompt_logits_test(
 
     ds4_gpu_graph g;
     bool ok = metal_graph_alloc_raw_cap(&g, weights, &weights->layer[0],
-                                        raw_cap, (uint32_t)ctx_size, (uint32_t)n_test, false);
+                                        raw_cap, (uint32_t)ctx_size, (uint32_t)n_test,
+                                        (uint32_t)n_test, false);
     if (!ok) {
         metal_graph_free(&g);
         fprintf(stderr, "ds4: failed to initialize Metal graph prompt test runtime\n");
@@ -24441,6 +24770,10 @@ static int generate_raw_swa_cpu(
     int n_decode_eval = 0;
     const bool token_timing = getenv("DS4_TOKEN_TIMING") != NULL;
     const double t_decode0 = now_sec();
+    const bool progress_1k = getenv("DS4_PROGRESS_1K") != NULL;
+    int progress_next = 1000;
+    int progress_last_tokens = 0;
+    double progress_last_t = t_decode0;
     for (int i = 0; i < n_predict && pos < ctx_size; i++) {
         if (trace_top) {
             char label[64];
@@ -24453,6 +24786,26 @@ static int generate_raw_swa_cpu(
 
         if (emit) emit(emit_ud, token);
         n_generated++;
+        if (progress_1k) {
+            while (n_generated >= progress_next) {
+                const double now = now_sec();
+                const int window_tokens = progress_next - progress_last_tokens;
+                const double window_s = now - progress_last_t;
+                const double total_s = now - t_decode0;
+                fprintf(stderr,
+                        "ds4: decode-progress: tokens=%d window=%.2f t/s "
+                        "(%d tokens in %.3fs) cumulative=%.2f t/s elapsed=%.3fs\n",
+                        progress_next,
+                        window_s > 0.0 ? (double)window_tokens / window_s : 0.0,
+                        window_tokens,
+                        window_s,
+                        total_s > 0.0 ? (double)progress_next / total_s : 0.0,
+                        total_s);
+                progress_last_tokens = progress_next;
+                progress_last_t = now;
+                progress_next += 1000;
+            }
+        }
 
         if (i == n_predict - 1 || pos + 1 >= ctx_size) {
             pos++;
@@ -24484,14 +24837,14 @@ static int generate_raw_swa_cpu(
 
     const double prefill_s = t_prefill1 - t_prefill0;
     const double decode_s = t_decode1 - t_decode0;
-    if (backend_stats_logs_enabled()) {
-        ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
-        ds4_log(stderr,
-                DS4_LOG_TIMING,
-                "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
-                prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
-                decode_s > 0.0 ? (double)n_generated / decode_s : 0.0);
-    }
+    ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
+    ds4_log(stderr,
+            DS4_LOG_TIMING,
+            "ds4: prefill: %.2f t/s, generation: %.2f t/s (%d tokens in %.3fs)\n",
+            prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
+            decode_s > 0.0 ? (double)n_generated / decode_s : 0.0,
+            n_generated,
+            decode_s);
 
     free(logits);
     cpu_decode_scratch_free(&decode_scratch);
@@ -24535,7 +24888,8 @@ static int generate_metal_graph_raw_swa(
     }
     ds4_gpu_graph g;
     bool ok = metal_graph_alloc_raw_cap(&g, weights, &weights->layer[0],
-                                        raw_cap, (uint32_t)ctx_size, prefill_cap, false);
+                                        raw_cap, (uint32_t)ctx_size, prefill_cap,
+                                        prefill_cap, false);
     if (!ok) {
         fprintf(stderr, "ds4: failed to allocate GPU graph runtime\n");
         return 1;
@@ -24569,10 +24923,10 @@ static int generate_metal_graph_raw_swa(
     (void)metal_graph_prepare_prefill_model_views();
     if (prefill_cap < (uint32_t)prompt->len) {
         ok = metal_graph_prefill_chunked(&g, model, weights, prompt, prompt->len, logits, false,
-                                         progress, progress_ud, progress, progress_ud);
+                                         progress, progress_ud, NULL, NULL);
     } else {
         ok = metal_graph_prefill_raw_swa(&g, model, weights, prompt, prompt->len, logits, true,
-                                         progress, progress_ud);
+                                         NULL, NULL);
     }
     const double t_prefill1 = now_sec();
     if (memory_report) ds4_gpu_print_memory_report("after prefill");
@@ -24627,6 +24981,10 @@ static int generate_metal_graph_raw_swa(
     int n_generated = 0;
     int n_decode_eval = 0;
     const double t_decode0 = now_sec();
+    const bool progress_1k = getenv("DS4_PROGRESS_1K") != NULL;
+    int progress_next = 1000;
+    int progress_last_tokens = 0;
+    double progress_last_t = t_decode0;
     for (int i = 0; i < n_predict && pos < ctx_size; i++) {
         if (trace_top) {
             char label[64];
@@ -24639,6 +24997,26 @@ static int generate_metal_graph_raw_swa(
 
         if (emit) emit(emit_ud, token);
         n_generated++;
+        if (progress_1k) {
+            while (n_generated >= progress_next) {
+                const double now = now_sec();
+                const int window_tokens = progress_next - progress_last_tokens;
+                const double window_s = now - progress_last_t;
+                const double total_s = now - t_decode0;
+                fprintf(stderr,
+                        "ds4: decode-progress: tokens=%d window=%.2f t/s "
+                        "(%d tokens in %.3fs) cumulative=%.2f t/s elapsed=%.3fs\n",
+                        progress_next,
+                        window_s > 0.0 ? (double)window_tokens / window_s : 0.0,
+                        window_tokens,
+                        window_s,
+                        total_s > 0.0 ? (double)progress_next / total_s : 0.0,
+                        total_s);
+                progress_last_tokens = progress_next;
+                progress_last_t = now;
+                progress_next += 1000;
+            }
+        }
 
         if (i == n_predict - 1 || pos + 1 >= ctx_size) {
             pos++;
@@ -24665,14 +25043,14 @@ static int generate_metal_graph_raw_swa(
 
     const double prefill_s = t_prefill1 - t_prefill0;
     const double decode_s = t_decode1 - t_decode0;
-    if (backend_stats_logs_enabled()) {
-        ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
-        ds4_log(stderr,
-                DS4_LOG_TIMING,
-                "ds4: prefill: %.2f t/s, generation: %.2f t/s\n",
-                prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
-                decode_s > 0.0 ? (double)n_generated / decode_s : 0.0);
-    }
+    ds4_log(stderr, DS4_LOG_TIMING, "ds4: ----------------------------------------\n");
+    ds4_log(stderr,
+            DS4_LOG_TIMING,
+            "ds4: prefill: %.2f t/s, generation: %.2f t/s (%d tokens in %.3fs)\n",
+            prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
+            decode_s > 0.0 ? (double)n_generated / decode_s : 0.0,
+            n_generated,
+            decode_s);
 
     if (memory_report) ds4_gpu_print_memory_report("before graph free");
     free(logits);
@@ -24844,6 +25222,8 @@ struct ds4_session {
     uint64_t dspark_perf_blocks;
     uint64_t dspark_perf_drafted_tokens;
     uint64_t dspark_perf_committed_tokens;
+    uint64_t dspark_perf_skip_pre_draft;
+    uint64_t dspark_perf_skip_verify;
     double dspark_perf_draft_seconds;
     double dspark_perf_snapshot_seconds;
     double dspark_perf_verify_seconds;
@@ -24867,6 +25247,34 @@ struct ds4_session {
     uint32_t dspark_dynamic_throughput_blocks;
     int dspark_dynamic_verify_budget;
     int dspark_dynamic_record_suppress;
+    /* Rate scheduler inputs: plain-decode (first-token eval) and draft wall
+     * EMAs, so k=0 (skip verify) can be priced against verify budgets. */
+    double dspark_eval_seconds_ema;
+    uint32_t dspark_eval_samples;
+    double dspark_draft_seconds_ema;
+    uint32_t dspark_draft_ema_samples;
+    uint32_t dspark_rate_skip_streak;
+    /* Rate-mode speculation hysteresis: after enough consecutive k=0
+     * decisions the draft itself is skipped (its ~10ms/block makes pure
+     * skipping worse than no-draft); dormant mode probes every 128 blocks
+     * by default. */
+    uint32_t dspark_rate_zero_streak;
+    uint32_t dspark_rate_off_blocks;
+    uint32_t dspark_rate_probe_interval_cur;
+    uint32_t dspark_rate_probe_failures;
+    uint32_t dspark_rate_main_kv_stale_from;
+    bool dspark_rate_spec_off;
+    bool dspark_rate_main_kv_stale;
+    bool dspark_eval_margin_valid;
+    float dspark_eval_margin;
+    float dspark_eval_top_logit;
+    float dspark_eval_second_logit;
+    /* DEFAULT-OFF DS4_DSPARK_ADAPTIVE_DRAFT_CAP: EMA of draft tokens committed
+     * per block drives draft_cap after a short warm-up (~16 blocks). */
+    double dspark_committed_ema;
+    uint32_t dspark_committed_ema_samples;
+    int dspark_adaptive_draft_cap_last;
+    bool dspark_adaptive_draft_cap_logged;
     bool dspark_dynamic_verify_initialized;
     bool dspark_dynamic_verify_logged;
     bool checkpoint_valid;
@@ -24874,6 +25282,8 @@ struct ds4_session {
     bool dspark_draft_warmed;
     bool dspark_frontier_after_full_ready;
     bool dspark_draft_prefetch_pending;
+    bool dspark_draft_prefetch_from_overlap;
+    bool dspark_draft_prefetch_confidence;
     int dspark_draft_prefetch_cap;
     int dspark_draft_prefetch_last_token;
     int dspark_draft_prefetch_checkpoint_len;
@@ -24897,6 +25307,11 @@ typedef struct {
     float utility_min_gain;
     bool utility_mode;
     bool throughput_mode;
+    /* Scheduler "confidence-cost": the dynamic machinery runs in record-only
+     * mode (cost/accept EMAs are maintained per budget) while the per-block
+     * verify length is chosen by the learned confidence head scored against
+     * those measured costs; the cross-block budget override is bypassed. */
+    bool confidence_cost;
     int throughput_min_samples;
     float throughput_cost_alpha;
     float throughput_cost_clamp;
@@ -24942,10 +25357,45 @@ static int ds4_dspark_base_verify_budget(const ds4_engine *e) {
     return budget;
 }
 
+/* Combined scheduler: learned confidence head (per-block acceptance signal)
+ * scored against the dynamic verifier's MEASURED per-budget cost EMAs. */
+static bool ds4_dspark_scheduler_is_confidence_cost(const ds4_engine *e) {
+    if (!e) return false;
+    const char *s = e->dspark.scheduler;
+    return !strcmp(s, "confidence-cost") ||
+           !strcmp(s, "cost") ||
+           env_flag_enabled("DS4_DSPARK_CONFIDENCE_COST");
+}
+
+/* Rate scheduler: per block pick k (INCLUDING k=0 = skip verify, plain
+ * decode) maximizing committed tokens per wall second,
+ *   (1 + E[extra committed | k]) / (T_eval + verify_cost(k)),
+ * with the confidence head calibrated ONLINE against realized commit rates
+ * (the head runs ~20pts over-confident, ECE 0.20) and costs from the dynamic
+ * recorder's per-budget EMAs.  Unlike confidence-cost this (a) can decline
+ * speculation outright when the marginal rate is below plain decode, and
+ * (b) credits the +1 bonus token every verified block commits. */
+static bool ds4_dspark_scheduler_is_rate(const ds4_engine *e) {
+    if (!e) return false;
+    const char *s = e->dspark.scheduler;
+    return !strcmp(s, "rate") ||
+           !strcmp(s, "confidence-rate") ||
+           env_flag_enabled("DS4_DSPARK_SCHED_RATE");
+}
+
 static ds4_dspark_dynamic_verify_cfg ds4_dspark_dynamic_verify_cfg_make(const ds4_engine *e) {
     ds4_dspark_dynamic_verify_cfg cfg;
     memset(&cfg, 0, sizeof(cfg));
+    /* Rate mode reuses the whole confidence-cost recorder contract:
+     * record-only dynamic machinery, min budget 1, per-block owner. */
+    cfg.confidence_cost = ds4_dspark_scheduler_is_confidence_cost(e) ||
+                          ds4_dspark_scheduler_is_rate(e) ||
+                          /* Combined eval-margin + rate gate reuses the same
+                           * per-budget cost EMAs / conf-calib recorder. */
+                          env_flag_enabled("DS4_DSPARK_EVAL_MARGIN_RATE_GATE") ||
+                          env_flag_enabled("DS4_DSPARK_MARGIN_RATE_GATE");
     cfg.enabled =
+        cfg.confidence_cost ||
         env_flag_enabled("DS4_DSPARK_VERIFY_DYNAMIC") ||
         env_flag_enabled("DS4_DSPARK_DRAFT_VERIFY_DYNAMIC") ||
         env_flag_enabled("DS4_DSPARK_ADAPTIVE_VERIFY");
@@ -24973,7 +25423,9 @@ static ds4_dspark_dynamic_verify_cfg ds4_dspark_dynamic_verify_cfg_make(const ds
     if (cfg.max_budget > base) cfg.max_budget = base;
     cfg.min_budget = ds4_dspark_env_int_default(
             "DS4_DSPARK_VERIFY_DYNAMIC_MIN",
-            base >= 2 ? 2 : base,
+            /* confidence-cost schedules per block down to 1 row; keep the
+             * recorder's budget range wide so cost[1] gets attributed. */
+            cfg.confidence_cost ? 1 : (base >= 2 ? 2 : base),
             1,
             5);
     if (cfg.min_budget > cfg.max_budget) cfg.min_budget = cfg.max_budget;
@@ -25699,14 +26151,73 @@ static int ds4_session_dspark_utility_best_budget(
     return best;
 }
 
+/* DEFAULT-OFF: shrink/grow draft_cap from recent committed-token EMA.
+ * After ~16 blocks: ema < 1.5 → 3, < 2.5 → 4, else 5. Clamp 2..5. */
+static bool ds4_dspark_adaptive_draft_cap_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_ADAPTIVE_DRAFT_CAP");
+}
+
+static bool ds4_dspark_adaptive_draft_cap_log_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_ADAPTIVE_DRAFT_CAP_LOG");
+}
+
+static int ds4_session_dspark_adaptive_draft_cap_apply(ds4_session *s, int draft_cap) {
+    if (!s || !ds4_dspark_adaptive_draft_cap_enabled()) return draft_cap;
+    if (s->dspark_committed_ema_samples < 16u) return draft_cap;
+
+    const double ema = s->dspark_committed_ema;
+    int cap;
+    if (ema < 1.5) cap = 3;
+    else if (ema < 2.5) cap = 4;
+    else cap = 5;
+    if (cap < 2) cap = 2;
+    if (cap > 5) cap = 5;
+    /* Never expand past the caller's ceiling (block_size / verify budget). */
+    if (draft_cap > 0 && cap > draft_cap) cap = draft_cap;
+    if (cap < 2 && draft_cap >= 2) cap = 2;
+
+    if (ds4_dspark_adaptive_draft_cap_log_enabled()) {
+        if (!s->dspark_adaptive_draft_cap_logged) {
+            s->dspark_adaptive_draft_cap_logged = true;
+            fprintf(stderr,
+                    "ds4: dspark adaptive draft_cap enabled "
+                    "(after ~16 blocks: ema<1.5→3, <2.5→4, else 5; clamp 2..5)\n");
+        }
+        if (s->dspark_adaptive_draft_cap_last != cap) {
+            fprintf(stderr,
+                    "ds4: dspark adaptive draft_cap %d -> %d "
+                    "(committed_ema=%.3f samples=%u base=%d)\n",
+                    s->dspark_adaptive_draft_cap_last,
+                    cap,
+                    ema,
+                    s->dspark_committed_ema_samples,
+                    draft_cap);
+            s->dspark_adaptive_draft_cap_last = cap;
+        }
+    } else {
+        s->dspark_adaptive_draft_cap_last = cap;
+    }
+    return cap;
+}
+
 static int ds4_session_dspark_effective_verify_budget(ds4_session *s, const ds4_engine *e) {
     const int base = ds4_dspark_base_verify_budget(e);
     ds4_dspark_dynamic_verify_cfg cfg = ds4_dspark_dynamic_verify_cfg_make(e);
-    if (!cfg.enabled || cfg.min_budget >= cfg.max_budget) return base;
+    if (!cfg.enabled || cfg.min_budget >= cfg.max_budget) {
+        return ds4_session_dspark_adaptive_draft_cap_apply(s, base);
+    }
+    if (cfg.confidence_cost) {
+        /* Record-only: the per-block confidence-cost scheduler owns the
+         * verify length; do not apply the cross-block EMA budget here. */
+        ds4_session_dspark_dynamic_verify_init(s, &cfg);
+        return ds4_session_dspark_adaptive_draft_cap_apply(s, base);
+    }
     ds4_session_dspark_dynamic_verify_init(s, &cfg);
     const int probe_budget = cfg.throughput_mode ?
         0 : ds4_session_dspark_utility_probe_budget(s, &cfg);
-    if (probe_budget > 0) return probe_budget;
+    if (probe_budget > 0) {
+        return ds4_session_dspark_adaptive_draft_cap_apply(s, probe_budget);
+    }
     int budget = s && s->dspark_dynamic_verify_initialized ?
         s->dspark_dynamic_verify_budget : cfg.max_budget;
     if (budget < cfg.min_budget) budget = cfg.min_budget;
@@ -25717,12 +26228,93 @@ static int ds4_session_dspark_effective_verify_budget(ds4_session *s, const ds4_
             budget < cfg.max_budget &&
             s->dspark_dynamic_switch_cooldown == 0 &&
             s->dspark_dynamic_recover_count >= (uint8_t)cfg.recover_probe_interval) {
-            const int probe_budget = budget + 1;
-            s->dspark_dynamic_probe_budget = (uint8_t)probe_budget;
-            return probe_budget;
+            const int recover_probe = budget + 1;
+            s->dspark_dynamic_probe_budget = (uint8_t)recover_probe;
+            return ds4_session_dspark_adaptive_draft_cap_apply(s, recover_probe);
         }
     }
-    return budget;
+    return ds4_session_dspark_adaptive_draft_cap_apply(s, budget);
+}
+
+/* Combined confidence x cost scheduler ("confidence-cost"): pick the verify
+ * prefix length k maximizing expected_accepted(k) / cost(k), where
+ * expected_accepted is the running product-sum of the LEARNED per-block
+ * confidence-head probabilities (the DSpark paper's confidence-scheduled
+ * verification) and cost(k) is the dynamic verifier's MEASURED per-budget
+ * block-seconds EMA.  Budgets without enough samples are probed first
+ * (largest first) so every EMA converges; until then a linear env-cost model
+ * is the fallback so the argmax is still defined. */
+static int ds4_dspark_confidence_cost_prefix_len(
+        ds4_session *s,
+        const ds4_engine *e,
+        const float *confidence_probs,
+        int draft_n) {
+    if (!s || !e || !confidence_probs || draft_n <= 0) return draft_n;
+    if (draft_n > 5) draft_n = 5;
+    ds4_dspark_dynamic_verify_cfg cfg = ds4_dspark_dynamic_verify_cfg_make(e);
+    ds4_session_dspark_dynamic_verify_init(s, &cfg);
+    int max_budget = cfg.max_budget;
+    if (max_budget > draft_n) max_budget = draft_n;
+    if (max_budget < 1) max_budget = 1;
+
+    const int probe_samples =
+        cfg.utility_probe_samples > 0 ? cfg.utility_probe_samples : 1;
+    for (int b = max_budget; b >= 1; b--) {
+        if (s->dspark_dynamic_cost_count[b] < (uint16_t)probe_samples) {
+            return b;
+        }
+    }
+
+    const float fixed_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_COST_FIXED", 3.0f, 0.0f, 100.0f);
+    const float token_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_COST_TOKEN", 1.0f, 0.001f, 100.0f);
+
+    int best_k = 1;
+    double best_score = -1.0;
+    double prefix = 1.0;
+    double expected = 0.0;
+    for (int k = 1; k <= max_budget; k++) {
+        float p = confidence_probs[k - 1];
+        if (!isfinite(p)) p = 0.0f;
+        if (p < 0.0f) p = 0.0f;
+        if (p > 1.0f) p = 1.0f;
+        prefix *= (double)p;
+        expected += prefix;
+        double cost;
+        if (s->dspark_dynamic_cost_count[k] > 0 &&
+            isfinite(s->dspark_dynamic_cost_ema[k]) &&
+            s->dspark_dynamic_cost_ema[k] > 1.0e-9) {
+            cost = s->dspark_dynamic_cost_ema[k];
+        } else {
+            cost = (double)(fixed_cost + token_cost * (float)k);
+        }
+        const double score = expected / cost;
+        if (score > best_score) {
+            best_score = score;
+            best_k = k;
+        }
+    }
+    if (env_flag_enabled("DS4_DSPARK_CONFIDENCE_COST_LOG") ||
+        env_flag_enabled("DS4_DSPARK_CONF_LOG")) {
+        fprintf(stderr,
+                "ds4: dspark confidence-cost raw=%d selected=%d "
+                "p=[%.3f,%.3f,%.3f,%.3f,%.3f] "
+                "cost_ms=[%.1f,%.1f,%.1f,%.1f,%.1f]\n",
+                draft_n,
+                best_k,
+                confidence_probs[0],
+                confidence_probs[1],
+                confidence_probs[2],
+                confidence_probs[3],
+                confidence_probs[4],
+                s->dspark_dynamic_cost_ema[1] * 1.0e3,
+                s->dspark_dynamic_cost_ema[2] * 1.0e3,
+                s->dspark_dynamic_cost_ema[3] * 1.0e3,
+                s->dspark_dynamic_cost_ema[4] * 1.0e3,
+                s->dspark_dynamic_cost_ema[5] * 1.0e3);
+    }
+    return best_k;
 }
 
 static void ds4_session_dspark_dynamic_verify_record(
@@ -25925,6 +26517,506 @@ static void ds4_session_dspark_dynamic_verify_suppress_next(ds4_session *s) {
     s->dspark_dynamic_record_suppress = 1;
 }
 
+/* DS4_DSPARK_CONF_CALIB=1: reliability of the learned confidence head.
+ * Buckets predicted per-position accept prob vs realized acceptance and prints
+ * a reliability table + ECE at exit.  Diagnostic only, default off. */
+static uint64_t g_conf_calib_n[10];
+static uint64_t g_conf_calib_hit[10];
+static double   g_conf_calib_psum[10];
+
+static void ds4_dspark_conf_calib_report(void) {
+    uint64_t tot = 0;
+    for (int i = 0; i < 10; i++) tot += g_conf_calib_n[i];
+    if (!tot) return;
+    double ece = 0.0;
+    fprintf(stderr, "ds4: dspark conf-calib reliability (bin pred-mean realized n):\n");
+    for (int i = 0; i < 10; i++) {
+        if (!g_conf_calib_n[i]) continue;
+        const double pm = g_conf_calib_psum[i] / (double)g_conf_calib_n[i];
+        const double rr = (double)g_conf_calib_hit[i] / (double)g_conf_calib_n[i];
+        ece += (pm > rr ? pm - rr : rr - pm) * (double)g_conf_calib_n[i] / (double)tot;
+        fprintf(stderr, "ds4:   [%.1f-%.1f) pred=%.3f realized=%.3f n=%llu\n",
+                i / 10.0, (i + 1) / 10.0, pm, rr,
+                (unsigned long long)g_conf_calib_n[i]);
+    }
+    fprintf(stderr, "ds4: dspark conf-calib ECE=%.4f samples=%llu\n",
+            ece, (unsigned long long)tot);
+}
+
+static float g_conf_calib_stash[5];
+static int   g_conf_calib_stash_valid;
+
+static void ds4_dspark_conf_calib_stash(const float *probs) {
+    if (!probs) return;
+    for (int i = 0; i < 5; i++) g_conf_calib_stash[i] = probs[i];
+    g_conf_calib_stash_valid = 1;
+}
+
+/* Set once the rate scheduler runs: it consumes the live reliability table,
+ * so the counters must accumulate even without DS4_DSPARK_CONF_CALIB. */
+static int g_conf_calib_consumer;
+
+static void ds4_dspark_conf_calib_record(const float *probs, int drafted, int committed) {
+    static int enabled = -1;
+    if (enabled < 0) {
+        const char *env = getenv("DS4_DSPARK_CONF_CALIB");
+        enabled = env && env[0] && atoi(env) != 0;
+        if (enabled) atexit(ds4_dspark_conf_calib_report);
+    }
+    if ((!enabled && !g_conf_calib_consumer) || !probs) return;
+    if (drafted > 5) drafted = 5;
+    for (int i = 0; i < drafted; i++) {
+        float p = probs[i];
+        /* negative = sentinel: row excluded from calibration (forced-certain
+         * rows carry no information about the head); also skips NaN */
+        if (!(p >= 0.0f)) continue;
+        if (p > 1.0f) p = 1.0f;
+        int b = (int)(p * 10.0f);
+        if (b > 9) b = 9;
+        g_conf_calib_n[b]++;
+        g_conf_calib_psum[b] += (double)p;
+        if (i < committed) g_conf_calib_hit[b]++;
+    }
+}
+
+/* Realized commit rate for the head's predicted confidence (decile bin),
+ * falling back to the raw prediction while the bin is cold.  Commit rates
+ * are UNCONDITIONAL (a prior-row miss kills the row), which is exactly the
+ * expectation the rate scheduler needs under linearity. */
+static float ds4_dspark_conf_calib_lookup(float p) {
+    if (!(p >= 0.0f)) p = 0.0f;
+    if (p > 1.0f) p = 1.0f;
+    int b = (int)(p * 10.0f);
+    if (b > 9) b = 9;
+    if (g_conf_calib_n[b] >= 32) {
+        return (float)((double)g_conf_calib_hit[b] / (double)g_conf_calib_n[b]);
+    }
+    return p;
+}
+
+/* DEFAULT-OFF: feed hard/cost schedulers calibrated conf probs so over-long
+ * verify prefixes under FORCE_TARGET_FIRST can shrink.  Scheduling-only. */
+static bool ds4_dspark_conf_calib_apply_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_CONF_CALIB_APPLY") ||
+           env_flag_enabled("DS4_DSPARK_CONF_APPLY_CALIB");
+}
+
+static void ds4_dspark_conf_probs_for_schedule(
+        const float *in,
+        int n,
+        float *out) {
+    if (!in || !out || n <= 0) return;
+    if (n > 5) n = 5;
+    const bool apply = ds4_dspark_conf_calib_apply_enabled();
+    if (apply) g_conf_calib_consumer = 1;
+    const float scale = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONF_SCALE", 1.0f, 0.05f, 8.0f);
+    const float bias = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONF_BIAS", 0.0f, -1.0f, 1.0f);
+    static bool s_logged = false;
+    if (apply && !s_logged) {
+        s_logged = true;
+        fprintf(stderr,
+                "ds4: dspark conf-calib apply enabled "
+                "(lookup bins after 32 samples/bin; scale=%.3f bias=%.3f)\n",
+                scale,
+                bias);
+    }
+    for (int i = 0; i < n; i++) {
+        float p = in[i];
+        if (apply) p = ds4_dspark_conf_calib_lookup(p);
+        p = scale * p + bias;
+        if (!(p >= 0.0f)) p = 0.0f;
+        if (p > 1.0f) p = 1.0f;
+        out[i] = p;
+    }
+}
+
+#define DS4_DSPARK_EVAL_MARGIN_BINS 21
+#define DS4_DSPARK_EVAL_MARGIN_BIN_WIDTH 0.25
+
+typedef struct {
+    uint64_t n;
+    uint64_t drafted_blocks;
+    uint64_t skipped_blocks;
+    uint64_t first_miss_blocks;
+    uint64_t full_accept_blocks;
+    uint64_t drafted_tokens;
+    uint64_t committed_tokens;
+    double margin_sum;
+} ds4_dspark_eval_margin_bin;
+
+static ds4_dspark_eval_margin_bin g_dspark_eval_margin_bins[DS4_DSPARK_EVAL_MARGIN_BINS];
+
+static bool ds4_dspark_eval_margin_calib_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_EVAL_MARGIN_CALIB") ||
+           env_flag_enabled("DS4_DSPARK_MARGIN_CALIB");
+}
+
+/* Two-stage combined gate (default off):
+ *  1) pre-draft: skip draft+verify when target eval margin is below threshold
+ *  2) post-draft: after conf logits, skip verify when rate economics say k=0
+ * Reuses eval-margin threshold + rate prefix scheduler / cost EMAs. */
+static bool ds4_dspark_eval_margin_rate_gate_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_EVAL_MARGIN_RATE_GATE") ||
+           env_flag_enabled("DS4_DSPARK_MARGIN_RATE_GATE");
+}
+
+static bool ds4_dspark_eval_margin_gate_enabled(void) {
+    const char *gate = getenv("DS4_DSPARK_EVAL_MARGIN_GATE");
+    if (gate && gate[0]) return atoi(gate) != 0;
+    gate = getenv("DS4_DSPARK_MARGIN_GATE");
+    if (gate && gate[0]) return atoi(gate) != 0;
+    return getenv("DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD") != NULL ||
+           getenv("DS4_DSPARK_MARGIN_GATE_THRESHOLD") != NULL;
+}
+
+static bool ds4_dspark_eval_margin_active(void) {
+    return ds4_dspark_eval_margin_calib_enabled() ||
+           ds4_dspark_eval_margin_gate_enabled() ||
+           ds4_dspark_eval_margin_rate_gate_enabled();
+}
+
+static float ds4_dspark_eval_margin_gate_threshold(void) {
+    const char *env = getenv("DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD");
+    if (env && env[0]) {
+        char *end = NULL;
+        float v = strtof(env, &end);
+        if (end != env && isfinite(v)) return v;
+    }
+    env = getenv("DS4_DSPARK_MARGIN_GATE_THRESHOLD");
+    if (env && env[0]) {
+        char *end = NULL;
+        float v = strtof(env, &end);
+        if (end != env && isfinite(v)) return v;
+    }
+    return 0.50f;
+}
+
+static void ds4_dspark_eval_margin_report(void) {
+    uint64_t total = 0;
+    for (int i = 0; i < DS4_DSPARK_EVAL_MARGIN_BINS; i++) {
+        total += g_dspark_eval_margin_bins[i].n;
+    }
+    if (!total) return;
+    fprintf(stderr,
+            "ds4: dspark eval-margin calibration "
+            "(margin avg drafted commit/tok first-miss full skipped n):\n");
+    for (int i = 0; i < DS4_DSPARK_EVAL_MARGIN_BINS; i++) {
+        const ds4_dspark_eval_margin_bin *b = &g_dspark_eval_margin_bins[i];
+        if (!b->n) continue;
+        const double lo = (double)i * DS4_DSPARK_EVAL_MARGIN_BIN_WIDTH;
+        const double hi = (double)(i + 1) * DS4_DSPARK_EVAL_MARGIN_BIN_WIDTH;
+        const double avg_margin = b->margin_sum / (double)b->n;
+        const double avg_drafted = b->drafted_blocks ?
+            (double)b->drafted_tokens / (double)b->drafted_blocks : 0.0;
+        const double avg_commit = b->drafted_blocks ?
+            (double)b->committed_tokens / (double)b->drafted_blocks : 0.0;
+        const double first_miss = b->drafted_blocks ?
+            (double)b->first_miss_blocks / (double)b->drafted_blocks : 0.0;
+        const double full = b->drafted_blocks ?
+            (double)b->full_accept_blocks / (double)b->drafted_blocks : 0.0;
+        if (i == DS4_DSPARK_EVAL_MARGIN_BINS - 1) {
+            fprintf(stderr,
+                    "ds4:   [%.2f-inf) avg=%.3f drafted=%.2f commit=%.2f "
+                    "first-miss=%.3f full=%.3f skipped=%llu n=%llu\n",
+                    lo,
+                    avg_margin,
+                    avg_drafted,
+                    avg_commit,
+                    first_miss,
+                    full,
+                    (unsigned long long)b->skipped_blocks,
+                    (unsigned long long)b->n);
+        } else {
+            fprintf(stderr,
+                    "ds4:   [%.2f-%.2f) avg=%.3f drafted=%.2f commit=%.2f "
+                    "first-miss=%.3f full=%.3f skipped=%llu n=%llu\n",
+                    lo,
+                    hi,
+                    avg_margin,
+                    avg_drafted,
+                    avg_commit,
+                    first_miss,
+                    full,
+                    (unsigned long long)b->skipped_blocks,
+                    (unsigned long long)b->n);
+        }
+    }
+}
+
+static void ds4_dspark_eval_margin_register_report(void) {
+    static bool registered;
+    if (!registered) {
+        registered = true;
+        atexit(ds4_dspark_eval_margin_report);
+    }
+}
+
+static void ds4_session_dspark_eval_margin_stash(ds4_session *s) {
+    if (!s) return;
+    s->dspark_eval_margin_valid = false;
+    if (!ds4_dspark_eval_margin_active() || !s->logits) return;
+    int top0 = -1;
+    int top1 = -1;
+    float v0 = DS4_NEG_INF;
+    float v1 = DS4_NEG_INF;
+    logits_top2(s->logits, DS4_N_VOCAB, &top0, &v0, &top1, &v1);
+    if (top0 < 0 || top1 < 0 || !isfinite(v0) || !isfinite(v1)) return;
+    s->dspark_eval_margin = v0 - v1;
+    s->dspark_eval_top_logit = v0;
+    s->dspark_eval_second_logit = v1;
+    s->dspark_eval_margin_valid = isfinite(s->dspark_eval_margin);
+    if (s->dspark_eval_margin_valid) ds4_dspark_eval_margin_register_report();
+}
+
+static void ds4_session_dspark_eval_margin_record(
+        ds4_session *s,
+        int drafted,
+        int committed,
+        bool skipped) {
+    if (!s || !s->dspark_eval_margin_valid) return;
+    if (!ds4_dspark_eval_margin_active()) {
+        s->dspark_eval_margin_valid = false;
+        return;
+    }
+    if (drafted < 0) drafted = 0;
+    if (committed < 0) committed = 0;
+    if (committed > drafted) committed = drafted;
+    double margin = (double)s->dspark_eval_margin;
+    if (!isfinite(margin)) margin = 0.0;
+    int bin = margin <= 0.0 ? 0 :
+        (int)(margin / DS4_DSPARK_EVAL_MARGIN_BIN_WIDTH);
+    if (bin >= DS4_DSPARK_EVAL_MARGIN_BINS) {
+        bin = DS4_DSPARK_EVAL_MARGIN_BINS - 1;
+    }
+    ds4_dspark_eval_margin_bin *b = &g_dspark_eval_margin_bins[bin];
+    b->n++;
+    b->margin_sum += margin;
+    if (skipped) {
+        b->skipped_blocks++;
+    } else if (drafted > 0) {
+        b->drafted_blocks++;
+        b->drafted_tokens += (uint64_t)drafted;
+        b->committed_tokens += (uint64_t)committed;
+        if (committed == 0) b->first_miss_blocks++;
+        if (committed == drafted) b->full_accept_blocks++;
+    }
+    s->dspark_eval_margin_valid = false;
+}
+
+static bool ds4_session_dspark_eval_margin_should_skip(ds4_session *s) {
+    if (!s || !s->dspark_eval_margin_valid) return false;
+    /* Margin-only gate and the combined margin+rate gate share the pre-draft
+     * threshold check.  Rate-only scheduler dormancy is separate. */
+    if (!ds4_dspark_eval_margin_gate_enabled() &&
+        !ds4_dspark_eval_margin_rate_gate_enabled()) {
+        return false;
+    }
+    return s->dspark_eval_margin < ds4_dspark_eval_margin_gate_threshold();
+}
+
+static bool ds4_dspark_rate_adaptive_probe_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_RATE_ADAPTIVE_PROBE");
+}
+
+static bool ds4_dspark_rate_skip_main_kv_dormant_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_RATE_SKIP_MAIN_KV_DORMANT");
+}
+
+/* Default-off while the incremental repair path is being benchmarked. When
+ * enabled, a margin-gated target eval omits all DSpark-only mirror work; the
+ * exact missing suffix is imported only if the block proceeds to drafting. */
+static bool ds4_dspark_true_plain_skip_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_TRUE_PLAIN_SKIP") ||
+           env_flag_enabled("DS4_DSPARK_PLAIN_SKIP");
+}
+
+/* DS4_DSPARK_LAZY_MAIN_KV was prototyped as "always skip mirror, repair
+ * before draft" and REJECTED: rebuild_main_kv_window every block blew
+ * draft from ~10.5 ms to ~62 ms (28 t/s vs 41 force-only).  Keep the
+ * env name as an alias for the existing rate-dormant skip only. */
+static bool ds4_dspark_lazy_main_kv_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_LAZY_MAIN_KV");
+}
+
+static uint32_t ds4_dspark_rate_probe_interval_base(void) {
+    return (uint32_t)ds4_dspark_env_int_default(
+            "DS4_DSPARK_RATE_PROBE_INTERVAL", 128, 8, 4096);
+}
+
+static uint32_t ds4_dspark_rate_probe_interval(ds4_session *s) {
+    const uint32_t base = ds4_dspark_rate_probe_interval_base();
+    if (!s || !ds4_dspark_rate_adaptive_probe_enabled()) {
+        return ds4_dspark_rate_skip_main_kv_dormant_enabled() && base > 128u ?
+            128u : base;
+    }
+    uint32_t max_interval = (uint32_t)ds4_dspark_env_int_default(
+            "DS4_DSPARK_RATE_PROBE_INTERVAL_MAX", 1024, 8, 4096);
+    uint32_t min_interval = base;
+    if (ds4_dspark_rate_skip_main_kv_dormant_enabled()) {
+        if (max_interval > 128u) max_interval = 128u;
+        if (min_interval > max_interval) min_interval = max_interval;
+    }
+    if (s->dspark_rate_probe_interval_cur < min_interval) {
+        s->dspark_rate_probe_interval_cur = min_interval;
+    }
+    if (s->dspark_rate_probe_interval_cur > max_interval) {
+        s->dspark_rate_probe_interval_cur = max_interval;
+    }
+    return s->dspark_rate_probe_interval_cur;
+}
+
+static void ds4_dspark_rate_probe_result(ds4_session *s, bool useful) {
+    if (!s || !ds4_dspark_rate_adaptive_probe_enabled()) return;
+    const uint32_t base = ds4_dspark_rate_probe_interval_base();
+    uint32_t max_interval = (uint32_t)ds4_dspark_env_int_default(
+            "DS4_DSPARK_RATE_PROBE_INTERVAL_MAX", 1024, 8, 4096);
+    uint32_t min_interval = base;
+    if (ds4_dspark_rate_skip_main_kv_dormant_enabled()) {
+        if (max_interval > 128u) max_interval = 128u;
+        if (min_interval > max_interval) min_interval = max_interval;
+    }
+    uint32_t old = s->dspark_rate_probe_interval_cur;
+    if (old < min_interval) old = min_interval;
+    if (old > max_interval) old = max_interval;
+    if (useful) {
+        s->dspark_rate_probe_interval_cur = min_interval;
+        s->dspark_rate_probe_failures = 0;
+    } else {
+        if (s->dspark_rate_probe_failures != UINT32_MAX) {
+            s->dspark_rate_probe_failures++;
+        }
+        uint32_t next = old <= max_interval / 2u ? old * 2u : max_interval;
+        if (ds4_dspark_rate_skip_main_kv_dormant_enabled() && next > 128u) {
+            next = 128u;
+        }
+        if (next < min_interval) next = min_interval;
+        if (next > max_interval) next = max_interval;
+        s->dspark_rate_probe_interval_cur = next;
+    }
+    if (env_flag_enabled("DS4_DSPARK_RATE_LOG") ||
+        env_flag_enabled("DS4_DSPARK_CONF_LOG")) {
+        fprintf(stderr,
+                "ds4: dspark rate probe %s interval %u -> %u failures=%u\n",
+                useful ? "useful" : "cold",
+                old,
+                s->dspark_rate_probe_interval_cur,
+                s->dspark_rate_probe_failures);
+    }
+}
+
+static bool ds4_dspark_rate_ctx_prior_blocks_dormant(const ds4_session *s) {
+    if (!s || !env_flag_enabled("DS4_DSPARK_RATE_CTX_PRIOR")) return false;
+    const int threshold = ds4_dspark_env_int_default(
+            "DS4_DSPARK_RATE_CTX_PRIOR_TOKENS", 1536, 0, 65536);
+    return threshold > 0 && s->checkpoint.len < threshold;
+}
+
+static int ds4_dspark_rate_prefix_len(
+        ds4_session *s,
+        const ds4_engine *e,
+        const float *confidence_probs,
+        int draft_n,
+        bool allow_skip) {
+    if (!s || !e || !confidence_probs || draft_n <= 0) return draft_n;
+    if (draft_n > 5) draft_n = 5;
+    g_conf_calib_consumer = 1;
+    if (env_flag_enabled("DS4_DSPARK_RATE_FORCE_ZERO")) {
+        return 0;
+    }
+    ds4_dspark_dynamic_verify_cfg cfg = ds4_dspark_dynamic_verify_cfg_make(e);
+    ds4_session_dspark_dynamic_verify_init(s, &cfg);
+    int max_budget = cfg.max_budget;
+    if (max_budget > draft_n) max_budget = draft_n;
+    if (max_budget < 1) max_budget = 1;
+
+    const int probe_samples =
+        cfg.utility_probe_samples > 0 ? cfg.utility_probe_samples : 1;
+    for (int b = max_budget; b >= 1; b--) {
+        if (s->dspark_dynamic_cost_count[b] < (uint16_t)probe_samples) {
+            return b;
+        }
+    }
+
+    double t_eval = 0.0;
+    if (allow_skip) {
+        if (s->dspark_eval_samples < 4) {
+            /* No plain-decode estimate yet: k=0 cannot be priced. */
+            return ds4_dspark_confidence_cost_prefix_len(s, e, confidence_probs, draft_n);
+        }
+        t_eval = s->dspark_eval_seconds_ema;
+        if (!(t_eval > 1.0e-6)) t_eval = 1.0e-6;
+    }
+
+    const float fixed_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_COST_FIXED", 3.0f, 0.0f, 100.0f);
+    const float token_cost = ds4_dspark_env_float_default(
+            "DS4_DSPARK_CONFIDENCE_COST_TOKEN", 1.0f, 0.001f, 100.0f);
+    /* Draft time is sunk when the scheduler runs (the confidence signal comes
+     * from the draft), so remove it from every priced budget; k=0 never
+     * repays it either way. */
+    const double draft_sunk = s->dspark_draft_ema_samples >= 4 ?
+        s->dspark_draft_seconds_ema : 0.0;
+
+    int best_k = allow_skip ? 0 : 1;
+    double best_rate = allow_skip ? 1.0 / t_eval : -1.0;
+    double expected = 0.0;
+    float calib[5] = {0};
+    for (int k = 1; k <= max_budget; k++) {
+        /* >=0.999 = pinned certainty (force-target-first row): bypass the
+         * bin lookup, which would drag a certain event down to its bin's
+         * average realized rate. */
+        calib[k - 1] = confidence_probs[k - 1] >= 0.999f ?
+            1.0f : ds4_dspark_conf_calib_lookup(confidence_probs[k - 1]);
+        expected += (double)calib[k - 1];
+        double cost;
+        if (s->dspark_dynamic_cost_count[k] > 0 &&
+            isfinite(s->dspark_dynamic_cost_ema[k]) &&
+            s->dspark_dynamic_cost_ema[k] > 1.0e-9) {
+            cost = s->dspark_dynamic_cost_ema[k];
+        } else {
+            /* env constants are milliseconds; EMAs are seconds */
+            cost = (double)(fixed_cost + token_cost * (float)k) * 1.0e-3;
+        }
+        cost -= draft_sunk;
+        if (cost < 1.0e-6) cost = 1.0e-6;
+        const double rate = (1.0 + expected) / (t_eval + cost);
+        if (rate > best_rate) {
+            best_rate = rate;
+            best_k = k;
+        }
+    }
+    if (best_k == 0) {
+        /* Keep cost EMAs and the reliability table alive through long skip
+         * stretches: one full-width probe every 128 consecutive skips
+         * (byte-safe; verify length never changes committed bytes). */
+        const uint32_t probe_every = ds4_dspark_rate_probe_interval(s);
+        if (++s->dspark_rate_skip_streak >= probe_every) {
+            s->dspark_rate_skip_streak = 0;
+            best_k = max_budget;
+        }
+    } else {
+        s->dspark_rate_skip_streak = 0;
+    }
+    if (env_flag_enabled("DS4_DSPARK_CONFIDENCE_COST_LOG") ||
+        env_flag_enabled("DS4_DSPARK_CONF_LOG")) {
+        fprintf(stderr,
+                "ds4: dspark rate scheduler raw=%d selected=%d t_eval=%.1fms "
+                "calib=[%.2f,%.2f,%.2f,%.2f,%.2f] cost_ms=[%.1f,%.1f,%.1f,%.1f,%.1f]\n",
+                draft_n,
+                best_k,
+                t_eval * 1.0e3,
+                calib[0], calib[1], calib[2], calib[3], calib[4],
+                s->dspark_dynamic_cost_ema[1] * 1.0e3,
+                s->dspark_dynamic_cost_ema[2] * 1.0e3,
+                s->dspark_dynamic_cost_ema[3] * 1.0e3,
+                s->dspark_dynamic_cost_ema[4] * 1.0e3,
+                s->dspark_dynamic_cost_ema[5] * 1.0e3);
+    }
+    return best_k;
+}
+
 static void ds4_session_dspark_perf_record(
         ds4_session *s,
         int drafted,
@@ -25936,6 +27028,11 @@ static void ds4_session_dspark_perf_record(
         double total_s) {
     if (!s) return;
     if (drafted < 0) drafted = 0;
+    if (g_conf_calib_stash_valid && drafted > 0) {
+        ds4_dspark_conf_calib_record(g_conf_calib_stash, drafted, committed);
+        g_conf_calib_stash_valid = 0;
+    }
+    ds4_session_dspark_eval_margin_record(s, drafted, committed, false);
     if (drafted == 0 &&
         committed == 0 &&
         draft_s <= 0.0 &&
@@ -25973,6 +27070,27 @@ static void ds4_session_dspark_perf_record(
                 utility);
     }
 
+    if (drafted > 0 && draft_s > 1.0e-6 && draft_s < 1.0) {
+        if (s->dspark_draft_ema_samples == 0) {
+            s->dspark_draft_seconds_ema = draft_s;
+        } else {
+            s->dspark_draft_seconds_ema =
+                0.95 * s->dspark_draft_seconds_ema + 0.05 * draft_s;
+        }
+        if (s->dspark_draft_ema_samples != UINT32_MAX) s->dspark_draft_ema_samples++;
+    }
+    /* Adaptive draft_cap input: recent per-block committed draft tokens. */
+    if (drafted > 0) {
+        if (s->dspark_committed_ema_samples == 0) {
+            s->dspark_committed_ema = (double)committed;
+        } else {
+            s->dspark_committed_ema =
+                0.90 * s->dspark_committed_ema + 0.10 * (double)committed;
+        }
+        if (s->dspark_committed_ema_samples != UINT32_MAX) {
+            s->dspark_committed_ema_samples++;
+        }
+    }
     s->dspark_perf_blocks++;
     s->dspark_perf_drafted_tokens += (uint64_t)drafted;
     s->dspark_perf_committed_tokens += (uint64_t)committed;
@@ -26002,15 +27120,19 @@ static void ds4_session_dspark_draft_prefetch_clear(ds4_session *s) {
     if (!s || !s->dspark_draft_prefetch_pending) return;
 #ifndef DS4_NO_GPU
     (void)ds4_gpu_synchronize();
+    if (s->dspark_draft_prefetch_from_overlap) g_dspark_overlap_fallbacks++;
 #endif
     if (ds4_session_dspark_draft_prefetch_log_enabled()) {
         fprintf(stderr,
-                "ds4: dspark draft prefetch discarded len=%d cap=%d last=%d\n",
+                "ds4: dspark draft prefetch discarded len=%d cap=%d last=%d overlap=%d\n",
                 s->dspark_draft_prefetch_checkpoint_len,
                 s->dspark_draft_prefetch_cap,
-                s->dspark_draft_prefetch_last_token);
+                s->dspark_draft_prefetch_last_token,
+                s->dspark_draft_prefetch_from_overlap ? 1 : 0);
     }
     s->dspark_draft_prefetch_pending = false;
+    s->dspark_draft_prefetch_from_overlap = false;
+    s->dspark_draft_prefetch_confidence = false;
     s->dspark_draft_prefetch_cap = 0;
     s->dspark_draft_prefetch_last_token = -1;
     s->dspark_draft_prefetch_checkpoint_len = -1;
@@ -26023,9 +27145,10 @@ static bool ds4_session_dspark_draft_prefetch_finish(
         int         *drafts,
         int         *draft_n) {
     if (draft_n) *draft_n = 0;
-    if (!s || !ds4_session_dspark_draft_prefetch_enabled() ||
-        !s->dspark_draft_prefetch_pending || !drafts || !draft_n ||
-        draft_cap <= 0) {
+    if (!s || !s->dspark_draft_prefetch_pending || !drafts || !draft_n ||
+        draft_cap <= 0 ||
+        !(ds4_session_dspark_draft_prefetch_enabled() ||
+          s->dspark_draft_prefetch_from_overlap)) {
         return false;
     }
     if (s->dspark_draft_prefetch_checkpoint_len != s->checkpoint.len ||
@@ -26035,6 +27158,7 @@ static bool ds4_session_dspark_draft_prefetch_finish(
         return false;
     }
 
+    const bool from_overlap = s->dspark_draft_prefetch_from_overlap;
     int cached_n = 0;
     const int cached_cap = s->dspark_draft_prefetch_cap;
     bool ok = metal_graph_eval_dspark_draft_prefetch_finish(&s->graph,
@@ -26042,10 +27166,13 @@ static bool ds4_session_dspark_draft_prefetch_finish(
                                                             cached_cap,
                                                             &cached_n);
     s->dspark_draft_prefetch_pending = false;
+    s->dspark_draft_prefetch_from_overlap = false;
+    s->dspark_draft_prefetch_confidence = false;
     s->dspark_draft_prefetch_cap = 0;
     s->dspark_draft_prefetch_last_token = -1;
     s->dspark_draft_prefetch_checkpoint_len = -1;
     if (!ok || cached_n < draft_cap) {
+        if (from_overlap) g_dspark_overlap_fallbacks++;
         if (ds4_session_dspark_draft_prefetch_log_enabled()) {
             fprintf(stderr,
                     "ds4: dspark draft prefetch finish failed cached=%d want=%d ok=%d\n",
@@ -26055,13 +27182,15 @@ static bool ds4_session_dspark_draft_prefetch_finish(
         }
         return false;
     }
+    if (from_overlap) g_dspark_overlap_hits++;
     *draft_n = draft_cap;
     if (ds4_session_dspark_draft_prefetch_log_enabled()) {
         fprintf(stderr,
-                "ds4: dspark draft prefetch hit cap=%d len=%d last=%d\n",
+                "ds4: dspark draft prefetch hit cap=%d len=%d last=%d overlap=%d\n",
                 draft_cap,
                 s->checkpoint.len,
-                last_token);
+                last_token,
+                from_overlap ? 1 : 0);
     }
     return true;
 }
@@ -26072,6 +27201,12 @@ static void ds4_session_dspark_draft_prefetch_start(
         int          draft_cap,
         int          eos_token) {
     if (!s || !e || !ds4_session_dspark_draft_prefetch_enabled()) return;
+    /* The A4 overlap prefetch already drafted this block during the verifier
+     * drain; the post-commit start is a no-op while it is pending. */
+    if (s->dspark_draft_prefetch_pending &&
+        s->dspark_draft_prefetch_from_overlap) {
+        return;
+    }
     const bool prefetch_rows6 = ds4_dspark_verify_rows6_enabled();
     if (e->draft_kind != DS4_DRAFT_DSPARK || !e->dspark.inference_ready) return;
     if (ds4_dspark_dynamic_verify_cfg_make(e).enabled) return;
@@ -26139,6 +27274,239 @@ static bool ds4_dspark_relaxed_accept_enabled(void) {
     return env_flag_enabled("DS4_DSPARK_RELAXED_ACCEPT") ||
            env_flag_enabled("DS4_DSPARK_ACCEPT_DRAFTS") ||
            env_flag_enabled("DS4_DSPARK_FORCE_ACCEPT");
+}
+
+/* -------------------------------------------------------------------------
+ * Stage A4 overlap draft session plumbing (DS4_DSPARK_OVERLAP_DRAFT=1).
+ *
+ * ds4_session_dspark_overlap_request() arms a one-shot request immediately
+ * before a strict_v1 verify; the verifier launches the speculative next-block
+ * draft (mirror bank) between its head submit and readback drain.  After the
+ * commit the session either adopts the speculation as a pending prefetch
+ * (full accept) or discards it (misspeculation -> live-draft fallback).
+ * ------------------------------------------------------------------------- */
+
+/* Discard a verifier-seam overlap draft whose block failed outright (no
+ * commit happened): restore every speculatively imported DSpark KV row so the
+ * 128-window history matches the non-overlap run. */
+static void ds4_session_dspark_overlap_prefetch_discard(ds4_session *s) {
+    g_dspark_overlap.requested = false;
+    if (g_dspark_overlap.ran) {
+        if (s && g_dspark_overlap.ran_kv_n != 0) {
+            (void)metal_graph_dspark_overlap_restore_kv(&s->graph,
+                                                        g_dspark_overlap.ran_kv_start,
+                                                        0,
+                                                        g_dspark_overlap.ran_kv_n);
+        }
+        g_dspark_overlap.ran = false;
+        g_dspark_overlap.ran_kv_n = 0;
+        g_dspark_overlap_fallbacks++;
+    }
+}
+
+/* Early misspeculation repair for the verifier seam, called as soon as the
+ * commit prefix length is known: the authoritative commit rewrites rows
+ * 0..committed-1, so only the un-committed suffix rows need the snapshot
+ * restore (before anything can read them as window history). */
+static void ds4_session_dspark_overlap_misspec_repair(
+        ds4_session *s,
+        int          committed,
+        int          drafted) {
+    if (!s || !g_dspark_overlap.ran || g_dspark_overlap.ran_kv_n == 0) return;
+    if (committed < 0) committed = 0;
+    if (committed >= drafted) return;
+    (void)metal_graph_dspark_overlap_restore_kv(&s->graph,
+                                                g_dspark_overlap.ran_kv_start,
+                                                (uint32_t)committed,
+                                                g_dspark_overlap.ran_kv_n);
+    g_dspark_overlap.ran_kv_n = 0;
+}
+
+/* Shared preconditions for both overlap seams (frontier verifier seam and
+ * normal-path eval seam).  Confidence-hard/softmax schedulers are supported on
+ * the normal path only: the overlap chain saves per-row Markov embeds on the
+ * mirror bank and the consumer scores them with the confidence head.  The
+ * frontier consumers are confidence-free, and cost/trace/log diagnostics keep
+ * the live path. */
+static bool ds4_session_dspark_overlap_common_ok(
+        ds4_session *s,
+        ds4_engine  *e,
+        bool         frontier_path,
+        bool        *confidence_out) {
+    if (confidence_out) *confidence_out = false;
+    if (!s || !e || !ds4_dspark_overlap_draft_enabled()) return false;
+    if (e->draft_kind != DS4_DRAFT_DSPARK || !e->dspark.inference_ready) return false;
+    if (ds4_dspark_dynamic_verify_cfg_make(e).enabled) return false;
+    const bool confidence_scheduler =
+        ds4_dspark_scheduler_is_confidence_hard(e) ||
+        ds4_dspark_scheduler_is_confidence_softmax(e);
+    if (ds4_dspark_scheduler_is_confidence_cost(e) ||
+        getenv("DS4_DSPARK_CONF_LOG") != NULL ||
+        ds4_dspark_dynamic_trace_enabled()) {
+        return false;
+    }
+    if (confidence_scheduler &&
+        (frontier_path ||
+         env_flag_enabled("DS4_DSPARK_CONF_FAST_MARKOV_DISABLE"))) {
+        return false;
+    }
+    if (ds4_dspark_relaxed_accept_enabled()) return false;
+    if (env_flag_enabled("DS4_DSPARK_DRAFT_ONLY") ||
+        env_flag_enabled("DS4_DSPARK_TRUST_DRAFT") ||
+        ds4_dspark_trust_confidence_enabled()) {
+        return false;
+    }
+    /* The overlap draft encodes before the consumer readbacks, so it must not
+     * touch comp_selected: require the fused Markov select path. */
+    if (ds4_dspark_tree_opp_log_enabled() ||
+        env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") ||
+        env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE")) {
+        return false;
+    }
+    const char *markov_disable = getenv("DS4_DSPARK_MARKOV_CHAIN_DISABLE");
+    if (markov_disable && markov_disable[0] && atoi(markov_disable) != 0) return false;
+    if (confidence_out) *confidence_out = confidence_scheduler;
+    return true;
+}
+
+/* Arm the normal-path eval-seam overlap: the next single-token decode encodes
+ * the live draft's exact twin on the mirror bank inside its own drain (the
+ * decode's dspark main-KV import for the token's position is already in the
+ * same command stream, so the chain is byte-identical to the live draft it
+ * replaces). */
+static void ds4_session_dspark_overlap_eval_request(
+        ds4_session *s,
+        ds4_engine  *e) {
+    g_dspark_overlap.eval_requested = false;
+    g_dspark_overlap.ran = false;
+    bool confidence_scheduler = false;
+    if (!ds4_session_dspark_overlap_common_ok(s, e, false, &confidence_scheduler)) return;
+    int cap = ds4_session_dspark_effective_verify_budget(s, e);
+    if (cap > e->dspark.block_size) cap = e->dspark.block_size;
+    if (cap > 5) cap = 5;
+    const int room = s->ctx_size - (s->checkpoint.len + 1);
+    if (cap > room) cap = room;
+    if (cap < 2) return;
+    if (!metal_graph_ctx_grow_ensure(&s->graph,
+                                     (uint32_t)(s->checkpoint.len + cap + 2))) {
+        return;
+    }
+    g_dspark_overlap.eval_requested = true;
+    g_dspark_overlap.want_confidence = confidence_scheduler;
+    g_dspark_overlap.draft_cap = cap;
+}
+
+/* Adopt the eval-seam prefetch right after the first-token eval: the chain was
+ * seeded with first_token at its own position, so the only guards left are the
+ * usual pending-state checks at consumption time. */
+static void ds4_session_dspark_overlap_eval_adopt(
+        ds4_session *s,
+        int          first_token,
+        int          eos_token) {
+    g_dspark_overlap.eval_requested = false;
+    if (!g_dspark_overlap.ran) return;
+    g_dspark_overlap.ran = false;
+    if (!s || first_token == eos_token) {
+        g_dspark_overlap_fallbacks++;
+        return;
+    }
+    s->dspark_draft_prefetch_pending = true;
+    s->dspark_draft_prefetch_from_overlap = true;
+    s->dspark_draft_prefetch_confidence = g_dspark_overlap.ran_confidence;
+    s->dspark_draft_prefetch_cap = g_dspark_overlap.ran_cap;
+    s->dspark_draft_prefetch_last_token = first_token;
+    s->dspark_draft_prefetch_checkpoint_len = s->checkpoint.len;
+    if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+        fprintf(stderr,
+                "ds4: dspark overlap eval prefetch adopted cap=%d len=%d seed=%d\n",
+                s->dspark_draft_prefetch_cap,
+                s->dspark_draft_prefetch_checkpoint_len,
+                first_token);
+    }
+}
+
+static void ds4_session_dspark_overlap_request(
+        ds4_session *s,
+        ds4_engine  *e,
+        int          draft_cap,
+        int          draft_n,
+        const int   *drafts,
+        bool         frontier_path,
+        int          eos_token) {
+    g_dspark_overlap.requested = false;
+    g_dspark_overlap.ran = false;
+    if (!drafts || draft_n < 2 || draft_n > 6) return;
+    bool confidence_scheduler = false;
+    if (!ds4_session_dspark_overlap_common_ok(s, e, frontier_path, &confidence_scheduler)) return;
+
+    int cap = draft_cap;
+    if (cap > e->dspark.block_size) cap = e->dspark.block_size;
+    if (cap > 5) cap = 5;
+    /* Frontier consumes the prefetch with no eval in between; the normal path
+     * commits one more target token (first_token) before consuming. */
+    const int next_len = s->checkpoint.len + draft_n + (frontier_path ? 0 : 1);
+    const int room = s->ctx_size - next_len;
+    if (cap > room) cap = room;
+    if (cap < 2) return;
+
+    const bool seed_from_argmax =
+        !frontier_path || ds4_dspark_verify_rows6_enabled();
+    int cpu_seed = -1;
+    if (!seed_from_argmax) {
+        cpu_seed = drafts[draft_n - 1];
+        if (cpu_seed < 0 || cpu_seed >= (int)DS4_N_VOCAB ||
+            cpu_seed == eos_token) {
+            return;
+        }
+    }
+    if (!metal_graph_ctx_grow_ensure(&s->graph,
+                                     (uint32_t)(s->checkpoint.len + draft_n +
+                                                cap + 1))) {
+        return;
+    }
+    g_dspark_overlap.requested = true;
+    g_dspark_overlap.seed_from_argmax = seed_from_argmax;
+    g_dspark_overlap.want_confidence = confidence_scheduler;
+    g_dspark_overlap.cpu_seed_token = cpu_seed;
+    g_dspark_overlap.draft_cap = cap;
+}
+
+/* Adopt the speculative overlap draft as a pending prefetch after a fully
+ * accepted block; returns false (after discarding) on misspeculation so the
+ * caller can fall back to the existing post-commit prefetch/live draft. */
+static bool ds4_session_dspark_overlap_prefetch_adopt(
+        ds4_session *s,
+        int          committed,
+        int          drafted,
+        int          eos_token,
+        int          checkpoint_delta) {
+    if (!g_dspark_overlap.ran) return false;
+    g_dspark_overlap.ran = false;
+    g_dspark_overlap.ran_kv_n = 0;  /* misspec KV suffix already restored */
+    if (!s || committed < drafted) {
+        g_dspark_overlap_fallbacks++;
+        return false;
+    }
+    int seed = -1;
+    if (!metal_graph_dspark_overlap_seed_token(&s->graph, &seed) ||
+        seed < 0 || seed >= (int)DS4_N_VOCAB || seed == eos_token) {
+        g_dspark_overlap_fallbacks++;
+        return false;
+    }
+    s->dspark_draft_prefetch_pending = true;
+    s->dspark_draft_prefetch_from_overlap = true;
+    s->dspark_draft_prefetch_confidence = g_dspark_overlap.ran_confidence;
+    s->dspark_draft_prefetch_cap = g_dspark_overlap.ran_cap;
+    s->dspark_draft_prefetch_last_token = seed;
+    s->dspark_draft_prefetch_checkpoint_len = s->checkpoint.len + checkpoint_delta;
+    if (ds4_session_dspark_draft_prefetch_log_enabled()) {
+        fprintf(stderr,
+                "ds4: dspark overlap prefetch adopted cap=%d len=%d seed=%d\n",
+                s->dspark_draft_prefetch_cap,
+                s->dspark_draft_prefetch_checkpoint_len,
+                seed);
+    }
+    return true;
 }
 
 static bool ds4_dspark_relaxed_unbounded_enabled(void) {
@@ -27782,6 +29150,9 @@ static bool ds4_session_dspark_warmup(ds4_session *s, char *err, size_t errlen) 
                                                   draft_cap,
                                                   NULL,
                                                   NULL,
+                                                  /*force_first_token=*/-1,
+                                                  /*repair_main_kv_start=*/0u,
+                                                  /*repair_main_kv_end=*/0u,
                                                   &drafted);
     if (!ok) {
         if (err && errlen) {
@@ -27840,7 +29211,8 @@ static bool ds4_session_replay_spec_prefix_exact(
                                                drafts[replayed],
                                                (uint32_t)s->checkpoint.len,
                                                dst_logits,
-                                               false)) {
+                                               false,
+                                               true)) {
             return false;
         }
         token_vec_push(&s->checkpoint, drafts[replayed]);
@@ -28600,7 +29972,8 @@ int ds4_engine_collect_imatrix(ds4_engine *e,
 
     ds4_gpu_graph g;
     bool ok = metal_graph_alloc_raw_cap(&g, weights, &weights->layer[0],
-                                        raw_cap, (uint32_t)ctx_size, prefill_cap, false);
+                                        raw_cap, (uint32_t)ctx_size, prefill_cap,
+                                        prefill_cap, false);
     if (!ok) {
         fprintf(stderr, "ds4: failed to allocate imatrix Metal graph runtime\n");
         free(dataset);
@@ -29261,6 +30634,7 @@ static bool ds4_flash_moe_has_iq2_mxfp4_down_plane_split(
 #endif
 
 int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
+    const double t_open0 = now_sec();
     ds4_engine_options resolved = *opt;
     ds4_engine_options_autodetect_sidecar_package(&resolved, "ds4");
     ds4_engine_options_apply_resident_preset(&resolved, "ds4");
@@ -29273,6 +30647,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     /* Apply the machine tuning profile before any knob is read (env still wins). */
     ds4_profile_set_sidecar_mode(opt->moe_mode == DS4_MOE_MODE_SLOT_BANK && opt->moe_sidecar_path);
     ds4_profile_load_and_apply();
+    const double t_profile = now_sec();
     if (opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled()) {
         ds4_apply_no_int8_paths();
     }
@@ -29333,6 +30708,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_acquire_instance_lock();
 
     const bool graph_backend = ds4_backend_uses_graph(opt->backend);
+    const double t_model0 = now_sec();
     model_open(&e->model, opt->model_path, graph_backend, true);
     if (opt->warm_weights && e->moe_mode == DS4_MOE_MODE_SLOT_BANK) {
         fprintf(stderr, "ds4: --warm-weights skipped in Flash-MoE slot-bank mode to avoid touching resident routed experts\n");
@@ -29341,8 +30717,10 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     }
     vocab_load(&e->vocab, &e->model);
     config_validate_model(&e->model);
+    const double t_model1 = now_sec();
     const ds4_flash_moe_sidecar *flash_moe_weights = NULL;
 #ifndef DS4_NO_GPU
+    const double t_sidecar0 = now_sec();
     if (e->moe_mode == DS4_MOE_MODE_SLOT_BANK &&
         !ds4_flash_moe_sidecar_open(&e->flash_moe,
                                     opt->moe_sidecar_path,
@@ -29375,13 +30753,20 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         }
     }
     flash_moe_weights = e->flash_moe;
+    const double t_sidecar1 = now_sec();
+#else
+    const double t_sidecar0 = now_sec();
+    const double t_sidecar1 = t_sidecar0;
 #endif
     weights_bind(&e->weights, &e->model, flash_moe_weights);
+    const double t_weights = now_sec();
+    const double t_dspark0 = now_sec();
     if (!ds4_dspark_open(&e->dspark, opt)) {
         ds4_engine_close(e);
         *out = NULL;
         return 1;
     }
+    const double t_dspark1 = now_sec();
     if (e->backend == DS4_BACKEND_CPU && !cpu_load_directional_steering(e)) {
         ds4_engine_close(e);
         *out = NULL;
@@ -29488,6 +30873,7 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 #endif
     }
 
+    const double t_backend0 = now_sec();
 #ifndef DS4_NO_GPU
     if (e->backend == DS4_BACKEND_CUDA) {
 #ifdef __APPLE__
@@ -29567,8 +30953,10 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         return 1;
     }
 #endif
+    const double t_backend1 = now_sec();
 
 #ifndef DS4_NO_GPU
+	    const double t_prewarm0 = now_sec();
 	    /* Pre-warm the ANE shared-expert cache for all layers when enabled.
 	     * Without this the ~4 s of one-time Q8_0→fp16 dequant + ANE compile is
 	     * paid inside the first prefill, hiding the per-token speedup the
@@ -29829,10 +31217,25 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                         "ds4: ANE O-proj prewarm: %u/%u layers, %.1f ms total (paid before prefill timer)\n",
                         prewarmed, DS4_N_LAYER, (now_sec() - prewarm_t0) * 1000.0);
             }
-        }
-    }
+	        }
+	    }
+	    const double t_prewarm1 = now_sec();
+#else
+	    const double t_prewarm0 = now_sec();
+	    const double t_prewarm1 = t_prewarm0;
 #endif
 
+    fprintf(stderr,
+            "ds4: startup timing: engine=%.3fs profile=%.3fs model=%.3fs "
+            "sidecar=%.3fs weights=%.3fs dspark=%.3fs backend=%.3fs prewarm=%.3fs\n",
+            now_sec() - t_open0,
+            t_profile - t_open0,
+            t_model1 - t_model0,
+            t_sidecar1 - t_sidecar0,
+            t_weights - t_sidecar1,
+            t_dspark1 - t_dspark0,
+            t_backend1 - t_backend0,
+            t_prewarm1 - t_prewarm0);
     *out = e;
     return 0;
 }
@@ -29893,6 +31296,7 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
 #else
     if (!ds4_backend_uses_graph(e->backend) || !e->metal_ready) return 1;
 
+    const double t_session0 = now_sec();
     ds4_session *s = xcalloc(1, sizeof(*s));
     s->engine = e;
     s->ctx_size = ctx_size;
@@ -29900,12 +31304,17 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     const uint32_t raw_cap = metal_graph_raw_cap_for_context(ctx_size, s->prefill_cap);
     const bool draft_scratch =
         e->mtp_ready || (e->draft_kind == DS4_DRAFT_DSPARK && e->dspark.loaded);
+    const double t_raw0 = now_sec();
+    const uint32_t initial_batch_rows =
+        draft_scratch ? 16u : 1u;
     if (!metal_graph_alloc_raw_cap(&s->graph, &e->weights, &e->weights.layer[0],
-                                   raw_cap, (uint32_t)ctx_size, s->prefill_cap, draft_scratch))
+                                   raw_cap, (uint32_t)ctx_size, s->prefill_cap,
+                                   initial_batch_rows, draft_scratch))
     {
         free(s);
         return 1;
     }
+    const double t_raw1 = now_sec();
     s->graph.dense_mapped_bytes =
         e->model.size > e->model.tensor_data_pos ?
         e->model.size - e->model.tensor_data_pos :
@@ -29915,6 +31324,8 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     }
     s->graph.quality = e->quality;
 #ifndef DS4_NO_GPU
+    double t_flash0 = now_sec();
+    double t_flash1 = t_flash0;
     if (e->flash_moe &&
         !metal_graph_enable_flash_moe(&s->graph, e->flash_moe, &e->weights.layer[0])) {
         fprintf(stderr, "ds4: failed to allocate Flash-MoE slot banks\n");
@@ -29922,7 +31333,9 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         free(s);
         return 1;
     }
+    t_flash1 = now_sec();
 #endif
+    const double t_steer0 = now_sec();
     if (!metal_graph_load_directional_steering(&s->graph,
                                                e->directional_steering_file,
                                                e->directional_steering_attn_scale,
@@ -29931,11 +31344,24 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         free(s);
         return 1;
     }
+    const double t_steer1 = now_sec();
     s->logits = xmalloc((size_t)DS4_N_VOCAB * sizeof(s->logits[0]));
     if (e->mtp_ready) {
         s->mtp_logits = xmalloc((size_t)DS4_N_VOCAB * sizeof(s->mtp_logits[0]));
         s->mtp_draft_token = -1;
     }
+    fprintf(stderr,
+            "ds4: session startup timing: total=%.3fs raw-graph=%.3fs "
+            "flash-moe=%.3fs steering=%.3fs draft-scratch=%s\n",
+            now_sec() - t_session0,
+            t_raw1 - t_raw0,
+#ifndef DS4_NO_GPU
+            t_flash1 - t_flash0,
+#else
+            0.0,
+#endif
+            t_steer1 - t_steer0,
+            draft_scratch ? "yes" : "no");
     *out = s;
     return 0;
 #endif
@@ -30704,7 +32130,13 @@ int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out) {
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                      char *err, size_t errlen) {
     if (!s) return 1;
-    ds4_session_dspark_draft_prefetch_clear(s);
+    /* An A4 overlap prefetch lives on the private mirror bank and is already
+     * drained, so a single-token eval cannot clobber it; keep it pending for
+     * the consumer (the finish guard still rejects any state mismatch). */
+    if (!(s->dspark_draft_prefetch_pending &&
+          s->dspark_draft_prefetch_from_overlap)) {
+        ds4_session_dspark_draft_prefetch_clear(s);
+    }
     if (glm52_session_active(s)) {
         (void)probe_mtp;
         return glm52_session_eval(s, token, err, errlen);
@@ -30755,6 +32187,45 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
     const int unified_token = token;
     const bool target_forward_unified =
         env_flag_enabled("DS4_TARGET_FORWARD_UNIFIED");
+    /* Skippable blocks omit DSpark-only work from the target eval. Rate-dormant
+     * mode already skips seed/probe work; TRUE_PLAIN_SKIP extends this to the
+     * main-KV mirror and to margin-gated blocks. If speculation resumes, only
+     * the exact missing suffix is rebuilt before drafting. */
+    bool dspark_prepare = true;
+    bool dspark_update_main_kv = true;
+    bool dspark_skipped_main_kv = false;
+    if (s->dspark_rate_spec_off &&
+        e->draft_kind == DS4_DRAFT_DSPARK &&
+        ds4_dspark_scheduler_is_rate(e)) {
+        const uint32_t probe_every = ds4_dspark_rate_probe_interval(s);
+        dspark_prepare = ((s->dspark_rate_off_blocks + 1u) % probe_every) == 0u;
+        if (!dspark_prepare &&
+            !target_forward_unified &&
+            (ds4_dspark_rate_skip_main_kv_dormant_enabled() ||
+             ds4_dspark_lazy_main_kv_enabled() ||
+             ds4_dspark_true_plain_skip_enabled())) {
+            dspark_update_main_kv = false;
+            dspark_skipped_main_kv = true;
+        }
+    }
+    if (!target_forward_unified &&
+        e->draft_kind == DS4_DRAFT_DSPARK &&
+        e->dspark.inference_ready &&
+        ds4_dspark_true_plain_skip_enabled() &&
+        (ds4_dspark_eval_margin_gate_enabled() ||
+         ds4_dspark_eval_margin_rate_gate_enabled())) {
+        dspark_prepare = false;
+        dspark_update_main_kv = false;
+        dspark_skipped_main_kv = true;
+        static bool logged = false;
+        if (!logged && !backend_diagnostic_logs_suppressed()) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: dspark true plain-skip enabled "
+                    "(margin-skipped evals defer main-KV mirror work)\n");
+        }
+    }
+    const uint32_t decode_pos = (uint32_t)s->checkpoint.len;
     const bool decode_ok = target_forward_unified ?
         metal_graph_target_forward_rows_unified(&s->graph,
                                                 &e->model,
@@ -30766,18 +32237,20 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
                                                 false,
                                                 0,
 	                                                false,
-	                                                true,
+	                                                dspark_prepare,
 		                                                NULL,
 		                                                NULL,
 		                                                0,
 		                                                NULL,
 		                                                s->logits) :
-        metal_graph_eval_token_raw_swa(&s->graph,
-                                       &e->model,
-                                       &e->weights,
-                                       (uint32_t)token,
-                                       (uint32_t)s->checkpoint.len,
-                                       s->logits);
+        metal_graph_eval_token_raw_swa_ex(&s->graph,
+                                          &e->model,
+                                          &e->weights,
+                                          (uint32_t)token,
+                                          decode_pos,
+                                          s->logits,
+                                          dspark_prepare,
+                                          dspark_update_main_kv);
     if (!decode_ok)
     {
         snprintf(err, errlen, "%s decode failed", ds4_backend_name(e->backend));
@@ -30785,6 +32258,13 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
         return 1;
     }
     token_vec_push(&s->checkpoint, token);
+    if (dspark_skipped_main_kv) {
+        if (!s->dspark_rate_main_kv_stale ||
+            decode_pos < s->dspark_rate_main_kv_stale_from) {
+            s->dspark_rate_main_kv_stale_from = decode_pos;
+        }
+        s->dspark_rate_main_kv_stale = true;
+    }
     if (mtp_should_draft) {
         int mtp_top = -1;
         if (metal_graph_eval_mtp_draft(&s->graph,
@@ -30968,8 +32448,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	        s->dspark_frontier_after_full_ready = false;
 	    }
 
-	    if ((env_flag_enabled("DS4_DSPARK_FRONTIER_DRAFT") ||
-	         dspark_draft_only) &&
+		    if ((env_flag_enabled("DS4_DSPARK_FRONTIER_DRAFT") ||
+		         ds4_dspark_verify_rows6_enabled() ||
+		         dspark_draft_only) &&
 	        dspark_frontier_allowed &&
 	        e->draft_kind == DS4_DRAFT_DSPARK &&
 	        e->dspark.inference_ready &&
@@ -30996,13 +32477,19 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                ds4_dspark_scheduler_is_confidence_softmax(e);
 		            const bool dspark_frontier_confidence_softmax_long =
 		                ds4_dspark_scheduler_is_confidence_softmax_long(e);
+		            const bool dspark_frontier_confidence_cost =
+		                ds4_dspark_scheduler_is_confidence_cost(e);
+		            const bool dspark_frontier_rate =
+		                ds4_dspark_scheduler_is_rate(e);
 		            const bool dspark_frontier_relaxed_confidence_gate =
 		                dspark_relaxed_accept &&
 		                dspark_frontier_confidence_hard &&
 		                !env_flag_enabled("DS4_DSPARK_RELAXED_CONFIDENCE_GATE_DISABLE");
 		            const bool dspark_frontier_confidence_scheduler =
 		                (dspark_frontier_confidence_hard ||
-		                 dspark_frontier_confidence_softmax) &&
+		                 dspark_frontier_confidence_softmax ||
+		                 dspark_frontier_confidence_cost ||
+		                 dspark_frontier_rate) &&
 		                (dspark_draft_only || !dspark_relaxed_accept);
 		            const bool dspark_frontier_confidence_log =
 		                getenv("DS4_DSPARK_CONF_LOG") != NULL;
@@ -31010,12 +32497,18 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                ds4_dspark_dynamic_trace_enabled();
 		            const bool dspark_frontier_trust_confidence =
 		                !dspark_draft_only && ds4_dspark_trust_confidence_enabled();
-		            const bool dspark_frontier_want_confidence =
-		                dspark_frontier_confidence_scheduler ||
+			            const bool dspark_frontier_want_confidence =
+			                dspark_frontier_confidence_scheduler ||
 		                dspark_frontier_relaxed_confidence_gate ||
 		                dspark_frontier_confidence_log ||
-		                dspark_frontier_dynamic_trace ||
-		                dspark_frontier_trust_confidence;
+			                dspark_frontier_dynamic_trace ||
+			                dspark_frontier_trust_confidence;
+			            const bool dspark_frontier_rows6_confidence =
+			                ds4_dspark_rows6_confidence_enabled() &&
+			                dspark_frontier_confidence_hard &&
+			                !dspark_frontier_confidence_cost &&
+			                !dspark_frontier_rate &&
+			                !dspark_frontier_trust_confidence;
 		            const bool dspark_timing =
 		                getenv("DS4_DSPARK_BLOCK_TIMING") != NULL ||
 		                getenv("DS4_DSPARK_TIMING") != NULL;
@@ -31024,35 +32517,46 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                dspark_timing || dspark_perf_summary || backend_stats_logs_enabled() ||
 	                dspark_dynamic_verify_enabled;
 	            const double dspark_t0 = dspark_perf ? now_sec() : 0.0;
-	            const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
-	            bool frontier_ok = false;
-	            bool frontier_rows6 = false;
-	            if (ds4_dspark_verify_rows6_enabled() &&
-	                !dspark_frontier_want_confidence &&
-	                !dspark_relaxed_accept &&
-	                !dspark_draft_only) {
+			            const int last_token = s->checkpoint.v[s->checkpoint.len - 1];
+			            bool frontier_ok = false;
+			            bool frontier_rows6 = false;
+			            bool frontier_rows6_confidence = false;
+			            if (ds4_dspark_verify_rows6_enabled() &&
+			                !dspark_relaxed_accept &&
+			                !dspark_draft_only) {
 	                /* Rows-6: seed the Markov chain WITH the known-correct first
 	                 * token so its five outputs become drafts[1..5]; row 0 is the
 	                 * first token itself (argmax of the committed logits). */
-	                int chain_n = 0;
+		                int chain_cap = draft_cap;
+		                if (chain_cap > max_tokens - 1) chain_cap = max_tokens - 1;
+		                if (chain_cap > accepted_cap - 1) chain_cap = accepted_cap - 1;
+		                if (chain_cap > room - 1) chain_cap = room - 1;
+		                int chain_n = 0;
 	                /* A prefetched chain (seeded with argmax of the commit logits ==
 	                 * first_token) is validated against first_token and the unchanged
 	                 * checkpoint length; any mismatch falls through to the live eval. */
-	                frontier_ok = ds4_session_dspark_draft_prefetch_finish(s,
-	                                                                       draft_cap,
-	                                                                       first_token,
-	                                                                       drafts + 1,
-	                                                                       &chain_n);
-	                if (!frontier_ok) {
-	                    frontier_ok = metal_graph_eval_dspark_draft(&s->graph,
+		                if (chain_cap > 0 && !dspark_frontier_rows6_confidence) {
+		                    frontier_ok = ds4_session_dspark_draft_prefetch_finish(s,
+		                                                                           chain_cap,
+		                                                                           first_token,
+		                                                                           drafts + 1,
+		                                                                           &chain_n);
+		                }
+		                if (!frontier_ok) {
+		                    frontier_ok = metal_graph_eval_dspark_draft(&s->graph,
 	                                                            &e->model,
 	                                                            &e->weights,
 	                                                            first_token,
 	                                                            (uint32_t)s->checkpoint.len,
 	                                                            drafts + 1,
-	                                                            draft_cap,
-	                                                            NULL,
-	                                                            NULL,
+		                                                            chain_cap,
+		                                                            dspark_frontier_rows6_confidence ?
+		                                                                confidence_logits + 1 : NULL,
+	                                                            dspark_frontier_rows6_confidence ?
+	                                                                confidence_probs + 1 : NULL,
+	                                                            /*force_first_token=*/-1,
+	                                                            /*repair_main_kv_start=*/0u,
+	                                                            /*repair_main_kv_end=*/0u,
 	                                                            &chain_n);
 	                }
 	                if (getenv("DS4_DSPARK_SPEC_LOG")) {
@@ -31061,21 +32565,33 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                            frontier_ok ? 1 : 0, chain_n, first_token,
 	                            (int)s->checkpoint.len);
 	                }
-	                if (frontier_ok && chain_n > 0) {
-	                    drafts[0] = first_token;
-	                    draft_n = chain_n + 1;
-	                    frontier_rows6 = true;
+		                if (frontier_ok && chain_n > 0) {
+		                    drafts[0] = first_token;
+		                    confidence_logits[0] = 20.0f;
+			                    confidence_probs[0] = 1.0f;
+			                    draft_n = chain_n + 1;
+			                    frontier_rows6 = true;
+			                    frontier_rows6_confidence =
+			                        dspark_frontier_rows6_confidence;
 	                    static bool rows6_logged = false;
-	                    if (!rows6_logged && !backend_diagnostic_logs_suppressed()) {
+		                    if (!rows6_logged && !backend_diagnostic_logs_suppressed()) {
 	                        rows6_logged = true;
-	                        fprintf(stderr,
-	                                "ds4: dspark frontier rows-6 verify enabled (first token + 5 drafts)\n");
-	                    }
+		                        fprintf(stderr,
+		                                "ds4: dspark frontier rows-6 verify enabled "
+		                                "(first token + up to 5 drafts%s)\n",
+		                                frontier_rows6_confidence ?
+		                                    ", confidence-aware" : "");
+		                        if (ds4_dspark_eval_margin_gate_enabled() ||
+		                            ds4_dspark_eval_margin_rate_gate_enabled()) {
+		                            fprintf(stderr,
+		                                    "ds4: rows6 folds the target token into the verifier; "
+		                                    "eval-margin gating is bypassed on this path\n");
+		                        }
+		                    }
 	                } else {
 	                    frontier_ok = false;
 	                }
 	            }
-	            (void)frontier_rows6;
 	            if (!frontier_ok && !dspark_frontier_want_confidence &&
 	                !ds4_dspark_verify_rows6_enabled()) {
 	                frontier_ok =
@@ -31093,9 +32609,12 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                                            (uint32_t)(s->checkpoint.len - 1),
 		                                                            drafts,
 		                                                            draft_cap,
-		                                                            dspark_frontier_want_confidence ? confidence_logits : NULL,
-		                                                            dspark_frontier_want_confidence ? confidence_probs : NULL,
-		                                                            &draft_n);
+	                                                            dspark_frontier_want_confidence ? confidence_logits : NULL,
+	                                                            dspark_frontier_want_confidence ? confidence_probs : NULL,
+	                                                            /*force_first_token=*/-1,
+	                                                            /*repair_main_kv_start=*/0u,
+	                                                            /*repair_main_kv_end=*/0u,
+	                                                            &draft_n);
 	            }
 		            const double dspark_draft_done = dspark_perf ? now_sec() : 0.0;
 	            if (frontier_ok && draft_n > 0 && dspark_frontier_dynamic_trace) {
@@ -31128,9 +32647,76 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                        break;
 		                    }
 		                }
-		                if (dspark_frontier_confidence_scheduler) {
+			                if (frontier_rows6_confidence) {
+			                    const int raw_draft_n = draft_n;
+			                    const int raw_chain_n = draft_n - 1;
+			                    float sched_probs[5] = {0};
+			                    ds4_dspark_conf_probs_for_schedule(
+			                            confidence_probs + 1,
+			                            raw_chain_n,
+			                            sched_probs);
+			                    const float *use_probs =
+			                        (ds4_dspark_conf_calib_apply_enabled() ||
+			                         getenv("DS4_DSPARK_CONF_SCALE") ||
+			                         getenv("DS4_DSPARK_CONF_BIAS")) ?
+			                            sched_probs : confidence_probs + 1;
+			                    int scheduled_chain =
+			                        ds4_dspark_confident_prefix_len(use_probs,
+			                                                        raw_chain_n,
+			                                                        e->dspark.conf_threshold);
+			                    /* Row 0 is guaranteed and replaces plain decode. Keep
+			                     * one suffix row so this remains a useful microbatch. */
+			                    if (scheduled_chain < 1) scheduled_chain = 1;
+			                    if (scheduled_chain > raw_chain_n) {
+			                        scheduled_chain = raw_chain_n;
+			                    }
+			                    float stash_probs[5] = {
+			                        -1.0f,
+			                        raw_chain_n > 0 ? confidence_probs[1] : -1.0f,
+			                        raw_chain_n > 1 ? confidence_probs[2] : -1.0f,
+			                        raw_chain_n > 2 ? confidence_probs[3] : -1.0f,
+			                        raw_chain_n > 3 ? confidence_probs[4] : -1.0f
+			                    };
+			                    ds4_dspark_conf_calib_stash(stash_probs);
+			                    draft_n = 1 + scheduled_chain;
+			                    if (draft_n < raw_draft_n) {
+			                        ds4_session_dspark_dynamic_verify_suppress_next(s);
+			                    }
+			                    if (dspark_frontier_confidence_log ||
+			                        getenv("DS4_DSPARK_SPEC_LOG")) {
+			                        fprintf(stderr,
+			                                "ds4: dspark rows6 confidence threshold=%.3f "
+			                                "raw=%d scheduled=%d "
+			                                "suffix=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+			                                e->dspark.conf_threshold,
+			                                raw_draft_n,
+			                                draft_n,
+			                                confidence_probs[1],
+			                                confidence_probs[2],
+			                                confidence_probs[3],
+			                                confidence_probs[4],
+			                                confidence_probs[5]);
+			                    }
+			                } else if (!frontier_rows6 &&
+			                           dspark_frontier_confidence_scheduler) {
+			                    ds4_dspark_conf_calib_stash(confidence_probs);
 		                    const int raw_draft_n = draft_n;
-		                    const int scheduled = dspark_frontier_confidence_softmax ?
+		                    const int scheduled = dspark_frontier_rate ?
+		                        ds4_dspark_rate_prefix_len(
+		                            s,
+		                            e,
+		                            confidence_probs,
+		                            draft_n,
+		                            /* frontier verify row 0 IS the committed
+		                             * token: k=0 has no plain-decode fallback */
+		                            /*allow_skip=*/false) :
+		                        dspark_frontier_confidence_cost ?
+		                        ds4_dspark_confidence_cost_prefix_len(
+		                            s,
+		                            e,
+		                            confidence_probs,
+		                            draft_n) :
+		                        dspark_frontier_confidence_softmax ?
 		                        ds4_dspark_confidence_softmax_prefix_len(
 		                            confidence_logits,
 		                            confidence_probs,
@@ -31148,8 +32734,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                        getenv("DS4_DSPARK_SPEC_LOG")) {
 		                        fprintf(stderr,
 		                                "ds4: dspark frontier confidence scheduler mode=%s threshold=%.3f raw=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+		                                dspark_frontier_rate ? "rate" :
+		                                dspark_frontier_confidence_cost ? "cost" :
 		                                dspark_frontier_confidence_softmax ? "softmax" : "hard",
-		                                dspark_frontier_confidence_softmax ? 0.0f : e->dspark.conf_threshold,
+		                                (dspark_frontier_confidence_softmax ||
+		                                 dspark_frontier_confidence_cost ||
+		                                 dspark_frontier_rate) ?
+		                                    0.0f : e->dspark.conf_threshold,
 		                                draft_n,
 		                                scheduled,
 		                                confidence_probs[0],
@@ -31159,7 +32750,9 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                                confidence_probs[4]);
 		                    }
 			                    draft_n = scheduled < min_commit ? min_commit : scheduled;
-			                    if (draft_n < raw_draft_n) {
+			                    if (draft_n < raw_draft_n &&
+			                        !dspark_frontier_confidence_cost &&
+			                        !dspark_frontier_rate) {
 			                        ds4_session_dspark_dynamic_verify_suppress_next(s);
 			                    }
 			                    if (draft_n <= 0) {
@@ -31339,6 +32932,15 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                    bool have_frontier = rows && spec_frontier_snapshot(&frontier, s);
 		                    const double snapshot_done = dspark_perf ? now_sec() : 0.0;
 		                    const double verify_gpu_t0 = dspark_perf ? ds4_gpu_busy_seconds() : 0.0;
+		                    if (have_frontier) {
+		                        ds4_session_dspark_overlap_request(s,
+		                                                           e,
+		                                                           draft_cap,
+		                                                           draft_n,
+		                                                           drafts,
+		                                                           true,
+		                                                           eos_token);
+		                    }
 		                    frontier_ok = have_frontier &&
 		                        metal_graph_verify_decodeN_strict_v1(&s->graph,
 		                                                              &e->model,
@@ -31399,6 +33001,12 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 		                                drafts,
 		                                commit_drafts,
 		                                ds4_dspark_state_only_verified_suffix_rows(draft_n));
+		                        /* A4 verifier-seam misspeculation: restore the
+		                         * speculatively imported DSpark KV suffix rows
+		                         * before anything reads them as window history. */
+		                        ds4_session_dspark_overlap_misspec_repair(s,
+		                                                                  commit_drafts,
+		                                                                  draft_n);
 		                        if (getenv("DS4_DSPARK_SPEC_LOG")) {
 		                            fprintf(stderr,
 		                                    "ds4: frontier block start=%d commit=%d/%d tok0=%d\n",
@@ -31456,7 +33064,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                                                   commit_done - dspark_t0);
 	                                }
 	                                spec_frontier_free(&frontier);
-	                                ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                if (!ds4_session_dspark_overlap_prefetch_adopt(s,
+	                                                                               draft_n,
+	                                                                               draft_n,
+	                                                                               eos_token,
+	                                                                               0)) {
+	                                    ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                }
 	                                return n_accept;
 	                            }
 	                        } else if (commit_drafts > 0) {
@@ -31521,7 +33135,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                    }
 	                                    if (allocated_prefix_logits) free(prefix_logits);
 	                                    spec_frontier_free(&frontier);
-	                                    ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                    if (!ds4_session_dspark_overlap_prefetch_adopt(s,
+	                                                                                   commit_drafts,
+	                                                                                   draft_n,
+	                                                                                   eos_token,
+	                                                                                   0)) {
+	                                        ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                    }
 	                                    return n_accept;
 	                                }
 	                                if (allocated_prefix_logits) free(prefix_logits);
@@ -31569,11 +33189,18 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                                                   replay_done - dspark_t0);
 	                                }
 	                                spec_frontier_free(&frontier);
-	                                ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                if (!ds4_session_dspark_overlap_prefetch_adopt(s,
+	                                                                               commit_drafts,
+	                                                                               draft_n,
+	                                                                               eos_token,
+	                                                                               0)) {
+	                                    ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
+	                                }
 	                                return n_accept;
 	                            }
 	                        }
 	                    }
+	                    ds4_session_dspark_overlap_prefetch_discard(s);
 	                    if (have_frontier) (void)spec_frontier_restore(&frontier, s);
 	                    spec_frontier_free(&frontier);
 	                }
@@ -31590,7 +33217,13 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	        }
 	    }
 
-	    ds4_session_dspark_draft_prefetch_clear(s);
+	    /* Keep an A4 overlap prefetch alive across the first-token eval: the
+	     * normal path consumes it right before the live draft below.  Any other
+	     * pending prefetch is discarded exactly as before. */
+	    if (!(s->dspark_draft_prefetch_pending &&
+	          s->dspark_draft_prefetch_from_overlap)) {
+	        ds4_session_dspark_draft_prefetch_clear(s);
+	    }
 
 	    /*
 	     * MTP in DeepSeek V4 is a speculative drafter, not a replacement sampler.
@@ -31600,12 +33233,73 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
      * several proposed positions together; running ordinary decode once per
      * draft token is correctness-safe but cannot be faster than baseline.
      */
+    /* A4 overlap eval seam (normal path): the first-token decode carries the
+     * next dspark draft in its own drain; adopted below as a pending prefetch
+     * the draft stage consumes in place of the live draft. */
+    const bool dspark_margin_gate = ds4_dspark_eval_margin_gate_enabled();
+    if (!dspark_margin_gate &&
+        max_tokens > 1 && accepted_cap > 1 && first_token != eos_token) {
+        ds4_session_dspark_overlap_eval_request(s, e);
+    } else {
+        g_dspark_overlap.eval_requested = false;
+    }
+    const bool dspark_eval_timing =
+        e->draft_kind == DS4_DRAFT_DSPARK && e->dspark.inference_ready;
+    const double dspark_eval_t0 = dspark_eval_timing ? now_sec() : 0.0;
     if (ds4_session_eval(s, first_token, err, errlen) != 0) return -1;
+    if (dspark_eval_timing) {
+        const double dt = now_sec() - dspark_eval_t0;
+        if (dt > 0.0 && dt < 1.0) {
+            if (s->dspark_eval_samples == 0) {
+                s->dspark_eval_seconds_ema = dt;
+            } else {
+                s->dspark_eval_seconds_ema =
+                    0.95 * s->dspark_eval_seconds_ema + 0.05 * dt;
+            }
+            if (s->dspark_eval_samples != UINT32_MAX) s->dspark_eval_samples++;
+        }
+    }
+    ds4_session_dspark_overlap_eval_adopt(s, first_token, eos_token);
     int n_accept = 0;
     accepted[n_accept++] = first_token;
     if (first_token == eos_token || max_tokens == 1 || n_accept >= accepted_cap) return n_accept;
 
     if (e->draft_kind == DS4_DRAFT_DSPARK && e->dspark.inference_ready) {
+        ds4_session_dspark_eval_margin_stash(s);
+        if (ds4_session_dspark_eval_margin_should_skip(s)) {
+            if (env_flag_enabled("DS4_DSPARK_EVAL_MARGIN_LOG") ||
+                env_flag_enabled("DS4_DSPARK_MARGIN_LOG")) {
+                fprintf(stderr,
+                        "ds4: dspark eval-margin gate skip margin=%.3f "
+                        "threshold=%.3f len=%d\n",
+                        s->dspark_eval_margin,
+                        ds4_dspark_eval_margin_gate_threshold(),
+                        s->checkpoint.len);
+            }
+            if (s->dspark_perf_skip_pre_draft != UINT64_MAX) {
+                s->dspark_perf_skip_pre_draft++;
+            }
+            ds4_session_dspark_eval_margin_record(s, 0, 0, true);
+            return n_accept;
+        }
+        bool dspark_rate_dormant_probe = false;
+        if (s->dspark_rate_spec_off && ds4_dspark_scheduler_is_rate(e)) {
+            /* Dormant probe cadence: a probe block costs draft+verify
+             * (~75ms), so at 32 the tax is ~2.4ms/token — enough to sink
+             * the dormant floor visibly below no-draft (measured 35.1 vs
+             * 37.2 on the 2026-07-08 sidecar pair). 128 => ~0.6ms/token. */
+            const uint32_t probe_every = ds4_dspark_rate_probe_interval(s);
+            if (++s->dspark_rate_off_blocks % probe_every != 0) {
+                /* Speculation dormant: plain decode, no draft cost. */
+                if (s->dspark_perf_skip_pre_draft != UINT64_MAX) {
+                    s->dspark_perf_skip_pre_draft++;
+                }
+                ds4_session_dspark_eval_margin_record(s, 0, 0, true);
+                return n_accept;
+            }
+            dspark_rate_dormant_probe = true;
+            /* fall through: probe block re-tests acceptance */
+        }
         int draft_cap = ds4_session_dspark_effective_verify_budget(s, e);
         if (draft_cap > e->dspark.block_size) draft_cap = e->dspark.block_size;
         if (draft_cap > 5) draft_cap = 5;
@@ -31631,8 +33325,29 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             ds4_dspark_scheduler_is_confidence_softmax(e);
         const bool dspark_confidence_softmax_long =
             ds4_dspark_scheduler_is_confidence_softmax_long(e);
+        const bool dspark_confidence_cost =
+            ds4_dspark_scheduler_is_confidence_cost(e);
+        const bool dspark_rate =
+            ds4_dspark_scheduler_is_rate(e);
+        /* Combined margin+rate gate: post-draft economics without full rate
+         * dormant mode (pre-draft margin already filters bad opportunities). */
+        const bool dspark_margin_rate_gate =
+            ds4_dspark_eval_margin_rate_gate_enabled();
+        const bool dspark_post_draft_rate =
+            dspark_rate || dspark_margin_rate_gate;
+        {
+            static bool s_margin_rate_gate_logged = false;
+            if (dspark_margin_rate_gate && !s_margin_rate_gate_logged) {
+                s_margin_rate_gate_logged = true;
+                fprintf(stderr,
+                        "ds4: dspark eval-margin+rate gate enabled "
+                        "(pre-draft threshold=%.3f, post-draft rate k=0 ok)\n",
+                        ds4_dspark_eval_margin_gate_threshold());
+            }
+        }
         const bool dspark_confidence_scheduler =
-            dspark_confidence_hard || dspark_confidence_softmax;
+            dspark_confidence_hard || dspark_confidence_softmax ||
+            dspark_confidence_cost || dspark_rate || dspark_margin_rate_gate;
         const bool dspark_confidence_log =
             getenv("DS4_DSPARK_CONF_LOG") != NULL;
         const bool dspark_dynamic_trace = ds4_dspark_dynamic_trace_enabled();
@@ -31651,18 +33366,129 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
         const bool dspark_perf_summary = getenv("DS4_DSPARK_PERF") != NULL;
         const bool dspark_perf =
             dspark_timing || dspark_perf_summary || backend_stats_logs_enabled() ||
-            dspark_dynamic_verify_enabled;
+            dspark_dynamic_verify_enabled || ds4_dspark_eval_margin_active();
         const double dspark_t0 = dspark_perf ? now_sec() : 0.0;
-        bool ok = metal_graph_eval_dspark_draft(&s->graph,
-                                                &e->model,
-                                                &e->weights,
-                                                first_token,
-                                                (uint32_t)(s->checkpoint.len - 1),
-                                                drafts,
-                                                draft_cap,
-                                                want_confidence ? confidence_logits : NULL,
-                                                want_confidence ? confidence_probs : NULL,
-                                                &draft_n);
+        uint32_t deferred_repair_from = 0u;
+        uint32_t deferred_repair_end = 0u;
+        if (s->dspark_rate_main_kv_stale) {
+            const uint32_t end_pos = (uint32_t)s->checkpoint.len;
+            const uint32_t stale_from = s->dspark_rate_main_kv_stale_from;
+            if (stale_from > end_pos) {
+                snprintf(err,
+                         errlen,
+                         "DSpark main-KV stale range invalid (%u..%u)",
+                         stale_from,
+                         end_pos);
+                return -1;
+            }
+            deferred_repair_from =
+                end_pos - stale_from > 128u ? end_pos - 128u : stale_from;
+            deferred_repair_end = end_pos;
+            /* A prefetched chain was encoded before the deferred mirror rows
+             * existed. Discard it and fuse repair with the authoritative live
+             * draft below. */
+            if (s->dspark_draft_prefetch_pending) {
+                ds4_session_dspark_draft_prefetch_clear(s);
+            }
+        }
+        /* Consume an A4 overlap prefetch (seeded with the GPU argmax of the
+         * committed logits row == first_token at temp 0) before paying for a
+         * live draft; the finish guard rejects any misspeculation.  Under the
+         * confidence schedulers the chain carries per-row Markov embeds on the
+         * mirror bank, scored here with the confidence head. */
+        bool ok = false;
+        if (s->dspark_draft_prefetch_pending &&
+            s->dspark_draft_prefetch_from_overlap &&
+            (!want_confidence || s->dspark_draft_prefetch_confidence)) {
+            const bool overlap_confidence = s->dspark_draft_prefetch_confidence;
+            ok = ds4_session_dspark_draft_prefetch_finish(s,
+                                                          draft_cap,
+                                                          first_token,
+                                                          drafts,
+                                                          &draft_n);
+            if (ok && want_confidence) {
+                ok = overlap_confidence &&
+                     metal_graph_dspark_overlap_confidence_scores(
+                         &s->graph,
+                         draft_n,
+                         confidence_logits,
+                         confidence_probs);
+                if (!ok) {
+                    g_dspark_overlap_fallbacks++;
+                    if (g_dspark_overlap_hits > 0) g_dspark_overlap_hits--;
+                    draft_n = 0;
+                }
+            }
+        }
+        /* After eval(first_token) the next target token is already known
+         * (argmax of current logits).  Force it as drafts[0] and re-chain
+         * Markov from there: first-miss becomes free accepts, suffix is
+         * conditioned on the correct prefix.  Byte-exact (verify still runs). */
+        int force_first_token = -1;
+        if (ds4_dspark_force_target_first_enabled() && s->logits) {
+            force_first_token = sample_argmax(s->logits, DS4_N_VOCAB);
+            static bool s_force_first_logged = false;
+            if (!s_force_first_logged) {
+                s_force_first_logged = true;
+                fprintf(stderr,
+                        "ds4: dspark force-target-first enabled "
+                        "(drafts[0]=target argmax, Markov re-chained; byte-exact)\n");
+            }
+        }
+        if (ok && force_first_token >= 0 && draft_n > 0 &&
+            drafts[0] != force_first_token) {
+            /* Prefetch hit with a wrong first draft: discard and live-redraft
+             * with force_first (full Markov rechain).  Host-only patching of
+             * drafts[0] leaves a stale suffix conditioned on the wrong prefix. */
+            if (getenv("DS4_DSPARK_SPEC_LOG") ||
+                env_flag_enabled("DS4_DSPARK_DRAFT_PREFETCH_LOG")) {
+                fprintf(stderr,
+                        "ds4: dspark force-first discard prefetch "
+                        "drafts[0]=%d force=%d; live-redraft markov rechain\n",
+                        drafts[0],
+                        force_first_token);
+            }
+            ok = false;
+            draft_n = 0;
+        }
+        if (!ok) {
+            ok = metal_graph_eval_dspark_draft(&s->graph,
+                                               &e->model,
+                                               &e->weights,
+                                               first_token,
+                                               (uint32_t)(s->checkpoint.len - 1),
+                                               drafts,
+                                               draft_cap,
+                                               want_confidence ? confidence_logits : NULL,
+                                               want_confidence ? confidence_probs : NULL,
+                                               force_first_token,
+                                               deferred_repair_from,
+                                               deferred_repair_end,
+                                               &draft_n);
+        }
+        if (ok && deferred_repair_from < deferred_repair_end) {
+            if (env_flag_enabled("DS4_DSPARK_RATE_LOG") ||
+                env_flag_enabled("DS4_DSPARK_SPEC_LOG") ||
+                env_flag_enabled("DS4_DSPARK_EVAL_MARGIN_LOG")) {
+                fprintf(stderr,
+                        "ds4: dspark fused deferred main-kv suffix %u..%u into draft\n",
+                        deferred_repair_from,
+                        deferred_repair_end - 1u);
+            }
+            s->dspark_rate_main_kv_stale = false;
+            s->dspark_rate_main_kv_stale_from = 0;
+        }
+        /* The forced drafts[0] is the target argmax: its commit is certain.
+         * Pin conf[0]=1 for the schedulers (rate was over-trimming off the
+         * head's natural score, and the natural score was polluting the
+         * reliability bins with guaranteed commits).  The calib stash below
+         * excludes the row instead, so the bins keep measuring only real
+         * head predictions. */
+        if (ok && force_first_token >= 0 && draft_n > 0 &&
+            drafts[0] == force_first_token &&
+            want_confidence) {
+            confidence_probs[0] = 1.0f;
+        }
         const double dspark_draft_done = dspark_perf ? now_sec() : 0.0;
         if (ok && draft_n > 0 && dspark_dynamic_trace) {
             ds4_dspark_dynamic_confidence_trace("normal",
@@ -31675,6 +33501,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             if (getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr, "ds4: dspark draft failed, emitted target token only\n");
             }
+            ds4_session_dspark_eval_margin_record(s, 0, 0, false);
             return n_accept;
         }
         for (int i = 0; i < draft_n; i++) {
@@ -31684,24 +33511,96 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
             }
         }
         if (dspark_confidence_scheduler) {
+			                    if (force_first_token >= 0 && draft_n > 0 &&
+			                        confidence_probs[0] >= 0.999f) {
+			                        float stash_probs[5];
+			                        memcpy(stash_probs, confidence_probs, sizeof(stash_probs));
+			                        stash_probs[0] = -1.0f; /* certain row: no head signal */
+			                        ds4_dspark_conf_calib_stash(stash_probs);
+			                    } else {
+			                        ds4_dspark_conf_calib_stash(confidence_probs);
+			                    }
             const int raw_draft_n = draft_n;
-            const int scheduled = dspark_confidence_softmax ?
-                ds4_dspark_confidence_softmax_prefix_len(
-                    confidence_logits,
+            float sched_probs[5] = {0};
+            ds4_dspark_conf_probs_for_schedule(
                     confidence_probs,
+                    draft_n,
+                    sched_probs);
+            /* When force-first pinned conf[0]=1, keep that after remap. */
+            if (force_first_token >= 0 && draft_n > 0 &&
+                confidence_probs[0] >= 0.999f) {
+                sched_probs[0] = 1.0f;
+            }
+            const float *use_probs =
+                (ds4_dspark_conf_calib_apply_enabled() ||
+                 getenv("DS4_DSPARK_CONF_SCALE") ||
+                 getenv("DS4_DSPARK_CONF_BIAS")) ?
+                    sched_probs : confidence_probs;
+            /* Base prefix from the configured scheduler.  The combined
+             * margin+rate gate then re-prices that prefix with allow_skip so
+             * it can still decline verify after draft is paid.  Full --draft-
+             * scheduler rate owns the whole decision and is not re-wrapped. */
+            int base_n;
+            if (dspark_rate) {
+                base_n = draft_n;
+            } else if (dspark_confidence_cost) {
+                base_n = ds4_dspark_confidence_cost_prefix_len(
+                    s, e, use_probs, draft_n);
+            } else if (dspark_confidence_softmax) {
+                base_n = ds4_dspark_confidence_softmax_prefix_len(
+                    confidence_logits,
+                    use_probs,
                     draft_n,
                     draft_cap,
-                    dspark_confidence_softmax_long) :
-                ds4_dspark_confident_prefix_len(
+                    dspark_confidence_softmax_long);
+            } else if (dspark_confidence_hard || dspark_margin_rate_gate) {
+                /* Default confidence (conf=0.4) still truncates weak tails
+                 * under the combined gate; static+rate-gate uses full draft. */
+                base_n = dspark_confidence_hard ?
+                    ds4_dspark_confident_prefix_len(
+                        use_probs,
+                        draft_n,
+                        e->dspark.conf_threshold) :
+                    draft_n;
+            } else {
+                base_n = draft_n;
+            }
+            /* Rate (and the combined margin+rate gate) may decline verify
+             * after draft (k=0).  Draft is sunk; k=0 still saves verifier
+             * cost when calibrated expected accept cannot beat plain decode.
+             * Empirically on the arcade HTML prompt the pre-draft margin gate
+             * alone is the safer win; post-draft k=0 is optional and often
+             * near-neutral / slightly worse once draft is already paid. */
+            int scheduled = (dspark_rate || dspark_margin_rate_gate) ?
+                ds4_dspark_rate_prefix_len(
+                    s,
+                    e,
                     confidence_probs,
-                    draft_n,
-                    e->dspark.conf_threshold);
+                    base_n > 0 ? base_n : 0,
+                    /*allow_skip=*/true) :
+                base_n;
+            /* Force-first drafts[0] is the known target argmax — but the
+             * accept is NOT free: it drags in verify(1) (~35ms for 2 tokens
+             * = ~32 t/s, below plain decode).  The rate scheduler prices
+             * that trade with conf[0] pinned to 1.0, so only clamp for the
+             * schedulers that cannot value k=0 (hard/cost/softmax). */
+            if (scheduled < 1 && force_first_token >= 0 && !dspark_rate) scheduled = 1;
             if (dspark_confidence_log || getenv("DS4_DSPARK_SPEC_LOG")) {
                 fprintf(stderr,
-                        "ds4: dspark confidence scheduler mode=%s threshold=%.3f raw=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+                        "ds4: dspark confidence scheduler mode=%s threshold=%.3f raw=%d base=%d scheduled=%d probs=[%.3f,%.3f,%.3f,%.3f,%.3f]\n",
+                        dspark_rate ? "rate" :
+                        dspark_margin_rate_gate ?
+                            (dspark_confidence_hard ? "margin-rate+conf" :
+                             dspark_confidence_cost ? "margin-rate+cost" :
+                             dspark_confidence_softmax ? "margin-rate+softmax" :
+                             "margin-rate") :
+                        dspark_confidence_cost ? "cost" :
                         dspark_confidence_softmax ? "softmax" : "hard",
-                        dspark_confidence_softmax ? 0.0f : e->dspark.conf_threshold,
+                        (dspark_confidence_softmax || dspark_confidence_cost ||
+                         dspark_rate) ?
+                            0.0f : e->dspark.conf_threshold,
                         draft_n,
+                        base_n,
                         scheduled,
                         confidence_probs[0],
                         confidence_probs[1],
@@ -31710,14 +33609,54 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                         confidence_probs[4]);
             }
             draft_n = scheduled;
-            if (draft_n < raw_draft_n) {
+            /* confidence-cost/rate own the recorder: a truncated block IS
+             * the chosen budget, so the cost sample must be recorded, not
+             * suppressed. */
+            if (draft_n < raw_draft_n &&
+                !dspark_confidence_cost &&
+                !dspark_post_draft_rate) {
                 ds4_session_dspark_dynamic_verify_suppress_next(s);
             }
+            if (dspark_rate) {
+                if (scheduled <= 0) {
+                    if (dspark_rate_dormant_probe) {
+                        ds4_dspark_rate_probe_result(s, false);
+                    }
+                    /* A k=0 block still paid the ~10.6ms draft for 1 token
+                     * (~27 t/s), well below plain decode — enter dormant
+                     * quickly; the probe cadence handles re-entry. */
+                    const uint32_t off_after = (uint32_t)ds4_dspark_env_int_default(
+                            "DS4_DSPARK_RATE_OFF_STREAK", 4, 1, 256);
+                    if (++s->dspark_rate_zero_streak >= off_after &&
+                        !ds4_dspark_rate_ctx_prior_blocks_dormant(s)) {
+                        s->dspark_rate_spec_off = true;
+                        s->dspark_rate_off_blocks = 0;
+                    }
+                } else {
+                    if (dspark_rate_dormant_probe) {
+                        ds4_dspark_rate_probe_result(s, true);
+                    }
+                    s->dspark_rate_zero_streak = 0;
+                    s->dspark_rate_spec_off = false;
+                }
+            }
             if (draft_n <= 0) {
-                if (drafted) *drafted = 0;
+                /* Drafted but verify skipped (k=0).  Count draft work and
+                 * proposed tokens; do not poison conf-calib or cost EMAs
+                 * (no verify ground truth).  draft_accepted=-2 signals the
+                 * agent to separate this from pre-draft skip / first-miss. */
+                if (drafted) *drafted = raw_draft_n;
+                if (draft_accepted) *draft_accepted = -2;
+                if (s->dspark_perf_skip_verify != UINT64_MAX) {
+                    s->dspark_perf_skip_verify++;
+                }
+                g_conf_calib_stash_valid = 0;
+                ds4_session_dspark_dynamic_verify_suppress_next(s);
+                /* Margin bin: treat as skipped opportunity, not first-miss. */
+                ds4_session_dspark_eval_margin_record(s, 0, 0, true);
                 if (dspark_perf) {
                     ds4_session_dspark_perf_record(s,
-                                                   0,
+                                                   raw_draft_n,
                                                    0,
                                                    dspark_draft_done - dspark_t0,
                                                    0.0,
@@ -32222,6 +34161,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                            commit_done - verify_done,
                                                            commit_done - dspark_t0);
                         }
+                        ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
                         spec_frontier_free(&frontier);
                         return n_accept;
                     }
@@ -32287,6 +34227,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 	                                                           prefix_done - prefix_t0,
 	                                                           prefix_done - dspark_t0);
 	                        }
+                        ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
                         spec_frontier_free(&frontier);
                         if (allocated_prefix_logits) free(prefix_logits);
                         return n_accept;
@@ -32338,6 +34279,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                            replay_done - replay_t0,
                                                            replay_done - dspark_t0);
                         }
+                        ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
                         spec_frontier_free(&frontier);
                         return n_accept;
                     }
@@ -32581,6 +34523,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                            commit_done - verify_done,
                                                            commit_done - dspark_t0);
                         }
+                        ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
                         spec_frontier_free(&frontier);
                         free(row1_logits);
                         free(row0_logits);
@@ -32656,6 +34599,7 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                        prefix_done - prefix_t0,
                                                        prefix_done - dspark_t0);
                     }
+                    ds4_session_dspark_draft_prefetch_start(s, e, draft_cap, eos_token);
                     free(row1_logits);
                     free(row0_logits);
                     return n_accept;
@@ -32866,7 +34810,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                                      drafts[i],
                                                                      (uint32_t)s->checkpoint.len,
                                                                      exact_logits,
-                                                                     false);
+                                                                     false,
+                                                                     true);
                         if (!batch_ok) break;
                         int batch_top0 = -1, batch_top1 = -1;
                         int exact_top0 = -1, exact_top1 = -1;
@@ -33568,7 +35513,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                        drafts[i],
                                                        (uint32_t)s->checkpoint.len,
                                                        s->logits,
-                                                       false))
+                                                       false,
+                                                       true))
                 {
                     snprintf(err, errlen, "%s DSpark verifier decode failed",
                              ds4_backend_name(e->backend));
@@ -33584,7 +35530,8 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                                            (uint32_t)s->checkpoint.len,
                                                            &target_top,
                                                            NULL,
-                                                           false))
+                                                           false,
+                                                           true))
                 {
                     snprintf(err, errlen, "%s DSpark verifier decode failed",
                              ds4_backend_name(e->backend));
@@ -34307,6 +36254,8 @@ int ds4_session_runtime_status(ds4_session *s, ds4_runtime_status *out) {
         out->dspark_perf_blocks = s->dspark_perf_blocks;
         out->dspark_perf_drafted_tokens = s->dspark_perf_drafted_tokens;
         out->dspark_perf_committed_tokens = s->dspark_perf_committed_tokens;
+        out->dspark_perf_skip_pre_draft = s->dspark_perf_skip_pre_draft;
+        out->dspark_perf_skip_verify = s->dspark_perf_skip_verify;
         out->dspark_perf_draft_seconds = s->dspark_perf_draft_seconds;
         out->dspark_perf_snapshot_seconds = s->dspark_perf_snapshot_seconds;
         out->dspark_perf_verify_seconds = s->dspark_perf_verify_seconds;

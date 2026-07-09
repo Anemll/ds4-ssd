@@ -118,7 +118,7 @@ static void usage(FILE *fp) {
         "      Adapt active DSpark verify budget from 2 up to --draft-verify based on recent accepted tokens.\n"
         "  --draft-mode strict|batch|unified\n"
         "      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch/unified are experimental.\n"
-        "  --draft-scheduler static|confidence|confidence-cost|confidence-softmax|confidence-softmax-long\n"
+        "  --draft-scheduler static|confidence|confidence-cost|rate|confidence-softmax|confidence-softmax-long\n"
         "      DSpark verification scheduler. confidence truncates the draft prefix at the\n"
         "      learned confidence-head threshold; confidence-cost scores the confidence\n"
         "      head against measured per-budget verify-cost EMAs. Default: confidence\n"
@@ -425,7 +425,7 @@ static void cli_print_runtime_status(ds4_session *session, bool styled) {
                 "ds4: dspark perf: draft=%.1f tok/s, verify=%.1f proposed tok/s, "
                 "verify-accepted=%.1f tok/s, block=%.2f ms "
                 "(draft=%.2f verify=%.2f overhead=%.2f commit=%.2f, "
-                "tau=%.2f, blocks=%llu)\n",
+                "tau=%.2f, blocks=%llu, skip-pre=%llu, skip-verify=%llu)\n",
                 draft_tps,
                 verify_prop_tps,
                 verify_accept_tps,
@@ -435,7 +435,9 @@ static void cli_print_runtime_status(ds4_session *session, bool styled) {
                 avg_overhead_ms,
                 avg_commit_ms,
                 tau,
-                (unsigned long long)rt.dspark_perf_blocks);
+                (unsigned long long)rt.dspark_perf_blocks,
+                (unsigned long long)rt.dspark_perf_skip_pre_draft,
+                (unsigned long long)rt.dspark_perf_skip_verify);
 
         const double avg_verify_gpu_ms =
             1000.0 * rt.dspark_perf_verify_gpu_seconds / (double)rt.dspark_perf_blocks;
@@ -1870,13 +1872,15 @@ static const char *parse_draft_scheduler(const char *s) {
         !strcmp(s, "confidence") ||
         !strcmp(s, "confidence-cost") ||
         !strcmp(s, "cost") ||
+        !strcmp(s, "rate") ||
+        !strcmp(s, "confidence-rate") ||
         !strcmp(s, "confidence-softmax") ||
         !strcmp(s, "softmax") ||
         !strcmp(s, "confidence-softmax-long") ||
         !strcmp(s, "softmax-long")) return s;
     fprintf(stderr,
             "ds4: invalid --draft-scheduler value: %s "
-            "(expected static, confidence, confidence-cost, confidence-softmax, or confidence-softmax-long)\n",
+            "(expected static, confidence, confidence-cost, rate, confidence-softmax, or confidence-softmax-long)\n",
             s);
     exit(2);
 }

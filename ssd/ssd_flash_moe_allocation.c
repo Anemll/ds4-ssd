@@ -195,6 +195,22 @@ static bool metal_graph_ensure_prefill_scratch_rows(
         if (!g->name) g->name = ds4_gpu_tensor_alloc((bytes));          \
     } while (0)
 
+#define DS4_ENSURE_PREFILL_TENSOR_SIZED(name, bytes) do {              \
+        const uint64_t need_bytes__ = (bytes);                          \
+        if (!g->name || ds4_gpu_tensor_bytes(g->name) < need_bytes__) { \
+            ds4_gpu_tensor_free(g->name);                               \
+            g->name = ds4_gpu_tensor_alloc(need_bytes__);               \
+        }                                                               \
+    } while (0)
+
+    DS4_ENSURE_PREFILL_TENSOR_SIZED(indexer_scores,
+                                    (uint64_t)g->comp_cap * pc * sizeof(float));
+    DS4_ENSURE_PREFILL_TENSOR_SIZED(comp_mask,
+                                    (uint64_t)g->comp_cap * pc * sizeof(float));
+    DS4_ENSURE_PREFILL_TENSOR_SIZED(comp_selected,
+                                    (uint64_t)(DS4_N_INDEXER_TOP_K ? DS4_N_INDEXER_TOP_K : 1u) *
+                                    pc * sizeof(uint32_t));
+
     DS4_ENSURE_PREFILL_TENSOR(prefill_tokens, pc * sizeof(int32_t));
     DS4_ENSURE_PREFILL_TENSOR(batch_cur_hc, pc * hc_dim * sizeof(float));
     DS4_ENSURE_PREFILL_TENSOR(batch_next_hc, pc * hc_dim * sizeof(float));
@@ -245,8 +261,10 @@ static bool metal_graph_ensure_prefill_scratch_rows(
     DS4_ENSURE_PREFILL_TENSOR(batch_routed_out, pc * DS4_N_EMBD * sizeof(float));
 
 #undef DS4_ENSURE_PREFILL_TENSOR
+#undef DS4_ENSURE_PREFILL_TENSOR_SIZED
 
     const bool ok =
+        g->indexer_scores && g->comp_mask && g->comp_selected &&
         g->prefill_tokens &&
         g->batch_cur_hc && g->batch_next_hc && g->batch_flat_hc &&
         g->batch_hc_mix && g->batch_hc_split &&
@@ -273,15 +291,153 @@ static bool metal_graph_ensure_prefill_scratch_rows(
     return ok;
 }
 
-static bool metal_graph_ensure_prefill_scratch(
+/* DSpark draft-prefetch mirror of metal_graph_ensure_prefill_scratch_rows.
+ * Allocates the private dspark_draft_* bank sized for pc = draft_cap (<= 6)
+ * rows so the prefetched draft trunk (seed_block / three_layer_forward /
+ * markov_chain_fast_encode) can run without touching the shared batch_* /
+ * spec_logits bank the verifier still reads after commit.  Only the tensors
+ * the draft trunk actually uses are mirrored. */
+static bool metal_graph_ensure_dspark_draft_scratch_rows(
         ds4_gpu_graph           *g,
         const ds4_weights       *weights,
-        const ds4_layer_weights *layer) {
-    if (!g) return false;
-    return metal_graph_ensure_prefill_scratch_rows(g,
-                                                   weights,
-                                                   layer,
-                                                   g->prefill_cap ? g->prefill_cap : 1u);
+        const ds4_layer_weights *layer,
+        uint32_t                 rows) {
+    if (!g || !weights || !layer) return false;
+    if (rows == 0) rows = 1;
+    if (rows > 6u) return false;
+
+    if (g->dspark_draft_scratch_cap != 0 && g->dspark_draft_scratch_cap < rows) {
+#define DS4_RELEASE_DSPARK_DRAFT_TENSOR(name) do {                      \
+            ds4_gpu_tensor_free(g->name);                               \
+            g->name = NULL;                                             \
+        } while (0)
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_h);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_input_ids);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_kv_backup);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_markov_logits);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_spec_logits);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_low_tmp);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_out);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_mid);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_up);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_gate);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_router_weights);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_router_selected);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_router_probs);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_router_logits);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_out);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_mid);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_up);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_gate);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_ffn_norm);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_ffn_cur);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_after_attn_hc);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_out);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_low);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_heads);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_kv);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_kv_raw);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_q);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_qr_norm);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_qr);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_norm);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_cur);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_hc_split);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_hc_mix);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_flat_hc);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_next_hc);
+        DS4_RELEASE_DSPARK_DRAFT_TENSOR(dspark_draft_cur_hc);
+#undef DS4_RELEASE_DSPARK_DRAFT_TENSOR
+        g->dspark_draft_scratch_cap = 0;
+    }
+    if (g->dspark_draft_scratch_cap == 0) {
+        g->dspark_draft_scratch_cap = rows;
+    }
+
+    const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
+    const uint64_t mix_hc = 2ull * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
+    const uint64_t q_rank = layer->attn_q_a->dim[1];
+    const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
+    const uint64_t low_dim = (uint64_t)DS4_N_OUT_GROUP * DS4_N_LORA_O;
+    const uint64_t shared_dim = layer->ffn_gate_shexp->dim[1];
+    const uint64_t routed_mid_dim = layer->ffn_gate_exps->dim[1];
+    const uint64_t pc = g->dspark_draft_scratch_cap ? g->dspark_draft_scratch_cap : 1u;
+    const uint64_t moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill((uint32_t)pc);
+
+#define DS4_ENSURE_DSPARK_DRAFT_TENSOR(name, bytes) do {                \
+        if (!g->name) g->name = ds4_gpu_tensor_alloc((bytes));          \
+    } while (0)
+
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_cur_hc, pc * hc_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_next_hc, pc * hc_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_flat_hc, pc * hc_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_hc_mix, pc * mix_hc * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_hc_split, pc * mix_hc * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_cur, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_norm, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_qr, pc * q_rank * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_qr_norm, pc * q_rank * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_q, pc * q_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_kv_raw, pc * DS4_N_HEAD_DIM * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_kv, pc * DS4_N_HEAD_DIM * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_heads, pc * q_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_low, pc * low_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_attn_out, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_low_tmp, pc * DS4_N_LORA_O * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_after_attn_hc, pc * hc_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_ffn_cur, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_ffn_norm, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_gate, pc * shared_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_up, pc * shared_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_mid, pc * shared_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_shared_out, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_router_logits, pc * DS4_N_EXPERT * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_router_probs, pc * DS4_N_EXPERT * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_router_selected, pc * DS4_N_EXPERT_USED * sizeof(int));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_router_weights, pc * DS4_N_EXPERT_USED * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_gate, moe_pc * DS4_N_EXPERT_USED * routed_mid_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_up, moe_pc * DS4_N_EXPERT_USED * routed_mid_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_mid, moe_pc * DS4_N_EXPERT_USED * routed_mid_dim * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_routed_out, pc * DS4_N_EMBD * sizeof(float));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_spec_logits, pc * DS4_N_VOCAB * sizeof(float));
+    /* Vocab-size scratch for the prefetched Markov chain's per-row logits so
+     * the routed chain never clobbers the shared g->logits (the eval-seam
+     * overlap runs before the decode's logits readback). */
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_markov_logits, (uint64_t)DS4_N_VOCAB * sizeof(float));
+    /* Pre-speculation snapshot of the DSpark main-KV ring rows the verifier-seam
+     * overlap import overwrites (ring slots alias 128-window history, so a
+     * misspeculated import must be restored, not just rewritten). */
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_kv_backup, 3ull * 6ull * DS4_N_HEAD_DIM * sizeof(float));
+    /* Mirrors of the fixed-size dspark seed tensors: input_ids holds the
+     * seed token plus up to block_size drafted ids (ssd allocator uses 7),
+     * dspark_h holds up to 6 HC rows. */
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_input_ids, 7ull * sizeof(int32_t));
+    DS4_ENSURE_DSPARK_DRAFT_TENSOR(dspark_draft_h, 6ull * hc_dim * sizeof(float));
+
+#undef DS4_ENSURE_DSPARK_DRAFT_TENSOR
+
+    const bool ok =
+        g->dspark_draft_cur_hc && g->dspark_draft_next_hc &&
+        g->dspark_draft_flat_hc &&
+        g->dspark_draft_hc_mix && g->dspark_draft_hc_split &&
+        g->dspark_draft_attn_cur && g->dspark_draft_attn_norm &&
+        g->dspark_draft_qr && g->dspark_draft_qr_norm && g->dspark_draft_q &&
+        g->dspark_draft_kv_raw && g->dspark_draft_kv &&
+        g->dspark_draft_heads &&
+        g->dspark_draft_attn_low && g->dspark_draft_attn_out &&
+        g->dspark_draft_low_tmp && g->dspark_draft_after_attn_hc &&
+        g->dspark_draft_ffn_cur && g->dspark_draft_ffn_norm &&
+        g->dspark_draft_shared_gate && g->dspark_draft_shared_up &&
+        g->dspark_draft_shared_mid && g->dspark_draft_shared_out &&
+        g->dspark_draft_router_logits && g->dspark_draft_router_probs &&
+        g->dspark_draft_router_selected && g->dspark_draft_router_weights &&
+        g->dspark_draft_routed_gate && g->dspark_draft_routed_up &&
+        g->dspark_draft_routed_mid && g->dspark_draft_routed_out &&
+        g->dspark_draft_spec_logits && g->dspark_draft_markov_logits &&
+        g->dspark_draft_kv_backup &&
+        g->dspark_draft_input_ids && g->dspark_draft_h;
+    if (!ok) fprintf(stderr, "ds4: failed to allocate Metal dspark draft scratch\n");
+    return ok;
 }
 
 static bool metal_graph_alloc_raw_cap(
@@ -291,12 +447,15 @@ static bool metal_graph_alloc_raw_cap(
         uint32_t                raw_cap,
         uint32_t                ctx_size,
         uint32_t                prefill_cap,
+        uint32_t                initial_batch_rows,
         bool                    enable_mtp) {
     memset(g, 0, sizeof(*g));
     g->mtp_enabled = enable_mtp;
     if (raw_cap == 0) raw_cap = 1;
     if (ctx_size == 0) ctx_size = raw_cap;
     if (prefill_cap == 0) prefill_cap = 1;
+    if (initial_batch_rows == 0) initial_batch_rows = 1;
+    if (initial_batch_rows > prefill_cap) initial_batch_rows = prefill_cap;
     uint32_t raw_window = DS4_N_SWA;
     if (raw_window > ctx_size) raw_window = ctx_size;
     if (raw_window == 0) raw_window = 1;
@@ -362,12 +521,12 @@ static bool metal_graph_alloc_raw_cap(
         : DS4_N_INDEXER_HEAD_DIM);
     const uint64_t index_comp_width = 2ull * DS4_N_INDEXER_HEAD_DIM;
     const uint64_t indexer_q_dim = (uint64_t)DS4_N_INDEXER_HEAD * DS4_N_INDEXER_HEAD_DIM;
-    const uint64_t pc = prefill_cap;
+    const uint64_t pc = initial_batch_rows;
     const bool ane_shared_batch = metal_graph_batch_shared_expert_uses_ane();
     const bool needs_batch_shared_tensors = !ane_shared_batch || enable_mtp;
     const bool needs_index_comp_rows = env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS");
-    const uint64_t moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill(prefill_cap);
-    g->batch_scratch_cap = prefill_cap;
+    const uint64_t moe_pc = metal_graph_resident_moe_scratch_cap_for_prefill((uint32_t)pc);
+    g->batch_scratch_cap = (uint32_t)pc;
     g->batch_routed_scratch_cap = (uint32_t)moe_pc;
     uint64_t kv_cache_bytes = 0;
     const uint64_t context_bytes =
@@ -721,7 +880,7 @@ static bool metal_graph_alloc(
         ds4_gpu_graph *g,
         const ds4_weights     *weights,
         const ds4_layer_weights *layer) {
-    return metal_graph_alloc_raw_cap(g, weights, layer, DS4_N_SWA, DS4_N_SWA, 1, false);
+    return metal_graph_alloc_raw_cap(g, weights, layer, DS4_N_SWA, DS4_N_SWA, 1, 1, false);
 }
 
 extern int ds4_gpu_use_m5_simdgroup_matrix(void);
@@ -2334,7 +2493,9 @@ static bool metal_graph_enable_flash_moe(
     g->flash_install_buf = xmalloc(sidecar->max_expert_stride ? (size_t)sidecar->max_expert_stride : 1u);
     g->flash_decode_prefetch_scratch_stride = sidecar->max_expert_stride;
     g->flash_decode_prefetch_scratch_slots =
-        (g->flash_per_expert_buffers || g->flash_direct_mmap_bank) ?
+        (g->flash_per_expert_buffers ||
+         g->flash_direct_mmap_bank ||
+         effective_slot_bank >= DS4_N_EXPERT) ?
         0u : flash_moe_decode_prefetch_max_loads();
     if (g->flash_decode_prefetch_scratch_slots > DS4_N_EXPERT_ACTIVE_USED) {
         g->flash_decode_prefetch_scratch_slots = DS4_N_EXPERT_ACTIVE_USED;

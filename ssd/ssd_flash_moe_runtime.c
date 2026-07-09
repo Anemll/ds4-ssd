@@ -151,8 +151,25 @@ static bool flash_moe_mpp_int8_prefill_requested(void) {
 }
 
 static bool flash_moe_mpp_int8_prefill_enabled(void) {
-    if (!flash_moe_mpp_int8_prefill_requested()) return false;
-    if (flash_moe_mpp_nax_allowed()) return true;
+    const bool requested = flash_moe_mpp_int8_prefill_requested();
+    const bool allowed = flash_moe_mpp_nax_allowed();
+    if (env_flag_enabled("DS4_FLASH_MOE_KERNEL_LOG")) {
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: Flash-MoE MPP prefill gate: requested=%d allowed=%d "
+                    "flash=%s force=%s force_flash=%s force_nax=%s\n",
+                    requested ? 1 : 0,
+                    allowed ? 1 : 0,
+                    getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL") ?: "",
+                    getenv("DS4_MPP_NAX_FORCE_NON_M5") ?: "",
+                    getenv("DS4_FLASH_MOE_MPP_FORCE_NON_M5") ?: "",
+                    getenv("DS4_FLASH_MOE_NAX_FORCE_NON_M5") ?: "");
+        }
+    }
+    if (!requested) return false;
+    if (allowed) return true;
     static bool warned = false;
     if (!warned && !backend_diagnostic_logs_suppressed()) {
         warned = true;

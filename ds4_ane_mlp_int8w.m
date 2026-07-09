@@ -240,11 +240,27 @@ static double ane_tmp_cleanup_age_sec(void) {
     return (double)age;
 }
 
+/* ANE is opt-in (off by default, enabled with --ane / DS4_ANE=1, and force-off
+ * under --no-int8 / DS4_NO_INT8).  The compiled-model temp dirs only exist when
+ * ANE actually runs, so the stale-tmp sweep must not fire on a plain non-ANE
+ * startup. */
+static bool ane_runtime_enabled(void) {
+    const char *no_int8 = getenv("DS4_NO_INT8");
+    if (no_int8 && no_int8[0] && atoi(no_int8) != 0) return false;
+    const char *ane = getenv("DS4_ANE");
+    return ane && ane[0] && atoi(ane) != 0;
+}
+
 static void ane_cleanup_stale_tmp_dirs_once(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         const char *enabled = getenv("DS4_ANE_TMP_CLEANUP");
-        if (enabled && enabled[0] && atoi(enabled) == 0) return;
+        bool forced_off = enabled && enabled[0] && atoi(enabled) == 0;
+        bool forced_on  = enabled && enabled[0] && atoi(enabled) != 0;
+        if (forced_off) return;
+        /* Default: only sweep when ANE is enabled.  DS4_ANE_TMP_CLEANUP=1 forces
+         * the sweep regardless (manual cleanup escape hatch). */
+        if (!forced_on && !ane_runtime_enabled()) return;
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
         @autoreleasepool {
             NSFileManager *fm = [NSFileManager defaultManager];

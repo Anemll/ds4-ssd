@@ -317,7 +317,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
     const bool backend_logs = !backend_diagnostic_logs_suppressed();
     const bool prefill_slot_bank_cache_enabled =
-        !g->flash_per_expert_buffers && !g->flash_direct_mmap_bank;
+        !g->flash_per_expert_buffers &&
+        !g->flash_direct_mmap_bank &&
+        g->flash_slot_bank < DS4_N_EXPERT;
     const bool profile = backend_logs && env_flag_enabled("DS4_FLASH_MOE_PROFILE");
     const bool use_gpu_dedup = getenv("DS4_FLASH_MOE_GPU_DEDUP") == NULL || atoi(getenv("DS4_FLASH_MOE_GPU_DEDUP")) != 0;
 
@@ -415,7 +417,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 il, counts);
         }
 
-        const int slot_cache_topk = get_prefill_slot_cache_target(g->flash_slot_bank);
+        const int slot_cache_topk =
+            prefill_slot_bank_cache_enabled ?
+            get_prefill_slot_cache_target(g->flash_slot_bank) : 0;
         for (int rank = 0; rank < slot_cache_topk && rank < (int)n_unique; rank++) {
             int32_t best = -1;
             int32_t best_refs = -1;
@@ -600,7 +604,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     }
     const uint32_t exec_n = plan ? plan_n : n_unique;
     const double t_execute0 = scheduler_stats ? now_sec() : 0.0;
-    const bool async_pread_enabled = env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
+    const bool async_pread_enabled =
+        prefill_slot_bank_cache_enabled &&
+        env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
     const bool async_pread_after_stage =
         async_pread_enabled && env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE");
     /* The reader is normally a per-layer local (created/destroyed each call).
@@ -686,7 +692,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             if (!ok) break;
         }
     } else if (ok) {
-        int prefetch = get_prefill_dedup_prefetch();
+        int prefetch =
+            prefill_slot_bank_cache_enabled ? get_prefill_dedup_prefetch() : 0;
         for (int i = 0; i < prefetch && i < (int)exec_n; i++) {
             const uint32_t future = plan ? plan[i].ui : (uint32_t)i;
             if (future >= n_unique) {
@@ -1324,28 +1331,29 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                             il, expert, refs);
                 }
                 mid_is_f16 = false;
-                ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(g->flash_prefill_out,
-                                                                   g->flash_prefill_gate,
-                                                                   g->flash_prefill_up,
-                                                                   g->flash_prefill_mid,
-                                                                   gate_b,
-                                                                   up_b,
-                                                                   down_b,
-                                                                   layer->ffn_gate_exps->type,
-                                                                   layer->ffn_down_exps->type,
-                                                                   gate_expert_bytes,
-                                                                   gate_row_bytes,
-                                                                   down_expert_bytes,
-                                                                   down_row_bytes,
-                                                                   expert_in_dim,
-                                                                   expert_mid_dim,
-                                                                   out_dim,
-                                                                   g->flash_prefill_selected,
-                                                                   weights_for_refs,
-                                                                   DS4_SWIGLU_CLAMP_EXP,
-                                                                   g->flash_prefill_x,
-                                                                  refs,
-                                                                   &mid_is_f16) != 0;
+                ok = ds4_gpu_routed_moe_expert_banked_batch_tensor_ex(g->flash_prefill_out,
+                                                                      g->flash_prefill_gate,
+                                                                      g->flash_prefill_up,
+                                                                      g->flash_prefill_mid,
+                                                                      gate_b,
+                                                                      up_b,
+                                                                      down_b,
+                                                                      layer->ffn_gate_exps->type,
+                                                                      layer->ffn_down_exps->type,
+                                                                      gate_expert_bytes,
+                                                                      gate_row_bytes,
+                                                                      down_expert_bytes,
+                                                                      down_row_bytes,
+                                                                      expert_in_dim,
+                                                                      expert_mid_dim,
+                                                                      out_dim,
+                                                                      g->flash_prefill_selected,
+                                                                      weights_for_refs,
+                                                                      DS4_SWIGLU_CLAMP_EXP,
+                                                                      g->flash_prefill_x,
+                                                                      refs,
+                                                                      &mid_is_f16,
+                                                                      g->flash_direct_mmap_bank) != 0;
                 if (ok && hybrid_prefill) hybrid_fp32_groups++;
             }
             if ((hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) && ane_ok) {
@@ -1389,7 +1397,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 
         /* Prefetch stage the expert N ahead (#2) so sidecar load overlaps with current matmul */
         if (!async_reader_ok) {
-            int prefetch = get_prefill_dedup_prefetch();
+            int prefetch =
+                prefill_slot_bank_cache_enabled ? get_prefill_dedup_prefetch() : 0;
             if (exec_i + (uint32_t)prefetch < exec_n) {
                 uint32_t future_exec = exec_i + (uint32_t)prefetch;
                 uint32_t future = plan ? plan[future_exec].ui : future_exec;
