@@ -1,0 +1,4 @@
+prompt	variant	tps	tau	acc	suspect	out	err
+normal	current_like	23.50	2.86	36.4	0	bench-results/normal_current_like_065432.out	bench-results/normal_current_like_065432.err
+normal	top64_d4_marg_off2	23.95	2.68	35.9	0	bench-results/normal_top64_d4_marg_off2_065432.out	bench-results/normal_top64_d4_marg_off2_065432.err
+normal	top32_d3_marg_off2	23.95	2.68	35.9	0	bench-results/normal_top32_d3_marg_off2_065432.out	bench-results/normal_top32_d3_marg_off2_065432.err

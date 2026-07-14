@@ -1,0 +1,5 @@
+dspark phase0: baseline -> bench-results/dspark_rows5_n64_20260628_174556/baseline.err
+dspark phase0: baseline_tps=33.35
+dspark phase0: draft budget=4 -> bench-results/dspark_rows5_n64_20260628_174556/dspark_b4.err
+dspark phase0: draft budget=5 -> bench-results/dspark_rows5_n64_20260628_174556/dspark_b5.err
+dspark phase0: wrote bench-results/dspark_rows5_n64_20260628_174556/summary.tsv

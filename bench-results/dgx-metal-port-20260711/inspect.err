@@ -1,0 +1,15 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: on (72.56 GiB mapped); expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.336 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.326s profile=0.000s model=0.007s sidecar=0.007s weights=0.001s dspark=0.000s backend=1.311s prewarm=0.000s

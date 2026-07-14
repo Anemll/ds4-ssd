@@ -1,0 +1,156 @@
+I'll create a faithful reproduction of the classic 1978 Taito arcade game "Aster" as a single self-contained HTML file with inline CSS and JavaScript.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade - Aster</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a2a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #000;
+            border: 4px solid #ff6b00;
+            border-radius: 8px;
+            box-shadow: 0 0 30px rgba(255, 107, 0, 0.3), inset 0 0 20px rgba(255, 107, 0, 0.1);
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            color: #ff6b00;
+            font-size: 14px;
+            text-shadow: 0 0 4px #ff6b00;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #hud span {
+            background: rgba(0,0,0,0.7);
+            padding: 4px 8px;
+            border: 1px solid #ff6b00;
+            border-radius: 2px;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            color: #ff6b00;
+            font-size: 12px;
+            text-shadow: 0 0 2px #ff6b00;
+            pointer-events: none;
+            z-index: 10;
+        }
+        #controls kbd {
+            background: #222;
+            border: 1px solid #ff6b00;
+            padding: 2px 6px;
+            border-radius: 2px;
+        }
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0.15) 0px,
+                rgba(0,0,0,0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="hud">
+            <span id="scoreDisplay">SCORE: 0</span>
+            <span id="livesDisplay">LIVES: 3</span>
+        </div>
+        <div id="controls">
+            <span><kbd>←</kbd> <kbd>→</kbd> Rotate</span>
+            <span><kbd>↑</kbd> Thrust</span>
+            <span><kbd>Space</kbd> Fire</span>
+        </div>
+        <div class="scanlines"></div>
+    </div>
+
+    <script>
+        // === GAME CONFIG ===
+        const CONFIG = {
+            canvasWidth: 800,
+            canvasHeight: 600,
+            playerRadius: 16,
+            bulletRadius: 3,
+            bulletSpeed: 400,
+            asteroidBaseRadius: 30,
+            asteroidMinSize: 10,
+            asteroidSpeed: 80,
+            maxAsteroids: 6,
+            initialAsteroids: 4,
+            playerAcceleration: 300,
+            playerMaxSpeed: 250,
+            playerRotationSpeed: 200,
+            playerFriction: 0.8,
+            fireCooldown: 0.25,
+            invincibleTime: 1.5,
+            respawnDelay: 2.0,
+            levelStartDelay: 1.0,
+        };
+
+        // === CANVAS SETUP ===
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+
+        // === GAME STATE ===
+        let game = {
+            score: 0,
+            lives: 3,
+            level: 1,
+            state: 'playing', // 'playing', 'paused', 'gameover', 'leveling'
+            player: null,
+            bullets: [],
+            particles: [],
+            asteroids: [],
+            levelTimer: 0,
+            respawnTimer: 0,
+            invincibleTimer: 0,
+        };
+
+        // === INPUT ===
+        const keys = {
+            left: false,

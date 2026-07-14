@@ -1,0 +1,9 @@
+== after_full ==
+105:ds4: prefill: 7.95 t/s, generation: 50.22 t/s (500 tokens in 9.956s)
+106:ds4: dspark perf: draft=449.5 tok/s, verify=71.4 proposed tok/s, verify-accepted=61.3 tok/s, block=83.21 ms (draft=11.10 verify=69.89 overhead=2.22 commit=1.73, tau=4.28, blocks=110)
+109:ds4: dspark acceptance: 89.0% (471/529 draft tokens)
+110:ds4: dspark acceptance by position: 1=105/106 2=101/106 3=95/106 4=89/106 5=81/105
+112:ds4: dspark full-accept: 77.4% (82/106 blocks), first-miss: 0.9% (1/106 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (106 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_frontier_ab_021400/after_full.out	1834	56	56	1	0		0		0	0	0	1	1	0

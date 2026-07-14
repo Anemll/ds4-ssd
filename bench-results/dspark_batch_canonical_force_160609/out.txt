@@ -1,0 +1,101 @@
+This is a complete, self-contained HTML file that recreates the classic 1978 Space Invaders arcade in your browser. It includes the iconic pixel art, sound effects, and original game mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders (1978) – Pixel Art</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+                background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+
+        .game-wrapper {
+            background: #000;
+            padding: 10px;
+            border: 4px solid #444;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 200, 0, 0.2);
+            display: inline-block;
+        }
+
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            image-rendering: pixelated;
+            width: 800px;
+            height: 900px;
+            box-shadow: inset 0 0 20px #0ff;
+            border: 2px solid #333;
+        }
+
+        /* 原始街机 */
+        body {
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+        }
+        .game-wrapper {
+            background: #000;
+            padding: 20px 30px;
+            border-radius: 20px;
+            box-shadow: 0 0 30px #0ff;
+            border: 2px solid #333;
+        }
+        .info {
+            color: #0f0;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+            text-shadow: 0 0 5px #0f0;
+        }
+        .info span {
+            display: inline-block;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<div class="game-wrapper">
+    <canvas id="gameCanvas" width="800" height="900"></canvas>
+    <div class="info">
+        <span>← → 移动</span>
+        <span>SP 射击</span>
+        <span>R 重开</span>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // 精确复刻 1978 年达太空入侵者 (Tank 图形)
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 尺寸
+        const COLS = 8; // 每列 8 个入侵者
+        const ROWS = 5; // 5 行
+        const INVITE = 55; // 入侵者宽度
+        const INVH = 40; // 入侵者高度
+        const PLAYER_W = 52;
+        const PLAYER_H = 32;
+        const TANK = 28; // 炮宽度
+
+        // 原始像素风格 (2x64x64 像素)
+        function drawInvader(ctx, x, y, frame, type) {
+            // type 1: 方形 (第1-2行), type 2: 蟹

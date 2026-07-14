@@ -1,0 +1,20 @@
+RUN 16384-force-firstk Sun Jul  5 23:15:18 PDT 2026
+DONE 16384-force-firstk rc=0 Sun Jul  5 23:17:16 PDT 2026 log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/context-decode-dspark/item6-topk-20260705-231518/16384-force-firstk.log
+249:ds4: dspark perf: draft=449.1 tok/s, verify=65.6 proposed tok/s, verify-accepted=29.2 tok/s, block=88.73 ms (draft=11.12 verify=76.13 overhead=1.48 commit=1.16, tau=2.22, blocks=399)
+253:ds4: dspark acceptance: 61.9% (887/1432 draft tokens)
+257:ds4: dspark avg scheduled: 4.99 draft tokens/block (287 blocks)
+RUN 16384-topk-then-firstk Sun Jul  5 23:17:36 PDT 2026
+DONE 16384-topk-then-firstk rc=0 Sun Jul  5 23:19:26 PDT 2026 log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/context-decode-dspark/item6-topk-20260705-231518/16384-topk-then-firstk.log
+249:ds4: dspark perf: draft=454.0 tok/s, verify=64.0 proposed tok/s, verify-accepted=28.5 tok/s, block=90.49 ms (draft=11.00 verify=78.04 overhead=1.45 commit=1.14, tau=2.22, blocks=399)
+253:ds4: dspark acceptance: 61.9% (887/1432 draft tokens)
+257:ds4: dspark avg scheduled: 4.99 draft tokens/block (287 blocks)
+RUN 32768-force-firstk Sun Jul  5 23:19:46 PDT 2026
+DONE 32768-force-firstk rc=0 Sun Jul  5 23:22:43 PDT 2026 log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/context-decode-dspark/item6-topk-20260705-231518/32768-force-firstk.log
+265:ds4: dspark perf: draft=441.7 tok/s, verify=50.5 proposed tok/s, verify-accepted=27.4 tok/s, block=111.70 ms (draft=11.29 verify=98.67 overhead=1.74 commit=1.37, tau=2.71, blocks=342)
+269:ds4: dspark acceptance: 69.3% (926/1337 draft tokens)
+273:ds4: dspark avg scheduled: 4.99 draft tokens/block (268 blocks)
+RUN 32768-topk-then-firstk Sun Jul  5 23:23:03 PDT 2026
+DONE 32768-topk-then-firstk rc=0 Sun Jul  5 23:26:00 PDT 2026 log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/context-decode-dspark/item6-topk-20260705-231518/32768-topk-then-firstk.log
+265:ds4: dspark perf: draft=456.8 tok/s, verify=50.7 proposed tok/s, verify-accepted=27.5 tok/s, block=110.98 ms (draft=10.91 verify=98.39 overhead=1.68 commit=1.31, tau=2.71, blocks=342)
+269:ds4: dspark acceptance: 69.3% (926/1337 draft tokens)
+273:ds4: dspark avg scheduled: 4.99 draft tokens/block (268 blocks)

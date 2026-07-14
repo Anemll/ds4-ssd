@@ -1,0 +1,5 @@
+Ecco tre invarianti per una tabella di token speciali (come in un parser o in un sistema di elaborazione del linguaggio):
+
+1. **Univocità del tipo di token**: Ogni token speciale nella tabella deve avere un tipo univoco. Non possono esistere due token con lo stesso identificatore di tipo (ad esempio, `KEYWORD_IF` e `KEYWORD_IF` non possono coesistere). Questo garantisce che il mapping tra il tipo e il token sia biettivo.
+
+2. **Coerenza del pattern di riconoscimento**: Per ogni token

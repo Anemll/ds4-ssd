@@ -1,0 +1,4 @@
+case	tps	tau	accept	verify_ms	draft_ms	suspect
+bank128	18.39	3.38	78.5	164.81	10.82	0
+bank256	51.53	4.32	91.7	68.63	10.83	0
+bank64	17.94	3.38	78.5	169.53	10.86	0

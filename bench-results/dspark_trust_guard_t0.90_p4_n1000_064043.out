@@ -1,0 +1,117 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+importimport pygame
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init()
+
+# Screen
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+screen = pygame.display.set_mode((SCREENREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+# Colors
+BLACK = (0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0)
+GREEN = (0, 255, 0)
+BLUE = (100, 100, 255)
+# Colors (255)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (100, 100, 255)
+YELLOW = (255, 255, 0)
+# Player
+PLAYER_WIDTH = 30
+PLAYER_HEIGHT = 20
+PLAYER_SPEED = 5
+# Enemy
+ENEMY_WIDTH = 30
+ENEM_HEIGHT = 20
+ENEMY_SPEED = 1
+ENEMY_BOSS_SPEED = 0.5
+# Bullet
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+BULL_SPEED = 7
+BULLET_COOLDOWN = 500  # milliseconds
+# Enemy bullet
+ENEMY_BULLET_SPEED = 3
+# Game
+FPS = 60
+# Fonts
+font = pygame.font(None, 36)
+small_font = pygame.font(None, 24)
+class Game:
+    def __initinit__(self):
+    def __init__(self):
+        self.player = pygame.Rect(1000, 500, PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.player.move(0, 0)
+        self.enemies = []
+        self.bullets = []
+        self.enemy_bullets = []
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        self.boss = None
+        self.boss_direction = False
+        self.boss_move_counter = 0
+        self.boss_shoot_counter = 0
+        self.enemy_direction = False
+        self.enemy_move_counter = 0
+        self.enemy_shoot_counter = 0
+        self.enemy_spawn_counter = 0
+        self.enemy_spawn_delay = 100
+    def create_game_overlay(self):
+        # Create game over overlay
+        self.game_overlay = pygame.Surface((100, 100))
+        self.game_overlay.fill((100, 100, 100))
+        self.game_overlay.set_alpha(128)
+    def create_enemies(self):
+        # Create enemies
+        for i in range(10):
+            enemy = pygame.Rect(100 + i * 100, 100, ENEMY_WIDTH, ENEM_HEIGHT)
+            self.enemies.append(enemy)
+    def create_boss(self):
+        # Create boss
+        self.boss = pygame.Rect(100, 100, 100, 100)
+    def move_boss(self):
+        # Move boss
+        if self.boss_direction:
+            self.boss.move(1, 0)
+        else:
+                       self.boss.move_to(self, self.boss)
+        else:
+            self.boss.move(-1, 0)
+        self.move_boss()
+    def move_enemies(self):
+        # Move enemies
+        if self.enemy_direction:
+            for enemy in self.enemies:
+                enemy.move(1, 0)
+        else:
+            for enemy in self.enemies:
+                enemy.move(-1, 0)
+        self.move_enemies()
+    def shoot(self):
+        # Player
+        bullet = pygame.Rect(self.player.x + 10, self.player.y - 10, BULLET_WIDTH, BULLET_HEIGHT)
+        self.bullet.append(bullet)
+    def bullet(self, bullet):
+        # Move bullet
+        bullet.move(0, -BULL_SPEED)
+        if bullet
+    def enemy_shoot(self):
+        # Enemy
+        if self.enemies:
+            enemy = random.choice(self.enemies)
+                       bullet = random.randint(0, 10)
+            if bullet == 0:
+                bullet = pygame.Rect(enemy.x + 10, enemy.y + 10, BULLET_WIDTH, BULLET_HE

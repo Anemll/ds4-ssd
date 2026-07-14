@@ -1,0 +1,9 @@
+ds4-agent: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=8192, raw_kv_rows=8192, raw_window=128, effective_chunk=8064; target raw cap for one chunk is 8448, also requires ctx >= that value)
+ds4-agent: context buffers 747.18 MiB (ctx=8192, backend=metal, prefill_chunk=8192, raw_kv_rows=8192, compressed_kv_rows=514/2050 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: Metal source metal/flash_attn.metal not found (set DS4_METAL_FLASH_ATTN_SOURCE to override)
+ds4: DSpark draft inference requires fused native MXFP4 routed-MoE kernels (batch-strided pair-SwiGLU + down-sum6)

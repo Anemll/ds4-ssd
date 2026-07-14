@@ -1,0 +1,11 @@
+Ecco il completamento della frase:
+
+**Il vantaggio principale della cache è la velocità di accesso.**
+
+Oppure, in un contesto più generale:
+
+**Il vantaggio principale della cache è la riduzione del tempo di attesa.**
+
+Se ti riferisci alla cache del computer (memoria cache):
+
+**Il vantaggio principale della cache è la riduzione del tempo medio di accesso ai dati.**

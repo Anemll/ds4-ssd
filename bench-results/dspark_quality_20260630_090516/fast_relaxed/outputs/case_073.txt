@@ -1,0 +1,23 @@
+Ecco un breve esempio di race condition in C:
+
+## Esempio di Race Condition
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+int contatore = 0;
+
+void* incremento(void* arg) {
+    for (int i = 0; i < 100000; i++) {
+        contatore++; // Race condition: operazione non atomica
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t thread1, thread2;
+    
+    // Due thread che accedono alla stessa variabile senza sincronizzazione
+    pthread_create

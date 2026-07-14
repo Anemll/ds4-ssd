@@ -1,0 +1,5 @@
+case	tps	suspect	out	err
+fastrelaxed_default	54.52	0	bench-results/fastrelaxed_default_074738.out	bench-results/fastrelaxed_default_074738.err
+fastrelaxed_guard_off	57.38	1	bench-results/fastrelaxed_guard_off_074738.out	bench-results/fastrelaxed_guard_off_074738.err
+fastrelaxed_unbounded	58.99	1	bench-results/fastrelaxed_unbounded_074738.out	bench-results/fastrelaxed_unbounded_074738.err
+trust_conf_070_unguarded	72.19	1	bench-results/trust_conf_070_unguarded_074738.out	bench-results/trust_conf_070_unguarded_074738.err

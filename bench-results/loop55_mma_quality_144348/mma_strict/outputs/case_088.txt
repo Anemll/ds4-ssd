@@ -1,0 +1,6 @@
+**Great question!** Treating special tags carefully is crucial because tokenizers are the bridge between raw text and the numerical representations that models (like LLMs) actually process. If a tokenizer mishandles special tags, it can break the model's ability to understand structure, instructions, or formatting.
+
+Here’s why special tags need careful treatment:
+
+### 1. **They carry structural meaning, not just words**
+Special tags (like `<|im_start|>`, `[INST]`, `###`, `</s>`, `<pad>`, etc.) often serve as **delimiters, control tokens, or formatting

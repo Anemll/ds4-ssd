@@ -1,0 +1,1 @@
+Questa è un'ottima domanda. La cache KV (Key-Value) su disco è un elemento fondamentale per

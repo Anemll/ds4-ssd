@@ -1,0 +1,1 @@
+Ecco una checklist dettagliata per validare che un modello quantizzato mantenga la capacità di seguire le

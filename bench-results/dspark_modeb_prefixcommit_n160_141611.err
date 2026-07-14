@@ -1,0 +1,354 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.273 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=23.26 t/s avg=0.55 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.54 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=51.28 t/s avg=1.07 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.06 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=51.18 t/s avg=1.58 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.56 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.54 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=47.21 t/s avg=2.04 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.02 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=46.29 t/s avg=2.49 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.47 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=51.55 t/s avg=2.93 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.90 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=57.50 t/s avg=3.36 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.33 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.30 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=51.67 t/s avg=3.74 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.70 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=52.53 t/s avg=4.12 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.08 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=50.10 t/s avg=4.50 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.45 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=54.92 t/s avg=4.86 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.82 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.78 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=45.52 t/s avg=5.17 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=5.12 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=45.85 t/s avg=5.50 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.45 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=48.44 t/s avg=5.82 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.78 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=53.22 t/s avg=6.14 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.09 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.04 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=48.69 t/s avg=6.39 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=6.33 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=49.65 t/s avg=6.68 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=6.62 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=49.10 t/s avg=6.95 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.90 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=43.20 t/s avg=7.22 t/s
+ds4: dspark rebuilt main-kv window positions 0..18
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark draft row=0 prev=128822 next=9544 fast-markov
+ds4: dspark draft row=1 prev=9544 next=734 fast-markov
+ds4: dspark draft row=2 prev=734 next=260 fast-markov
+ds4: dspark draft row=3 prev=260 next=5553 fast-markov
+ds4: dspark draft row=4 prev=5553 next=3917 fast-markov
+ds4: DSpark draft warmup: cap=5 rows=5 in 207.0 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark draft row=0 prev=43 next=5922 fast-markov
+ds4: dspark draft row=1 prev=5922 next=3551 fast-markov
+ds4: dspark draft row=2 prev=3551 next=260 fast-markov
+ds4: dspark draft row=3 prev=260 next=5553 fast-markov
+ds4: dspark draft row=4 prev=5553 next=14 fast-markov
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: routed MoE exact ordered expert-sum kernel enabled
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=4 draft=19.691 ms snapshot=1.474 ms verify=109.910 ms prefix=2.002 ms total=133.174 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=4 accepted=5
+ds4: dspark draft row=0 prev=14295 next=32214 fast-markov
+ds4: dspark draft row=1 prev=32214 next=40856 fast-markov
+ds4: dspark draft row=2 prev=40856 next=3917 fast-markov
+ds4: dspark draft row=3 prev=3917 next=1812 fast-markov
+ds4: dspark draft row=4 prev=1812 next=19950 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.336 ms snapshot=0.379 ms verify=91.868 ms dspark_kv=1.742 ms total=114.401 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=29675 next=16 fast-markov
+ds4: dspark draft row=1 prev=16 next=1162 fast-markov
+ds4: dspark draft row=2 prev=1162 next=759 fast-markov
+ds4: dspark draft row=3 prev=759 next=366 fast-markov
+ds4: dspark draft row=4 prev=366 next=260 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=20.431 ms snapshot=0.455 ms verify=94.388 ms prefix=1.699 ms total=117.057 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=3394 next=270 fast-markov
+ds4: dspark draft row=1 prev=270 next=8469 fast-markov
+ds4: dspark draft row=2 prev=8469 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=8469 fast-markov
+ds4: dspark draft row=4 prev=8469 next=14 fast-markov
+ds4: dspark spec miss first draft=270 target=260 drafted=5
+ds4: dspark draft row=0 prev=260 next=8469 fast-markov
+ds4: dspark draft row=1 prev=8469 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=8469 fast-markov
+ds4: dspark draft row=3 prev=8469 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=305 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=1 draft=19.591 ms snapshot=0.408 ms verify=92.940 ms prefix=1.857 ms total=114.876 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=1 accepted=2
+ds4: dspark draft row=0 prev=11319 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=26217 fast-markov
+ds4: dspark draft row=2 prev=26217 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=305 fast-markov
+ds4: dspark draft row=4 prev=305 next=26217 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=19.886 ms snapshot=0.365 ms verify=91.817 ms prefix=2.067 ms total=114.211 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=68546 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=305 fast-markov
+ds4: dspark draft row=2 prev=305 next=25585 fast-markov
+ds4: dspark draft row=3 prev=25585 next=339 fast-markov
+ds4: dspark draft row=4 prev=339 next=9854 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.685 ms snapshot=0.369 ms verify=92.403 ms dspark_kv=2.454 ms total=114.980 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=36490 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=1897 fast-markov
+ds4: dspark draft row=2 prev=1897 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=1897 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.966 ms snapshot=0.383 ms verify=92.168 ms dspark_kv=1.725 ms total=114.319 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=6719 next=271 fast-markov
+ds4: dspark draft row=1 prev=271 next=5 fast-markov
+ds4: dspark draft row=2 prev=5 next=60873 fast-markov
+ds4: dspark draft row=3 prev=60873 next=19950 fast-markov
+ds4: dspark draft row=4 prev=19950 next=29675 fast-markov
+ds4: dspark spec miss first draft=271 target=201 drafted=5
+ds4: dspark draft row=0 prev=201 next=1897 fast-markov
+ds4: dspark draft row=1 prev=1897 next=7704 fast-markov
+ds4: dspark draft row=2 prev=7704 next=271 fast-markov
+ds4: dspark draft row=3 prev=271 next=5 fast-markov
+ds4: dspark draft row=4 prev=5 next=60873 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.954 ms snapshot=0.393 ms verify=95.456 ms dspark_kv=1.781 ms total=117.667 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=19950 next=29675 fast-markov
+ds4: dspark draft row=1 prev=29675 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=12403 fast-markov
+ds4: dspark draft row=3 prev=12403 next=29675 fast-markov
+ds4: dspark draft row=4 prev=29675 next=57597 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.362 ms snapshot=0.395 ms verify=92.731 ms dspark_kv=1.713 ms total=115.271 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=10414 next=5 fast-markov
+ds4: dspark draft row=1 prev=5 next=110686 fast-markov
+ds4: dspark draft row=2 prev=110686 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=5692 fast-markov
+ds4: dspark draft row=4 prev=5692 next=77533 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.931 ms snapshot=0.649 ms verify=95.409 ms dspark_kv=1.716 ms total=117.786 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=111000 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=6884 fast-markov
+ds4: dspark draft row=3 prev=6884 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=5692 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.870 ms snapshot=0.379 ms verify=92.950 ms dspark_kv=2.076 ms total=115.353 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=77533 next=114884 fast-markov
+ds4: dspark draft row=1 prev=114884 next=23719 fast-markov
+ds4: dspark draft row=2 prev=23719 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=6391 fast-markov
+ds4: dspark draft row=4 prev=6391 next=201 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=2 draft=20.788 ms snapshot=0.434 ms verify=94.478 ms prefix=1.555 ms total=117.326 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=2 accepted=3
+ds4: dspark draft row=0 prev=438 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=6391 fast-markov
+ds4: dspark draft row=2 prev=6391 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=98585 fast-markov
+ds4: dspark draft row=4 prev=98585 next=111000 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=4 draft=19.901 ms snapshot=0.382 ms verify=92.797 ms prefix=2.626 ms total=115.778 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=4 accepted=5
+ds4: dspark draft row=0 prev=1647 next=48582 fast-markov
+ds4: dspark draft row=1 prev=48582 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=553 fast-markov
+ds4: dspark draft row=4 prev=553 next=201 fast-markov
+ds4: dspark spec miss first draft=48582 target=108239 drafted=5
+ds4: dspark draft row=0 prev=108239 next=39 fast-markov
+ds4: dspark draft row=1 prev=39 next=3316 fast-markov
+ds4: dspark draft row=2 prev=3316 next=438 fast-markov
+ds4: dspark draft row=3 prev=438 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=553 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=4 draft=20.373 ms snapshot=0.410 ms verify=93.026 ms prefix=1.955 ms total=115.833 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=4 accepted=5
+ds4: dspark draft row=0 prev=23 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=2389 fast-markov
+ds4: dspark draft row=2 prev=2389 next=4846 fast-markov
+ds4: dspark draft row=3 prev=4846 next=59 fast-markov
+ds4: dspark draft row=4 prev=59 next=108239 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.762 ms snapshot=0.349 ms verify=94.484 ms dspark_kv=1.758 ms total=116.431 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=39 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=20 fast-markov
+ds4: dspark draft row=3 prev=20 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=36 fast-markov
+ds4: dspark spec miss first draft=438 target=3316 drafted=5
+ds4: dspark draft row=0 prev=3316 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=20 fast-markov
+ds4: dspark draft row=3 prev=20 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=98585 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=4 draft=20.112 ms snapshot=0.387 ms verify=93.085 ms prefix=1.866 ms total=115.530 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=4 accepted=5
+ds4: dspark draft row=0 prev=36 next=6552 fast-markov
+ds4: dspark draft row=1 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=2 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=3 prev=108239 next=39 fast-markov
+ds4: dspark draft row=4 prev=39 next=3316 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.741 ms snapshot=0.360 ms verify=93.503 ms dspark_kv=1.809 ms total=115.482 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=438 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=25 fast-markov
+ds4: dspark draft row=2 prev=25 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=4846 fast-markov
+ds4: dspark draft row=4 prev=4846 next=59 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=20.520 ms snapshot=0.427 ms verify=93.637 ms prefix=1.693 ms total=116.350 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=2389 next=59 fast-markov
+ds4: dspark draft row=1 prev=59 next=27572 fast-markov
+ds4: dspark draft row=2 prev=27572 next=46 fast-markov
+ds4: dspark draft row=3 prev=46 next=6024 fast-markov
+ds4: dspark draft row=4 prev=6024 next=4659 fast-markov
+ds4: dspark spec miss first draft=59 target=4846 drafted=5
+ds4: dspark draft row=0 prev=4846 next=14568 fast-markov
+ds4: dspark draft row=1 prev=14568 next=6552 fast-markov
+ds4: dspark draft row=2 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=3 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=4 prev=108239 next=39 fast-markov
+ds4: dspark spec miss first draft=14568 target=59 drafted=5
+ds4: dspark draft row=0 prev=59 next=27572 fast-markov
+ds4: dspark draft row=1 prev=27572 next=46 fast-markov
+ds4: dspark draft row=2 prev=46 next=8309 fast-markov
+ds4: dspark draft row=3 prev=8309 next=438 fast-markov
+ds4: dspark draft row=4 prev=438 next=223 fast-markov
+ds4: dspark spec miss first draft=27572 target=14568 drafted=5
+ds4: dspark draft row=0 prev=14568 next=6552 fast-markov
+ds4: dspark draft row=1 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=2 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=3 prev=108239 next=39 fast-markov
+ds4: dspark draft row=4 prev=39 next=438 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=4 draft=19.765 ms snapshot=0.387 ms verify=93.749 ms prefix=1.980 ms total=115.952 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=4 accepted=5
+ds4: dspark draft row=0 prev=3316 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=21 fast-markov
+ds4: dspark draft row=3 prev=21 next=271 fast-markov
+ds4: dspark draft row=4 prev=271 next=5 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.615 ms snapshot=0.395 ms verify=94.460 ms dspark_kv=2.528 ms total=117.068 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=42237 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=20880 fast-markov
+ds4: dspark draft row=2 prev=20880 next=16617 fast-markov
+ds4: dspark draft row=3 prev=16617 next=438 fast-markov
+ds4: dspark draft row=4 prev=438 next=343 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.445 ms snapshot=0.400 ms verify=94.305 ms dspark_kv=1.687 ms total=116.907 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=18 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=18089 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=19.943 ms snapshot=0.382 ms verify=96.218 ms prefix=1.682 ms total=118.307 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=14 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=18 fast-markov
+ds4: dspark draft row=2 prev=18 next=682 fast-markov
+ds4: dspark draft row=3 prev=682 next=18089 fast-markov
+ds4: dspark draft row=4 prev=18089 next=26764 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.648 ms snapshot=0.392 ms verify=94.836 ms dspark_kv=2.430 ms total=118.376 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=438 next=343 fast-markov
+ds4: dspark draft row=1 prev=343 next=9489 fast-markov
+ds4: dspark draft row=2 prev=9489 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=9489 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.834 ms snapshot=0.428 ms verify=93.752 ms dspark_kv=1.672 ms total=116.764 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=14 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=9489 fast-markov
+ds4: dspark draft row=2 prev=9489 next=682 fast-markov
+ds4: dspark draft row=3 prev=682 next=63529 fast-markov
+ds4: dspark draft row=4 prev=63529 next=438 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=19.878 ms snapshot=0.377 ms verify=96.686 ms prefix=1.712 ms total=118.734 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=41 next=77533 fast-markov
+ds4: dspark draft row=1 prev=77533 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=343 fast-markov
+ds4: dspark draft row=3 prev=343 next=18 fast-markov
+ds4: dspark draft row=4 prev=18 next=14 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=20.044 ms snapshot=0.383 ms verify=95.851 ms dspark_kv=1.863 ms total=118.220 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=223 next=9489 fast-markov
+ds4: dspark draft row=1 prev=9489 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=18 fast-markov
+ds4: dspark draft row=4 prev=18 next=682 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.969 ms snapshot=0.403 ms verify=93.278 ms dspark_kv=1.810 ms total=115.530 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=63529 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=343 fast-markov
+ds4: dspark draft row=2 prev=343 next=9489 fast-markov
+ds4: dspark draft row=3 prev=9489 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=223 fast-markov
+ds4: dspark timing batch drafted=5 committed=5 draft=19.782 ms snapshot=0.381 ms verify=96.831 ms dspark_kv=1.751 ms total=118.815 ms
+ds4: dspark spec batch drafted=5 committed=5 accepted=6
+ds4: dspark draft row=0 prev=18 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=11698 fast-markov
+ds4: dspark spec miss first draft=682 target=14 drafted=5
+ds4: dspark draft row=0 prev=14 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=18 fast-markov
+ds4: dspark draft row=2 prev=18 next=682 fast-markov
+ds4: dspark draft row=3 prev=682 next=59 fast-markov
+ds4: dspark draft row=4 prev=59 next=53063 fast-markov
+ds4: dspark timing batch-canonical-prefix-commit drafted=5 committed=3 draft=19.882 ms snapshot=0.392 ms verify=93.591 ms prefix=2.215 ms total=116.152 ms
+ds4: dspark spec batch-canonical-prefix-commit drafted=5 committed=3 accepted=4
+ds4: dspark draft row=0 prev=20880 next=11698 fast-markov
+ds4: dspark timing batch drafted=1 committed=1 draft=6.647 ms snapshot=0.376 ms verify=33.882 ms dspark_kv=0.945 ms total=41.929 ms
+ds4: dspark spec batch drafted=1 committed=1 accepted=2
+ds4: ----------------------------------------
+ds4: prefill: 6.63 t/s, generation: 33.73 t/s (160 tokens in 4.743s)
+ds4: dspark acceptance: 65.6% (122/186 draft tokens)
+ds4: dspark acceptance by position: 1=30/38 2=28/37 3=27/37 4=21/37 5=16/37
+ds4: dspark avg scheduled: 4.89 draft tokens/block (38 blocks)

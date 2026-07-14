@@ -1,0 +1,11 @@
+This is a great question that gets to the heart of how language models make decisions.
+
+The short answer is: **Because the model chooses the *highest* logit, not the *most different* one. A tiny difference at the top can completely change the winner.**
+
+Let's break down why small logit differences have such a big impact.
+
+### 1. The "Greedy" Selection Mechanism
+
+When a model generates text "greedily," it doesn't look at the whole landscape of possibilities. It simply picks the token with the **highest logit** (or highest probability after softmax).
+
+Imagine a race

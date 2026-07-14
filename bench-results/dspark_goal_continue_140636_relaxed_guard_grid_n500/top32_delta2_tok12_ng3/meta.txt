@@ -1,0 +1,2 @@
+top32_delta2_tok12_ng3 topk=32 delta=2 tokenmax=12 ngram=3
+status=0

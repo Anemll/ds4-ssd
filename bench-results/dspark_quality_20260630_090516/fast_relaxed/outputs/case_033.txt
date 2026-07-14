@@ -1,0 +1,6 @@
+**Backpressure** (contropressione) in un server di rete è un meccanismo di **controllo del flusso** utilizzato per evitare che il sistema venga sopraffatto da un carico di lavoro eccessivo.
+
+Ecco il concetto in termini semplici:
+
+### Il problema
+Imagina un server che riceve dati (richieste, pacchetti, messaggi) più velocemente di quanto possa elaborarli. Se il server continua a ricevere dati senza fermarsi, la memoria si riempie (buffer overflow), il sistema rallenta, e alla

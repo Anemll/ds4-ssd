@@ -1,0 +1,4 @@
+mode	cases	official_tokens	scored_generated_tokens	generated_prefix_nll	generated_first_match_vs_official	generated_avg_lcp_vs_official	generated_tokens	generation_tps	speedup_vs_no_draft	dspark_acceptance_pct	byte_equal_vs_no_draft
+no_draft	100	2290	2281	0.170559803	64	7.000	11754	31.769544	1.000000		baseline
+strict_dspark	100	2290	2281	0.170559803	64	7.000	11754	28.279020	0.890130	42.966600	100/100
+fast_relaxed_dspark	100	2290	2289	0.444579396	64	5.500	11825	32.942353	1.036916	67.128933	2/100

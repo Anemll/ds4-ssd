@@ -1,0 +1,8 @@
+== baseline.canary
+bench-results/dspark_route_group_flags_fast_ab_030936/baseline.out	952	35	35	1	0		0		0	0	0	1	1	0
+== grouped_iq2.canary
+bench-results/dspark_route_group_flags_fast_ab_030936/grouped_iq2.out	952	35	35	1	0		0		0	0	0	1	1	0
+== grouped_iq2_q2safe.canary
+bench-results/dspark_route_group_flags_fast_ab_030936/grouped_iq2_q2safe.out	947	34	34	1	0		0		0	0	0	1	1	0
+== grouped_q2_safe.canary
+bench-results/dspark_route_group_flags_fast_ab_030936/grouped_q2_safe.out	947	34	34	1	0		0		0	0	0	1	1	0

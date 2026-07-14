@@ -1,0 +1,24 @@
+Here's a short example of a race condition in C:
+
+```c
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+
+int shared_counter = 0;
+
+void increment_counter() {
+    for (int i = 0; i < 100000; i++) {
+        shared_counter++;
+        // This is NOT atomic - it's actually:
+        // 1. Read shared_counter
+        // 2. Add 1
+        // 3. Write back
+    }
+}
+
+int main() {
+    // Create two processes
+    pid_t pid1 = fork();
+    
+    if

@@ -1,0 +1,10 @@
+Ecco un confronto dettagliato tra `mmap` dei pesi e copia completa dei pesi su macOS, analizzando le differenze in termini di performance, memoria e gestione delle risorse.
+
+## Confronto: mmap dei pesi vs Copia completa dei pesi
+
+### 1. **Meccanismo di base**
+
+| Aspetto | mmap dei pesi | Copia completa dei pesi |
+|---------|---------------|------------------------|
+| **Caricamento** | Mapping del file in memoria virtuale | Lettura completa del file in memoria fisica |
+| **Accesso

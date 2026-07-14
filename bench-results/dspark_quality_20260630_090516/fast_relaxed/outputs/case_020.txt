@@ -1,0 +1,14 @@
+## Binary Search for Finding an Insertion
+
+Binary search can find an insertion point in a sorted array by modifying the standard search to track the **first position** where the target element would fit while maintaining sorted order.
+
+### Key Insight
+
+Instead of stopping when the target is found, we continue narrowing the search space until we determine the **leftmost** position where the target could be placed.
+
+### Algorithm
+
+Given a sorted array `arr` and a target `value`:
+
+1. **Initialize** `low = 0`, `high = n` (where `n` is the array length)
+2. **While `low`

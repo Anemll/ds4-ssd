@@ -1,0 +1,1 @@
+Ecco una spiegazione chiara della differenza tra **latenza** e **throughput**, due metriche

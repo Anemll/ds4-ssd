@@ -2792,8 +2792,14 @@ static bool ds4_dspark_tree_opp_log_enabled(void) {
  * argmax: row 0 is the committed-logits argmax by construction and every row
  * is still verified. Confidence-aware rows6 is a separate opt-in while its
  * scheduler economics are validated; relaxed accept remains on the 5-row path. */
+static bool ds4_dspark_threeway_enabled(void) {
+    return env_flag_enabled("DS4_DSPARK_THREE_WAY") ||
+           env_flag_enabled("DS4_DSPARK_ROUTER_THREE_WAY");
+}
+
 static bool ds4_dspark_verify_rows6_enabled(void) {
-    return env_flag_enabled("DS4_DSPARK_VERIFY_ROWS6");
+    return ds4_dspark_threeway_enabled() ||
+           env_flag_enabled("DS4_DSPARK_VERIFY_ROWS6");
 }
 
 static bool ds4_dspark_rows6_confidence_enabled(void) {
@@ -2869,6 +2875,8 @@ static bool metal_graph_dspark_markov_chain_fast(
     if (!markov_embd || !markov_output) return false;
     const ds4_dspark_file *markov_file =
         ds4_dspark_record_file(g->dspark, markov_embd);
+    const ds4_dspark_file *markov_output_file =
+        ds4_dspark_record_file(g->dspark, markov_output);
     if (!markov_file ||
         markov_embd->kind != DS4_DSPARK_REC_F16 ||
         markov_embd->ndim != 2 ||
@@ -2958,17 +2966,23 @@ static bool metal_graph_dspark_markov_chain_fast(
                                           rank,
                                           ds4_dspark_markov_scale()) != 0;
         }
-        if (ok) {
+        const bool fused_select =
+            !ds4_dspark_tree_opp_log_enabled() &&
+            !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
+            !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
+        const bool direct_fused_select =
+            fused_select &&
+            env_flag_enabled("DS4_DSPARK_FUSED_MARKOV_ARGMAX") &&
+            !(row == 0 && force_first_token >= 0) &&
+            markov_output_file &&
+            markov_output->kind == DS4_DSPARK_REC_F16;
+        if (ok && !direct_fused_select) {
             ok = ds4_dspark_matmul_record(g->dspark,
                                           markov_output,
                                           g->logits,
                                           markov_embed,
                                           1);
         }
-        const bool fused_select =
-            !ds4_dspark_tree_opp_log_enabled() &&
-            !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
-            !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
         if (ok && row == 0 && force_first_token >= 0) {
             /* Teacher-force path when KEEP_ROW0_MM is on. */
             int32_t forced = (int32_t)force_first_token;
@@ -2976,6 +2990,22 @@ static bool metal_graph_dspark_markov_chain_fast(
                                       (uint64_t)(row + 1) * sizeof(int32_t),
                                       &forced,
                                       sizeof(forced)) != 0;
+        } else if (ok && direct_fused_select) {
+            ds4_gpu_tensor *next_id =
+                ds4_gpu_tensor_view(g->dspark_input_ids,
+                                    (uint64_t)(row + 1) * sizeof(int32_t),
+                                    sizeof(int32_t));
+            ok = next_id &&
+                 ds4_gpu_markov_f16_argmax_tensor(next_id,
+                                                  g->logits,
+                                                  logit_row,
+                                                  markov_output_file->map,
+                                                  markov_output_file->size,
+                                                  markov_output->offset,
+                                                  rank,
+                                                  DS4_N_VOCAB,
+                                                  markov_embed) != 0;
+            ds4_gpu_tensor_free(next_id);
         } else if (ok && fused_select) {
             ds4_gpu_tensor *next_id =
                 ds4_gpu_tensor_view(g->dspark_input_ids,
@@ -3097,6 +3127,8 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
     if (!markov_embd || !markov_output) return false;
     const ds4_dspark_file *markov_file =
         ds4_dspark_record_file(g->dspark, markov_embd);
+    const ds4_dspark_file *markov_output_file =
+        ds4_dspark_record_file(g->dspark, markov_output);
     if (!markov_file ||
         markov_embd->kind != DS4_DSPARK_REC_F16 ||
         markov_embd->ndim != 2 ||
@@ -3184,23 +3216,45 @@ static bool metal_graph_dspark_markov_chain_fast_encode(
                                           rank,
                                           ds4_dspark_markov_scale()) != 0;
         }
-        if (ok) {
+        const bool fused_select =
+            !ds4_dspark_tree_opp_log_enabled() &&
+            !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
+            !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
+        const bool direct_fused_select =
+            fused_select &&
+            env_flag_enabled("DS4_DSPARK_FUSED_MARKOV_ARGMAX") &&
+            !(row == 0 && force_first_token >= 0) &&
+            markov_output_file &&
+            markov_output->kind == DS4_DSPARK_REC_F16;
+        if (ok && !direct_fused_select) {
             ok = ds4_dspark_matmul_record(g->dspark,
                                           markov_output,
                                           g->logits,
                                           markov_embed,
                                           1);
         }
-        const bool fused_select =
-            !ds4_dspark_tree_opp_log_enabled() &&
-            !env_flag_enabled("DS4_DSPARK_MARKOV_FUSED_SELECT_DISABLE") &&
-            !env_flag_enabled("DS4_DSPARK_MARKOV_ARGMAX_DISABLE");
         if (ok && row == 0 && force_first_token >= 0) {
             int32_t forced = (int32_t)force_first_token;
             ok = ds4_gpu_tensor_write(g->dspark_input_ids,
                                       (uint64_t)(row + 1) * sizeof(int32_t),
                                       &forced,
                                       sizeof(forced)) != 0;
+        } else if (ok && direct_fused_select) {
+            ds4_gpu_tensor *next_id =
+                ds4_gpu_tensor_view(g->dspark_input_ids,
+                                    (uint64_t)(row + 1) * sizeof(int32_t),
+                                    sizeof(int32_t));
+            ok = next_id &&
+                 ds4_gpu_markov_f16_argmax_tensor(next_id,
+                                                  g->logits,
+                                                  logit_row,
+                                                  markov_output_file->map,
+                                                  markov_output_file->size,
+                                                  markov_output->offset,
+                                                  rank,
+                                                  DS4_N_VOCAB,
+                                                  markov_embed) != 0;
+            ds4_gpu_tensor_free(next_id);
         } else if (ok && fused_select) {
             ds4_gpu_tensor *next_id =
                 ds4_gpu_tensor_view(g->dspark_input_ids,
@@ -3880,8 +3934,21 @@ static int ds4_dspark_confident_prefix_len(
         int          draft_n,
         float        threshold) {
     if (!confidence_probs || draft_n <= 0 || threshold <= 0.0f) return draft_n;
+    const bool cumulative =
+        env_flag_enabled("DS4_DSPARK_CONF_CUMULATIVE") ||
+        env_flag_enabled("DS4_DSPARK_HARD_CUMULATIVE");
+    float survival = 1.0f;
     for (int i = 0; i < draft_n; i++) {
-        if (confidence_probs[i] < threshold) return i;
+        float p = confidence_probs[i];
+        if (!isfinite(p)) p = 0.0f;
+        if (p < 0.0f) p = 0.0f;
+        if (p > 1.0f) p = 1.0f;
+        if (cumulative) {
+            survival *= p;
+            if (survival < threshold) return i;
+        } else if (p < threshold) {
+            return i;
+        }
     }
     return draft_n;
 }

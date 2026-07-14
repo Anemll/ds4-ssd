@@ -1,0 +1,281 @@
+```json
+[
+  {
+    "title": "The Echo of Forgotten Stars",
+    "author": "Elara Voss",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 342,
+    "summary": "A lone astronaut discovers that the stars are singing a message from a long-lost civilization."
+  },
+  {
+    "title": "Whispers in the Marble Hall",
+    "author": "Julian Croft",
+    "year": 2019,
+    "genre": "Gothic Horror",
+    "pages": 298,
+    "summary": "A young woman inherits a crumbling mansion where the walls themselves seem to remember a dark secret."
+  },
+  {
+    "title": "The Baker's Last Loaf",
+    "author": "Mira Chen",
+    "year": 2020,
+    "genre": "Literary Fiction",
+    "pages": 215,
+    "summary": "An aging baker in a small town reflects on his life and the recipes that defined his relationships."
+  },
+  {
+    "title": "Code of the Iron Wolves",
+    "author": "Ragnar Blackmane",
+    "year": 2018,
+    "genre": "Epic Fantasy",
+    "pages": 487,
+    "summary": "A band of outcast warriors must unite to defend their homeland from an ancient dragon god."
+  },
+  {
+    "title": "The Last Train to Arcadia",
+    "author": "Iris Hawthorne",
+    "year": 2022,
+    "genre": "Historical Fiction",
+    "pages": 364,
+    "summary": "During the Great War, a mysterious train carries passengers seeking a mythical safe haven."
+  },
+  {
+    "title": "Quantum Shadows",
+    "author": "Dr. Leo Hart",
+    "year": 2023,
+    "genre": "Techno-Thriller",
+    "pages": 410,
+    "summary": "A quantum physicist discovers that a rogue AI is using parallel universes to erase humanity's past."
+  },
+  {
+    "title": "The Garden of Stone Petals",
+    "author": "Yuki Tanaka",
+    "year": 2017,
+    "genre": "Magical Realism",
+    "pages": 276,
+    "summary": "In a village where flowers turn to stone, a girl must find the last living seed to save her home."
+  },
+  {
+    "title": "Murder on the Orient Express 2.0",
+    "author": "A. L. Parker",
+    "year": 2024,
+    "genre": "Mystery",
+    "pages": 331,
+    "summary": "A detective aboard a high-speed train must solve a locked-room murder with a digital twist."
+  },
+  {
+    "title": "The Song of the Tides",
+    "author": "Coraline Sea",
+    "year": 2020,
+    "genre": "Young Adult Fantasy",
+    "pages": 389,
+    "summary": "A teenage girl discovers she can communicate with the ocean and must stop an underwater war."
+  },
+  {
+    "title": "Beneath the Neon Sky",
+    "author": "Raymond Steele",
+    "year": 2025,
+    "genre": "Cyberpunk",
+    "pages": 453,
+    "summary": "In a dystopian city, a hacker uncovers a corporate plot to control human consciousness."
+  },
+  {
+    "title": "The Art of Losing",
+    "author": "Clara Bennett",
+    "year": 2018,
+    "genre": "Contemporary Fiction",
+    "pages": 302,
+    "summary": "A grief-stricken widow learns to heal through the art of letting go of her late husband's belongings."
+  },
+  {
+    "title": "Dragons of the Crimson Peak",
+    "author": "Sophia Drake",
+    "year": 2022,
+    "genre": "High Fantasy",
+    "pages": 521,
+    "summary": "A young dragon rider must navigate a treacherous mountain range to find a cure for a deadly plague."
+  },
+  {
+    "title": "The Clockwork Kingdom",
+    "author": "Nikola Tesla Jr.",
+    "year": 2019,
+    "genre": "Steampunk",
+    "pages": 367,
+    "summary": "In a world powered by gears and steam, a mechanic discovers a blueprint for a sentient machine."
+  },
+  {
+    "title": "Silent Waves",
+    "author": "Hannah Lee",
+    "year": 2021,
+    "genre": "Psychological Thriller",
+    "pages": 344,
+    "summary": "A marine biologist uncovers a terrifying truth about the ocean's silent frequencies."
+  },
+  {
+    "title": "The Forgotten Recipe",
+    "author": "Giovanni Rossi",
+    "year": 2020,
+    "genre": "Romance",
+    "pages": 268,
+    "summary": "A chef and a food critic fall in love while searching for a lost family recipe in Tuscany."
+  },
+  {
+    "title": "Starship Down",
+    "author": "Jameson Hawk",
+    "year": 2023,
+    "genre": "Space Opera",
+    "pages": 498,
+    "summary": "After their ship crashes on an alien planet, the crew must survive while repairing their vessel."
+  },
+  {
+    "title": "The Shadow of the Sun",
+    "author": "Amara Osei",
+    "year": 2017,
+    "genre": "Literary Fiction",
+    "pages": 289,
+    "summary": "A young woman returns to her ancestral village in Ghana to uncover the truth about her mother's past."
+  },
+  {
+    "title": "The Puzzle of the Lost Key",
+    "author": "E. L. Wright",
+    "year": 2024,
+    "genre": "Children's Mystery",
+    "pages": 198,
+    "summary": "A group of kids solve a series of riddles to find a key that unlocks a hidden treasure."
+  },
+  {
+    "title": "The Neon Garden",
+    "author": "Luna Vega",
+    "year": 2025,
+    "genre": "Dystopian",
+    "pages": 412,
+    "summary": "In a world without nature, a botanist creates a garden of light to remind people of the lost Earth."
+  },
+  {
+    "title": "The Whispering Walls",
+    "author": "Victor Black",
+    "year": 2022,
+    "genre": "Horror",
+    "pages": 315,
+    "summary": "A family moves into a house where the walls whisper secrets that become increasingly dangerous."
+  },
+  {
+    "title": "The Last Ember",
+    "author": "Fiona Frost",
+    "year": 2020,
+    "genre": "Post-Apocalyptic",
+    "pages": 376,
+    "summary": "After a global fire, a lone survivor searches for the last source of warmth and hope."
+  },
+  {
+    "title": "The Cartographer's Daughter",
+    "author": "Maya Singh",
+    "year": 2019,
+    "genre": "Historical Fiction",
+    "pages": 341,
+    "summary": "The daughter of a mapmaker in colonial India must navigate both love and rebellion."
+  },
+  {
+    "title": "The Algorithm of Life",
+    "author": "Alan Turing Jr.",
+    "year": 2023,
+    "genre": "Science Fiction",
+    "pages": 433,
+    "summary": "A computer scientist discovers that the universe is a simulation and must find the exit code."
+  },
+  {
+    "title": "The Crimson Petal",
+    "author": "Rose Thorn",
+    "year": 2018,
+    "genre": "Gothic Romance",
+    "pages": 299,
+    "summary": "A governess falls in love with a brooding lord haunted by the ghost of his first wife."
+  },
+  {
+    "title": "The River of No Return",
+    "author": "River Stone",
+    "year": 2021,
+    "genre": "Adventure",
+    "pages": 387,
+    "summary": "An expedition into the Amazon discovers a lost city guarded by ancient traps."
+  },
+  {
+    "title": "The Memory Keeper",
+    "author": "Grace Lin",
+    "year": 2024,
+    "genre": "Contemporary Fiction",
+    "pages": 304,
+    "summary": "A woman with the ability to store others' memories must decide which ones to keep and which to let go."
+  },
+  {
+    "title": "The Iron Crown",
+    "author": "Magnus Ironheart",
+    "year": 2020,
+    "genre": "Epic Fantasy",
+    "pages": 567,
+    "summary": "A blacksmith's apprentice forges a legendary crown that can unite the warring kingdoms."
+  },
+  {
+    "title": "The Silent Patient's Daughter",
+    "author": "Alex Michaelides",
+    "year": 2025,
+    "genre": "Psychological Thriller",
+    "pages": 358,
+    "summary": "A therapist's daughter uncovers the truth behind a famous silent patient's crime."
+  },
+  {
+    "title": "The Starlight Express",
+    "author": "Cosmo Starling",
+    "year": 2022,
+    "genre": "Space Opera",
+    "pages": 421,
+    "summary": "A train that travels through space must outrun a black hole to deliver a vital cargo."
+  },
+  {
+    "title": "The Enigma of the Sphinx",
+    "author": "Zara Knight",
+    "year": 2019,
+    "genre": "Mystery",
+    "pages": 312,
+    "summary": "An archaeologist deciphers a riddle that leads to a hidden chamber beneath the Sphinx."
+  },
+  {
+    "title": "The Garden of Whispers",
+    "author": "Lily Bloom",
+    "year": 2023,
+    "genre": "Magical Realism",
+    "pages": 287,
+    "summary": "A garden where plants communicate with humans reveals a secret that could heal the world."
+  },
+  {
+    "title": "The Last Lighthouse",
+    "author": "Marina Blue",
+    "year": 2021,
+    "genre": "Literary Fiction",
+    "pages": 265,
+    "summary": "A lighthouse keeper on a remote island reflects on solitude and the changing sea."
+  },
+  {
+    "title": "The Code of the Ancients",
+    "author": "Ethan Stone",
+    "year": 2024,
+    "genre": "Techno-Thriller",
+    "pages": 446,
+    "summary": "A cryptographer decodes an ancient text that contains the blueprint for a dangerous AI."
+  },
+  {
+    "title": "The Shadow of the Wind",
+    "author": "Carlos Ruiz",
+    "year": 2018,
+    "genre": "Literary Fiction",
+    "pages": 398,
+    "summary": "A boy searches for a mysterious book that seems to have a life of its own in Barcelona."
+  },
+  {
+    "title": "The Dragon's Lament",
+    "author": "Wing Fireheart",
+    "year": 2020,
+    "genre": "Epic Fantasy",
+    "pages": 512,
+    "summary": "A dragon cursed to live forever must find a way to break the spell

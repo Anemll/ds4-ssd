@@ -1,0 +1,12 @@
+This is an excellent question that gets at the heart of memory management trade-offs in modern systems. Let me compare these two approaches on macOS.
+
+## Memory-Mapped Weights
+
+**How it works:**
+- The file containing model weights is mapped into the process's virtual address space
+- Pages are loaded on-demand (demand paging) as the model accesses them
+- The OS manages the mapping between virtual and physical memory
+
+**Pros:**
+- **Lower initial memory footprint**: Only the mapping structure is created, not actual memory allocations
+- **Shared memory**: Multiple processes can share the same physical pages (e.g., multiple

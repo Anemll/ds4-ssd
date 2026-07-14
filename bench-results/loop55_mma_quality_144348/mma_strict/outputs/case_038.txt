@@ -1,0 +1,7 @@
+Questa è un'ottima domanda che tocca un aspetto cruciale dell'architettura Mixture of Experts (MoE).
+
+Per capire perché raggruppare gli esperti (expert grouping) accelera il *prefill* (la fase di elaborazione iniziale del prompt), dobbiamo prima capire cosa rende il prefill lento in un MoE standard.
+
+### Il Problema del Prefill in un MoE Standard
+
+In un MoE, ogni token del prompt viene instradato a un sottoinsieme di esperti (tipicamente 1 o 2

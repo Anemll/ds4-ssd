@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/si_html_010_fastrelaxed_static_n4000_025309/out.txt	13172	373	288	7	4	invaderDir:4,winFlag:3,playerX:2,invaders:2,invaderSpeed:2,moveCounter:2,bullets:2,enemyBullets:2,score:2,lives:2,gameOver:2,invaderFrame:2	2	if (b.active):2	3	0	2	5	2	1

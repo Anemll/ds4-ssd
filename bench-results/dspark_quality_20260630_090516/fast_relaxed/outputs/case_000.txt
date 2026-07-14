@@ -1,0 +1,9 @@
+Here is a detailed explanation of B-tree insertion, including node splits and the special case of the root.
+
+### What is a B-tree?
+
+First, let's recall the key properties of a B-tree of order `m` (where `m` is the maximum number of children a node can hold):
+
+1.  **Root:** The root can be a leaf (has 0 children) or have at least 2 children.
+2.  **Internal Nodes:** Every node (except the root) must have at least `ceil(m/2)` children (and therefore `ceil(m/2) - 1` keys).
+3

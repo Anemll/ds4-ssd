@@ -1,0 +1,14 @@
+This is a great question that gets to the heart of how operating systems optimize performance.
+
+A page cache can make a second file read faster because it **avoids slow disk I/O** by reusing data that is already loaded in **fast main memory (RAM)** .
+
+Here is the step-by-step explanation of why this happens.
+
+### The Core Problem: Speed Gap
+
+First, you need to understand the massive speed difference between storage mediums:
+
+- **RAM (Memory):** Extremely fast (nanoseconds to access).
+- **Disk (SSD/HDD):** Comparatively very slow (milliseconds to access).
+
+A single disk

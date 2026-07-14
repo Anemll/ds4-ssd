@@ -1,0 +1,7 @@
+kind,ctx,target_prefix_tokens,decode_target_tokens,generated_tokens,generation_tps,decode_s,prefill_tps,wall_s,returncode,log
+current_monolithic,40000,1024,2000,2000,33.71,59.338,211.91,64.941,0,bench-results/context-decode-dspark/current-monolithic-p1024-d2000-ctx40000.log
+current_monolithic,40000,2048,2000,2000,30.65,65.251,328.81,88.933,0,bench-results/context-decode-dspark/current-monolithic-p2048-d2000-ctx40000.log
+current_monolithic,40000,4096,2000,2000,30.45,65.682,428.65,94.749,0,bench-results/context-decode-dspark/current-monolithic-p4096-d2000-ctx40000.log
+current_monolithic,40000,8192,2000,2000,30.13,66.388,614.11,101.076,0,bench-results/context-decode-dspark/current-monolithic-p8192-d2000-ctx40000.log
+current_monolithic,40000,16384,2000,2000,29.54,67.700,574.46,117.886,0,bench-results/context-decode-dspark/current-monolithic-p16384-d2000-ctx40000.log
+current_monolithic,40000,32768,2000,2000,28.35,70.536,493.46,161.259,0,bench-results/context-decode-dspark/current-monolithic-p32768-d2000-ctx40000.log

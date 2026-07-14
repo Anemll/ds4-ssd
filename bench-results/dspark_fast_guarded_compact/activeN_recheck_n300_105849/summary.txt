@@ -1,0 +1,28 @@
+== verify 2
+ds4: prefill: 5.38 t/s, generation: 33.93 t/s (300 tokens in 8.841s)
+ds4: dspark perf: draft=252.6 tok/s, verify=49.3 proposed tok/s, verify-accepted=42.7 tok/s, block=49.83 ms (draft=7.88 verify=40.42 overhead=1.52 commit=1.04, tau=2.73, blocks=110)
+ds4: dspark verify GPU-busy: 35.71 ms/block of 40.42 ms verify (88.3% active, 11.7% idle)
+ds4: dspark acceptance: 86.8% (190/219 draft tokens)
+ds4: dspark full-accept: 84.5% (93/110 blocks), first-miss: 10.9% (12/110 blocks)
+ds4: dspark avg scheduled: 1.99 draft tokens/block (110 blocks)
+== verify 3
+ds4: prefill: 6.22 t/s, generation: 37.96 t/s (300 tokens in 7.903s)
+ds4: dspark perf: draft=315.1 tok/s, verify=61.8 proposed tok/s, verify-accepted=49.7 tok/s, block=58.52 ms (draft=9.34 verify=47.67 overhead=1.51 commit=1.07, tau=3.37, blocks=89)
+ds4: dspark verify GPU-busy: 42.70 ms/block of 47.67 ms verify (89.6% active, 10.4% idle)
+ds4: dspark acceptance: 80.5% (211/262 draft tokens)
+ds4: dspark full-accept: 74.2% (66/89 blocks), first-miss: 14.6% (13/89 blocks)
+ds4: dspark avg scheduled: 2.94 draft tokens/block (89 blocks)
+== verify 4
+ds4: prefill: 7.97 t/s, generation: 41.74 t/s (300 tokens in 7.187s)
+ds4: dspark perf: draft=358.7 tok/s, verify=63.0 proposed tok/s, verify-accepted=54.9 tok/s, block=74.62 ms (draft=10.86 verify=61.89 overhead=1.86 commit=1.38, tau=4.40, blocks=68)
+ds4: dspark verify GPU-busy: 56.34 ms/block of 61.89 ms verify (91.0% active, 9.0% idle)
+ds4: dspark acceptance: 87.2% (231/265 draft tokens)
+ds4: dspark full-accept: 76.5% (52/68 blocks), first-miss: 7.4% (5/68 blocks)
+ds4: dspark avg scheduled: 3.90 draft tokens/block (68 blocks)
+== verify 5
+ds4: prefill: 7.78 t/s, generation: 42.85 t/s (300 tokens in 7.001s)
+ds4: dspark perf: draft=382.4 tok/s, verify=69.1 proposed tok/s, verify-accepted=56.3 tok/s, block=84.14 ms (draft=12.56 verify=69.55 overhead=2.03 commit=1.58, tau=4.92, blocks=61)
+ds4: dspark verify GPU-busy: 63.66 ms/block of 69.55 ms verify (91.5% active, 8.5% idle)
+ds4: dspark acceptance: 81.6% (239/293 draft tokens)
+ds4: dspark full-accept: 70.5% (43/61 blocks), first-miss: 11.5% (7/61 blocks)
+ds4: dspark avg scheduled: 4.80 draft tokens/block (61 blocks)

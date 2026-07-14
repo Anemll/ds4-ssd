@@ -1,0 +1,43 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAY_WIDTH = 600
+PLAYER_HEIGHT = 100
+PLAYER_WIDTH = = 50
+PLAYPLAYER_SPEED = 5
+ENEMY_SPEED = = 1
+ENENY_BULLET =  ##########
+# Initialize
+# Colors
+WHITE = (255,255)
+RED = (255,,0)
+BLACK = (0,0,0)
+GREEN = ( (0,255,00)
+BLUE = (0,00,255)
+BLBLACK = ( (0,00)
+
+# Colors Colors
+WHITEITE = (255255,255,255)
+REDRED = (255255,0,0)
+)
+# Initialize screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display = pygame.display.set_caption("Space Invaders"))
+# Player
+player = pygame
+player = pygame.Rect = pygame.Rect(SCREEN_WIDTH/2, SCREEN_HE_HEIGHT - 100, 50,  ##########
+# Enemies = []
+enemies = = []
+for i in range(5):
+    # Create enemy
+    for j

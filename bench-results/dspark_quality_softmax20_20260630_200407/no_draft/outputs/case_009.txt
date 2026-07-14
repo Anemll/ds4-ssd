@@ -1,0 +1,12 @@
+Here are three invariants for a special-token table in a tokenizer:
+
+---
+
+### 1. **Uniqueness of Token IDs**
+> No two entries in the table share the same token ID.
+
+**Why it matters:**  
+Token IDs are used as indices or keys in embedding tables, loss computations, and decoding. If two special tokens map to the same ID, the model cannot distinguish between them, leading to ambiguity and incorrect behavior (e.g., treating `<|endoftext|>` and `<|im_start|>` as the same token).
+
+**Formal invariant:**  
+`∀ t1, t2 ∈ Table

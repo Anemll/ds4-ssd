@@ -1,0 +1,11 @@
+This is a great question because it touches on a key architectural innovation that makes modern large language models (like Mixtral or Gemini) so effective.
+
+In a **Mixture-of-Experts (MoE)** layer, the **router** (often called a "gating network" or "router network") plays the role of a **smart dispatcher or traffic controller**.
+
+Its core job is to decide **which expert(s)** to send each input token to, and **how much weight** to give to each expert's output.
+
+Here is the breakdown of its role:
+
+### 1. The Core Function: Sparse Activation
+
+Unlike

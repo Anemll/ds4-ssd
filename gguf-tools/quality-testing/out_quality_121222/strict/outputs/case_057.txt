@@ -1,0 +1,1 @@
+Ti spiego la differenza tra righe KV raw e righe KV compresse nel contesto di **Apache H

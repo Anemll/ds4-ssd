@@ -7495,6 +7495,28 @@ static double now_sec(void) {
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
+/* C99 does not provide <stdatomic.h>, but Clang/GCC's relaxed builtins give
+ * the metrics endpoint coherent individual counters without placing a mutex in
+ * the token-by-token decode path. */
+static uint64_t metrics_load_u64(const uint64_t *value) {
+    return __atomic_load_n(value, __ATOMIC_RELAXED);
+}
+
+static void metrics_add_u64(uint64_t *value, uint64_t amount) {
+    if (amount) __atomic_fetch_add(value, amount, __ATOMIC_RELAXED);
+}
+
+static void metrics_store_u64(uint64_t *value, uint64_t amount) {
+    __atomic_store_n(value, amount, __ATOMIC_RELAXED);
+}
+
+static uint64_t metrics_usec(double seconds) {
+    if (!(seconds > 0.0)) return 0;
+    const double usec = seconds * 1000000.0;
+    if (usec >= (double)UINT64_MAX) return UINT64_MAX;
+    return (uint64_t)(usec + 0.5);
+}
+
 static void server_log(ds4_log_type type, const char *fmt, ...) {
     time_t now = time(NULL);
     struct tm tm;
@@ -7659,6 +7681,56 @@ struct server {
     FILE *trace;
     pthread_mutex_t trace_mu;
     uint64_t trace_seq;
+
+    /* Read-only live telemetry exposed at /metrics.  The cumulative values
+     * use compiler atomics because the HTTP metrics client runs separately
+     * from the single inference worker.  Queue state is protected by mu. */
+    uint64_t metrics_generated_tokens_total;
+    uint64_t metrics_prompt_tokens_total;
+    uint64_t metrics_prefill_chunk_tokens_total;
+    uint64_t metrics_prefill_chunk_usec_total;
+    uint64_t metrics_prefill_chunks_total;
+    uint64_t metrics_requests_total;
+    uint64_t metrics_request_success_total;
+    uint64_t metrics_request_error_total;
+    uint64_t metrics_ttft_usec_sum;
+    uint64_t metrics_ttft_count;
+    uint64_t metrics_itl_usec_sum;
+    uint64_t metrics_itl_count;
+    uint64_t metrics_e2e_usec_sum;
+    uint64_t metrics_e2e_count;
+    /* DSpark draft counters mirror --debug-status.  They are recorded in the
+     * inference worker, not read from the mutable session in HTTP threads. */
+    uint64_t metrics_dspark_draft_enabled;
+    uint64_t metrics_dspark_drafted_tokens_total;
+    uint64_t metrics_dspark_accepted_tokens_total;
+    uint64_t metrics_dspark_blocks_total;
+    uint64_t metrics_dspark_skip_pre_draft_total;
+    uint64_t metrics_dspark_skip_verify_total;
+    uint64_t metrics_dspark_dynamic_verify;
+    uint64_t metrics_dspark_active_verify_budget;
+    /* Last worker-side runtime snapshot.  These are gauges, not lifetime
+     * counters; they make unified-memory pressure visible without exposing
+     * prompts or KV contents. */
+    uint64_t metrics_runtime_status_available;
+    uint64_t metrics_moe_slot_bank;
+    uint64_t metrics_process_resident_bytes;
+    uint64_t metrics_process_phys_footprint_bytes;
+    uint64_t metrics_gpu_footprint_bytes;
+    uint64_t metrics_gpu_compressed_bytes;
+    uint64_t metrics_task_compressed_bytes;
+    uint64_t metrics_system_memory_total_bytes;
+    uint64_t metrics_system_memory_free_bytes;
+    uint64_t metrics_system_memory_active_bytes;
+    uint64_t metrics_system_memory_wired_bytes;
+    uint64_t metrics_system_compressed_bytes;
+    uint64_t metrics_system_compressor_bytes;
+    uint64_t metrics_system_memory_pressure_pct;
+    uint64_t metrics_swap_total_bytes;
+    uint64_t metrics_swap_used_bytes;
+    int metrics_running;
+    int metrics_waiting;
+    const char *metrics_backend;
 };
 
 static ds4_think_mode server_resolve_think_mode(const server *s,
@@ -7684,7 +7756,29 @@ struct job {
     pthread_mutex_t mu;
     pthread_cond_t cv;
     job *next;
+    double enqueued_at;
+    bool metrics_success;
+    bool metrics_first_token_seen;
+    double metrics_last_token_at;
 };
+
+static void metrics_observe_output_token(server *s, job *j, double token_at) {
+    if (!s || !j) return;
+    metrics_add_u64(&s->metrics_generated_tokens_total, 1);
+    if (!j->metrics_first_token_seen) {
+        j->metrics_first_token_seen = true;
+        if (j->enqueued_at > 0.0) {
+            metrics_add_u64(&s->metrics_ttft_usec_sum,
+                            metrics_usec(token_at - j->enqueued_at));
+            metrics_add_u64(&s->metrics_ttft_count, 1);
+        }
+    } else if (j->metrics_last_token_at > 0.0) {
+        metrics_add_u64(&s->metrics_itl_usec_sum,
+                        metrics_usec(token_at - j->metrics_last_token_at));
+        metrics_add_u64(&s->metrics_itl_count, 1);
+    }
+    j->metrics_last_token_at = token_at;
+}
 
 /* =========================================================================
  * Tool Call Text Memory.
@@ -10087,7 +10181,45 @@ typedef struct {
     double last_t;
     int last_current;
     bool seen;
+    int metrics_last_current;
+    int metrics_tokens;
 } server_prefill_progress;
+
+static void metrics_record_prefill_chunk(server *s, int tokens, double seconds) {
+    if (!s || tokens <= 0 || !(seconds > 0.0)) return;
+    metrics_add_u64(&s->metrics_prefill_chunk_tokens_total, (uint64_t)tokens);
+    metrics_add_u64(&s->metrics_prefill_chunk_usec_total, metrics_usec(seconds));
+    metrics_add_u64(&s->metrics_prefill_chunks_total, 1);
+}
+
+static void metrics_observe_prefill_progress(server_prefill_progress *p, int current,
+                                             double now) {
+    if (!p || !p->srv) return;
+    if (p->metrics_last_current < p->cached_tokens) {
+        p->metrics_last_current = p->cached_tokens;
+    }
+    if (current <= p->metrics_last_current) return;
+    const int delta = current - p->metrics_last_current;
+    p->metrics_last_current = current;
+    p->metrics_tokens += delta;
+    metrics_add_u64(&p->srv->metrics_prompt_tokens_total, (uint64_t)delta);
+    const double chunk_start = p->seen ? p->last_t : p->t0;
+    metrics_record_prefill_chunk(p->srv, delta, now - chunk_start);
+}
+
+/* Very short prompts may finish before the backend emits a prefill progress
+ * callback.  Account for that remaining tail once sync succeeds. */
+static void metrics_finish_prefill(server_prefill_progress *p) {
+    if (!p || !p->srv) return;
+    int expected = p->prompt_tokens - p->cached_tokens;
+    if (expected < 0) expected = 0;
+    if (expected <= p->metrics_tokens) return;
+    const int missing = expected - p->metrics_tokens;
+    p->metrics_tokens += missing;
+    metrics_add_u64(&p->srv->metrics_prompt_tokens_total, (uint64_t)missing);
+    const double chunk_start = p->seen ? p->last_t : p->t0;
+    metrics_record_prefill_chunk(p->srv, missing, now_sec() - chunk_start);
+}
 
 static void request_ctx_span(char *buf, size_t len, int cached, int prompt) {
     int suffix = prompt - cached;
@@ -10152,9 +10284,52 @@ static void server_dspark_runtime_delta(ds4_runtime_status *out,
                             before->dspark_perf_total_seconds);
 }
 
-static void server_log_dspark_runtime_status(server *s,
+static void metrics_store_runtime_status(server *s, const ds4_runtime_status *rt) {
+    if (!s || !rt) return;
+    metrics_store_u64(&s->metrics_runtime_status_available,
+                      rt->available ? 1u : 0u);
+    if (!rt->available) return;
+    metrics_store_u64(&s->metrics_dspark_dynamic_verify,
+                      rt->dspark_verify_dynamic ? 1u : 0u);
+    metrics_store_u64(&s->metrics_dspark_active_verify_budget,
+                      rt->dspark_verify_dynamic ?
+                          (uint64_t)rt->dspark_active_verify_budget : 0u);
+    metrics_store_u64(&s->metrics_moe_slot_bank, (uint64_t)rt->moe_slot_bank);
+    metrics_store_u64(&s->metrics_process_resident_bytes, rt->resident_bytes);
+    metrics_store_u64(&s->metrics_process_phys_footprint_bytes,
+                      rt->phys_footprint_bytes);
+    metrics_store_u64(&s->metrics_gpu_footprint_bytes, rt->gpu_footprint_bytes);
+    metrics_store_u64(&s->metrics_gpu_compressed_bytes, rt->gpu_compressed_bytes);
+    metrics_store_u64(&s->metrics_task_compressed_bytes, rt->task_compressed_bytes);
+    metrics_store_u64(&s->metrics_system_memory_total_bytes,
+                      rt->system_memory_total_bytes);
+    metrics_store_u64(&s->metrics_system_memory_free_bytes,
+                      rt->system_memory_free_bytes);
+    metrics_store_u64(&s->metrics_system_memory_active_bytes,
+                      rt->system_memory_active_bytes);
+    metrics_store_u64(&s->metrics_system_memory_wired_bytes,
+                      rt->system_memory_wired_bytes);
+    metrics_store_u64(&s->metrics_system_compressed_bytes,
+                      rt->system_compressed_bytes);
+    metrics_store_u64(&s->metrics_system_compressor_bytes,
+                      rt->system_compressor_bytes);
+    metrics_store_u64(&s->metrics_system_memory_pressure_pct,
+                      (uint64_t)rt->system_memory_pressure_pct);
+    metrics_store_u64(&s->metrics_swap_total_bytes, rt->swap_total_bytes);
+    metrics_store_u64(&s->metrics_swap_used_bytes, rt->swap_used_bytes);
+}
+
+static void metrics_capture_runtime_status(server *s) {
+    if (!s || !s->session) return;
+    ds4_runtime_status rt;
+    memset(&rt, 0, sizeof(rt));
+    (void)ds4_session_runtime_status(s->session, &rt);
+    metrics_store_runtime_status(s, &rt);
+}
+
+static void server_log_dspark_runtime_status(const ds4_runtime_status *after,
                                              const ds4_runtime_status *base) {
-    if (!s || !s->session || !base) return;
+    if (!after || !base) return;
     if (!getenv("DS4_DSPARK_PERF") &&
         !getenv("DS4_DSPARK_BLOCK_TIMING") &&
         !getenv("DS4_DSPARK_TIMING") &&
@@ -10162,11 +10337,8 @@ static void server_log_dspark_runtime_status(server *s,
         return;
     }
 
-    ds4_runtime_status after;
-    memset(&after, 0, sizeof(after));
-    if (ds4_session_runtime_status(s->session, &after) == 0 || !after.available) return;
     ds4_runtime_status rt;
-    server_dspark_runtime_delta(&rt, &after, base);
+    server_dspark_runtime_delta(&rt, after, base);
     if (rt.dspark_perf_drafted_tokens == 0 || rt.dspark_perf_blocks == 0) return;
 
     const double draft_tps = rt.dspark_perf_draft_seconds > 0.0 ?
@@ -10253,6 +10425,10 @@ static void log_decode_progress(server *s, req_kind kind, int prompt_tokens, int
                                 bool dsml_start, bool dsml_end,
                                 double decode_t0,
                                 double *last_t, int *last_completion) {
+    /* This runs in the inference worker at a coarse decode cadence, so the
+     * dashboard gets a fresh runtime-memory snapshot without HTTP threads
+     * touching mutable session state. */
+    metrics_capture_runtime_status(s);
     const double now = now_sec();
     const double elapsed = now - decode_t0;
     const double interval_s = now - *last_t;
@@ -10359,6 +10535,7 @@ static void server_progress_cb(void *ud, const char *event, int current, int tot
     if (!p || !event || strcmp(event, "prefill_chunk")) return;
 
     double now = now_sec();
+    metrics_observe_prefill_progress(p, current, now);
     double elapsed = now - p->t0;
     if (p->seen && current == p->last_current) {
         if (p->srv && current > p->cached_tokens) {
@@ -10595,10 +10772,12 @@ static void canonicalize_tool_checkpoint(server *s, const job *j, const char *ct
             .phase = "tool checkpoint rebuild",
             .has_tools = j->req.has_tools,
             .t0 = rebuild_t0,
+            .metrics_last_current = loaded,
         };
         snprintf(rebuild_progress.ctx, sizeof(rebuild_progress.ctx), "%s", rebuild_ctx);
         ds4_session_set_progress(s->session, server_progress_cb, &rebuild_progress);
         if (ds4_session_sync(s->session, sync_prompt, sync_err, sizeof(sync_err)) == 0) {
+            metrics_finish_prefill(&rebuild_progress);
             ds4_session_set_progress(s->session, NULL, NULL);
             const double rebuild_sec = now_sec() - rebuild_t0;
             if (loaded > 0) {
@@ -10662,6 +10841,9 @@ static bool should_canonicalize_tool_checkpoint(const server *s, const tool_call
  * immediately continue to the real prompt.  The live graph therefore always
  * moves forward. */
 static void generate_job(server *s, job *j) {
+    j->metrics_success = false;
+    j->metrics_first_token_seen = false;
+    j->metrics_last_token_at = 0.0;
     char err[160];
     err[0] = '\0';
     const int old_pos = ds4_session_pos(s->session);
@@ -10814,6 +10996,7 @@ static void generate_job(server *s, job *j) {
         .has_tools = j->req.has_tools,
         .responses_protocol = responses_protocol,
         .t0 = t0,
+        .metrics_last_current = cached,
     };
     snprintf(progress.ctx, sizeof(progress.ctx), "%s", ctx_span);
     char req_flags[64];
@@ -10924,6 +11107,7 @@ static void generate_job(server *s, job *j) {
         http_error(j->fd, s->enable_cors, 500, err);
         return;
     }
+    metrics_finish_prefill(&progress);
     /* Once a non-live request wins, old protocol live bindings are stale. Keep
      * a binding only when this request explicitly continued from it. */
     if (!responses_live_continuation) responses_live_clear(s);
@@ -11034,6 +11218,7 @@ static void generate_job(server *s, job *j) {
     const bool dspark_rt_base_ok =
         ds4_session_runtime_status(s->session, &dspark_rt_base) != 0 &&
         dspark_rt_base.available;
+    if (dspark_rt_base_ok) metrics_store_runtime_status(s, &dspark_rt_base);
     thinking_state thinking = thinking_state_from_prompt(&j->req);
     const bool thinking_gates_tool_markers = ds4_think_mode_enabled(j->req.think_mode);
     bool tool_scan_waiting_for_think_close =
@@ -11096,25 +11281,52 @@ static void generate_job(server *s, job *j) {
                 finish = "error";
                 break;
             }
-            int accepted_drafts = accepted_draft_count >= 0 ?
-                accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
-            if (accepted_drafts < 0) accepted_drafts = 0;
-            draft_slots += (uint64_t)drafted;
-            if (drafted > 0) {
-                draft_blocks++;
-                const int pos_cap = drafted < 16 ? drafted : 16;
-                for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
-                if (accepted_drafts > drafted) accepted_drafts = drafted;
-                const int accepted_cap_pos =
-                    accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
-                for (int i = 0; i < pos_cap; i++) {
-                    if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+            /* Keep the server's live counters aligned with --debug-status:
+             * -2 means a post-draft rate gate skipped verification, whereas
+             * drafted==0 is a pre-draft skip.  Neither is a first miss. */
+            if (accepted_draft_count == -2) {
+                if (drafted > 0) {
+                    draft_slots += (uint64_t)drafted;
+                    if (dspark_draft_enabled) {
+                        metrics_add_u64(&s->metrics_dspark_drafted_tokens_total,
+                                        (uint64_t)drafted);
+                    }
                 }
-                for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
-                if (accepted_drafts == drafted) draft_full_accept_blocks++;
-                if (accepted_drafts == 0) draft_first_miss_blocks++;
+                if (max_tokens - completion > 1 && dspark_draft_enabled) {
+                    metrics_add_u64(&s->metrics_dspark_skip_verify_total, 1);
+                }
+            } else {
+                int accepted_drafts = accepted_draft_count >= 0 ?
+                    accepted_draft_count : (ntok > 1 ? ntok - 1 : 0);
+                if (accepted_drafts < 0) accepted_drafts = 0;
+                draft_slots += (uint64_t)drafted;
+                if (dspark_draft_enabled) {
+                    metrics_add_u64(&s->metrics_dspark_drafted_tokens_total,
+                                    (uint64_t)drafted);
+                }
+                if (drafted > 0) {
+                    draft_blocks++;
+                    const int pos_cap = drafted < 16 ? drafted : 16;
+                    for (int i = 0; i < pos_cap; i++) draft_pos_slots[i]++;
+                    if (accepted_drafts > drafted) accepted_drafts = drafted;
+                    const int accepted_cap_pos =
+                        accepted_drafts < pos_cap ? accepted_drafts : pos_cap;
+                    for (int i = 0; i < pos_cap; i++) {
+                        if (i == 0 || accepted_drafts >= i) draft_pos_cond_slots[i]++;
+                    }
+                    for (int i = 0; i < accepted_cap_pos; i++) draft_pos_accepted[i]++;
+                    if (accepted_drafts == drafted) draft_full_accept_blocks++;
+                    if (accepted_drafts == 0) draft_first_miss_blocks++;
+                    if (dspark_draft_enabled) {
+                        metrics_add_u64(&s->metrics_dspark_blocks_total, 1);
+                        metrics_add_u64(&s->metrics_dspark_accepted_tokens_total,
+                                        (uint64_t)accepted_drafts);
+                    }
+                } else if (max_tokens - completion > 1 && dspark_draft_enabled) {
+                    metrics_add_u64(&s->metrics_dspark_skip_pre_draft_total, 1);
+                }
+                if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
             }
-            if (accepted_drafts > 0) draft_accepted += (uint64_t)accepted_drafts;
         } else {
             if (ds4_session_eval(s->session, token, err, sizeof(err)) != 0) {
                 finish = "error";
@@ -11136,6 +11348,7 @@ static void generate_job(server *s, job *j) {
             size_t piece_len = 0;
             char *piece = ds4_token_text(s->engine, token, &piece_len);
             completion++;
+            metrics_observe_output_token(s, j, now_sec());
 
             trace_piece(s, trace_id, piece, piece_len);
             buf_append(&text, piece, piece_len);
@@ -11312,7 +11525,13 @@ static void generate_job(server *s, job *j) {
                             &last_decode_log_completion);
     }
     if (dspark_rt_base_ok) {
-        server_log_dspark_runtime_status(s, &dspark_rt_base);
+        ds4_runtime_status dspark_rt_after;
+        memset(&dspark_rt_after, 0, sizeof(dspark_rt_after));
+        if (ds4_session_runtime_status(s->session, &dspark_rt_after) != 0 &&
+            dspark_rt_after.available) {
+            metrics_store_runtime_status(s, &dspark_rt_after);
+            server_log_dspark_runtime_status(&dspark_rt_after, &dspark_rt_base);
+        }
     }
     if (draft_slots > 0) {
         const char *draft_label =
@@ -11580,6 +11799,7 @@ static void generate_job(server *s, job *j) {
                        &parsed_calls, final_finish,
                        prompt_tokens, completion);
     }
+    j->metrics_success = strcmp(final_finish, "error") != 0;
     if (j->req.kind == REQ_CHAT && j->req.has_tools) {
         char flags[80];
         log_flags(flags, sizeof(flags),
@@ -11657,6 +11877,8 @@ static bool enqueue(server *s, job *j) {
     }
     if (s->tail) s->tail->next = j; else s->head = j;
     s->tail = j;
+    s->metrics_waiting++;
+    metrics_add_u64(&s->metrics_requests_total, 1);
     pthread_cond_signal(&s->cv);
     pthread_mutex_unlock(&s->mu);
     return true;
@@ -11672,6 +11894,8 @@ static job *dequeue(server *s) {
     job *j = s->head;
     s->head = j->next;
     if (!s->head) s->tail = NULL;
+    if (s->metrics_waiting > 0) s->metrics_waiting--;
+    s->metrics_running++;
     pthread_mutex_unlock(&s->mu);
     j->next = NULL;
     return j;
@@ -11683,6 +11907,19 @@ static void *worker_main(void *arg) {
         job *j = dequeue(s);
         if (!j) break;
         generate_job(s, j);
+        pthread_mutex_lock(&s->mu);
+        if (s->metrics_running > 0) s->metrics_running--;
+        pthread_mutex_unlock(&s->mu);
+        if (j->metrics_success) {
+            metrics_add_u64(&s->metrics_request_success_total, 1);
+            if (j->enqueued_at > 0.0) {
+                metrics_add_u64(&s->metrics_e2e_usec_sum,
+                                metrics_usec(now_sec() - j->enqueued_at));
+                metrics_add_u64(&s->metrics_e2e_count, 1);
+            }
+        } else {
+            metrics_add_u64(&s->metrics_request_error_total, 1);
+        }
         pthread_mutex_lock(&j->mu);
         j->done = true;
         pthread_cond_signal(&j->cv);
@@ -11836,6 +12073,218 @@ static bool send_models(server *s, int fd) {
     return ok;
 }
 
+/* Prometheus text exposition for the local dashboard and other read-only
+ * observers.  This intentionally exposes counts and scheduler state only;
+ * prompts, generated text, and KV contents never leave the worker. */
+static bool send_metrics(server *s, int fd) {
+    int running = 0;
+    int waiting = 0;
+    pthread_mutex_lock(&s->mu);
+    running = s->metrics_running;
+    waiting = s->metrics_waiting;
+    pthread_mutex_unlock(&s->mu);
+
+    const double ttft_sum = (double)metrics_load_u64(&s->metrics_ttft_usec_sum) / 1000000.0;
+    const double itl_sum = (double)metrics_load_u64(&s->metrics_itl_usec_sum) / 1000000.0;
+    const double e2e_sum = (double)metrics_load_u64(&s->metrics_e2e_usec_sum) / 1000000.0;
+    buf b = {0};
+    buf_puts(&b,
+        "# HELP ds4_generation_tokens_total Output tokens produced by ds4-server.\n"
+        "# TYPE ds4_generation_tokens_total counter\n");
+    buf_printf(&b, "ds4_generation_tokens_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_generated_tokens_total));
+    buf_puts(&b,
+        "# HELP ds4_prompt_tokens_total Non-cached prompt tokens evaluated by ds4-server.\n"
+        "# TYPE ds4_prompt_tokens_total counter\n");
+    buf_printf(&b, "ds4_prompt_tokens_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_prompt_tokens_total));
+    buf_puts(&b,
+        "# HELP ds4_prefill_chunk_tokens_total Tokens in completed prefill chunks.\n"
+        "# TYPE ds4_prefill_chunk_tokens_total counter\n");
+    buf_printf(&b, "ds4_prefill_chunk_tokens_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_prefill_chunk_tokens_total));
+    buf_puts(&b,
+        "# HELP ds4_prefill_chunk_seconds_total Wall time spent in completed prefill chunks.\n"
+        "# TYPE ds4_prefill_chunk_seconds_total counter\n");
+    buf_printf(&b, "ds4_prefill_chunk_seconds_total %.6f\n",
+               (double)metrics_load_u64(&s->metrics_prefill_chunk_usec_total) / 1000000.0);
+    buf_puts(&b,
+        "# HELP ds4_prefill_chunks_total Completed prefill chunks.\n"
+        "# TYPE ds4_prefill_chunks_total counter\n");
+    buf_printf(&b, "ds4_prefill_chunks_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_prefill_chunks_total));
+    buf_puts(&b,
+        "# HELP ds4_requests_total Requests accepted by the inference queue.\n"
+        "# TYPE ds4_requests_total counter\n");
+    buf_printf(&b, "ds4_requests_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_requests_total));
+    buf_puts(&b,
+        "# HELP ds4_request_success_total Requests that completed without an inference error.\n"
+        "# TYPE ds4_request_success_total counter\n");
+    buf_printf(&b, "ds4_request_success_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_request_success_total));
+    buf_puts(&b,
+        "# HELP ds4_request_error_total Requests that ended with an inference or stream error.\n"
+        "# TYPE ds4_request_error_total counter\n");
+    buf_printf(&b, "ds4_request_error_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_request_error_total));
+    buf_puts(&b,
+        "# HELP ds4_time_to_first_token_seconds Time from queue admission to first output token.\n"
+        "# TYPE ds4_time_to_first_token_seconds summary\n");
+    buf_printf(&b, "ds4_time_to_first_token_seconds_sum %.6f\n", ttft_sum);
+    buf_printf(&b, "ds4_time_to_first_token_seconds_count %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_ttft_count));
+    buf_puts(&b,
+        "# HELP ds4_inter_token_latency_seconds Output-token interval measured by ds4-server.\n"
+        "# TYPE ds4_inter_token_latency_seconds summary\n");
+    buf_printf(&b, "ds4_inter_token_latency_seconds_sum %.6f\n", itl_sum);
+    buf_printf(&b, "ds4_inter_token_latency_seconds_count %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_itl_count));
+    buf_puts(&b,
+        "# HELP ds4_e2e_request_latency_seconds Time from queue admission to successful completion.\n"
+        "# TYPE ds4_e2e_request_latency_seconds summary\n");
+    buf_printf(&b, "ds4_e2e_request_latency_seconds_sum %.6f\n", e2e_sum);
+    buf_printf(&b, "ds4_e2e_request_latency_seconds_count %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_e2e_count));
+    buf_puts(&b,
+        "# HELP ds4_num_requests_running Requests currently owned by the single inference worker.\n"
+        "# TYPE ds4_num_requests_running gauge\n");
+    buf_printf(&b, "ds4_num_requests_running %d\n", running);
+    buf_puts(&b,
+        "# HELP ds4_num_requests_waiting Requests queued behind the inference worker.\n"
+        "# TYPE ds4_num_requests_waiting gauge\n");
+    buf_printf(&b, "ds4_num_requests_waiting %d\n", waiting);
+    buf_puts(&b,
+        "# HELP ds4_dspark_draft_enabled Whether a DSpark draft package is loaded.\n"
+        "# TYPE ds4_dspark_draft_enabled gauge\n");
+    buf_printf(&b, "ds4_dspark_draft_enabled %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_draft_enabled));
+    buf_puts(&b,
+        "# HELP ds4_dspark_drafted_tokens_total Draft tokens proposed by DSpark.\n"
+        "# TYPE ds4_dspark_drafted_tokens_total counter\n");
+    buf_printf(&b, "ds4_dspark_drafted_tokens_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_drafted_tokens_total));
+    buf_puts(&b,
+        "# HELP ds4_dspark_accepted_tokens_total DSpark draft tokens accepted by verification.\n"
+        "# TYPE ds4_dspark_accepted_tokens_total counter\n");
+    buf_printf(&b, "ds4_dspark_accepted_tokens_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_accepted_tokens_total));
+    buf_puts(&b,
+        "# HELP ds4_dspark_blocks_total DSpark blocks that reached verification.\n"
+        "# TYPE ds4_dspark_blocks_total counter\n");
+    buf_printf(&b, "ds4_dspark_blocks_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_blocks_total));
+    buf_puts(&b,
+        "# HELP ds4_dspark_skip_pre_draft_total DSpark blocks skipped before drafting.\n"
+        "# TYPE ds4_dspark_skip_pre_draft_total counter\n");
+    buf_printf(&b, "ds4_dspark_skip_pre_draft_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_skip_pre_draft_total));
+    buf_puts(&b,
+        "# HELP ds4_dspark_skip_verify_total DSpark drafted blocks skipped by a post-draft gate.\n"
+        "# TYPE ds4_dspark_skip_verify_total counter\n");
+    buf_printf(&b, "ds4_dspark_skip_verify_total %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_skip_verify_total));
+    buf_puts(&b,
+        "# HELP ds4_dspark_dynamic_verify Whether DSpark uses dynamic verification.\n"
+        "# TYPE ds4_dspark_dynamic_verify gauge\n");
+    buf_printf(&b, "ds4_dspark_dynamic_verify %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_dynamic_verify));
+    buf_puts(&b,
+        "# HELP ds4_dspark_active_verify_budget Current dynamic DSpark verification budget.\n"
+        "# TYPE ds4_dspark_active_verify_budget gauge\n");
+    buf_printf(&b, "ds4_dspark_active_verify_budget %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_dspark_active_verify_budget));
+    buf_puts(&b,
+        "# HELP ds4_runtime_status_available Whether the most recent worker-side runtime snapshot is available.\n"
+        "# TYPE ds4_runtime_status_available gauge\n");
+    buf_printf(&b, "ds4_runtime_status_available %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_runtime_status_available));
+    buf_puts(&b,
+        "# HELP ds4_moe_slot_bank Current Flash-MoE slot-bank size.\n"
+        "# TYPE ds4_moe_slot_bank gauge\n");
+    buf_printf(&b, "ds4_moe_slot_bank %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_moe_slot_bank));
+    buf_puts(&b,
+        "# HELP ds4_memory_process_resident_bytes Process resident memory from the worker snapshot.\n"
+        "# TYPE ds4_memory_process_resident_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_process_resident_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_process_resident_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_process_phys_footprint_bytes Process physical footprint from the worker snapshot.\n"
+        "# TYPE ds4_memory_process_phys_footprint_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_process_phys_footprint_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_process_phys_footprint_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_gpu_footprint_bytes Unified-memory GPU footprint from the worker snapshot.\n"
+        "# TYPE ds4_memory_gpu_footprint_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_gpu_footprint_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_gpu_footprint_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_gpu_compressed_bytes Compressed GPU footprint from the worker snapshot.\n"
+        "# TYPE ds4_memory_gpu_compressed_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_gpu_compressed_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_gpu_compressed_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_task_compressed_bytes Compressed memory charged to the process.\n"
+        "# TYPE ds4_memory_task_compressed_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_task_compressed_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_task_compressed_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_total_bytes Total system memory from the worker snapshot.\n"
+        "# TYPE ds4_memory_system_total_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_total_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_memory_total_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_free_bytes Free system memory from the worker snapshot.\n"
+        "# TYPE ds4_memory_system_free_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_free_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_memory_free_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_active_bytes Active system memory from the worker snapshot.\n"
+        "# TYPE ds4_memory_system_active_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_active_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_memory_active_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_wired_bytes Wired system memory from the worker snapshot.\n"
+        "# TYPE ds4_memory_system_wired_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_wired_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_memory_wired_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_compressed_bytes Logical compressed system memory.\n"
+        "# TYPE ds4_memory_system_compressed_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_compressed_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_compressed_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_compressor_bytes Compressor memory footprint.\n"
+        "# TYPE ds4_memory_system_compressor_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_system_compressor_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_compressor_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_system_pressure_percent System memory pressure from the worker snapshot.\n"
+        "# TYPE ds4_memory_system_pressure_percent gauge\n");
+    buf_printf(&b, "ds4_memory_system_pressure_percent %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_system_memory_pressure_pct));
+    buf_puts(&b,
+        "# HELP ds4_memory_swap_total_bytes Total system swap.\n"
+        "# TYPE ds4_memory_swap_total_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_swap_total_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_swap_total_bytes));
+    buf_puts(&b,
+        "# HELP ds4_memory_swap_used_bytes Used system swap.\n"
+        "# TYPE ds4_memory_swap_used_bytes gauge\n");
+    buf_printf(&b, "ds4_memory_swap_used_bytes %llu\n",
+               (unsigned long long)metrics_load_u64(&s->metrics_swap_used_bytes));
+    buf_puts(&b,
+        "# HELP ds4_server_info Static ds4-server identity.\n"
+        "# TYPE ds4_server_info gauge\n");
+    buf_printf(&b, "ds4_server_info{model_name=\"deepseek-v4-flash\",backend=\"%s\"} 1\n",
+               s->metrics_backend ? s->metrics_backend : "unknown");
+    bool ok = http_response(fd, s->enable_cors, 200,
+                            "text/plain; version=0.0.4; charset=utf-8", b.ptr);
+    buf_free(&b);
+    return ok;
+}
+
 static void client_done(server *s) {
     pthread_mutex_lock(&s->mu);
     if (s->clients > 0) s->clients--;
@@ -11863,6 +12312,11 @@ static void *client_main(void *arg) {
         goto done;
     }
 
+    if (!strcmp(hr.method, "GET") && !strcmp(hr.path, "/metrics")) {
+        send_metrics(s, fd);
+        http_request_free(&hr);
+        goto done;
+    }
     if (!strcmp(hr.method, "GET") && !strcmp(hr.path, "/v1/models")) {
         send_models(s, fd);
         http_request_free(&hr);
@@ -11912,6 +12366,7 @@ static void *client_main(void *arg) {
     memset(&j, 0, sizeof(j));
     j.fd = fd;
     j.req = req;
+    j.enqueued_at = now_sec();
     pthread_mutex_init(&j.mu, NULL);
     pthread_cond_init(&j.cv, NULL);
 
@@ -12563,6 +13018,9 @@ int main(int argc, char **argv) {
     s.disable_exact_dsml_tool_replay = cfg.disable_exact_dsml_tool_replay;
     s.tool_mem.max_entries = cfg.tool_memory_max_ids;
     s.enable_cors = cfg.enable_cors;
+    s.metrics_backend = ds4_backend_name(cfg.engine.backend);
+    s.metrics_dspark_draft_enabled =
+        ds4_engine_dspark_draft_tokens(engine) > 0 ? 1u : 0u;
     s.force_no_think = cfg.force_no_think;
     if (s.force_no_think) {
         server_log(DS4_LOG_DEFAULT,

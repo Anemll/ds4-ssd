@@ -1,0 +1,12 @@
+This is a great question because these two terms are often confused, but they measure very different things. The best way to understand them is with an analogy.
+
+### The Highway Analogy
+
+Think of a system (like a computer, a network, or a database) as a highway connecting two cities.
+
+- **Latency** is the **time** it takes for a single car to drive from point A to point B. It's about **speed**.
+- **Throughput** is the **number of cars** that can arrive at point B per hour. It's about **capacity**.
+
+---
+
+### 1. Latency (The

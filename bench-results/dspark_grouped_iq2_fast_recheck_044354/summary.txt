@@ -1,0 +1,25 @@
+== control
+status=0
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+96:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+105:ds4: prefill: 7.14 t/s, generation: 55.23 t/s (300 tokens in 5.432s)
+106:ds4: dspark perf: draft=467.3 tok/s, verify=73.6 proposed tok/s, verify-accepted=66.2 tok/s, block=80.53 ms (draft=10.67 verify=67.75 overhead=2.11 commit=1.69, tau=4.48, blocks=66)
+108:ds4: dspark draft-overlap upper-bound: 64.2 tok/s (1.15x block decode, hides 10.67 ms/block)
+110:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+113:ds4: dspark full-accept: 90.3% (56/62 blocks), first-miss: 0.0% (0/62 blocks)
+114:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+== grouped_iq2
+status=0
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+96:ds4: dspark row-routed grouped exact IQ2 gate/up+SwiGLU enabled
+97:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+98:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+107:ds4: prefill: 6.77 t/s, generation: 45.73 t/s (300 tokens in 6.561s)
+108:ds4: dspark perf: draft=463.6 tok/s, verify=58.8 proposed tok/s, verify-accepted=52.9 tok/s, block=97.59 ms (draft=10.75 verify=84.72 overhead=2.11 commit=1.69, tau=4.48, blocks=66)
+110:ds4: dspark draft-overlap upper-bound: 51.6 tok/s (1.12x block decode, hides 10.75 ms/block)
+112:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+115:ds4: dspark full-accept: 90.3% (56/62 blocks), first-miss: 0.0% (0/62 blocks)
+116:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+RUN=dspark_grouped_iq2_fast_recheck_044354 DIR=bench-results/dspark_grouped_iq2_fast_recheck_044354

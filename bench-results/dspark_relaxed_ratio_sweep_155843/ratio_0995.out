@@ -1,0 +1,41 @@
+This is a self-contained HTML file that recreates the classic 1978 Space Invaders arcade experience. It includes the original sprite designs, rules, and mechanics in a single file.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders · 1978 Taito Cabinet</title>
+  <style>
+    /* === CRT + cabinet styling === */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      margin: 0;
+      padding: 16px;
+    }
+    .cabinet {
+      background: #0b0b1a;
+      border-radius: 28px 28px 12px 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 0 0 2px #3a2a1a;
+      padding: 20px 20px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 4px solid #4a3a2a;
+    }
+    .crt {
+      background: #0a0a0a;
+      border-radius: 18px;
+      padding: 12px 12px 10px;
+      box-shadow: inset 0 0 20px #1a1a1a, 0 0 0 2px #2e2e2e;
+      border:

@@ -1,0 +1,8 @@
+**Great question!** The reason tokenizers treat special tags carefully comes down to **preserving meaning, structure, and functionality** in text processing.
+
+Here’s why special tags (like `<s>`, `</s>`, `[CLS]`, `[SEP]`, `<|user|>`, `<|assistant|>`, etc.) require special handling:
+
+### 1. They carry structural meaning, not just lexical meaning
+Special tags often serve as **markers** for the model:
+- **Start/End of sequence** (e.g., `<s>`, `</s>`)
+- **

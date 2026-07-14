@@ -1,0 +1,125 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 10
+PLAYER_HEIGHT = 10
+INVADER_WIDTH = 20
+INVADER_HEIGHT = 20
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+PLAYER_SPEED = 5
+BULLET_SPEED = 10
+INVADER_SPEED = 2
+INVADER_DROP = 20
+INVADER_FULL = 10
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.reset_game()
+    
+    def reset(self):
+        self.player_x = SCREEN_WIDTH // 2
+        self.player_y = SCREEN_HEIGHT - 50
+        self.bullets = []
+        self.invaders = []
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.win = False
+        
+        # Create invaders
+        for i in range(INVADER_FULL):
+            for _ in range(5):
+                x = random.randint(50, 750)
+                y = random.randint(0, 200)
+                self.invaders.append((x, y), x, y)
+    
+    def handle_game(self):
+        # Handle pygame
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.game_over()
+        
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                self.player_x -= 10
+            elif event.key == pygame.K_RIGHT:
+                self.player_x += 10
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_LEFT:
+                self.player_x -= 5
+            elif event.key == pygame.K_RIGHT:
+                self.player_x += 5
+        
+        # Move player
+        if self.player_x <= 0:
+            self.player_x = 0
+        if self.player_x >= SCREEN_WIDTH - PLAYER_WIDTH:
+            self.player_x = SCREEN_WIDTH - PLAYER_WIDTH
+        
+        # Move bullets
+        for bullet in self.bullets:
+            bullet[1] -= BULLET_SPEED
+            if bullet[1] <= 0:
+                self.bullets.remove(bullet)
+        
+        # Move invaders
+        for invader in self.invaders:
+            invader[0] += 2
+            if invader[0] >= 0:
+                invader[0] = 0
+            if invader[0] >= SCREEN_WIDTH - INVADER_WIDTH:
+                invader = 0
+        
+        # Check for collisions
+        for _ in range(self.invaders):
+            for bullet in self.bullets:
+                if bullet[0] >= self[0] and bullet[0] <= self[0] + INVAD_WIDTH and bullet[1] >= self[1] and bullet[1] <= self[1] + INVAD_HEIGHT:
+                    self.invaders.remove(bul)
+                    self.score += 10
+                    # Remove sound
+                    pass
+        
+        # Check for game over
+        if len(self.invaders) == 0:
+            self.win = True
+            self.game_over = True
+        
+        # Draw
+        self.screen.fill(BLACK)
+        
+        # Player
+        pygame.draw.rect(self.screen, GREEN, (self.player.x, self.player_y, PLAYER_WIDTH, PLAYER_HEIGHT))
+        
+        # Bullets
+        for bullet in self.bullets:
+            pygame.draw.rect(self.screen, RED, (bullet[0], bullet[1], PLAYER_WIDTH, PLAYER_HEIGHT))
+        
+        # Invaders
+        for inv in self.invaders:
+            pygame.draw.rect(self.screen, WH

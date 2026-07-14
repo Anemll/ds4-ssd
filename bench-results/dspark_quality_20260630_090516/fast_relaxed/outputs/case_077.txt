@@ -1,0 +1,9 @@
+Questa è una domanda molto interessante e tocca un aspetto fondamentale della memoria virtuale.
+
+La differenza tra la dimensione virtuale (virtual size) e la residenza (resident size) di una pagina `mmap` è la norma, non un'eccezione. È il comportamento previsto e voluto del sistema di memoria virtuale.
+
+Ecco perché la dimensione virtuale può differire dalla dimensione residente:
+
+### 1. Il Principio del "Lazy Allocation" (Allocazione Pigra)
+
+Il sistema operativo non carica in memoria fisica (RAM) una pagina di memoria

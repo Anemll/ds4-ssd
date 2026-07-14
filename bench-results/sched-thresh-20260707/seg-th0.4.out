@@ -1,0 +1,292 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade experience of Space Invaders, with inline CSS and JS.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 ARCADE</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            image-rendering: pixelated;
+        }
+        .cabinet {
+            background: #111;
+            border: 6px solid #444;
+            border-radius: 20px 20px 10px 10px;
+            box-shadow: 0 0 30px rgba(0,255,0,0.2), inset 0 0 20px #000;
+            padding: 20px 20px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .bezel {
+            background: #000;
+            border: 3px solid #333;
+            border-radius: 12px;
+            padding: 12px 10px 10px;
+            margin-bottom: 8px;
+        }
+        canvas {
+            display: block;
+            background: #000;
+            width: 600px;
+            height: 600px;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            border: 2px solid #3a3a3a;
+            box-shadow: 0 0 0 2px #222, inset 0 0 20px #0f0f0f;
+            margin: 0 auto;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 18px;
+            color: #aaa;
+            font-size: 1.1rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 6px #0f0;
+        }
+        .controls span {
+            background: #1a1a1a;
+            padding: 6px 20px;
+            border-radius: 20px;
+            border: 2px solid #3a3a3a;
+            color: #ddd;
+        }
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 6px 20px;
+            background: #0a0a0a;
+            border-bottom: 2px solid #2a2a2a;
+            margin-bottom: 6px;
+            color: #e0e0e0;
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-shadow: 0 0 8px #0f0;
+        }
+        .scoreboard span {
+            background: #000;
+            padding: 0 10px;
+        }
+        .invader-credit {
+            color: #666;
+            font-size: 0.8rem;
+            margin-top: 8px;
+            letter-spacing: 2px;
+        }
+        button {
+            background: #222;
+            border: 2px solid #5a5a5a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            padding: 6px 24px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.1s;
+            margin-top: 6px;
+        }
+        button:hover {
+            background: #3a3a3a;
+            border-color: #8f8;
+        }
+        .blink {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="bezel">
+        <div class="scoreboard">
+            <span>SCORE</span>
+            <span id="scoreDisplay">0000</span>
+        </div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div class="controls">
+            <span>← →</span>
+            <span>FIRE</span>
+            <span>⏎ RESTART</span>
+        </div>
+        <button id="restartButton">↻ RESTART</button>
+        <div class="invader-credit">© 1978 TAITO · INVADERS</div>
+    </div>
+</div>
+<script>
+    (function() {
+        // ---------- ARCADE FIDELITY ----------
+        // Original 1978 rules: 5 rows of 11 invaders, 2 bunkers, 
+        // player moves left/right, fires one bullet at a time.
+        // Invaders move left/right, descend when hitting edge.
+        // Mystery score at top, player loses life if hit or invader reaches bottom.
+        // No "super" weapons, no fancy powerups. Pure vintage.
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+
+        // ----- GAME PARAMETERS (faithful) -----
+        const ROWS = 5;
+        const COLS = 11;
+        const INVADER_WIDTH = 28;
+        const INVADER_HEIGHT = 24;
+        const PLAYER_WIDTH = 28;
+        const PLAYER_HEIGHT = 20;
+        const BUNKER_COUNT = 2;
+        const BUNKER_WIDTH = 70;
+        const BUNKER_HEIGHT = 40;
+
+        // game state
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let win = false;
+        let frame = 0;
+
+        // invaders array
+        let invaders = [];
+        let invaderDirection = 1; // 1 = right, -1 = left
+        let invaderSpeed = 0.6; // base speed
+        let invaderMoveCounter = 0;
+        let invaderBottomReach = false;
+
+        // player
+        let playerX = 300 - PLAYER_WIDTH/2;
+        const playerY = 560;
+        let playerBullet = null; // {x, y, active}
+        let playerAlive = true;
+
+        // bunkers (2 bunkers, destructible)
+        let bunkers = [];
+
+        // mystery score (moving target)
+        let mystery = { x: 0, y: 40, active: false, value: 100, timer: 0 };
+
+        // animation
+        let invaderFrame = 0;
+        let invaderAnim = 0;
+
+        // ----- INITIALIZATION -----
+        function initGame() {
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            win = false;
+            frame = 0;
+            invaderDirection = 1;
+            invaderSpeed = 0.6;
+            invaderMoveCounter = 0;
+            invaderBottomReach = false;
+            playerAlive = true;
+            playerBullet = null;
+            playerX = 300 - PLAYER_WIDTH/2;
+
+            // create invaders (5 rows, 11 cols)
+            invaders = [];
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    invaders.push({
+                        x: 60 + col * 40,
+                        y: 50 + row * 32,
+                        width: INVADER_WIDTH,
+                        height: INVADER_HEIGHT,
+                        alive: true,
+                        row: row,
+                        col: col
+                    });
+                }
+            }
+
+            // bunkers (2 bunkers, classic positions)
+            bunkers = [
+                { x: 80, y: 520, width: BUNKER_WIDTH, height: BUNKER_HEIGHT, health: 4 },
+                { x: 430, y: 520, width: BUNKER_WIDTH, height: BUNKER_HEIGHT, health: 4 }
+            ];
+
+            // mystery
+            mystery.active = false;
+            mystery.timer = 0;
+            mystery.x = 0;
+        }
+
+        // ----- HELPER: DRAW PIXEL INVADER (2 sprites) -----
+        function drawInvader(x, y, frame, type) {
+            // faithful sprite: 2 frames (legs up/down)
+            const w = INVADER_WIDTH, h = INVADER_HEIGHT;
+            ctx.save();
+            ctx.translate(x, y);
+
+            // body (green)
+            ctx.fillStyle = '#3fde3f';
+            ctx.shadowColor = '#0f0';
+            ctx.shadowBlur = 6;
+
+            // main body
+            ctx.fillRect(4, 4, w-8, h-10);
+            // head
+            ctx.fillRect(8, 0, w-16, 6);
+            // eyes (white)
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 4;
+            ctx.fillRect(8, 6, 4, 4);
+            ctx.fillRect(w-12, 6, 4, 4);
+            // legs (frame)
+            ctx.fillStyle = '#3fde3f';
+            ctx.shadowBlur = 6;
+            if (frame % 2 === 0) {
+                // legs down
+                ctx.fillRect(6, h-8, 6, 6);
+                ctx.fillRect(w-12, h-8, 6, 6);
+            } else {
+                // legs up (inner)
+                ctx.fillRect(10, h-10, 6, 6);
+                ctx.fillRect(w-16, h-10, 6, 6);
+            }
+            // antenna
+            ctx.fillStyle = '#2fbf2f';
+            ctx.fillRect(10, 0, 2, 4);
+            ctx.fillRect(w-12, 0, 2, 4);
+            ctx.restore();
+        }
+
+        // ----- DRAW PLAYER (laser base) -----
+        function drawPlayer(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            // base
+            ctx.fillStyle = '#2fbf2f';
+            ctx.shadowColor = '#0f0';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(4, 0, PLAYER_WIDTH-8, PLAYER_HEIGHT-4);
+            // cannon
+            ctx.fillRect(PLAYER_WIDTH/2-4, -6, 8, 10);
+            // details
+            ctx.fillStyle = '#1f8f1f';
+            ctx.fillRect(6, 4, 4, 4);
+            ctx.fillRect(PLAYER_WIDTH-10, 4, 4, 4);
+            ctx.restore();
+        }
+
+        // ----- DRAW BUNKER (

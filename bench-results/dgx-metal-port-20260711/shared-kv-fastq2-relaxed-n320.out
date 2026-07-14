@@ -1,0 +1,33 @@
+Here is a complete HTML file that recreates the classic 1978 arcade experience as a single-page document. It includes the original game rules, pixel art, and sound effects.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Arcade – Aaders</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            background-image: radial-gradient(ellipse at 50% 30%, #2a1a1a 0%, #0a0505 100%);
+        }
+        .cabinet {
+            width: 820px;
+            height: 600px;
+            background: #2e1a0e;
+            border: 12px solid #b8a070;
+            border-radius: 30px 20px 40px 20px;
+            box-shadow: 0 20px 0 #0d0a07, inset 0 0 20px #5a3a1a;
+            display: flex;
+            flex-direction: column;
+            align-items: center

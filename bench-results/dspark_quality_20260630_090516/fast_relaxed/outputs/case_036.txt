@@ -1,0 +1,12 @@
+Ecco un breve piano per testare il chunking di prompt lunghi:
+
+**Obiettivo:** Verificare la capacità di un sistema di gestire prompt lunghi attraverso il chunking (suddivisione in blocchi).
+
+**Piano:**
+
+1. **Preparazione:**
+   - Crea un prompt di esempio molto lungo (es. 10.000+ caratteri) con contenuto strutturato (es. documenti, storie, dati).
+   - Identifica i punti di rottura naturali (paragrafi, sezioni, punti).
+
+2. **Test di base:**
+  

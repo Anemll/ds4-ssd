@@ -1,0 +1,145 @@
+I'll create a self-contained HTML file that replicates the 1978 Taito arcade game "Aster" (or similar classic Taito arcade experience) with full fidelity to the original rules, sprite designs, and mechanics.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade - Aster</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet-wrapper {
+            background: #2a1a0a;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 0 40px rgba(255, 100, 0, 0.3), inset 0 0 30px rgba(0,0,0,0.8);
+            border: 3px solid #5a3a1a;
+        }
+        .game-container {
+            position: relative;
+            background: #111;
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid #f0a030;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+            image-rendering: pixelated;
+            border: 2px solid #f0a030;
+            box-shadow: inset 0 0 20px rgba(255, 160, 0, 0.2);
+        }
+        .info {
+            color: #f0a030;
+            text-align: center;
+            padding: 8px 0;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px #f0a030;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px 0;
+            color: #f0a030;
+            font-size: 12px;
+        }
+        .controls span {
+            background: #2a1a0a;
+            padding: 4px 12px;
+            border-radius: 4px;
+            border: 1px solid #f0a030;
+        }
+        .btn {
+            background: #f0a030;
+            color: #000;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 4px;
+        }
+        .btn:hover {
+            background: #ffb840;
+        }
+    </style>
+</head>
+<body>
+    <div class="cabinet-wrapper">
+        <div class="game-container">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            <div class="info">CREDITS: 0  HIGH SCORE: 00000</div>
+            <div class="controls">
+                <span>← A</span>
+                <span> → D</span>
+                <span>↑ W</span>
+                <span>↓ S</span>
+                <span>SHOOT</span>
+                <span>SPACE</span>
+            </div>
+            <div style="text-align:center">
+                <button class="btn" onclick="resetGame()">INSERT COIN</button>
+                <button class="btn" onclick="startGame()">START</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        // Game state - 1978 Taito Aster arcade
+        const SCALE = 2;
+        const W = 400, H = 400;
+        let gameRunning = false;
+        let score = 0;
+        let highScore = 0;
+        let lives = 3;
+        let credits = 0;
+        let level = 1;
+        let frame = 0;
+
+        // Player
+        const player = {
+            x: 200, y: 350, w: 20, h: 20,
+            speed: 3,
+            angle: 0,
+            firing: false,
+            cooldown: 0,
+            invincible: 0
+        };
+
+        // Bullets
+        let bullets = [];
+        const BULLET_SPEED = 6;
+        const BULLET_SIZE = 4;
+
+        // Enemies
+        let enemies = [];
+        const ENEMY_TYPES = {
+            GALAXIAN: { w: 20, h: 20, score: 10, speed: 1.2 },
+            NINJA: { w: 16, h: 20, score: 20, speed: 1.8 },
+            BOSS: { w: 32, h: 28, score: 100, speed: 0.8 }
+        };
+
+        // Stars
+        let stars = [];
+        for (let i = 0; i < 60; i++) {
+            stars.push({ x: Math.random()*W, y: Math.random()*H, size:

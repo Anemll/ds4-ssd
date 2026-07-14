@@ -1,0 +1,8 @@
+command: /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/ds4-bench -m /Users/anemll/Models/DSv4-Flash-MXFP4-native-flash --moe-slot-bank 96 --prompt-file /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/tests/test-vectors/prompts/sidecar_16k.txt --ctx-start 512 --ctx-max 1024 --step-mul 2.0 --full-prefill-each-frontier --gen-tokens 1 --csv bench-results/mxfp4-prefill-ane-smoke/raw/sidecar_16k__chunk1024__ane_on.csv
+DS4_METAL_PREFILL_CHUNK=1024
+DS4_FLASH_MOE_ANE_PREFILL=1
+ds4-bench: detected DS4 sidecar package: -m /Users/anemll/Models/DSv4-Flash-MXFP4-native-flash/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/DSv4-Flash-MXFP4-native-flash, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=1024, raw_kv_rows=1026, raw_window=128, effective_chunk=898; target raw cap for one chunk is 1280, also requires ctx >= that value)
+ds4-bench: context buffers 86.19 MiB (ctx=1026, backend=metal, prefill_chunk=1024, raw_kv_rows=1026, compressed_kv_rows=3)
+ds4: another ds4 process is already running (pid 66125); refusing to start

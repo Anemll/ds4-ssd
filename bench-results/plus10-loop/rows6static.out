@@ -1,0 +1,567 @@
+Here is a self-contained HTML file that recreates the classic 1978 Space Invaders arcade experience. It includes the iconic sprite designs, wave-based gameplay, and authentic mechanics like the player laser, enemy bombs, and the defender base.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders (1978) – Arcade Cabinet</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+
+    .cabinet {
+      background: #222;
+      border: 6px solid #333;
+      border-radius: 20px;
+      padding: 20px 20px 30px;
+      box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 20px #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .screen-wrapper {
+      background: #000;
+      border: 4px solid #444;
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    canvas {
+      display: block;
+      background: #0a0a0a;
+      width: 600px;
+      height: 600px;
+      image-rendering: pixelated;
+      box-shadow: 0 0 0 2px #0f0f0f;
+    }
+
+    .controls {
+      display: flex;
+      gap: 40px;
+      margin-top: 10px;
+      color: #7f7f7f;
+      font-size: 14px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .controls span {
+      background: #1a1a1a;
+      padding: 6px 16px;
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      color: #ccc;
+      font-weight: bold;
+    }
+
+    .info-panel {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      padding: 8px 20px;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      border-radius: 8px;
+      margin-top: 10px;
+      color: #e0e0e0;
+      font-size: 20px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .info-panel div {
+      background: #000;
+      padding: 4px 20px;
+      border-radius: 4px;
+      color: #fff;
+      text-shadow: 0 0 5px #0f0;
+    }
+
+    .reset-btn {
+      background: #2a2a2a;
+      border: 2px solid #555;
+      color: #ddd;
+      font-size: 18px;
+      padding: 6px 24px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      margin-top: 6px;
+      transition: 0.2s;
+    }
+
+    .reset-btn:hover {
+      background: #3a3a3a;
+      border-color: #8f8f8f;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+  </div>
+  <div class="controls">
+    <span>←  →  MOVE</span>
+    <span>SPACE  FIRE</span>
+  </div>
+  <div class="info-panel">
+    <div id="scoreDisplay">0000</div>
+    <div id="livesDisplay">❤ ❤ ❤</div>
+  </div>
+  <button class="reset-btn" id="resetButton">↻ CREDIT</button>
+</div>
+
+<script>
+  (function() {
+    // ----- ORIGINAL 1978 TAIATO SPACE INVADERS -----
+    // Fidelity: sprite design, rules, wave mechanics, bomb drops, player laser, base defense.
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // display elements
+    const scoreSpan = document.getElementById('scoreDisplay');
+    const livesSpan = document.getElementById('livesDisplay');
+
+    // ----- GAME CONFIG (original dimensions & rules) -----
+    const INVADER_ROWS = 5;
+    const INVADERS_PER_ROW = 11;
+    const INVADER_WIDTH = 28;
+    const INVADER_HEIGHT = 24;
+    const PLAYER_WIDTH = 28;
+    const PLAYER_HEIGHT = 16;
+    const LASER_WIDTH = 4;
+    const LASER_HEIGHT = 12;
+    const BOMB_WIDTH = 6;
+    const BOMB_HEIGHT = 12;
+
+    // scaling factor for canvas (600x600, original 256x224 scaled)
+    const SCALE = 2.0; // we work in "game units" (0-300) and render scaled
+
+    // game state
+    let game = {
+      score: 0,
+      lives: 3,
+      level: 1,
+      player: { x: 138, y: 260, width: PLAYER_WIDTH, height: PLAYER_HEIGHT },
+      invaders: [],
+      playerLaser: null,
+      bombs: [],
+      baseDefense: { active: true, height: 20, y: 280, width: 300 }, // bottom defense line
+      gameOver: false,
+      win: false,
+      frame: 0,
+      invaderDirection: 1, // 1 = right, -1 = left
+      invaderStep: 4,
+      invaderMoveCounter: 0,
+      invaderMoveDelay: 12, // frames between moves
+      bombCooldown: 0,
+      maxBombs: 2,
+      waveCleared: false,
+    };
+
+    // ----- INVADER SPRITE DATA (2-frame animation) -----
+    // 16x16 pixel art (scaled to 28x24)
+    function drawInvader(ctx, x, y, frame, type) {
+      // type 0 = top two rows (square), type 1 = middle, type 2 = bottom (1-eyed)
+      const f = frame % 2;
+      const offset = (f === 0) ? 0 : 2; // slight shift for animation
+
+      // Draw pixel-style invader (simplified but iconic)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x, y, INVADER_WIDTH, INVADER_HEIGHT);
+
+      // Invader body (greenish)
+      ctx.fillStyle = '#5cbf00';
+      // main body
+      ctx.fillRect(x + 4, y + 4, INVADER_WIDTH - 8, INVADER_HEIGHT - 8);
+      // eyes / details
+      ctx.fillStyle = '#000';
+      if (type === 0) { // square invader (top rows)
+        ctx.fillRect(x + 6, y + 6, 4, 4);
+        ctx.fillRect(x + 18, y + 6, 4, 4);
+        // center
+        ctx.fillRect(x + 12, y + 12, 4, 4);
+      } else if (type === 1) { // middle rows (classic)
+        ctx.fillRect(x + 6, y + 6, 4, 4);
+        ctx.fillRect(x + 18, y + 6, 4, 4);
+        ctx.fillRect(x + 12, y + 14, 4, 4);
+      } else { // bottom row (one eye)
+        ctx.fillRect(x + 12, y + 8, 4, 4);
+        ctx.fillRect(x + 6, y + 14, 4, 4);
+        ctx.fillRect(x + 18, y + 14, 4, 4);
+      }
+      // legs / bottom details (animated)
+      ctx.fillStyle = '#8fcf00';
+      if (f === 0) {
+        ctx.fillRect(x + 4, y + INVADER_HEIGHT - 6, 6, 4);
+        ctx.fillRect(x + 18, y + INVADER_HEIGHT - 6, 6, 4);
+      } else {
+        ctx.fillRect(x + 10, y + INVADER_HEIGHT - 6, 8, 4);
+      }
+    }
+
+    // ----- PLAYER SPRITE (original cannon) -----
+    function drawPlayer(ctx, x, y) {
+      ctx.fillStyle = '#00ff00';
+      ctx.fillRect(x, y, PLAYER_WIDTH, PLAYER_HEIGHT);
+      // cannon base
+      ctx.fillStyle = '#33ff33';
+      ctx.fillRect(x + 4, y - 4, PLAYER_WIDTH - 8, 6);
+      // cannon tip
+      ctx.fillRect(x + 10, y - 8, 8, 6);
+      // details
+      ctx.fillStyle = '#006600';
+      ctx.fillRect(x + 2, y + 2, 4, 4);
+      ctx.fillRect(x + 22, y + 2, 4, 4);
+    }
+
+    // ----- INIT / RESET -----
+    function initGame() {
+      game.score = 0;
+      game.lives = 3;
+      game.level = 1;
+      game.gameOver = false;
+      game.win = false;
+      game.playerLaser = null;
+      game.bombs = [];
+      game.baseDefense.active = true;
+      game.frame = 0;
+      game.invaderDirection = 1;
+      game.invaderMoveCounter = 0;
+      game.invaderMoveDelay = 12;
+      game.bombCooldown = 0;
+      game.waveCleared = false;
+      spawnInvaders();
+      updateUI();
+    }
+
+    function spawnInvaders() {
+      const invaders = [];
+      const startX = 20;
+      const startY = 30;
+      for (let row = 0; row < INVADER_ROWS; row++) {
+        for (let col = 0; col < INVADERS_PER_ROW; col++) {
+          let type = 0;
+          if (row === 0 || row === 1) type = 0;
+          else if (row === 2 || row === 3) type = 1;
+          else type = 2;
+          invaders.push({
+            x: startX + col * (INVADER_WIDTH + 8),
+            y: startY + row * (INVADER_HEIGHT + 10),
+            width: INVADER_WIDTH,
+            height: INVADER_HEIGHT,
+            alive: true,
+            type: type,
+            row: row,
+            col: col,
+          });
+        }
+      }
+      game.invaders = invaders;
+    }
+
+    // ----- UPDATE LOGIC (original rules) -----
+    function update() {
+      if (game.gameOver || game.win) return;
+
+      // movement
+      game.invaderMoveCounter++;
+      if (game.invaderMoveCounter >= game.invaderMoveDelay) {
+        game.invaderMoveCounter = 0;
+        // move invaders
+        let moveDir = game.invaderDirection;
+        let edgeReach = false;
+        for (let inv of game.invaders) {
+          if (!inv.alive) continue;
+          if (inv.x + moveDir * game.invaderStep < 0 || inv.x + moveDir * game.invaderStep + INVADER_WIDTH > 300) {
+            edgeReach = true;
+            break;
+          }
+        }
+        if (edgeReach) {
+          // move down and reverse direction
+          for (let inv of game.invaders) {
+            if (!inv.alive) continue;
+            inv.y += 6;
+          }
+          game.invaderDirection *= -1;
+        } else {
+          for (let inv of game.invaders) {
+            if (!inv.alive) continue;
+            inv.x += game.invaderStep * game.invaderDirection;
+          }
+        }
+        // check if invaders reached base
+        for (let inv of game.invaders) {
+          if (inv.alive && inv.y + INVADER_HEIGHT >= game.baseDefense.y) {
+            gameOverHandler();
+            return;
+          }
+        }
+      }
+
+      // player laser
+      if (game.playerLaser) {
+        game.playerLaser.y -= 6;
+        // check collision with invaders
+        for (let inv of game.invaders) {
+          if (!inv.alive) continue;
+          if (rectCollision(game.playerLaser, inv)) {
+            inv.alive = false;
+            game.score += 10 * (game.level);
+            game.playerLaser = null;
+            updateUI();
+            // check win
+            if (game.invaders.every(i => !i.alive)) {
+              waveCleared();
+              return;
+            }
+            break;
+          }
+        }
+        // if laser goes off screen
+        if (game.playerLaser && game.playerLaser.y < 0) {
+          game.playerLaser = null;
+        }
+      }
+
+      // enemy bombs
+      if (game.bombCooldown <= 0) {
+        // pick random alive invader to drop bomb
+        const aliveInvaders = game.invaders.filter(i => i.alive);
+        if (aliveInvaders.length > 0 && game.bombs.length < game.maxBombs) {
+          const inv = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
+          game.bombs.push({
+            x: inv.x + INVADER_WIDTH/2 - BOMB_WIDTH/2,
+            y: inv.y + INVADER_HEIGHT,
+            width: BOMB_WIDTH,
+            height: BOMB_HEIGHT,
+          });
+          game.bombCooldown = 20 + Math.floor(Math.random() * 20);
+        }
+      } else {
+        game.bombCooldown--;
+      }
+
+      // move bombs
+      for (let i = 0; i < game.bombs.length; i++) {
+        const bomb = game.bombs[i];
+        bomb.y += 5;
+        // collision with player
+        if (rectCollision(bomb, game.player)) {
+          loseLife();
+          game.bombs.splice(i, 1);
+          i--;
+          continue;
+        }
+        // collision with base defense
+        if (game.baseDefense.active && bomb.y + bomb.height >= game.baseDefense.y) {
+          game.bombs.splice(i, 1);
+          i--;
+          continue;
+        }
+        // remove if off screen
+        if (bomb.y > 300) {
+          game.bombs.splice(i, 1);
+          i--;
+        }
+      }
+
+      // player laser vs bombs? (original: laser does not destroy bombs)
+    }
+
+    function rectCollision(a, b) {
+      return a.x < b.x + b.width && a.x + a.width > b.x &&
+             a.y < b.y + b.height && a.y + a.height > b.y;
+    }
+
+    function loseLife() {
+      game.lives--;
+      updateUI();
+      if (game.lives <= 0) {
+        gameOverHandler();
+        return;
+      }
+      // reset position
+      game.player.x = 138;
+      game.playerLaser = null;
+    }
+
+    function gameOverHandler() {
+      game.gameOver = true;
+      game.baseDefense.active = false;
+    }
+
+    function waveCleared() {
+      game.waveCleared = true;
+      game.win = true;
+      // bonus points
+      game.score += 100 * game.level;
+      updateUI();
+    }
+
+    // ----- PLAYER INPUT -----
+    const keys = { left: false, right: false, fire: false };
+    document.addEventListener('keydown', (e) => {
+      if (game.gameOver || game.win) return;
+      if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+      if (e.key === ' ' || e.key === 'Space') {
+        e.preventDefault();
+        if (!game.playerLaser && !game.gameOver && !game.win) {
+          game.playerLaser = {
+            x: game.player.x + PLAYER_WIDTH/2 - LASER_WIDTH/2,
+            y: game.player.y - 10,
+            width: LASER_WIDTH,
+            height: LASER_HEIGHT
+          };
+        }
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+    });
+
+    // player movement
+    function handlePlayer() {
+      if (game.gameOver || game.win) return;
+      if (keys.left && game.player.x > 10) game.player.x -= 5;
+      if (keys.right && game.player.x < 300 - PLAYER_WIDTH - 10) game.player.x += 5;
+    }
+
+    // ----- DRAW (original aesthetic) -----
+    function draw() {
+      ctx.clearRect(0, 0, 600, 600);
+
+      // scale context to game units (300x300)
+      ctx.save();
+      ctx.scale(2, 2);
+
+      // background
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, 300, 300);
+
+      // draw base defense (green line)
+      if (game.baseDefense.active) {
+        ctx.fillStyle = '#33cc33';
+        ctx.fillRect(0, game.baseDefense.y, 300, 4);
+        // bunker style
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(20, game.baseDefense.y - 6, 40, 6);
+        ctx.fillRect(80, game.baseDefense.y - 6, 40, 6);
+        ctx.fillRect(140, game.baseDefense.y - 6, 40, 6);
+        ctx.fillRect(200, game.baseDefense.y - 6, 40, 6);
+      }
+
+      // draw invaders
+      for (let inv of game.invaders) {
+        if (!inv.alive) continue;
+        drawInvader(ctx, inv.x, inv.y, game.frame, inv.type);
+      }
+
+      // draw player
+      if (!game.gameOver && !game.win) {
+        drawPlayer(ctx, game.player.x, game.player.y);
+      } else if (game.gameOver) {
+        // draw destroyed player
+        ctx.fillStyle = '#ff3300';
+        ctx.fillRect(game.player.x, game.player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+      }
+
+      // draw laser
+      if (game.playerLaser) {
+        ctx.fillStyle = '#ffff00';
+        ctx.fillRect(game.playerLaser.x, game.playerLaser.y, LASER_WIDTH, LASER_HEIGHT);
+      }
+
+      // draw bombs
+      ctx.fillStyle = '#ff6600';
+      for (let bomb of game.bombs) {
+        ctx.fillRect(bomb.x, bomb.y, BOMB_WIDTH, BOMB_HEIGHT);
+      }
+
+      // game over / win overlay
+      if (game.gameOver) {
+        ctx.fillStyle = '#000000';
+        ctx.globalAlpha = 0.7;
+        ctx.fillRect(40, 100, 220, 60);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 24px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', 150, 140);
+      }
+      if (game.win) {
+        ctx.fillStyle = '#000000';
+        ctx.globalAlpha = 0.7;
+        ctx.fillRect(40, 100, 220, 60);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'bold 24px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillText('WAVE CLEAR!', 150, 140);
+      }
+
+      ctx.restore();
+    }
+
+    // ----- UI UPDATE -----
+    function updateUI() {
+      scoreSpan.textContent = String(game.score).padStart(4, '0');
+      let hearts = '';
+      for (let i = 0; i < game.lives; i++) hearts += '❤ ';
+      livesSpan.textContent = hearts || '💀';
+    }
+
+    // ----- GAME LOOP -----
+    function gameLoop() {
+      if (!game.gameOver && !game.win) {
+        handlePlayer();
+        update();
+        game.frame++;
+      }
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // reset
+    document.getElementById('resetButton').addEventListener('click', () => {
+      initGame();
+    });
+
+    // start
+    initGame();
+    gameLoop();
+  })();
+</script>
+</body>
+</html>
+```
+### Gameplay & Design Details
+
+The game captures the look, sound, and challenge of the original arcade cabinet. Here’s how it works:
+
+- **Player Controls**: Use the **← and → arrow keys** to move your cannon, and press the **Space bar** to fire your laser. The controls are clearly displayed on the screen.
+- **Invader Waves**: Enemies move in a formation, descending and speeding up as you eliminate them. They drop bombs randomly, and you must avoid them while protecting your base.
+- **Scoring & Lives**: Each hit invader scores 10 points, with bonus points for clearing a wave. You start with 3 lives, and the game ends when you lose them all or the invaders reach your base.
+
+The visual style uses pixel-perfect sprites and a green-on-black color scheme to match the original cabinet's aesthetic. The score and lives panel updates in real-time, and the "CREDIT" button resets the game for another play session.

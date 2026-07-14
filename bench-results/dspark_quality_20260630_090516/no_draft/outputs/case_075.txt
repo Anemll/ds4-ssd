@@ -1,0 +1,12 @@
+Un **trie** (chiamato anche albero di prefissi o albero digitale) rappresenta un insieme di stringhe organizzandole in base ai loro prefissi comuni. Ecco come funziona:
+
+## Struttura base
+
+Il trie è un albero dove:
+- **Ogni nodo** rappresenta un carattere (o un prefisso)
+- **La radice** è il nodo iniziale (vuoto)
+- **I cammini** dall radice alle foglie rappresentano le stringhe
+
+## Come rappresenta le stringhe
+
+1. **Condiv

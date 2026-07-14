@@ -1,0 +1,103 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Metal model views created in 2.492 ms, residency requested in 8254.637 ms, warmup 52.293 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.6 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=10.021s profile=0.000s model=0.007s sidecar=0.000s weights=0.001s dspark=1.701s backend=8.310s prewarm=0.003s
+ds4: session startup timing: total=0.004s raw-graph=0.004s flash-moe=0.000s steering=0.000s draft-scratch=yes
+processing 57 input tokens: 0/57 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 57 input tokens: 1/57 (1.8%) batch=58.01 t/s avg=57.40 t/s
+processing 57 input tokens: 2/57 (3.5%) batch=8.77 t/s avg=15.22 t/s
+processing 57 input tokens: 3/57 (5.3%) batch=8.39 t/s avg=11.97 t/s
+processing 57 input tokens: 5/57 (8.8%) batch=17.24 t/s avg=13.64 t/s
+processing 57 input tokens: 6/57 (10.5%) batch=14.47 t/s avg=13.77 t/s
+processing 57 input tokens: 7/57 (12.3%) batch=17.63 t/s avg=14.22 t/s
+processing 57 input tokens: 9/57 (15.8%) batch=31.21 t/s avg=16.17 t/s
+processing 57 input tokens: 10/57 (17.5%) batch=17.96 t/s avg=16.34 t/s
+processing 57 input tokens: 11/57 (19.3%) batch=17.96 t/s avg=16.47 t/s
+processing 57 input tokens: 13/57 (22.8%) batch=35.00 t/s avg=17.93 t/s
+processing 57 input tokens: 14/57 (24.6%) batch=14.76 t/s avg=17.66 t/s
+processing 57 input tokens: 15/57 (26.3%) batch=14.49 t/s avg=17.41 t/s
+processing 57 input tokens: 17/57 (29.8%) batch=36.17 t/s avg=18.54 t/s
+processing 57 input tokens: 18/57 (31.6%) batch=20.55 t/s avg=18.64 t/s
+processing 57 input tokens: 19/57 (33.3%) batch=17.85 t/s avg=18.60 t/s
+processing 57 input tokens: 21/57 (36.8%) batch=37.17 t/s avg=19.53 t/s
+processing 57 input tokens: 22/57 (38.6%) batch=18.16 t/s avg=19.46 t/s
+processing 57 input tokens: 23/57 (40.4%) batch=18.17 t/s avg=19.40 t/s
+processing 57 input tokens: 25/57 (43.9%) batch=38.17 t/s avg=20.19 t/s
+processing 57 input tokens: 26/57 (45.6%) batch=18.36 t/s avg=20.12 t/s
+processing 57 input tokens: 27/57 (47.4%) batch=12.25 t/s avg=19.65 t/s
+processing 57 input tokens: 29/57 (50.9%) batch=35.67 t/s avg=20.28 t/s
+processing 57 input tokens: 30/57 (52.6%) batch=15.90 t/s avg=20.09 t/s
+processing 57 input tokens: 31/57 (54.4%) batch=16.53 t/s avg=19.95 t/s
+processing 57 input tokens: 33/57 (57.9%) batch=35.60 t/s avg=20.50 t/s
+processing 57 input tokens: 34/57 (59.6%) batch=21.01 t/s avg=20.51 t/s
+processing 57 input tokens: 35/57 (61.4%) batch=20.83 t/s avg=20.52 t/s
+processing 57 input tokens: 37/57 (64.9%) batch=45.03 t/s avg=21.15 t/s
+processing 57 input tokens: 38/57 (66.7%) batch=17.87 t/s avg=21.04 t/s
+processing 57 input tokens: 39/57 (68.4%) batch=17.82 t/s avg=20.95 t/s
+processing 57 input tokens: 41/57 (71.9%) batch=36.39 t/s avg=21.39 t/s
+processing 57 input tokens: 42/57 (73.7%) batch=16.91 t/s avg=21.26 t/s
+processing 57 input tokens: 43/57 (75.4%) batch=16.83 t/s avg=21.13 t/s
+processing 57 input tokens: 45/57 (78.9%) batch=37.04 t/s avg=21.54 t/s
+processing 57 input tokens: 46/57 (80.7%) batch=17.76 t/s avg=21.44 t/s
+processing 57 input tokens: 47/57 (82.5%) batch=16.10 t/s avg=21.29 t/s
+processing 57 input tokens: 49/57 (86.0%) batch=26.15 t/s avg=21.45 t/s
+processing 57 input tokens: 50/57 (87.7%) batch=20.37 t/s avg=21.43 t/s
+processing 57 input tokens: 51/57 (89.5%) batch=15.60 t/s avg=21.27 t/s
+processing 57 input tokens: 53/57 (93.0%) batch=36.17 t/s avg=21.61 t/s
+processing 57 input tokens: 54/57 (94.7%) batch=13.62 t/s avg=21.38 t/s
+processing 57 input tokens: 55/57 (96.5%) batch=19.90 t/s avg=21.35 t/s
+processing 57 input tokens: 57/57 (100.0%) batch=33.19 t/s avg=21.62 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: routed MoE exact ordered expert-sum kernel enabled
+ds4: dspark hybrid row-routed verifier using monolithic row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: ----------------------------------------
+ds4: prefill: 19.33 t/s, generation: 35.95 t/s (3000 tokens in 83.453s)
+ds4: ttf: first-output=13.112s total=96.432s (engine=10.021s session=0.004s prompt=0.000s prefill=2.948s decode=83.453s)
+ds4: dspark perf: draft=392.0 tok/s, verify=67.2 proposed tok/s, verify-accepted=43.3 tok/s, block=73.83 ms (draft=10.60 verify=61.84 overhead=1.40 commit=1.07, tau=2.68, blocks=816)
+ds4: dspark verify GPU-busy: 59.93 ms/block of 61.84 ms verify (96.9% active, 3.1% idle)
+ds4: dspark draft-overlap upper-bound: 42.3 tok/s (1.17x block decode, hides 10.60 ms/block)
+ds4: vm pressure: app=11.42 GiB resident=19.23 GiB wired=97.46 GiB compressed=0.84 GiB logical=1.90 GiB swap=3.52/5.00 GiB pressure=87% free=0.27 GiB gpu=11.35 GiB gpu-compressed=0.00 GiB task-compressed=0.01 GiB decompressions=144
+ds4: dspark acceptance: 64.4% (2183/3390 draft tokens)
+ds4: dspark acceptance by position: 1=601/782 2=515/730 3=430/684 4=351/628 5=286/566
+ds4: dspark conditional acceptance: 1=76.9% (601/782) 2|1=90.5% (515/569) 3|1-2=87.9% (430/489) 4|1-3=87.3% (351/402) 5|1-4=89.1% (286/321)
+ds4: dspark full-accept: 51.4% (402/782 blocks), first-miss: 23.1% (181/782 blocks)
+ds4: dspark avg scheduled: 4.34 draft tokens/block (782 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4:   [0.4-0.5) pred=0.451 realized=1.000 n=53
+ds4:   [0.5-0.6) pred=0.558 realized=1.000 n=67
+ds4:   [0.6-0.7) pred=0.653 realized=1.000 n=95
+ds4:   [0.7-0.8) pred=0.754 realized=1.000 n=136
+ds4:   [0.8-0.9) pred=0.855 realized=1.000 n=245
+ds4:   [0.9-1.0) pred=0.978 realized=1.000 n=1090
+ds4: dspark conf-calib ECE=0.1094 samples=1686

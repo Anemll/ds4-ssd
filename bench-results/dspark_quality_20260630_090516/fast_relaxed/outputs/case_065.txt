@@ -1,0 +1,11 @@
+A **trie** (also called a prefix tree or digital tree) represents a set of strings by storing each character of the strings as a node, and sharing prefixes between strings.
+
+Here’s how it works:
+
+## 1. **Structure**
+- **Root node**: Empty (no character).
+- **Child nodes**: Each node stores a single character (or a digit for numbers).
+- **Edges**: Represent the next character in the string.
+- **End marker**: A flag (e.g., `is_end = true`) at the last node of a string to indicate that a complete word exists there.
+
+## 2

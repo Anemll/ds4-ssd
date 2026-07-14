@@ -1,0 +1,7 @@
+kind,ctx,target_prefix_tokens,decode_target_tokens,generated_tokens,generation_tps,decode_s,prefill_tps,wall_s,returncode,log
+old_ds4_monolithic,40000,1024,2000,,32.66,,297.13,72.866,0,bench-results/context-decode-dspark/old-ds4-monolithic-p1024-d2000-ctx40000.log
+old_ds4_monolithic,40000,2048,2000,,32.08,,307.42,69.768,0,bench-results/context-decode-dspark/old-ds4-monolithic-p2048-d2000-ctx40000.log
+old_ds4_monolithic,40000,4096,2000,,27.50,,311.19,86.657,0,bench-results/context-decode-dspark/old-ds4-monolithic-p4096-d2000-ctx40000.log
+old_ds4_monolithic,40000,8192,2000,,27.27,,322.02,99.569,0,bench-results/context-decode-dspark/old-ds4-monolithic-p8192-d2000-ctx40000.log
+old_ds4_monolithic,40000,16384,2000,,28.88,,336.43,118.710,0,bench-results/context-decode-dspark/old-ds4-monolithic-p16384-d2000-ctx40000.log
+old_ds4_monolithic,40000,32768,2000,,28.96,,393.87,153.011,0,bench-results/context-decode-dspark/old-ds4-monolithic-p32768-d2000-ctx40000.log

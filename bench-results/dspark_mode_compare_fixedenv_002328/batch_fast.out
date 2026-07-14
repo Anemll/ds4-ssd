@@ -1,0 +1,42 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic-style game with all the essential features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 50
+ENEMY_SIZE = 40
+BULLET_SIZE = 20
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+BULLET_SPEED = 7
+ENEMY_FIRE_RATE = 0.02  # Probability of enemy firing per frame
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 30
+        self.height = 30
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+        
+    def move(self,

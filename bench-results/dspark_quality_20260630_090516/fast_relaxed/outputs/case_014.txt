@@ -1,0 +1,9 @@
+Questa è una domanda interessante che riguarda l'architettura dei sistemi di agenti AI.
+
+La cache KV su disco aiuta le **sessioni agentiche** (session di agenti AI) per diversi motivi fondamentali legati alla gestione della memoria, delle risorse e della continuità delle operazioni.
+
+Ecco una spiegazione dettagliata:
+
+### 1. Gestione della Memoria a Lungo Termine e Continuità
+
+Le sessioni agentiche, a differenza di una semplice chat, spesso richiedono **continuità** e **memoria di lungo

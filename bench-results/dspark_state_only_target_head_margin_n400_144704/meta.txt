@@ -1,0 +1,3 @@
+RUN=bench-results/dspark_state_only_target_head_margin_n400_144704
+DATE=Tue Jun 30 14:47:04 PDT 2026
+mode=state-only target-head + margin relaxed

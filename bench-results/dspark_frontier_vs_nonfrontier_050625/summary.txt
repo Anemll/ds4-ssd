@@ -1,0 +1,18 @@
+== frontier_fast ==
+105:ds4: prefill: 8.01 t/s, generation: 52.40 t/s (1000 tokens in 19.082s)
+106:ds4: dspark perf: draft=469.3 tok/s, verify=73.9 proposed tok/s, verify-accepted=64.0 tok/s, block=80.22 ms (draft=10.63 verify=67.50 overhead=2.09 commit=1.66, tau=4.32, blocks=227)
+108:ds4: dspark draft-overlap upper-bound: 62.1 tok/s (1.15x block decode, hides 10.63 ms/block)
+110:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+113:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+114:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_frontier_vs_nonfrontier_050625/frontier_fast.out	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0
+== nonfrontier_fast ==
+105:ds4: prefill: 7.96 t/s, generation: 48.60 t/s (1000 tokens in 20.578s)
+106:ds4: dspark perf: draft=469.6 tok/s, verify=73.9 proposed tok/s, verify-accepted=63.3 tok/s, block=82.15 ms (draft=10.65 verify=67.68 overhead=3.82 commit=1.67, tau=4.29, blocks=189)
+108:ds4: dspark draft-overlap upper-bound: 59.9 tok/s (1.15x block decode, hides 10.65 ms/block)
+110:ds4: dspark acceptance: 85.7% (810/945 draft tokens)
+113:ds4: dspark full-accept: 73.5% (139/189 blocks), first-miss: 6.3% (12/189 blocks)
+114:ds4: dspark avg scheduled: 5.00 draft tokens/block (189 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_frontier_vs_nonfrontier_050625/nonfrontier_fast.out	4193	119	110	1	2	enemy:2,move_down:2	0		0	0	0	2	2	0

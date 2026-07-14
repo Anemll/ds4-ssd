@@ -1,0 +1,429 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade game "Asteroids" as a single, playable web page. It includes the vector-style graphics, authentic rules, and the feel of the original cabinet.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito Arcade – Asteroids</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #1a1a1a;
+      border: 6px solid #2b2b2b;
+      border-radius: 20px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 30px rgba(255, 80, 0, 0.2), inset 0 0 20px #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .marquee {
+      background: #222;
+      color: #ff6600;
+      font-size: 1.8rem;
+      font-weight: bold;
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #ff4400, 0 0 20px #ff6600;
+      padding: 10px 30px;
+      border-radius: 8px 8px 0 0;
+      border-bottom: 3px solid #ff6600;
+      margin-bottom: 12px;
+      text-align: center;
+      width: 100%;
+    }
+    .screen-wrapper {
+      background: #000;
+      border: 4px solid #333;
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow: inset 0 0 20px #000, 0 0 15px #ff6600;
+    }
+    canvas {
+      display: block;
+      background: #0f0f0f;
+      width: 800px;
+      height: 600px;
+      border-radius: 6px;
+      cursor: none;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px 40px;
+      margin-top: 20px;
+      color: #ddd;
+      font-size: 0.9rem;
+      background: #1a1a1a;
+      padding: 12px 20px;
+      border-radius: 20px;
+      border: 2px solid #ff6600;
+      box-shadow: inset 0 0 10px #000;
+    }
+    .controls span {
+      background: #2a2a2a;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid #ff6600;
+      color: #ffaa44;
+      font-weight: bold;
+    }
+    .btn-reset {
+      background: #ff6600;
+      border: none;
+      color: #000;
+      font-weight: bold;
+      font-size: 1.2rem;
+      padding: 6px 20px;
+      border-radius: 30px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 0 0 10px #ff6600;
+      transition: 0.1s;
+    }
+    .btn-reset:hover {
+      background: #ff8833;
+      box-shadow: 0 0 20px #ff6600;
+    }
+    .btn-reset:active {
+      transform: scale(0.95);
+    }
+    .credit {
+      color: #555;
+      font-size: 0.7rem;
+      margin-top: 10px;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="marquee">★ ASTEROIDS ★</div>
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+  </div>
+  <div class="controls">
+    <span>🢀🢁🢂 THRUST</span>
+    <span>🢒 FIRE</span>
+    <span>⟳ HYPERSPACE</span>
+    <button class="btn-reset" id="resetBtn">⟳ RESET</button>
+  </div>
+  <div class="credit">1978 TAIORIGINAL • VECTOR • 1 CREDIT</div>
+</div>
+<script>
+  (function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ---------- FIXED ORIGINAL 1978 PARAMETERS ----------
+    const PLAYER_RADIUS = 18;
+    const ASTEROID_LARGE_RADIUS = 28;
+    const ASTEROID_MED_RADIUS = 18;
+    const ASTEROID_SMALL_RADIUS = 10;
+    const MAX_BULLETS = 4;
+    const BULLET_SPEED = 7.0;
+    const BULLET_RADIUS = 2.5;
+    const PLAYER_ACCEL = 0.15;
+    const PLAYER_FRICTION = 0.98;
+    const PLAYER_ROTATION_SPEED = 0.12; // radians per frame
+    const MAX_PLAYER_SPEED = 6.0;
+    const HYPERSPACE_COOLDOWN = 18; // frames
+
+    // ---------- GAME STATE ----------
+    let player = {
+      x: 400, y: 300, angle: -Math.PI/2, speed: 0,
+      radius: PLAYER_RADIUS, active: true, lives: 3,
+      invincible: 0, // frames remaining
+      hyperspaceCooldown: 0
+    };
+    let bullets = [];
+    let asteroids = [];
+    let score = 0;
+    let level = 1;
+    let gameOver = false;
+    let gameStarted = false;
+    let frameCounter = 0;
+
+    // keys
+    const keys = {
+      left: false, right: false, up: false, space: false, h: false
+    };
+
+    // ---------- INIT / RESET (original 1978 style) ----------
+    function resetGame() {
+      // reset player
+      player = {
+        x: 400, y: 300, angle: -Math.PI/2, speed: 0,
+        radius: PLAYER_RADIUS, active: true, lives: 3,
+        invincible: 60, // 1 second invincibility after death
+        hyperspaceCooldown: 0
+      };
+      bullets = [];
+      asteroids = [];
+      score = 0;
+      level = 1;
+      gameOver = false;
+      gameStarted = true;
+      frameCounter = 0;
+      // spawn initial asteroids (original: 4 large)
+      for (let i = 0; i < 4; i++) {
+        spawnAsteroid(true, null);
+      }
+    }
+
+    // ---------- ASTEROID SPAWNING (original rules) ----------
+    function spawnAsteroid(isLarge, parentPos) {
+      let x, y, size, radius, speed, angle;
+      if (isLarge) {
+        // large asteroid: spawn at edges, away from player
+        do {
+          x = Math.random() * 800;
+          y = Math.random() * 600;
+        } while (Math.hypot(x - player.x, y - player.y) < 120);
+        radius = ASTEROID_LARGE_RADIUS;
+        size = 'large';
+        speed = 0.5 + Math.random() * 1.0;
+        angle = Math.random() * 2 * Math.PI;
+      } else if (parentPos) {
+        // split into 2 smaller asteroids (original: medium or small)
+        const parentRadius = parentPos.radius;
+        let newRadius, newSize;
+        if (parentRadius === ASTEROID_LARGE_RADIUS) {
+          newRadius = ASTEROID_MED_RADIUS;
+          newSize = 'medium';
+        } else if (parentRadius === ASTEROID_MED_RADIUS) {
+          newRadius = ASTEROID_SMALL_RADIUS;
+          newSize = 'small';
+        } else {
+          return; // small asteroids don't split
+        }
+        // spawn near parent with offset
+        const offset = 20;
+        const ang = Math.random() * 2 * Math.PI;
+        x = parentPos.x + Math.cos(ang) * offset;
+        y = parentPos.y + Math.sin(ang) * offset;
+        radius = newRadius;
+        size = newSize;
+        speed = parentPos.speed * 1.2 + 0.2;
+        angle = parentPos.angle + 0.8 * (Math.random() - 0.5);
+      } else {
+        return;
+      }
+      // clamp inside canvas
+      x = Math.max(20, Math.min(780, x));
+      y = Math.max(20, Math.min(580, y));
+      const ast = {
+        x, y, radius, size, speed, angle,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed
+      };
+      asteroids.push(ast);
+    }
+
+    // ---------- DRAW VECTOR SPRITES (original 1978 look) ----------
+    function drawPlayer() {
+      if (!player.active) return;
+      const p = player;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      // invincibility flash
+      if (p.invincible > 0 && (p.invincible % 4 < 2)) {
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 2.5;
+      } else {
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 2.5;
+      }
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#ff6600';
+      // original Taito vector style: triangle with cockpit
+      ctx.beginPath();
+      ctx.moveTo(22, 0);
+      ctx.lineTo(-16, -12);
+      ctx.lineTo(-8, 0);
+      ctx.lineTo(-16, 12);
+      ctx.closePath();
+      ctx.stroke();
+      // cockpit detail
+      ctx.beginPath();
+      ctx.arc(4, 0, 4, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBullet(b) {
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, BULLET_RADIUS, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff6600';
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#ff6600';
+      ctx.fill();
+    }
+
+    function drawAsteroid(a) {
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      // original vector style: jagged polygon
+      const r = a.radius;
+      const spikes = 12;
+      const angleStep = 2 * Math.PI / spikes;
+      ctx.beginPath();
+      for (let i = 0; i < spikes; i++) {
+        const angle = i * angleStep + frameCounter * 0.02;
+        const len = r * (0.75 + 0.25 * Math.sin(i * 3.7 + frameCounter * 0.05));
+        const x = Math.cos(angle) * len;
+        const y = Math.sin(angle) * len;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = '#888888';
+      ctx.lineWidth = 2.5;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#aaaaaa';
+      ctx.stroke();
+      // crater detail (original style)
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.35, 0, 2 * Math.PI);
+      ctx.strokeStyle = '#555555';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawLives() {
+      for (let i = 0; i < player.lives; i++) {
+        const x = 40 + i * 28;
+        const y = 40;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(-Math.PI/2);
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = '#ff6600';
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(-10, -8);
+        ctx.lineTo(-5, 0);
+        ctx.lineTo(-10, 8);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawScore() {
+      ctx.fillStyle = '#ff6600';
+      ctx.font = 'bold 22px "Courier New", monospace';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ff6600';
+      ctx.textAlign = 'right';
+      ctx.fillText('SCORE', 780, 40);
+      ctx.fillStyle = '#ffcc00';
+      ctx.font = 'bold 26px "Courier New", monospace';
+      ctx.fillText(score.toString().padStart(6, '0'), 780, 70);
+      ctx.shadowBlur = 0;
+    }
+
+    // ---------- PHYSICS & COLLISION (original 1978 rules) ----------
+    function update() {
+      if (gameOver) return;
+      frameCounter++;
+
+      // ----- PLAYER -----
+      if (player.active) {
+        // rotation
+        if (keys.left) player.angle -= PLAYER_ROTATION_SPEED;
+        if (keys.right) player.angle += PLAYER_ROTATION_SPEED;
+        // thrust
+        if (keys.up) {
+          const ax = Math.cos(player.angle) * PLAYER_ACCEL;
+          const ay = Math.sin(player.angle) * PLAYER_ACCEL;
+          player.speed = Math.min(MAX_PLAYER_SPEED, Math.hypot(player.speed + ax, player.speed + ay) || 0);
+          // apply in direction
+          const currentSpeed = player.speed;
+          const dirX = Math.cos(player.angle);
+          const dirY = Math.sin(player.angle);
+          player.x += dirX * currentSpeed * 0.5;
+          player.y += dirY * currentSpeed * 0.5;
+          // friction not applied when thrusting (original)
+        } else {
+          // friction
+          player.speed *= PLAYER_FRICTION;
+          if (player.speed < 0.02) player.speed = 0;
+          const dirX = Math.cos(player.angle);
+          const dirY = Math.sin(player.angle);
+          player.x += dirX * player.speed;
+          player.y += dirY * player.speed;
+        }
+        // hyperspace
+        if (keys.h && player.hyperspaceCooldown === 0) {
+          player.x = 100 + Math.random() * 600;
+          player.y = 100 + Math.random() * 400;
+          player.hyperspaceCooldown = HYPERSPACE_COOLDOWN;
+        }
+        if (player.hyperspaceCooldown > 0) player.hyperspaceCooldown--;
+
+        // wrap
+        if (player.x < 0) player.x += 800;
+        if (player.x > 800) player.x -= 800;
+        if (player.y < 0) player.y += 600;
+        if (player.y > 600) player.y -= 600;
+
+        // invincibility
+        if (player.invincible > 0) player.invincible--;
+      }
+
+      // ----- BULLETS -----
+      if (keys.space && bullets.length < MAX_BULLETS && player.active) {
+        bullets.push({
+          x: player.x + Math.cos(player.angle) * 22,
+          y: player.y + Math.sin(player.angle) * 22,
+          vx: Math.cos(player.angle) * BULLET_SPEED,
+          vy: Math.sin(player.angle) * BULLET_SPEED,
+          life: 60
+        });
+      }
+      for (let i = 0; i < bullets.length; i++) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+        // wrap
+        if (b.x < 0) b.x += 800;
+        if (b.x > 800) b.x -= 800;
+        if (b.y < 0) b.y += 600;
+        if (b.y > 600) b.y -= 600;
+        // remove if expired
+        if (b.life <= 0) {
+          bullets.splice(i, 1);
+          i--;
+        }
+      }
+
+      // ----- ASTEROIDS -----
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
+        a.x += a.vx;
+        a.y += a.vy;
+        // wrap
+        if (a.x < -a.radius) a.x += 800 + a.radius * 2;
+        if (a.x > 800 + a.radius) a.x -= 800 + a.radius * 2;
+        if

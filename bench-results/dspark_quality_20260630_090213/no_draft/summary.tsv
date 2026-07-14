@@ -1,0 +1,5 @@
+mode	id	prompt_tokens	generated_tokens	decode_s	gen_tps	draft_slots	draft_accepted	draft_blocks	acceptance_pct	output_file
+no_draft	case_000	17	128	4.016843	31.865821	0	0	0	0.000	bench-results/dspark_quality_20260630_090213/no_draft/outputs/case_000.txt
+no_draft	case_001	18	128	4.028203	31.775956	0	0	0	0.000	bench-results/dspark_quality_20260630_090213/no_draft/outputs/case_001.txt
+no_draft	case_002	19	128	4.006279	31.949847	0	0	0	0.000	bench-results/dspark_quality_20260630_090213/no_draft/outputs/case_002.txt
+no_draft	case_003	19	128	4.012554	31.899882	0	0	0	0.000	bench-results/dspark_quality_20260630_090213/no_draft/outputs/case_003.txt

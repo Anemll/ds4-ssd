@@ -1,0 +1,63 @@
+I'll create a complete Space Invaders game in Pygame. Here's a full implementation:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+PLAYER_SPEED = 5
+BULLET_SPEED = 7
+ENEMY_SPEED = 1
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self):
+        self.rect = pygame.Rect(SCREEN_WIDTH // 2 - PLAYER_WIDTH // 2, 
+                                SCREEN_HEIGHT - 100, 
+                                PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.can_shoot = True
+        self.shoot_cooldown = 0
+        
+    def move(self, dx):
+        self.rect.x += dx * self.speed
+        # Keep player within screen bounds
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+            
+    def shoot(self):
+        if self.can_shoot:
+            bullet = pygame.Rect(self.rect.centerx - BULLET_WIDTH // 2, 
+                                self.rect.top, 
+                                BULLET_WIDTH, BULLET_HEIGHT)
+            self.bullets.append(bullet)
+            self.can_shoot = False
+            self.shoot_cooldown = 20  # frames before next shot
+            
+    def update(self):
+        # Update cooldown
+        if not self.can_shoot:
+            self.shoot_cooldown -= 1

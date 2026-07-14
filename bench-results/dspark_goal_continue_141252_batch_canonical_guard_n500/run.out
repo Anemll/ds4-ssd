@@ -1,0 +1,63 @@
+Here is a self-contained HTML file that recreates a pixel-perfect Space Invaders game, based on the original 1978 Taito arcade cabinet.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders · 1978 Taito</title>
+  <style>
+    /* Minimal reset, pixel aesthetic */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      image-rendering: pixelated;
+      -webkit-font-smoothing: none;
+    }
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet-wrapper {
+      background: #111;
+      border-radius: 20px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 40px rgba(0, 255, 0, 0.2);
+      border: 2px solid #333;
+    }
+    .game-container {
+      position: relative;
+      background: #000005;
+      border: 4px solid #222;
+      border-radius: 12px;
+      padding: 10px;
+      display: inline-block;
+      box-shadow: inset 0 0 20px rgba(0, 255, 0, 0.3);
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #000005;
+      width: 800px;
+      height: 800px;
+      image-rendering: pixelated;
+    }
+    .info-bar {
+      display: flex;
+      justify-content: space-between;
+      color: #0f0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      padding: 8px 0;
+      text-shadow: 0 0 5px #0f0;
+      letter-spacing: 2px;
+    }
+    .controls {
+      color: #0f0;
+      font-family: 'Courier New', monospace;
+      font-size:

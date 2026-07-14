@@ -1,0 +1,126 @@
+outdir=bench-results/dspark_batch_relaxed_checkpointfix_164028
+
+[fast_control]
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+33:ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+39:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+41:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+42:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+43:processing 19 input tokens: 1/19 (5.3%) batch=28.52 t/s avg=0.50 t/s
+44:processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.50 t/s
+45:processing 19 input tokens: 2/19 (10.5%) batch=52.61 t/s avg=0.99 t/s
+46:processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.98 t/s
+47:processing 19 input tokens: 3/19 (15.8%) batch=50.10 t/s avg=1.45 t/s
+48:processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.44 t/s
+49:processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.42 t/s
+50:processing 19 input tokens: 4/19 (21.1%) batch=47.68 t/s avg=1.88 t/s
+51:processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.86 t/s
+52:processing 19 input tokens: 5/19 (26.3%) batch=46.20 t/s avg=2.31 t/s
+53:processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.29 t/s
+54:processing 19 input tokens: 6/19 (31.6%) batch=51.88 t/s avg=2.72 t/s
+55:processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.70 t/s
+56:processing 19 input tokens: 7/19 (36.8%) batch=56.73 t/s avg=3.12 t/s
+57:processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.09 t/s
+58:processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.07 t/s
+59:processing 19 input tokens: 8/19 (42.1%) batch=52.16 t/s avg=3.48 t/s
+60:processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.44 t/s
+61:processing 19 input tokens: 9/19 (47.4%) batch=54.53 t/s avg=3.84 t/s
+62:processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.81 t/s
+63:processing 19 input tokens: 10/19 (52.6%) batch=50.55 t/s avg=4.20 t/s
+64:processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.16 t/s
+65:processing 19 input tokens: 11/19 (57.9%) batch=55.63 t/s avg=4.54 t/s
+66:processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.51 t/s
+67:processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.48 t/s
+68:processing 19 input tokens: 12/19 (63.2%) batch=50.49 t/s avg=4.85 t/s
+69:processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.81 t/s
+70:processing 19 input tokens: 13/19 (68.4%) batch=46.27 t/s avg=5.17 t/s
+71:processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.13 t/s
+72:processing 19 input tokens: 14/19 (73.7%) batch=52.27 t/s avg=5.48 t/s
+73:processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.45 t/s
+74:processing 19 input tokens: 15/19 (78.9%) batch=53.81 t/s avg=5.79 t/s
+75:processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.75 t/s
+76:processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.70 t/s
+77:processing 19 input tokens: 16/19 (84.2%) batch=31.16 t/s avg=6.00 t/s
+78:processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=5.94 t/s
+79:processing 19 input tokens: 17/19 (89.5%) batch=42.40 t/s avg=6.26 t/s
+80:processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=6.20 t/s
+81:processing 19 input tokens: 18/19 (94.7%) batch=45.16 t/s avg=6.51 t/s
+82:processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.46 t/s
+83:processing 19 input tokens: 19/19 (100.0%) batch=42.70 t/s avg=6.76 t/s
+90:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+93:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+97:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+102:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+104:ds4: prefill: 6.33 t/s, generation: 45.05 t/s (300 tokens in 6.660s)
+105:ds4: dspark perf: draft=405.5 tok/s, verify=72.7 proposed tok/s, verify-accepted=59.3 tok/s, block=79.83 ms (draft=11.85 verify=66.07 overhead=1.91 commit=1.43, tau=3.92, blocks=61)
+108:ds4: dspark acceptance: 81.6% (239/293 draft tokens)
+109:ds4: dspark acceptance by position: 1=54/61 2=53/61 3=50/59 4=43/58 5=39/54
+111:ds4: dspark full-accept: 70.5% (43/61 blocks), first-miss: 11.5% (7/61 blocks)
+112:ds4: dspark avg scheduled: 4.80 draft tokens/block (61 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_batch_relaxed_checkpointfix_164028/fast_control.out	887	37	37	1	0		0		0	0	0	1	1	0
+
+[batch_relaxed_top32_delta2]
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+33:ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+39:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+41:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+42:processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+43:processing 19 input tokens: 1/19 (5.3%) batch=27.94 t/s avg=0.37 t/s
+44:processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.37 t/s
+45:processing 19 input tokens: 2/19 (10.5%) batch=52.08 t/s avg=0.73 t/s
+46:processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.73 t/s
+47:processing 19 input tokens: 3/19 (15.8%) batch=51.00 t/s avg=1.08 t/s
+48:processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.08 t/s
+49:processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.07 t/s
+50:processing 19 input tokens: 4/19 (21.1%) batch=48.70 t/s avg=1.41 t/s
+51:processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.40 t/s
+52:processing 19 input tokens: 5/19 (26.3%) batch=48.68 t/s avg=1.74 t/s
+53:processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.73 t/s
+54:processing 19 input tokens: 6/19 (31.6%) batch=52.61 t/s avg=2.06 t/s
+55:processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.05 t/s
+56:processing 19 input tokens: 7/19 (36.8%) batch=57.33 t/s avg=2.38 t/s
+57:processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.36 t/s
+58:processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.35 t/s
+59:processing 19 input tokens: 8/19 (42.1%) batch=50.49 t/s avg=2.67 t/s
+60:processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=2.65 t/s
+61:processing 19 input tokens: 9/19 (47.4%) batch=54.14 t/s avg=2.96 t/s
+62:processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=2.94 t/s
+63:processing 19 input tokens: 10/19 (52.6%) batch=47.01 t/s avg=3.24 t/s
+64:processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.22 t/s
+65:processing 19 input tokens: 11/19 (57.9%) batch=58.29 t/s avg=3.52 t/s
+66:processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.50 t/s
+67:processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.49 t/s
+68:processing 19 input tokens: 12/19 (63.2%) batch=51.52 t/s avg=3.78 t/s
+69:processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=3.76 t/s
+70:processing 19 input tokens: 13/19 (68.4%) batch=46.79 t/s avg=4.04 t/s
+71:processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.02 t/s
+72:processing 19 input tokens: 14/19 (73.7%) batch=51.17 t/s avg=4.30 t/s
+73:processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=4.28 t/s
+74:processing 19 input tokens: 15/19 (78.9%) batch=53.34 t/s avg=4.56 t/s
+75:processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.53 t/s
+76:processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.50 t/s
+77:processing 19 input tokens: 16/19 (84.2%) batch=51.90 t/s avg=4.77 t/s
+78:processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=4.74 t/s
+79:processing 19 input tokens: 17/19 (89.5%) batch=50.58 t/s avg=5.01 t/s
+80:processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=4.98 t/s
+81:processing 19 input tokens: 18/19 (94.7%) batch=50.06 t/s avg=5.24 t/s
+82:processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=5.21 t/s
+83:processing 19 input tokens: 19/19 (100.0%) batch=44.12 t/s avg=5.47 t/s
+89:ds4: dspark relaxed accept enabled (target top-32 + logit-delta<=2.00 gate; non-target-greedy)
+90:ds4: dspark relaxed target-margin gate enabled (non-argmax accepts require top1-top2<=0.350 and top1-draft<=0.350)
+91:ds4: dspark relaxed confidence gate enabled (non-argmax accepts require draft confidence >= 0.400)
+93:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+95:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+96:ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+98:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+100:ds4: prefill: 5.17 t/s, generation: 41.62 t/s (300 tokens in 7.209s)
+101:ds4: dspark perf: draft=401.9 tok/s, verify=62.3 proposed tok/s, verify-accepted=52.4 tok/s, block=90.46 ms (draft=11.82 verify=76.28 overhead=2.37 commit=1.73, tau=4.00, blocks=60)
+104:ds4: dspark acceptance: 84.2% (240/285 draft tokens)
+105:ds4: dspark acceptance by position: 1=57/60 2=55/60 3=49/57 4=43/55 5=36/53
+107:ds4: dspark full-accept: 66.7% (40/60 blocks), first-miss: 5.0% (3/60 blocks)
+108:ds4: dspark avg scheduled: 4.75 draft tokens/block (60 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_batch_relaxed_checkpointfix_164028/batch_relaxed.out	927	36	36	1	0		0		0	0	0	1	1	0
+
+[cmp fast_control vs batch_relaxed]

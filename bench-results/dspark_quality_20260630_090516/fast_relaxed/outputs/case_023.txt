@@ -1,0 +1,11 @@
+**Backpressure** in the context of a network server refers to a mechanism for **flow control** that prevents the server from being overwhelmed by incoming data that it cannot handle fast enough.
+
+Think of it as a "stop" or "slow down" signal sent from the receiver to the sender.
+
+Here’s a breakdown of what happens and why it matters:
+
+### The Core Problem: The Producer-Consumer Mismatch
+
+A server has two main components:
+1.  **Producer (or Sender):** The network interface, clients, or upstream services that send data (e.g., HTTP requests, database queries).
+2.

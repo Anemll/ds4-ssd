@@ -1,0 +1,207 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 3.070 ms, residency requested in 437.698 ms, warmup 3.817 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 10.4 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=0.496s profile=0.000s model=0.006s sidecar=0.000s weights=0.001s dspark=0.000s backend=0.479s prewarm=0.010s
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: metal prefill layer 1/43
+ds4: metal prefill layer 2/43
+ds4: metal prefill layer 3/43
+ds4: metal prefill layer 4/43
+ds4: metal prefill layer 5/43
+ds4: metal prefill layer 6/43
+ds4: metal prefill layer 7/43
+ds4: metal prefill layer 8/43
+ds4: metal prefill layer 9/43
+ds4: metal prefill layer 10/43
+ds4: metal prefill layer 11/43
+ds4: metal prefill layer 12/43
+ds4: metal prefill layer 13/43
+ds4: metal prefill layer 14/43
+ds4: metal prefill layer 15/43
+ds4: metal prefill layer 16/43
+ds4: metal prefill layer 17/43
+ds4: metal prefill layer 18/43
+ds4: metal prefill layer 19/43
+ds4: metal prefill layer 20/43
+ds4: metal prefill layer 21/43
+ds4: metal prefill layer 22/43
+ds4: metal prefill layer 23/43
+ds4: metal prefill layer 24/43
+ds4: metal prefill layer 25/43
+ds4: metal prefill layer 26/43
+ds4: metal prefill layer 27/43
+ds4: metal prefill layer 28/43
+ds4: metal prefill layer 29/43
+ds4: metal prefill layer 30/43
+ds4: metal prefill layer 31/43
+ds4: metal prefill layer 32/43
+ds4: metal prefill layer 33/43
+ds4: metal prefill layer 34/43
+ds4: metal prefill layer 35/43
+ds4: metal prefill layer 36/43
+ds4: metal prefill layer 37/43
+ds4: metal prefill layer 38/43
+ds4: metal prefill layer 39/43
+ds4: metal prefill layer 40/43
+ds4: metal prefill layer 41/43
+ds4: metal prefill layer 42/43
+ds4: metal prefill layer 43/43
+Here's a complete Tetris implementation in C++ for macOS using the standard library and ncurses for terminal graphics:
+
+```cpp
+// tetris.cpp - Full Tetris game for macOS
+// Compile with: g++ -std=c++11 tetris.cpp -o tetris -lncurses
+
+#include <curses.h>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include <string>
+#include <unistd.h>
+
+// Game dimensions
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int INFO_WIDTH = 12;
+
+// Tetromino shapes (4x4 grid for each piece)
+// Each piece is represented by 4 rotations
+const std::vector<std::vector<std::vector<int>>> PIECES = {
+    // I piece
+    {{0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0},
+     {0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0},
+     {0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0},
+     {0,1,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0}},
+    // O piece
+    {{1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0},
+     {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0},
+     {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0},
+     {1,1,0,0, 1,1,0,0, 0,0,0,0, 0,0,0,0}},
+    // T piece
+    {{0,1,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0},
+     {0,1,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0},
+     {1,1,1,0, 0,1,0,0, 0,0,0,0, 0,0,0,0},
+     {0,1,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}},
+    // S piece
+    {{0,1,1,0, 1,1,0,0, 0,0,0,0, 0,0,0,0},
+     {1,0,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0},
+     {0,1,1,0, 1,1,0,0, 0,0,0,0, 0,0,0,0},
+     {1,0,0,0, 1,1,0,0, 0,1,0,0, 0,0,0,0}},
+    // Z piece
+    {{1,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0},
+     {0,0,1,0, 1,1,0,0, 1,0,0,0, 0,0,0,0},
+     {1,1,0,0, 0,1,1,0, 0,0,0,0, 0,0,0,0},
+     {0,0,1,0, 1,1,0,0, 1,0,0,0, 0,0,0,0}},
+    // J piece
+    {{1,0,0,0, 1,1,1,0, 0,0,0,0, 0,0,0,0},
+     {0,1,1,0, 0,1,0,0, 0,1,0,0, 0,0,0,0},
+     {1,1,1,0, 0,0,1,0, 0,0,0,0, 0,0,0,0},
+     {1,0,0,0, 1,1,0,0, 1,0,0,0, 0,0,0,0}},
+    // L piece
+    {{0,0,1,0, 1,1,1,0, 0,0,0,0, 0,0,0,0},
+     {1,0,0,0, 1,0,0,0, 1,1,0,0, 0,0,0,0},
+     {1,1,1,0, 1,0,0,0, 0,0,0,0, 0,0,0,0},
+     {1,1,0,0, 0,1,0,0, 0,1,0,0, 0,0,0,0}}
+};
+
+class Tetris {
+private:
+    WINDOW *game_win, *info_win, *next_win;
+    int board[BOARD_HEIGHT][BOARD_WIDTH];
+    int current_piece[4][4];
+    int piece_x, piece_y, piece_type, rotation;
+    int next_piece_type;
+    int score, level, lines_cleared;
+    bool game_over;
+    
+    // Timing
+    int drop_timer;
+    const int INITIAL_DROP_SPEED = 20; // frames per drop
+    
+public:
+    Tetris() : score(0), level(1), lines_cleared(0), game_over(false), drop_timer(0) {
+        // Initialize board
+        for (int y = 0; y < BOARD_HEIGHT; y++)
+            for (int x = 0; x < BOARD_WIDTH; x++)
+                board[y][x] = 0;
+        
+        // Initialize ncurses
+        initscr();
+        cbreak();
+        noecho();
+        curs_set(0);
+        keypad(stdscr, TRUE);
+        timeout(100); // 100ms input delay
+        
+        // Create windows
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+        
+        int start_x = (max_x - (BOARD_WIDTH * 2 + INFO_WIDTH)) / 2;
+        int start_y = (max_y - BOARD_HEIGHT) / 2;
+        
+        game_win = newwin(BOARD_HEIGHT + 2, BOARD_WIDTH * 2 + 2, start_y, start_x);
+        info_win = newwin(8, INFO_WIDTH, start_y, start_x + BOARD_WIDTH * 2 + 2);
+        next_win = newwin(6, INFO_WIDTH, start_y + 8, start_x + BOARD_WIDTH * 2 + 2);
+        
+        // Initialize random
+        srand(time(NULL));
+        
+        // Spawn first piece
+        next_piece_type = rand() % 7;
+        spawn_piece();
+    }
+    
+    ~Tetris() {
+        delwin(game_win);
+        delwin(info_win);
+        delwin(next_win);
+        endwin();
+    }
+    
+    void spawn_piece() {
+        piece_type = next_piece_type;
+        next_piece_type = rand() % 7;
+        rotation = 0;
+        
+        // Copy piece data
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++)
+                current_piece[y][x] = PIECES[piece_type][rotation][y * 4 + x];
+        
+        piece_x = BOARD_WIDTH / 2 - 2;
+        piece_y = 0;
+        
+        // Check if game over
+        if (!valid_position(piece_x, piece_y, rotation)) {
+            game_over = true;
+        }
+    }
+    
+    bool valid_position(int x, int y, int rot) {
+        for (int py = 0; py < 4; py++) {
+            for (int px = 0; px < 4; px++) {
+                int cell = PIECES[piece_type][rot][py * 4 + px];
+                if (cell) {
+                    int bx = x + px;
+                    int by = y + py;
+                    
+                    // Check boundaries
+                    if (bx < 0 || bx >= BOARD_WIDTH || by >= BOARD_HEIGHT)
+                        return false;
+                    
+                    // Check collision with board
+                    if (
+ds4: ----------------------------------------
+ds4: prefill: 211.91 t/s, generation: 33.71 t/s (2000 tokens in 59.338s)

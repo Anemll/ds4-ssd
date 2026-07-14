@@ -1,0 +1,37 @@
+{
+  "benchmark": "b",
+  "exit_code": 0,
+  "final_ds4_statistics": [
+    "ds4: ----------------------------------------",
+    "ds4: prefill: 10.48 t/s, generation: 31.89 t/s (5205 tokens in 163.237s)",
+    "ds4: ttf: first-output=35.633s total=198.815s (engine=1.520s session=25.615s prompt=0.000s prefill=8.394s decode=163.237s)",
+    "ds4: dspark acceptance: 92.8% (1104/1190 draft tokens)",
+    "ds4: dspark acceptance by position: 1=241/241 2=223/241 3=193/208 4=169/187 5=149/165 6=129/148",
+    "ds4: dspark conditional acceptance: 1=100.0% (241/241) 2|1=92.5% (223/241) 3|1-2=95.5% (193/202) 4|1-3=97.1% (169/174) 5|1-4=98.0% (149/152) 6|1-5=97.0% (129/133)",
+    "ds4: dspark full-accept: 83.8% (202/241 blocks), first-miss: 0.0% (0/241 blocks)",
+    "ds4: dspark avg scheduled: 4.94 draft tokens/block (241 blocks)"
+  ],
+  "finished_at": "2026-07-10T22:26:59.949296+00:00",
+  "health": {
+    "eligible_for_comparison": null,
+    "state": "unclassified"
+  },
+  "job_id": "20260710_151916_8998cada91",
+  "log": "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/host-bench-watcher/20260710_152340_b_20260710_151916_8998cada91/combined.log",
+  "metal_marker": "ds4: Metal device Apple M5 Max",
+  "native_metal": true,
+  "started_at": "2026-07-10T22:23:40.013861+00:00",
+  "stats": {
+    "acceptance": "92.8",
+    "avg_scheduled": "4.94",
+    "decode_s": "163.237",
+    "first_output": "35.633",
+    "full_accept": "83.8",
+    "generation": "31.89",
+    "prefill": "10.48",
+    "tokens": "5205",
+    "total_s": "198.815"
+  },
+  "status": "completed",
+  "wall_seconds": 199.934
+}

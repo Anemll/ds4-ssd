@@ -1,0 +1,311 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 2.393 ms, residency requested in 10381.825 ms, warmup 3.205 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 4.2 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=10.441s profile=0.000s model=0.006s sidecar=0.000s weights=0.000s dspark=0.000s backend=10.430s prewarm=0.004s
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: using chunked GPU prefill (16384-token chunks for 32767 prompt tokens)
+processing 32767 input tokens: 0/32767 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 32767 input tokens: 16384/32767 (50.0%) batch=591.84 t/s avg=591.20 t/s
+processing 32767 input tokens: 32767/32767 (100.0%) batch=423.44 t/s avg=493.46 t/s
+I'll create a complete Tetris game in C++ for macOS. This will be a console-based implementation using standard C++ libraries.
+
+```cpp
+// Tetris Game for macOS
+// Console-based implementation using standard C++
+
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <algorithm>
+
+// ANSI escape sequences for macOS terminal
+#define RESET   "\033[0m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN    "\033[36m"
+#define WHITE   "\033[37m"
+
+class Tetris {
+private:
+    // Game board dimensions
+    static const int BOARD_WIDTH = 10;
+    static const int BOARD_HEIGHT = 20;
+    
+    // Game board
+    std::vector<std::vector<int>> board;
+    
+    // Current piece
+    std::vector<std::vector<int>> currentPiece;
+    int currentX, currentY;
+    int currentPieceType;
+    
+    // Next piece
+    std::vector<std::vector<int>> nextPiece;
+    int nextPieceType;
+    
+    // Game state
+    int score;
+    int level;
+    int linesCleared;
+    bool gameOver;
+    bool paused;
+    
+    // Timing
+    int fallSpeed;
+    int frameCount;
+    
+    // Piece definitions (4x4 matrices)
+    std::vector<std::vector<std::vector<int>>> pieces;
+    
+    // Colors for each piece
+    std::vector<std::string> pieceColors;
+    
+    // Input handling
+    char getInput();
+    void setNonBlockingInput(bool enable);
+    
+    // Game logic
+    void initializePieces();
+    void drawBoard();
+    void drawPiece(const std::vector<std::vector<int>>& piece, int x, int y, bool isCurrent);
+    void drawNextPiece();
+    void drawInfo();
+    void drawGameOver();
+    void clearScreen();
+    
+    bool isValidPosition(const std::vector<std::vector<int>>& piece, int x, int y);
+    void placePiece();
+    void clearLines();
+    void spawnPiece();
+    void rotatePiece();
+    void moveLeft();
+    void moveRight();
+    void moveDown();
+    void dropPiece();
+    void handleInput(char input);
+    
+public:
+    Tetris();
+    void run();
+    void reset();
+};
+
+Tetris::Tetris() {
+    initializePieces();
+    reset();
+}
+
+void Tetris::initializePieces() {
+    // Define all Tetris pieces (tetrominoes)
+    // Each piece is a 4x4 matrix
+    
+    // I piece
+    pieces.push_back({
+        {0, 0, 0, 0},
+        {1, 1, 1, 1},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // O piece
+    pieces.push_back({
+        {1, 1, 0, 0},
+        {1, 1, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // T piece
+    pieces.push_back({
+        {0, 1, 0, 0},
+        {1, 1, 1, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // S piece
+    pieces.push_back({
+        {0, 1, 1, 0},
+        {1, 1, 0, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // Z piece
+    pieces.push_back({
+        {1, 1, 0, 0},
+        {0, 1, 1, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // J piece
+    pieces.push_back({
+        {1, 0, 0, 0},
+        {1, 1, 1, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // L piece
+    pieces.push_back({
+        {0, 0, 1, 0},
+        {1, 1, 1, 0},
+        {0, 0, 0, 0},
+        {0, 0, 0, 0}
+    });
+    
+    // Colors for each piece
+    pieceColors = {CYAN, YELLOW, MAGENTA, GREEN, RED, BLUE, WHITE};
+}
+
+void Tetris::reset() {
+    // Initialize empty board
+    board.clear();
+    board.resize(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0));
+    
+    // Reset game state
+    score = 0;
+    level = 1;
+    linesCleared = 0;
+    gameOver = false;
+    paused = false;
+    fallSpeed = 10;
+    frameCount = 0;
+    
+    // Spawn first pieces
+    srand(time(0));
+    nextPieceType = rand() % 7;
+    nextPiece = pieces[nextPieceType];
+    spawnPiece();
+}
+
+void Tetris::spawnPiece() {
+    // Set current piece to next piece
+    currentPieceType = nextPieceType;
+    currentPiece = nextPiece;
+    
+    // Generate new next piece
+    nextPieceType = rand() % 7;
+    nextPiece = pieces[nextPieceType];
+    
+    // Set initial position (centered at top)
+    currentX = BOARD_WIDTH / 2 - 2;
+    currentY = 0;
+    
+    // Check if game over
+    if (!isValidPosition(currentPiece, currentX, currentY)) {
+        gameOver = true;
+    }
+}
+
+bool Tetris::isValidPosition(const std::vector<std::vector<int>>& piece, int x, int y) {
+    // Check if piece position is valid
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (piece[i][j]) {
+                int boardX = x + j;
+                int boardY = y + i;
+                
+                // Check boundaries
+                if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                    boardY >= BOARD_HEIGHT) {
+                    return false;
+                }
+                
+                // Check collision with placed pieces
+                if (boardY >= 0 && board[boardY][boardX]) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+void Tetris::placePiece() {
+    // Place current piece on the board
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            if (currentPiece[i][j]) {
+                int boardX = currentX + j;
+                int boardY = currentY + i;
+                if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                    boardX >= 0 && boardX < BOARD_WIDTH) {
+                    board[boardY][boardX] = currentPieceType + 1;
+                }
+            }
+        }
+    }
+    
+    // Clear lines and update score
+    clearLines();
+    
+    // Spawn next piece
+    spawnPiece();
+}
+
+void Tetris::clearLines() {
+    int cleared = 0;
+    
+    // Check each row
+    for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        bool full = true;
+        for (int x = 0; x < BOARD_WIDTH; x++) {
+            if (!board[y][x]) {
+                full = false;
+                break;
+            }
+        }
+        
+        if (full) {
+            // Remove the line
+            board.erase(board.begin() + y);
+            board.insert(board.begin(), std::vector<int>(BOARD_WIDTH, 0));
+            cleared++;
+            y++; // Check the same row again
+        }
+    }
+    
+    // Update score
+    if (cleared > 0) {
+        linesCleared += cleared;
+        score += cleared * 100 * level;
+        
+        // Level up every 10 lines
+        level = 1 + (linesCleared / 10);
+        fallSpeed = std::max(1, 10 - level);
+    }
+}
+
+void Tetris::rotatePiece() {
+    // Rotate the piece 90 degrees clockwise
+    std::vector<std::vector<int>> rotated(4, std::vector<int>(4, 0));
+    
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            rotated[j][3 - i] = currentPiece[i][j];
+        }
+    }
+    
+    // Check if rotation is valid
+   
+ds4: ----------------------------------------
+ds4: prefill: 493.46 t/s, generation: 28.35 t/s (2000 tokens in 70.536s)

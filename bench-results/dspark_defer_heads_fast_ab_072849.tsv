@@ -1,0 +1,4 @@
+variant	tps	acc	suspect	out	err
+control	54.36	93.3	0	bench-results/defer_heads_control_072849.out	bench-results/defer_heads_control_072849.err
+defer_row_exact	50.77	89.1	1	bench-results/defer_heads_defer_row_exact_072849.out	bench-results/defer_heads_defer_row_exact_072849.err
+defer_unsafe	51.13	89.1	1	bench-results/defer_heads_defer_unsafe_072849.out	bench-results/defer_heads_defer_unsafe_072849.err

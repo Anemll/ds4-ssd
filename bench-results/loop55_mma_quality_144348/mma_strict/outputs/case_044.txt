@@ -1,0 +1,14 @@
+This is a great question about memory-mapped files and performance optimization. Testing that a file-backed `mmap` isn't being repeatedly remapped requires careful instrumentation since the kernel handles this transparently.
+
+## Key Approaches
+
+### 1. **Track `mmap`/`munmap` System Calls**
+
+Use `strace` or `perf` to monitor system calls:
+
+```bash
+# Count mmap/munmap calls
+strace -e trace=mmap,munmap -c your_program
+
+# Or with detailed output
+strace -e trace=mmap,munmap -v your_program

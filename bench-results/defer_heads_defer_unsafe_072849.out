@@ -1,0 +1,68 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+COLOR_BLACK = (0, 0, 0)
+COLOR_WHITE = (255, 255, 255)
+COLOR_RED = (255, 0, 0)
+COLOR_GREEN = (0, 255, 0)
+COLOR_BLUE = (0, 0, 255)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.reset_game()
+    
+    def reset_game(self):
+        # Player
+        self.player_x = SCREEN_WIDTH // 2 - PLAYER_WIDTH // 2
+        self.player_y = SCREEN_HEIGHT - 50
+        self.player_speed = 5
+        
+        # Enemies
+        self.enemies = []
+        for i in range(5):
+            for j in range(3):
+                enemy = {
+                    'x': i * (SCREEN_WIDTH // 5) + 50,
+                    'y': j * 50 + 50,
+                    'width': ENEMY_WIDTH,
+                    'height': ENEMY_HEIGHT,
+                    'speed': 1 + 0.5 * j,
+                    'direction': 1
+                }
+                self.enemies.append(enemy)
+        
+        # Bullets
+        self.player_bullets = []
+        self.enemy_bullets = []
+        self.bullet_speed = 7
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.win = False
+        
+        # Enemy movement
+        self.enemy_direction = 1
+        self.en

@@ -1,0 +1,8 @@
+Here is a short checklist for reviewing a pull request that touches memory lifetimes, focusing on safety, ownership, and correctness.
+
+### Memory Lifetime Review Checklist
+
+**1. Ownership & Borrowing**
+- [ ] **No Dangling References:** Are there any references that could outlive the data they point to (e.g., returning a reference to a local variable or a temporary)?
+- [ ] **Borrowing Rules:** Does the code respect Rust's borrow rules (one mutable or many immutable)? For C/C++, are raw pointers being used without clear ownership semantics?
+- [ ] **Move Semantics:** Are values being moved into closures or

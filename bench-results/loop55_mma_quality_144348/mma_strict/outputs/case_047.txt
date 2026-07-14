@@ -1,0 +1,11 @@
+This is an excellent question that gets to the heart of how storage engines optimize for performance and space.
+
+The core difference is that **raw KV rows** are stored exactly as the user (or application) put them in, while **compressed KV rows** are stored in a transformed, more compact format to save space and improve performance.
+
+Let's break down the key differences across several dimensions.
+
+### 1. Storage Format & Structure
+
+**Raw KV Row:**
+- **Format:** The key and value are stored verbatim. What you write is what you store.
+- **Structure:** Typically a simple, fixed-structure record: `

@@ -1,0 +1,8 @@
+Ecco una spiegazione chiara della differenza tra **latenza** e **throughput**, due concetti fondamentali nell'ingegneria dei sistemi (reti, storage, CPU).
+
+### L'analogia del ristorante
+
+Immagina un ristorante con un cuoco e un cameriere.
+
+- **Latenza** è il tempo che impiega il cameriere per prendere la tua ordinazione, portarla al cuoco e tornare con il piatto. È il **tempo di risposta per una singola richiesta**.
+- **Through

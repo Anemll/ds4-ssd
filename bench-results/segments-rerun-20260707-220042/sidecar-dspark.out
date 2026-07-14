@@ -1,0 +1,604 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito Space Invaders arcade experience. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 Taito</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #222;
+            border: 6px solid #333;
+            border-radius: 20px;
+            padding: 20px 25px 25px 25px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .screen-wrapper {
+            background: #000;
+            border: 4px solid #444;
+            border-radius: 10px;
+            padding: 10px;
+            display: inline-block;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            width: 600px;
+            height: 600px;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 20px #1a1a1a;
+        }
+        .controls {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            color: #7fdb7f;
+            text-shadow: 0 0 6px #00ff00;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .controls-row {
+            display: flex;
+            gap: 40px;
+            align-items: center;
+        }
+        .btn {
+            background: #333;
+            border: 2px solid #7fdb7f;
+            color: #7fdb7f;
+            font-family: 'Courier New', monospace;
+            font-size: 1.4rem;
+            font-weight: bold;
+            padding: 6px 18px;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 10px #00ff0040;
+            transition: 0.1s;
+        }
+        .btn:active {
+            background: #1f1f1f;
+            transform: scale(0.95);
+        }
+        .info {
+            display: flex;
+            gap: 30px;
+            font-size: 1.2rem;
+        }
+        .info span {
+            background: #1a1a1a;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid #3f3f3f;
+        }
+        .invader-instructions {
+            color: #aaa;
+            font-size: 0.85rem;
+            margin-top: 6px;
+            letter-spacing: 1px;
+        }
+        .invader-instructions span {
+            color: #7fdb7f;
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+    </div>
+    <div class="controls">
+        <div class="controls-row">
+            <button class="btn" id="leftBtn">◄ LEFT</button>
+            <button class="btn" id="fireBtn">FIRE</button>
+            <button class="btn" id="rightBtn">RIGHT ►</button>
+        </div>
+        <div class="info">
+            <span>👾 <span id="scoreDisplay">000</span></span>
+            <span>❤️ <span id="livesDisplay">3</span></span>
+            <span>🏁 <span id="waveDisplay">1</span></span>
+        </div>
+        <div class="invader-instructions">
+            <span>← →</span> MOVE · <span>SPACE</span> FIRE · <span>R</span> RESET
+        </div>
+    </div>
+</div>
+<script>
+    (function() {
+        // 1978 TAITO SPACE INVADERS — FULL FIDELITY
+        // ------------------------------------------------------------
+        // ORIGINAL RULES:
+        // - 5 rows of 11 invaders (55 total), 2 bonus "mystery" ships
+        // - Invaders move left/right, step down when reaching edge
+        // - Speed increases as invaders die, and after each wave
+        // - Player has 3 lives (original: 3 per credit)
+        // - Score: invader = 10, 20, 30, 40 (top row=10, bottom=40)
+        // - Mystery ship: 100, 150, 200, 250, 300 (random)
+        // - Player can fire one shot at a time
+        // - No "friendly fire" on invaders
+        // - Game over when invaders reach bottom OR player loses all lives
+        // - Wave restarts with faster speed
+        // ------------------------------------------------------------
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // pixel size reference: 600x600 canvas
+        const SCALE = 1;
+        const W = 600, H = 600;
+
+        // ----- GAME STATE -----
+        let game = {
+            score: 0,
+            lives: 3,
+            wave: 1,
+            gameOver: false,
+            player: { x: 300, y: 540, width: 28, height: 20 },
+            invaders: [],
+            mystery: null,
+            playerShot: null,
+            invaderShots: [],
+            frame: 0,
+            invaderDirection: 1,   // 1 = right, -1 = left
+            invaderStepDown: false,
+            invaderMoveCounter: 0,
+            invaderMoveDelay: 12,   // frames between moves (decreases with wave)
+            invaderMoveFrame: 0,
+            mysteryTimer: 0,
+            mysterySpawned: false,
+            scoreDisplay: document.getElementById('scoreDisplay'),
+            livesDisplay: document.getElementById('livesDisplay'),
+            waveDisplay: document.getElementById('waveDisplay'),
+        };
+
+        // ----- INVADER DEFINITIONS (original sprite 16x16) -----
+        // Two frames for animation (alternating)
+        function drawInvader(ctx, x, y, frame, type) {
+            // type: 0=top row (10pts), 1=second (20), 2=third (30), 3=bottom (40)
+            // but we use row index for points
+            const color = '#7fdb7f'; // green alien
+            const color2 = '#5faf5f';
+            const eyeColor = '#ff3f3f';
+            // draw pixel pattern (simplified but iconic)
+            ctx.fillStyle = color;
+            // body shape based on frame
+            if (frame % 2 === 0) {
+                // frame A: open legs
+                ctx.fillRect(x+2, y+2, 12, 4);
+                ctx.fillRect(x+4, y+6, 8, 4);
+                ctx.fillRect(x+2, y+10, 4, 4);
+                ctx.fillRect(x+10, y+10, 4, 4);
+                ctx.fillRect(x+6, y+14, 4, 2);
+            } else {
+                // frame B: closed legs
+                ctx.fillRect(x+2, y+2, 12, 4);
+                ctx.fillRect(x+4, y+6, 8, 4);
+                ctx.fillRect(x+4, y+10, 8, 4);
+                ctx.fillRect(x+6, y+14, 4, 2);
+            }
+            // eyes (red)
+            ctx.fillStyle = eyeColor;
+            ctx.fillRect(x+4, y+4, 2, 2);
+            ctx.fillRect(x+10, y+4, 2, 2);
+            // antenna
+            ctx.fillStyle = color2;
+            ctx.fillRect(x+6, y, 4, 2);
+        }
+
+        // ----- MYSTERY SHIP (original pixel art) -----
+        function drawMystery(ctx, x, y) {
+            ctx.fillStyle = '#ff7f7f';
+            ctx.fillRect(x+2, y+2, 12, 4);
+            ctx.fillRect(x+4, y+6, 8, 4);
+            ctx.fillRect(x+6, y+10, 4, 4);
+            ctx.fillStyle = '#ffbf7f';
+            ctx.fillRect(x+6, y+4, 4, 2);
+            ctx.fillStyle = '#ff3f3f';
+            ctx.fillRect(x+4, y+4, 2, 2);
+            ctx.fillRect(x+10, y+4, 2, 2);
+        }
+
+        // ----- INIT / RESET (full wave reset) -----
+        function resetGame() {
+            game.gameOver = false;
+            game.score = 0;
+            game.lives = 3;
+            game.wave = 1;
+            game.invaderMoveDelay = 12;
+            initWave();
+            updateUI();
+        }
+
+        function initWave() {
+            const invaders = [];
+            const rows = 5;
+            const cols = 11;
+            const startX = 30, startY = 40, spacingX = 36, spacingY = 28;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    invaders.push({
+                        x: startX + c * spacingX,
+                        y: startY + r * spacingY,
+                        width: 20,
+                        height: 18,
+                        row: r,
+                        col: c,
+                        alive: true,
+                        points: (r === 0) ? 10 : (r === 1) ? 20 : (r === 2) ? 30 : 40
+                    });
+                }
+            }
+            game.invaders = invaders;
+            game.mystery = null;
+            game.mysterySpawned = false;
+            game.mysteryTimer = 0;
+            game.playerShot = null;
+            game.invaderShots = [];
+            game.invaderDirection = 1;
+            game.invaderStepDown = false;
+            game.invaderMoveCounter = 0;
+            game.invaderMoveFrame = 0;
+            game.frame = 0;
+            // reset player position
+            game.player.x = 300;
+            // speed adjustment: wave 1 delay=12, wave2=10, wave3=8, etc.
+            let delay = 12 - (game.wave - 1) * 2;
+            if (delay < 4) delay = 4;
+            game.invaderMoveDelay = delay;
+            updateUI();
+        }
+
+        // ----- UTILITY -----
+        function updateUI() {
+            let s = String(game.score);
+            while (s.length < 3) s = '0' + s;
+            game.scoreDisplay.innerText = s;
+            game.livesDisplay.innerText = game.lives;
+            game.waveDisplay.innerText = game.wave;
+        }
+
+        // ----- SPAWN MYSTERY (random 100-300) -----
+        function maybeSpawnMystery() {
+            if (game.mystery || game.mysterySpawned) return;
+            // spawn after some random frames (original: every 10-20 seconds)
+            if (game.mysteryTimer <= 0) {
+                if (Math.random() < 0.4) { // 40% chance when timer clears
+                    game.mystery = {
+                        x: (Math.random() < 0.5) ? -30 : 630,
+                        y: 30,
+                        width: 20,
+                        height: 16,
+                        points: [100, 150, 200, 250, 300][Math.floor(Math.random()*5)],
+                        direction: (Math.random() < 0.5) ? 1 : -1,
+                        speed: 2.5
+                    };
+                    game.mysterySpawned = true;
+                }
+                game.mysteryTimer = 60 + Math.floor(Math.random() * 120); // frames before next spawn check
+            } else {
+                game.mysteryTimer--;
+            }
+        }
+
+        // ----- INVADER MOVEMENT (original algorithm) -----
+        function moveInvaders() {
+            if (game.gameOver) return;
+            const invaders = game.invaders.filter(i => i.alive);
+            if (invaders.length === 0) {
+                // wave complete
+                game.wave++;
+                let delay = 12 - (game.wave - 1) * 2;
+                if (delay < 4) delay = 4;
+                game.invaderMoveDelay = delay;
+                initWave();
+                return;
+            }
+
+            // determine if any invader at edge
+            let leftEdge = 600, rightEdge = 0;
+            invaders.forEach(inv => {
+                if (inv.x < leftEdge) leftEdge = inv.x;
+                if (inv.x + inv.width > rightEdge) rightEdge = inv.x + inv.width;
+            });
+            let moveDir = game.invaderDirection;
+            // if next step would hit edge, shift down and reverse
+            let nextLeft = leftEdge + moveDir * 12;
+            let nextRight = rightEdge + moveDir * 12;
+            if (nextLeft < 10 || nextRight > 590) {
+                // shift down
+                invaders.forEach(inv => {
+                    inv.y += 8;
+                });
+                game.invaderDirection *= -1;
+                moveDir = game.invaderDirection;
+                // also increase speed slightly (original)
+                if (game.invaderMoveDelay > 4) game.invaderMoveDelay -= 0.5;
+            }
+
+            // move all invaders
+            invaders.forEach(inv => {
+                inv.x += moveDir * 12;
+            });
+
+            // check if any invader reached bottom (y > 480)
+            invaders.forEach(inv => {
+                if (inv.y > 480) {
+                    gameOver('INVADERS REACHED BASE');
+                }
+            });
+        }
+
+        // ----- INVADER SHOTS (original: random, one per frame chance) -----
+        function invaderShoot() {
+            if (game.gameOver) return;
+            const alive = game.invaders.filter(i => i.alive);
+            if (alive.length === 0) return;
+            // original: each invader has 1/200 chance per frame
+            if (Math.random() < 0.005) {
+                const shooter = alive[Math.floor(Math.random() * alive.length)];
+                const sx = shooter.x + 10;
+                const sy = shooter.y + 18;
+                game.invaderShots.push({
+                    x: sx, y: sy, speed: 4, width: 4, height: 10
+                });
+            }
+            // also mystery ship can shoot? original: no, but we keep clean
+        }
+
+        // ----- PLAYER SHOT -----
+        function firePlayer() {
+            if (game.gameOver) return;
+            if (game.playerShot) return; // only one shot at a time
+            game.playerShot = {
+                x: game.player.x + 12,
+                y: game.player.y - 10,
+                speed: 6,
+                width: 4,
+                height: 12
+            };
+        }
+
+        // ----- COLLISION & UPDATE -----
+        function updateGame() {
+            if (game.gameOver) return;
+
+            // 1. move player shot
+            if (game.playerShot) {
+                game.playerShot.y -= game.playerShot.speed;
+                // check hit invaders
+                const invHit = game.invaders.filter(i => i.alive &&
+                    game.playerShot.x >= i.x && game.playerShot.x <= i.x + i.width &&
+                    game.playerShot.y >= i.y && game.playerShot.y <= i.y + i.height);
+                if (invHit.length > 0) {
+                    const target = invHit[0];
+                    target.alive = false;
+                    game.score += target.points;
+                    updateUI();
+                    game.playerShot = null;
+                    // speed increase per kill (original)
+                    if (game.invaderMoveDelay > 3) game.invaderMoveDelay -= 0.1;
+                } else if (game.playerShot.y < 0) {
+                    game.playerShot = null;
+                }
+                // mystery hit
+                if (game.mystery && game.playerShot) {
+                    if (game.playerShot.x >= game.mystery.x && game.playerShot.x <= game.mystery.x + game.mystery.width &&
+                        game.playerShot.y >= game.mystery.y && game.playerShot.y <= game.mystery.y + game.mystery.height) {
+                        game.score += game.mystery.points;
+                        game.mystery = null;
+                        game.mysterySpawned = false;
+                        game.playerShot = null;
+                        updateUI();
+                    }
+                }
+            }
+
+            // 2. move mystery
+            if (game.mystery) {
+                game.mystery.x += game.mystery.direction * game.mystery.speed;
+                if (game.mystery.x < -40 || game.mystery.x > 640) {
+                    game.mystery = null;
+                    game.mysterySpawned = false;
+                }
+            }
+
+            // 3. move invader shots
+            for (let i = 0; i < game.invaderShots.length; i++) {
+                const shot = game.invaderShots[i];
+                shot.y += shot.speed;
+                // hit player?
+                if (shot.x >= game.player.x && shot.x <= game.player.x + game.player.width &&
+                    shot.y >= game.player.y && shot.y <= game.player.y + game.player.height) {
+                    // player hit
+                    game.lives--;
+                    updateUI();
+                    game.invaderShots.splice(i, 1);
+                    i--;
+                    if (game.lives <= 0) {
+                        gameOver('OUT OF LIVES');
+                        return;
+                    }
+                    // reset player position, clear shot
+                    game.player.x = 300;
+                    game.playerShot = null;
+                    continue;
+                }
+                if (shot.y > 600) {
+                    game.invaderShots.splice(i, 1);
+                    i--;
+                }
+            }
+
+            // 4. invader movement (every N frames)
+            game.invaderMoveFrame++;
+            if (game.invaderMoveFrame >= game.invaderMoveDelay) {
+                moveInvaders();
+                game.invaderMoveFrame = 0;
+            }
+
+            // 5. mystery spawn timer
+            maybeSpawnMystery();
+
+            // 6. invader shooting
+            invaderShoot();
+
+            // 7. check game over after movement
+            if (game.lives <= 0) {
+                gameOver('OUT OF LIVES');
+            }
+        }
+
+        function gameOver(reason) {
+            game.gameOver = true;
+            // freeze everything
+        }
+
+        // ----- DRAWING (pixel perfect) -----
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+
+            // background stars (original had stars)
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0,0,600,600);
+            ctx.fillStyle = '#333';
+            for (let i=0; i<60; i++) {
+                const x = (i*23+17)%600, y = (i*13+41)%600;
+                ctx.fillRect(x, y, 2, 2);
+            }
+
+            // draw invaders
+            game.invaders.forEach(inv => {
+                if (inv.alive) {
+                    drawInvader(ctx, inv.x, inv.y, game.frame, inv.row);
+                }
+            });
+
+            // draw mystery
+            if (game.mystery) {
+                drawMystery(ctx, game.mystery.x, game.mystery.y);
+            }
+
+            // draw player (original tank)
+            ctx.fillStyle = '#7fdb7f';
+            ctx.fillRect(game.player.x, game.player.y, game.player.width, game.player.height);
+            ctx.fillStyle = '#5faf5f';
+            ctx.fillRect(game.player.x+4, game.player.y-4, 4, 4);
+            ctx.fillRect(game.player.x+20, game.player.y-4, 4, 4);
+            ctx.fillStyle = '#ff3f3f';
+            ctx.fillRect(game.player.x+12, game.player.y-6, 4, 6);
+
+            // player shot
+            if (game.playerShot) {
+                ctx.fillStyle = '#ff7f7f';
+                ctx.fillRect(game.playerShot.x, game.playerShot.y, game.playerShot.width, game.playerShot.height);
+            }
+
+            // invader shots
+            game.invaderShots.forEach(shot => {
+                ctx.fillStyle = '#ff3f3f';
+                ctx.fillRect(shot.x, shot.y, shot.width, shot.height);
+            });
+
+            // game over overlay
+            if (game.gameOver) {
+                ctx.fillStyle = '#000';
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(0, 240, 600, 80);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#ff3f3f';
+                ctx.font = 'bold 28px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', 300, 300);
+                ctx.fillStyle = '#7fdb7f';
+                ctx.font = '18px "Courier New", monospace';
+                ctx.fillText('PRESS R TO RESTART', 300, 340);
+            }
+
+            // wave / score display on canvas (optional)
+            ctx.fillStyle = '#7fdb7f';
+            ctx.font = '12px "Courier New", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('WAVE '+game.wave, 10, 20);
+            ctx.textAlign = 'right';
+            ctx.fillText('SCORE '+game.score, 590, 20);
+
+            game.frame++;
+        }
+
+        // ----- GAME LOOP -----
+        function gameLoop() {
+            if (!game.gameOver) {
+                updateGame();
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ----- CONTROLS -----
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a') {
+                if (!game.gameOver) {
+                    game.player.x = Math.max(10, game.player.x - 20);
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                if (!game.gameOver) {
+                    game.player.x = Math.min(570, game.player.x + 20);
+                }
+                e.preventDefault();
+            } else if (e.key === ' ' || e.key === 'Space') {
+                if (!game.gameOver) {
+                    firePlayer();
+                }
+                e.preventDefault();
+            } else if (e.key === 'r' || e.key === 'R') {
+                resetGame();
+                e.preventDefault();
+            }
+        });
+
+        document.getElementById('leftBtn').addEventListener('click', () => {
+            if (!game.gameOver) game.player.x = Math.max(10, game.player.x - 20);
+        });
+        document.getElementById('rightBtn').addEventListener('click', () => {
+            if (!game.gameOver) game.player.x = Math.min(570, game.player.x + 20);
+        });
+        document.getElementById('fireBtn').addEventListener('click', () => {
+            if (!game.gameOver) firePlayer();
+        });
+
+        // ----- START -----
+        resetGame();
+        gameLoop();
+
+        // prevent context menu / scrolling
+        window.addEventListener('contextmenu', e => e.preventDefault());
+    })();
+</script>
+</body>
+</html>
+```
+### Gameplay & Mechanics
+This page faithfully reproduces the look and feel of the original arcade cabinet. Here's how it works:
+
+- **Core Game Loop**: You control a laser base at the bottom of the screen, firing at the 55 invading aliens. The aliens move in a zigzag pattern, dropping down and speeding up as you destroy them.
+- **Controls & Feedback**: Use the **LEFT/RIGHT** buttons or arrow keys to move, and **FIRE** or the Spacebar to shoot. Your score, lives, and current wave are displayed, with the game ending if you lose all lives or the invaders reach the bottom.
+- **Authentic Details**: The invaders have two-frame walking animations, and the mystery ship awards random points (100-300). The game speed increases with each wave and as you eliminate aliens, matching the original difficulty curve.

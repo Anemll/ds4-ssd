@@ -1,0 +1,12 @@
+Ecco una guida dettagliata su come testare un parser da riga di comando con casi limite, utilizzando un approccio sistematico.
+
+## 1. **Strategia di Test per Casi Limite**
+
+### Principi fondamentali:
+- **Boundary Value Analysis**: Testare ai confini degli intervalli validi
+- **Equivalence Partitioning**: Raggruppare input simili
+- **Error Guessing**: Basarsi sull'esperienza per scenari problematici
+
+## 2. **Categorie di Casi Limite da Testare**
+
+### A. **Input

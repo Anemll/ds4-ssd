@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca un punto cruciale nel campo dell'elaborazione dei segnali e della compressione.
+
+L'affermazione che l'errore di quantizzazione "colpisce più gli esperti rari" è un concettoche si basa su due fenomeni correlati: **la natura della quantizzazione** e la **distribuzione statistica dei segnali**.
+
+Ecco la spiegazione dettagliata:
+
+### 1. Il Problema di Base: La Quantizzazione Non è Lineare
+
+La quantizzazione è un processo di mappatura di un

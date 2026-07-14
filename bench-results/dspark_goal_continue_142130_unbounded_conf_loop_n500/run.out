@@ -1,0 +1,67 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders · 1978 Taito</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family 'Courier New', monospace;
+            image-rendering: pixelated;
+        }
+        .cabinet {
+            background: #1a0a0;
+            padding: 20px 20px 30px;
+            border-radius: 20px 20px 12px 12px;
+            box-shadow: 0 0 30px #ff2a2, 0 0 60px #f0f0, inset 0 0 20px #fda;
+            border: 3px solid #ff2a2;
+        }
+        .game-wrapper {
+            background: #000;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #f0f0;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 800px;
+            height: 800px;
+            background: #000;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            cursor: none;
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="game-wrapper">
+        <canvas id="gameCanvas" width="800" height="800"></canvas>
+    </div>
+</div>
+<script>
+(function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothing = false;
+
+    // 1978 Space Invaders – pixel perfect replica
+    // resolution: 800x800 (10x80 grid)
+    const COLS = 80;
+    const ROWS = 80;
+    const CELL = 10;
+
+    // game state
+    let player = { x: 35, y: 72,

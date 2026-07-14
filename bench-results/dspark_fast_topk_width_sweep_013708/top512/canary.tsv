@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_fast_topk_width_sweep_013708/top512/stdout.txt	952	35	35	1	0		0		0	0	0	1	1	0

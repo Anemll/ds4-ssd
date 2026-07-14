@@ -1,0 +1,16 @@
+Let me explain online softmax in attention using simple variables.
+
+## The Standard Softmax Problem
+
+In standard attention, we compute softmax over all queries and keys at once:
+
+```python
+# Standard softmax - needs ALL scores at once
+scores = [2, 5, 1, 3]  # attention scores for 4 positions
+sum_exp = 0
+for s in scores:
+    sum_exp += exp(s)  # exp(2) + exp(5) + exp(1) + exp(3)
+
+softmax_values = []
+for s in scores:
+    softmax_values.append(

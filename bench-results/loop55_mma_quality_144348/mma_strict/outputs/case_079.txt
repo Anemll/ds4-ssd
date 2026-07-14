@@ -1,0 +1,11 @@
+Ecco una checklist per revisionare la gestione della memoria (lifetime) in una Pull Request:
+
+## ✅ Checklist Lifetime di Memoria
+
+### 1. **Analisi dei Riferimenti**
+- [ ] I riferimenti forti (`strong`) vengono rilasciati quando non più necessari?
+- [ ] I riferimenti deboli (`weak`) sono usati correttamente per evitare retention cycles?
+- [ ] I riferimenti non posseduti (`unowned`) sono sicuri (oggetto vive più a lungo del riferimento)?
+
+### 2. **Retain Cycles**
+- [ ] Le closure catturano

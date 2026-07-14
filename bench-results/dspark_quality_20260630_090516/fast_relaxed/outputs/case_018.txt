@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca il cuore delle ottimizzazioni nei transformer.
+
+Il prefill GPU (o "prefill" o "processing della prompt") è più veloce del decode token-per-token perché sfrutta la **parallelizzazione massiccia** delle operazioni matematiche, mentre il decode è intrinsecamente sequenziale.
+
+Ecco la spiegazione dettagliata, punto per punto.
+
+### 1. Il Problema Fondamentale: Parallelismo vs. Serialismo
+
+La differenza principale risiede nel **tipo di operazione** che la GPU deve

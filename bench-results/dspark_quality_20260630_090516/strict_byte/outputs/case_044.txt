@@ -1,0 +1,11 @@
+This is a great question about memory-mapped files and performance optimization. Testing that a file-backed `mmap` isn't being repeatedly remapped is important because remapping can cause significant performance overhead, TLB flushes, and page cache invalidation.
+
+Here are several approaches to test this:
+
+## 1. **Using `strace` or `perf` to Trace System Calls**
+
+The most direct way is to monitor `mmap` and `munmap` system calls:
+
+```bash
+# Trace mmap/munmap calls for a specific process
+strace -e trace=mmap,munmap -p

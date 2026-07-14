@@ -1,0 +1,117 @@
+This is a complete, self-contained HTML file for a pixel-perfect Space Invaders game inspired by the 1978 Taito arcade. It includes the classic sprite design, rules, and sound effects.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders – 1978 Taito</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .game-wrapper {
+            background: #111;
+            padding: 20px;
+            border: 4px solid #333;
+            border-radius: 8px;
+            box-shadow: 0 0 30px #0f0f0f;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            width: 800px;
+            height: 800px;
+            border: 2px solid #2a2a2a;
+            box-shadow: inset 0 0 20px #0000aa;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            color: #fff;
+            padding: 10px 0;
+            background: #0d0d0d;
+            border-top: 2px solid #2a2a2a;
+            font-size: 18px;
+            letter-spacing: 2px;
+        }
+        .controls span {
+            background: #000;
+            padding: 4px 8px;
+            border: 1px solid #555;
+            color: #ff00aa;
+            text-shadow: 0 0 6px #ff00aa;
+        }
+        .info {
+            font-size: 14px;
+            color: #aaa;
+            text-align: center;
+            padding-top: 6px;
+        }
+        .info kbd {
+            background: #222;
+            padding: 2px 6px;
+            border: 1px solid #555;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<div class="game-wrapper">
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+    <div class="controls">
+        <span>SCORE: <span id="scoreDisplay">0</span></span>
+        <span>CREDITS: 1</span>
+        <span>LIVES: <span id="livesDisplay">3</span></span>
+    </div>
+    <div class="info">
+        <kbd>←</kbd> <kbd>→</kbd> move &nbsp; <kbd>SPACE</kbd> fire &nbsp; <kbd>R</kbd> restart
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ---------- 1978 Taito Space Invaders ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const livesSpan = document.getElementById('livesDisplay');
+
+        // Pixel scale (2x per unit)
+        const SCALE = 2;
+        const W = 800, H = 800;
+
+        // Game state
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let win = false;
+        let frame = 0;
+
+        // Player
+        const player = {
+            x: 400,
+            y: 720,
+            w: 28,
+            h: 24,
+            speed: 6,
+            cooldown: 0,
+            alive: true
+        };
+
+        // Bullets
+        let bullets = [];
+        const BULLET_W = 4;
+        const BULL

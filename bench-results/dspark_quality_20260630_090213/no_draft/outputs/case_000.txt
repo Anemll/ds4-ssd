@@ -1,0 +1,8 @@
+Here is a detailed explanation of B-tree insertion, covering the standard algorithm, node splits, and the special case of root splits.
+
+### Core Concepts of a B-tree
+
+Before diving into insertion, let's recall the key properties of a B-tree of order `m` (where `m` is the maximum number of children a node can have):
+
+1.  **Node Capacity:** Every node can hold up to `m-1` keys. The minimum number of keys a non-root node can have is `⌈m/2⌉ - 1`.
+2.  **Children:** A node with `k` keys has

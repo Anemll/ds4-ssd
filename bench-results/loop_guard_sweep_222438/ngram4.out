@@ -1,0 +1,88 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic implementation with all the essential features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Player
+        self.player = Player()
+        
+        # Create enemies
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        
+        # Enemy movement direction
+        self.enemy_direction = 1
+        self.enemy_speed = 2
+        
+        self.enemy_shoot_cooldown = 0
+        
+    def create_enemies(self):
+        """Create a grid of enemies"""
+        for row in range(5):
+            for col in range(10):
+                enemy = Enemy(60 + col * 75, 60 + row * 50)
+                self.enemies.append(enemy)
+    
+    def update(self):
+        """Update game state"""
+        if self.game_over:
+            return
+            
+        # Player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move_left()
+        if keys[pygame.K_RIGHT]:
+            self.player.move_right()
+        
+        # Player shooting
+        if self.player.shoot_cooldown > 0:
+            self.player.shoot_cooldown -= 1
+        
+        # Update player bullets
+        for bullet in self.player.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.player.bullets.remove(bullet)
+        
+        # Update enemies
+        # Check if any enemy reaches the edge
+        enemy_reach_edge = False
+        for enemy in self.enemies:
+            if enemy.y > 50:  # Only check if enemies have moved down
+                if enemy.x < 0 or enemy.x > SCREEN_WIDTH - 50:
+                    enemy_reach_edge = True
+                    break
+        

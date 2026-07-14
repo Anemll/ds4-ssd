@@ -1,0 +1,64 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAY_WIDTH = 600
+PLAYER_HEIGHT = 100
+PLAYER_WIDTH = 50
+PLAYER_WIDTH_ACTUAL = 50
+ENEMY_WIDTH = 40
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 5
+BULLET_HEIGHT = 10
+BULLET_WIDTH_ACTUAL = 5
+BULLET_HEIGHT_ACTUAL = 10
+
+# Colors
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+BLUE = (0, 0, 255)
+PARK = (255, 255, 0)  # YELLOW
+
+# Colors
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = PLAYER_WIDTH
+        self.height = 20
+        self.velocity = 5
+        self.speed = 0
+        self.bullets = []
+        self.bullet_speed = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bullet_right = 0
+        self.bul

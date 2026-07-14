@@ -1,0 +1,4 @@
+case	tps	tau	accept	suspect	chars
+cli_fast	51.45	4.32	91.7	0	    3553
+temp_loose	50.22	3.84	88.4	0	    3583
+temp_strictish	48.31	3.41	83.5	0	    3521

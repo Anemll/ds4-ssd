@@ -1,0 +1,10 @@
+Here are three invariants for a special-token table in a tokenizer:
+
+1. **Uniqueness of Token Strings**  
+   No two entries in the table may have the same string representation. This ensures that each token string maps to exactly one token ID, preventing ambiguous tokenization.
+
+2. **Consistent ID Assignment**  
+   The token IDs assigned to the special tokens must be distinct from all other token IDs (both special tokens and regular vocabulary tokens). This prevents collisions when the tokenizer processes input.
+
+3. **Ordering by Token Length**  
+   If the tokenizer uses a greedy longest-match strategy (e.g

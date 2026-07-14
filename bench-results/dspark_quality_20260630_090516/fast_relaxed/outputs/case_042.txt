@@ -1,0 +1,10 @@
+This is a great question. The "online softmax" is a clever trick to make the standard attention mechanism more memory-efficient, especially for long sequences.
+
+Let's break it down with a simple analogy.
+
+### The Problem: The "Normal" Softmax
+
+Imagine you're a student (the **Query**) and you have a list of 5 books (the **Key-Value pairs**). You need to calculate a "relevance score" (attention) for each book, and then pick a weighted average.
+
+**Step 1: Calculate Raw Scores (S)**
+You give each book a score based on how much it relates

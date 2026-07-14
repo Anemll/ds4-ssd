@@ -1,0 +1,9 @@
+This is an excellent question because it gets at the fundamental design choice behind RMSNorm (Root Mean Square Normalization) versus the more traditional LayerNorm (Layer Normalization).
+
+The core reason RMSNorm needs both a **sum of squares** (to compute the Root Mean Square) and a **scaling pass** (to divide by it) is that it is designed to be a **purely statistical normalization** that removes the scale of the input vector, while preserving its direction and structure.
+
+Let's break down the "why" step-by-step.
+
+### The Goal: Normalization
+
+The primary goal of any normalization layer (BatchNorm,

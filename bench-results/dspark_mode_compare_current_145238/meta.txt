@@ -1,0 +1,5 @@
+ROOT=bench-results/dspark_mode_compare_current_145238
+DATE=Tue Jun 30 14:52:38 PDT 2026
+BASE=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+DRAFT=/Users/anemll/Models/DSv4-Flash-DSpark-draft
+PROMPT=Make a game of Space Invader in Pygame

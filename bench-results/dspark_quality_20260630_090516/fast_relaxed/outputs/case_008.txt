@@ -1,0 +1,11 @@
+This is a great question that gets to the heart of how LLMs actually run on hardware.
+
+The core reason is that **memory bandwidth is a much bigger bottleneck than compute** for single-token decode, while **compute is the bottleneck** for prefill.
+
+Here’s the breakdown of why a prefill (processing a large prompt) is faster *per token* (or in terms of throughput) than a single-token decode.
+
+### The Fundamental Difference: Compute vs. Memory
+
+1.  **Single-Token Decode (Autoregressive Step):**
+    - **Task:** Generate the next token.
+    - **Input

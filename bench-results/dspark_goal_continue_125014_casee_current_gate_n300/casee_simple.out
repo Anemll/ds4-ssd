@@ -1,0 +1,41 @@
+Here's a complete Space Invaders game in Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self):
+        self.rect = pygame.Rect(SCREEN_WIDTH // 2 - 25, SCREEN_HEIGHT - 50, 50, 25)
+        self.speed = 5
+        self.bullets = []
+        self.lives = 3
+        self.cooldown = 0
+        self.shoot_cooldown = 20
+        
+    def move(self, dx):
+        self.rect.x += dx * self.speed
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > SCREEN_WIDTH:
+            self.rect.right = SCREEN_WIDTH
+            
+    def shoot(self):
+        if self.cooldown <= 0:
+            bullet = Bullet(self.rect.centerx, self.rect.top, 0, -

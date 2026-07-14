@@ -1,0 +1,3 @@
+Questa è un'ottima domanda che tocca il cuore del design di RMSNorm (Root Mean Square Normalization).
+
+La risposta breve è: **RMSNorm richiede la somma dei quadrati (e quindi la radice quadrata) perché la sua funzione è quella di scalare l'intero vettore delle attivazioni in modo che la sua *norma RMS* (deviazione standard) sia uguale a 1. Il "riscalamento" (moltiplicazione per un parametro `γ` appreso) serve a ripristinare la libertà espressiva

@@ -1,0 +1,2 @@
+Here is a short checklist for reviewing a pull request that touches memory lifetimes, focusing on safety, correctness, and clarity.
+

@@ -1,0 +1,144 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic implementation with all the essential features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Player
+        self.player = Player()
+        
+        # Create enemies
+        self.enemies = []
+        self.create_enemies()
+        
+        # Bullets
+        self.player_bullets = []
+        self.enemy_bullets = []
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        
+        # Enemy movement
+        self.enemy_direction = 1  # 1 = right, -1 = left
+        self.enemy_speed = 2
+        self.enemy_move_down = False
+        
+    def create_enemies(self):
+        """Create a grid of enemies"""
+        for row in range(5):
+            for col in range(10):
+                enemy = Enemy(
+                    x = 75 + col * 75,
+                    y = 50 + row * 60
+                )
+                self.enemies.append(enemy)
+    
+    def handle_events(self):
+        """Handle all events"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.player_bullets.append(self.player.shoot())
+                elif event.key == pygame.K_r and self.game_over:
+                    self.reset()
+    
+    def reset(self):
+        """Reset game state"""
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.player = Player()
+        self.enemies = []
+        self.create_enemies()
+        self.player_bullets = []
+        self.enemy_bullets = []
+    
+    def update(self):
+        """Update game state"""
+        if self.game_over:
+            return
+        
+        # Player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move(-1)
+        if keys[pygame.K_RIGHT]:
+            self.player.move(1)
+        
+        # Update enemy movement
+        self.update_enemies()
+        
+        # Update bullets
+        self.update_player_bullets()
+        self.update_enemy_bullets()
+        
+        # Check collisions
+        self.check_collisions()
+        
+        # Enemy shooting
+        if random.random() < 0.02 and self.enemies:
+            enemy = random.choice(self.enemies)
+            self.enemy_bullets.append(enemy.shoot())
+    
+    def update_enemies(self):
+        """Update enemy movement and direction"""
+        move_down = False
+        
+        # Check if enemies should change direction
+        for enemy in self.enemies:
+            if enemy.x + 40 >= SCREEN_WIDTH or enemy.x <= 0:
+                self.enemy_direction *= -1
+                move_down = True
+                break
+        
+        # Move all enemies
+        for enemy in self.enemies:
+            enemy.x += self.enemy_speed * self.enemy_direction
+            if move_down:
+                enemy.y += 15
+        
+        # Remove enemies that are too low
+        self.enemies = [e for e in self.enemies if e.y < SCREEN_HEIGHT - 100]
+    
+    def update_player_bullets(self):
+        """Update player bullets"""
+        for bullet in self.player_bullets[:]:
+            bullet.y -= 5  # Move up
+            if bullet.y < 0:
+                self.player_bullets.remove(bullet)
+    
+    def update_enemy_bullets(self):
+        """Update enemy bullets"""
+        for bullet in self.enemy_bullets[:]:
+            bullet.y += 3  # Move down
+            if bullet.y > SCREEN_HEIGHT:
+                self.enemy_bul

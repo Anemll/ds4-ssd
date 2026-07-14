@@ -1,0 +1,71 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic implementation with all the essential features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Player
+        self.player = Player()
+        
+        # Create enemies
+        self.enemies = []
+        self.create_enemies()
+        
+        # Bullets
+        self.player_bullets = []
+        self.enemy_bullets = []
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        
+        # Enemy movement
+        self.enemy_direction = 1  # 1 = right, -1 = left
+        self.enemy_speed = 2
+        self.enemy_move_down = False
+        
+    def create_enemies(self):
+        """Create a grid of enemies"""
+        for row in range(5):
+            for col in range(10):
+                enemy = Enemy(
+                    x = 75 + col * 75,
+                    y = 50 + row * 60
+                )
+                self.enemies.append(enemy)
+    
+    def handle_events(self):
+        """Handle all events"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.player_bullets.append(self.player.shoot())
+                elif event.key == pygame.K_r and self.game_over

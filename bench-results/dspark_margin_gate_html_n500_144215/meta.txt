@@ -1,0 +1,6 @@
+RUN=bench-results/dspark_margin_gate_html_n500_144215
+BASE=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+DRAFT=/Users/anemll/Models/DSv4-Flash-DSpark-draft
+PROMPT=Build a pixel-perfect Space Invaders arcade game in a single self-contained HTML file with inline CSS and JS. Replicate the original 1978 Taito arcade cabinet experience with full fidelity to the original rules, sprite designs, and mechanics. save file in /tmp/si-html-005/
+DATE=Tue Jun 30 14:42:15 PDT 2026
+GIT=193a5287

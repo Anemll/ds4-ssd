@@ -1,0 +1,164 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.315 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=29.05 t/s avg=0.42 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.41 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=52.53 t/s avg=0.82 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.82 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=48.27 t/s avg=1.21 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.20 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.19 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=46.96 t/s avg=1.58 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.56 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=47.55 t/s avg=1.94 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.92 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=52.03 t/s avg=2.29 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.27 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=54.13 t/s avg=2.64 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.62 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.60 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=49.86 t/s avg=2.95 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=2.92 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=51.88 t/s avg=3.26 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.24 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=47.58 t/s avg=3.57 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.55 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=54.83 t/s avg=3.88 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.85 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.83 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=48.78 t/s avg=4.15 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.12 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=46.75 t/s avg=4.43 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.40 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=49.22 t/s avg=4.70 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=4.68 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=53.32 t/s avg=4.98 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.94 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.91 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=49.84 t/s avg=5.20 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=5.16 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=50.56 t/s avg=5.45 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=5.41 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=51.22 t/s avg=5.70 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=5.66 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=44.02 t/s avg=5.93 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: target-forward unified active: N=1 wraps current decode; N<=5 backend selectable by DS4_TARGET_FORWARD_UNIFIED_BACKEND (default=batch; shared_prefix uses strict_v1 core plus varmap rows5 attention; strict_v1 available)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=31.452 ms
+ds4: dspark verifier unified_greedy diagnostic active=5 (batch target-forward contract; strict remains default)
+ds4: target-forward unified N<=5 backend active: batch n=5
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=89.419 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.927 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=86.616 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.954 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.027 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.696 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.394 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=86.342 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.709 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=85.580 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.471 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.154 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.792 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=86.870 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.926 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.970 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.039 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.078 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=86.195 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.650 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.204 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.072 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=86.867 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.908 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.523 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.673 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.284 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.809 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.224 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=27.903 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.445 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=30.299 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.921 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.667 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.045 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.458 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=89.028 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.752 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.262 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.640 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=90.233 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.803 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=89.074 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=30.585 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=89.544 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.989 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.886 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.832 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.597 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.031 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=87.694 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=29.894 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.379 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.977 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=88.391 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.290 ms
+ds4: target-forward unified profile n=5 backend=batch ok=1 total=89.895 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.283 ms
+ds4: target-forward unified profile n=4 backend=batch ok=1 total=74.538 ms
+ds4: target-forward unified profile n=1 backend=decode ok=1 total=28.277 ms
+ds4: target-forward unified profile n=2 backend=batch ok=1 total=48.181 ms
+ds4: ----------------------------------------
+ds4: prefill: 5.59 t/s, generation: 38.56 t/s (160 tokens in 4.150s)
+ds4: dspark perf: draft=276.5 tok/s, verify=60.3 proposed tok/s, verify-accepted=49.5 tok/s, block=100.60 ms (draft=17.63 verify=80.80 overhead=2.17 commit=1.64, tau=5.00, blocks=32)
+ds4: dspark decode-eq: draft=0.59 verify=2.70 overhead=0.07 block=3.36 baseline_decode=29.91 ms tau=5.00
+ds4: vm pressure: app=86.62 GiB resident=65.71 GiB wired=99.61 GiB compressed=0.59 GiB logical=1.24 GiB swap=5.29/6.00 GiB pressure=87% free=0.18 GiB gpu=86.54 GiB gpu-compressed=0.00 GiB task-compressed=26.06 GiB decompressions=3872158
+ds4: dspark acceptance: 82.1% (128/156 draft tokens)
+ds4: dspark acceptance by position: 1=30/32 2=28/32 3=25/31 4=23/31 5=22/30
+ds4: dspark avg scheduled: 4.88 draft tokens/block (32 blocks)

@@ -1,0 +1,66 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 2467.12 MiB (ctx=24096, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=6026)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=4 active=4 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Metal model views created in 2.788 ms, residency requested in 474.632 ms, warmup 3.462 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 1.9 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: prefill chunk cap EFFECTIVE=16384 tokens (DS4_METAL_PREFILL_CHUNK=16384) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=5025.13 t/s avg=48.26 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=48.08 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=9174.31 t/s avg=95.65 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=95.36 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=10309.28 t/s avg=142.38 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=142.01 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=141.30 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=13698.63 t/s avg=187.75 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=186.92 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=16949.15 t/s avg=233.01 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=231.99 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=17241.38 t/s avg=277.64 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=276.47 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=15151.51 t/s avg=321.57 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=320.15 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=319.20 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=10526.32 t/s avg=363.22 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=362.29 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=10101.01 t/s avg=405.75 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=404.46 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=10101.01 t/s avg=447.41 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=445.97 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=10101.01 t/s avg=488.41 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=486.73 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=484.60 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=14705.88 t/s avg=527.08 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=524.77 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=15151.52 t/s avg=566.87 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=564.63 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=13888.89 t/s avg=606.17 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=603.66 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=15384.62 t/s avg=644.97 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=642.45 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=640.75 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=9523.81 t/s avg=680.42 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=678.69 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=9900.99 t/s avg=718.03 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=716.30 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=9433.96 t/s avg=755.07 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=752.48 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=10416.67 t/s avg=791.11 t/s
+ds4: Metal command batch failed: Insufficient Memory (00000008:kIOGPUCommandBufferCallbackErrorOutOfMemory)
+ds4: prompt processing failed: metal prefill failed

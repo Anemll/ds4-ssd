@@ -1,0 +1,9 @@
+Questa è un'ottima domanda, che tocca il cuore di come funzionano i modelli linguistici (LLM).
+
+La risposta breve è: perché la **scelta greedy** (o *argmax*) non guarda alla "distanza" tra le probabilità, ma solo a quale è la più alta. Anche una differenza infinitesimale può far pendere la bilancia.
+
+Vediamolo nel dettaglio.
+
+### 1. Il meccanismo di base: dai logit alla scelta
+
+Un modello linguistico, per predire la prossima parola

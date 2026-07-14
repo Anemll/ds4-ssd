@@ -1,0 +1,3 @@
+case	tps	acc	tau	suspect	out	err
+control	54.19	93.3%	4.48	0	bench-results/control_081204.out	bench-results/control_081204.err
+grouped_iq2_pair2split	42.98	90.9%	4.32	0	bench-results/grouped_iq2_pair2split_081204.out	bench-results/grouped_iq2_pair2split_081204.err

@@ -1,0 +1,1 @@
+game.py is a 349-line self-contained Pygame Space Invaders implementation featuring a player-controlled ship, a 5x10 grid of aliens that move and drop, shield blocks, bullet collisions, explosions, score tracking, lives, level display, and win/loss states with R to restart.

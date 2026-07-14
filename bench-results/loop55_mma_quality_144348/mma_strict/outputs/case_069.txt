@@ -1,0 +1,8 @@
+Here is a short checklist for reviewing a pull request that touches memory lifetimes, focusing on ownership, borrowing, and potential dangling references.
+
+### Memory Lifetime Review Checklist
+
+**1. Ownership & Borrowing Rules**
+- [ ] **No Dangling References:** Does the PR ensure that references never outlive the data they point to? (e.g., returning a reference to a local variable).
+- [ ] **Borrowing Discipline:** Are mutable (`&mut`) and immutable (`&`) borrows used correctly? (No simultaneous mutable and immutable borrows).
+- [ ] **Move Semantics:** Are moves of owned types (e.g.,

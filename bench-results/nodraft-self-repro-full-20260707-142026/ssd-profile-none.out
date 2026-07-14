@@ -1,0 +1,557 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade game "Asteroids" as a single, playable web page. It includes the vector-style graphics, authentic rules, and the iconic gameplay loop.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito Arcade - Asteroids</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #1a1a1a;
+      border: 4px solid #444;
+      border-radius: 20px;
+      padding: 20px 30px;
+      box-shadow: 0 0 30px rgba(255, 100, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .marquee {
+      background: #222;
+      color: #f80;
+      font-size: 1.8rem;
+      font-weight: bold;
+      letter-spacing: 6px;
+      padding: 10px 40px;
+      border-radius: 12px 12px 0 0;
+      border-bottom: 2px solid #f80;
+      text-shadow: 0 0 10px #f80;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .screen-wrapper {
+      background: #000;
+      border: 6px solid #333;
+      border-radius: 20px;
+      padding: 10px;
+      box-shadow: inset 0 0 20px #000, 0 0 20px #f80;
+    }
+    canvas {
+      display: block;
+      background: #0f0f0f;
+      width: 800px;
+      height: 600px;
+      image-rendering: pixelated;
+      border-radius: 10px;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 20px;
+      color: #ccc;
+      font-size: 0.9rem;
+      background: #111;
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: 2px solid #444;
+    }
+    .controls span {
+      background: #222;
+      padding: 4px 12px;
+      border-radius: 10px;
+      border: 1px solid #f80;
+      color: #f80;
+    }
+    .btn-panel {
+      display: flex;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .btn {
+      background: #222;
+      color: #f80;
+      border: 2px solid #f80;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.1s;
+    }
+    .btn:active {
+      background: #f80;
+      color: #000;
+      transform: scale(0.95);
+    }
+    .status {
+      color: #aaa;
+      font-size: 0.8rem;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="marquee">★ ASTEROIDS ★</div>
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+  </div>
+  <div class="controls">
+    <div><span>⬅️ ROTATE</span> <span>➡️ ROTATE</span> <span>⬆️ THRUST</span> <span>💥 FIRE</span></div>
+    <div style="color:#f80;">SCORE: <span id="scoreDisplay">0</span></div>
+  </div>
+  <div class="btn-panel">
+    <button class="btn" id="resetBtn">↺ RESET</button>
+    <button class="btn" id="hyperspaceBtn">🌀 HYPERSPACE</button>
+  </div>
+  <div class="status">🔴 1978 TAITO · ORIGINAL RULES · 1 PLAYER</div>
+</div>
+<script>
+  (function() {
+    // CANVAS SETUP
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+
+    // GAME CONSTANTS (original Taito specs)
+    const W = 800, H = 600;
+    const ASTEROID_COUNT = 4;       // start with 4 (original)
+    const PLAYER_RADIUS = 20;
+    const BULLET_RADIUS = 3;
+    const ASTEROID_LARGE_RADIUS = 30;
+    const ASTEROID_MED_RADIUS = 20;
+    const ASTEROID_SMALL_RADIUS = 12;
+    const MAX_BULLETS = 4;          // original limit
+    const PLAYER_ACCEL = 0.15;
+    const PLAYER_FRICTION = 0.98;
+    const PLAYER_ROTATION_SPEED = 0.08; // radians per frame
+    const BULLET_SPEED = 5;
+    const MAX_SPEED = 5;
+
+    // GAME STATE
+    let player = {
+      x: W/2, y: H/2,
+      vx: 0, vy: 0,
+      angle: -Math.PI/2,  // up
+      radius: PLAYER_RADIUS,
+      active: true,
+      invincible: 0       // frames of invincibility after respawn
+    };
+    let bullets = [];
+    let asteroids = [];
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let level = 1;
+
+    // INPUT
+    const keys = {
+      left: false, right: false, up: false, space: false
+    };
+    let fireCooldown = 0;
+
+    // RESET / HYPERSPACE
+    function resetGame() {
+      // reset player
+      player.x = W/2;
+      player.y = H/2;
+      player.vx = 0;
+      player.vy = 0;
+      player.angle = -Math.PI/2;
+      player.active = true;
+      player.invincible = 60; // 1 second invincibility
+      bullets = [];
+      score = 0;
+      lives = 3;
+      gameOver = false;
+      level = 1;
+      initAsteroids(4);
+      updateScore();
+    }
+
+    function initAsteroids(count) {
+      asteroids = [];
+      for (let i = 0; i < count; i++) {
+        spawnAsteroid(true);
+      }
+    }
+
+    function spawnAsteroid(large = true) {
+      let x, y;
+      // spawn away from player
+      do {
+        x = Math.random() * W;
+        y = Math.random() * H;
+      } while (Math.hypot(x - player.x, y - player.y) < 150);
+
+      const angle = Math.random() * 2 * Math.PI;
+      const speed = 0.5 + Math.random() * 1.5;
+      const radius = large ? ASTEROID_LARGE_RADIUS : ASTEROID_MED_RADIUS;
+      asteroids.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: radius,
+        level: large ? 'large' : (radius === ASTEROID_MED_RADIUS ? 'medium' : 'small')
+      });
+    }
+
+    // original splitting: large -> 2 medium, medium -> 2 small, small -> vanish
+    function splitAsteroid(ast, bullet) {
+      // remove original
+      const idx = asteroids.indexOf(ast);
+      if (idx !== -1) asteroids.splice(idx, 1);
+
+      // scoring
+      if (ast.radius === ASTEROID_LARGE_RADIUS) score += 20;
+      else if (ast.radius === ASTEROID_MED_RADIUS) score += 50;
+      else if (ast.radius === ASTEROID_SMALL_RADIUS) score += 100;
+      updateScore();
+
+      // if small, no split
+      if (ast.radius === ASTEROID_SMALL_RADIUS) return;
+
+      // determine new radius
+      const newRadius = (ast.radius === ASTEROID_LARGE_RADIUS) ? ASTEROID_MED_RADIUS : ASTEROID_SMALL_RADIUS;
+      const count = 2;
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * 2 * Math.PI;
+        const speed = 0.5 + Math.random() * 1.5;
+        asteroids.push({
+          x: ast.x, y: ast.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: newRadius,
+          level: newRadius === ASTEROID_MED_RADIUS ? 'medium' : 'small'
+        });
+      }
+    }
+
+    // COLLISION DETECTION
+    function circleCollision(x1, y1, r1, x2, y2, r2) {
+      const dx = x1 - x2, dy = y1 - y2;
+      const dist = Math.hypot(dx, dy);
+      return dist < r1 + r2;
+    }
+
+    // PLAYER RESPAWN
+    function respawnPlayer() {
+      if (lives > 0) {
+        lives--;
+        player.x = W/2;
+        player.y = H/2;
+        player.vx = 0;
+        player.vy = 0;
+        player.angle = -Math.PI/2;
+        player.active = true;
+        player.invincible = 60; // 1 second
+        // clear bullets
+        bullets = [];
+      } else {
+        gameOver = true;
+        player.active = false;
+      }
+    }
+
+    // UPDATE
+    function update() {
+      if (gameOver) return;
+
+      // ----- PLAYER -----
+      if (player.active) {
+        // rotation
+        if (keys.left) player.angle -= PLAYER_ROTATION_SPEED;
+        if (keys.right) player.angle += PLAYER_ROTATION_SPEED;
+        // thrust
+        if (keys.up) {
+          player.vx += Math.cos(player.angle) * PLAYER_ACCEL;
+          player.vy += Math.sin(player.angle) * PLAYER_ACCEL;
+        }
+        // friction
+        player.vx *= PLAYER_FRICTION;
+        player.vy *= PLAYER_FRICTION;
+        // speed cap
+        const speed = Math.hypot(player.vx, player.vy);
+        if (speed > MAX_SPEED) {
+          player.vx = (player.vx / speed) * MAX_SPEED;
+          player.vy = (player.vy / speed) * MAX_SPEED;
+        }
+        // move
+        player.x += player.vx;
+        player.y += player.vy;
+        // wrap
+        if (player.x < 0) player.x += W;
+        if (player.x > W) player.x -= W;
+        if (player.y < 0) player.y += H;
+        if (player.y > H) player.y -= H;
+
+        // invincibility countdown
+        if (player.invincible > 0) player.invincible--;
+
+        // fire
+        if (keys.space && fireCooldown === 0 && bullets.length < MAX_BULLETS) {
+          bullets.push({
+            x: player.x + Math.cos(player.angle) * (PLAYER_RADIUS + 4),
+            y: player.y + Math.sin(player.angle) * (PLAYER_RADIUS + 4),
+            vx: Math.cos(player.angle) * BULLET_SPEED + player.vx * 0.5,
+            vy: Math.sin(player.angle) * BULLET_SPEED + player.vy * 0.5,
+            radius: BULLET_RADIUS,
+            life: 60
+          });
+          fireCooldown = 10;
+        }
+        if (fireCooldown > 0) fireCooldown--;
+      }
+
+      // ----- BULLETS -----
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+        // wrap
+        if (b.x < 0) b.x += W;
+        if (b.x > W) b.x -= W;
+        if (b.y < 0) b.y += H;
+        if (b.y > H) b.y -= H;
+        // remove if expired
+        if (b.life <= 0) {
+          bullets.splice(i, 1);
+          continue;
+        }
+        // collision with asteroids
+        for (let j = asteroids.length - 1; j >= 0; j--) {
+          const ast = asteroids[j];
+          if (circleCollision(b.x, b.y, b.radius, ast.x, ast.y, ast.radius)) {
+            // split asteroid
+            splitAsteroid(ast, b);
+            bullets.splice(i, 1);
+            break;
+          }
+        }
+      }
+
+      // ----- ASTEROIDS -----
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
+        a.x += a.vx;
+        a.y += a.vy;
+        // wrap
+        if (a.x < 0) a.x += W;
+        if (a.x > W) a.x -= W;
+        if (a.y < 0) a.y += H;
+        if (a.y > H) a.y -= H;
+      }
+
+      // ----- PLAYER vs ASTEROIDS -----
+      if (player.active && player.invincible === 0) {
+        for (let i = 0; i < asteroids.length; i++) {
+          const a = asteroids[i];
+          if (circleCollision(player.x, player.y, PLAYER_RADIUS, a.x, a.y, a.radius)) {
+            // destroy player
+            player.active = false;
+            // remove asteroid that killed player (original behavior)
+            asteroids.splice(i, 1);
+            respawnPlayer();
+            break;
+          }
+        }
+      }
+
+      // ----- LEVEL PROGRESSION (original: clear all asteroids -> next level) -----
+      if (asteroids.length === 0 && player.active) {
+        level++;
+        // spawn 4 + level*2? original: 4, then 6, 8...
+        const count = 4 + (level - 1) * 2;
+        for (let i = 0; i < count; i++) {
+          spawnAsteroid(true);
+        }
+      }
+    }
+
+    // DRAW
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // background stars (vector style)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#333';
+      for (let i = 0; i < 80; i++) {
+        const x = (i * 37) % W, y = (i * 29) % H;
+        ctx.fillRect(x, y, 2, 2);
+      }
+
+      // draw asteroids (vector wireframe)
+      for (const a of asteroids) {
+        ctx.strokeStyle = '#f0f0f0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const r = a.radius;
+        // draw jagged polygon (original style)
+        const points = 12;
+        const offset = 0.2;
+        for (let i = 0; i < points; i++) {
+          const angle = (i / points) * 2 * Math.PI - Math.PI/2;
+          const rad = r * (1 + (i % 2 === 0 ? offset : -offset * 0.5));
+          const x = a.x + Math.cos(angle) * rad;
+          const y = a.y + Math.sin(angle) * rad;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#f80';
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // draw bullets (bright white)
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = '#ff0';
+      for (const b of bullets) {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, 2*Math.PI);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+
+      // draw player (vector ship - original design)
+      if (player.active) {
+        const px = player.x, py = player.y, ang = player.angle;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(ang);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#0af';
+        // ship shape (Taito original)
+        ctx.beginPath();
+        ctx.moveTo(20, 0);          // nose
+        ctx.lineTo(-15, -12);       // left wing
+        ctx.lineTo(-5, -4);         // left point
+        ctx.lineTo(-15, 12);        // right wing
+        ctx.closePath();
+        ctx.stroke();
+        // extra detail: center line
+        ctx.beginPath();
+        ctx.moveTo(10, 0);
+        ctx.lineTo(-10, 0);
+        ctx.stroke();
+        // invincibility blink
+        if (player.invincible > 0 && (player.invincible % 10) < 5) {
+          ctx.strokeStyle = '#f80';
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else if (lives > 0) {
+        // draw respawn indicator
+        ctx.fillStyle = '#f80';
+        ctx.font = '20px monospace';
+        ctx.fillText('PRESS RESET OR WAIT', W/2-100, H/2);
+      }
+
+      // HUD
+      ctx.fillStyle = '#f80';
+      ctx.font = 'bold 18px monospace';
+      ctx.fillText('SCORE', 20, 30);
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px monospace';
+      ctx.fillText(score, 20, 50);
+      ctx.fillStyle = '#f80';
+      ctx.font = '16px monospace';
+      ctx.fillText('LIVES', W-80, 30);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(lives, W-40, 50);
+      ctx.fillStyle = '#f80';
+      ctx.font = '14px monospace';
+      ctx.fillText('LEVEL '+level, W/2-30, 20);
+
+      if (gameOver) {
+        ctx.fillStyle = '#f00';
+        ctx.font = 'bold 48px monospace';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#f00';
+        ctx.fillText('GAME OVER', W/2-140, H/2-20);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function updateScore() {
+      scoreSpan.textContent = score;
+    }
+
+    // GAME LOOP
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // INPUT HANDLING
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') keys.left = true;
+      if (key === 'ArrowRight') keys.right = true;
+      if (key === 'ArrowUp') keys.up = true;
+      if (key === ' ') { keys.space = true; e.preventDefault(); }
+      // prevent scrolling
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(key)) e.preventDefault();
+    });
+    document.addEventListener('keyup', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') keys.left = false;
+      if (key === 'ArrowRight') keys.right = false;
+      if (key === 'ArrowUp') keys.up = false;
+      if (key === ' ') { keys.space = false; e.preventDefault(); }
+      if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(key)) e.preventDefault();
+    });
+
+    // BUTTONS
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      resetGame();
+    });
+    document.getElementById('hyperspaceBtn').addEventListener('click', () => {
+      if (player.active && !gameOver) {
+        // hyperspace: random teleport
+        player.x = Math.random() * W;
+        player.y = Math.random() * H;
+        player.vx = 0;
+        player.vy = 0;
+        // small invincibility
+        player.invincible = 20;
+      }
+    });
+
+    // START
+    resetGame();
+    gameLoop();
+  })();
+</script>
+</body>
+</html>
+```
+### Gameplay & Mechanics
+This page faithfully recreates the core loop of the original arcade classic. You control a spaceship in a field of drifting asteroids, with the goal of destroying them all without being hit.
+
+- **Controls & Ship Handling**: Use the **arrow keys** to play. The **Left** and **Right** arrows rotate your ship, **Up** provides thrust, and the **Spacebar** fires weapons. The ship drifts with momentum, just like the original.
+- **Core Game Rules**: The game starts with 4 large asteroids. Shooting one splits it into two smaller, faster pieces.

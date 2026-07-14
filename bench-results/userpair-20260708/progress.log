@@ -1,0 +1,29 @@
+===== dspark Wed Jul  8 10:25:54 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=41.54 t/s (1000 tokens in 24.074s) cumulative=41.54 t/s elapsed=24.074s
+ds4: decode-progress: tokens=2000 window=37.46 t/s (1000 tokens in 26.696s) cumulative=39.39 t/s elapsed=50.770s
+ds4: decode-progress: tokens=3000 window=35.31 t/s (1000 tokens in 28.322s) cumulative=37.93 t/s elapsed=79.092s
+ds4: decode-progress: tokens=4000 window=35.39 t/s (1000 tokens in 28.253s) cumulative=37.26 t/s elapsed=107.345s
+ds4: prefill: 8.18 t/s, generation: 37.26 t/s (4000 tokens in 107.345s)
+ds4: dspark perf: draft=412.3 tok/s, verify=60.9 proposed tok/s, verify-accepted=43.7 tok/s, block=83.68 ms (draft=10.57 verify=71.52 overhead=1.59 commit=1.22, tau=3.13, blocks=969)
+ds4: dspark verify GPU-busy: 69.81 ms/block of 71.52 ms verify (97.6% active, 2.4% idle)
+ds4: dspark acceptance: 71.8% (3031/4222 draft tokens)
+ds4: dspark full-accept: 58.9% (551/936 blocks), first-miss: 16.2% (152/936 blocks)
+ds4: dspark avg scheduled: 4.51 draft tokens/block (936 blocks)
+===== nodraft Wed Jul  8 10:28:35 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=38.68 t/s (1000 tokens in 25.854s) cumulative=38.68 t/s elapsed=25.854s
+ds4: decode-progress: tokens=2000 window=38.17 t/s (1000 tokens in 26.200s) cumulative=38.42 t/s elapsed=52.054s
+ds4: decode-progress: tokens=3000 window=37.63 t/s (1000 tokens in 26.574s) cumulative=38.15 t/s elapsed=78.628s
+ds4: decode-progress: tokens=4000 window=37.22 t/s (1000 tokens in 26.870s) cumulative=37.92 t/s elapsed=105.497s
+ds4: prefill: 9.86 t/s, generation: 37.92 t/s (4000 tokens in 105.497s)
+===== dspark-rate Wed Jul  8 10:31:02 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=40.41 t/s (1000 tokens in 24.748s) cumulative=40.41 t/s elapsed=24.748s
+ds4: decode-progress: tokens=2000 window=36.38 t/s (1000 tokens in 27.485s) cumulative=38.29 t/s elapsed=52.232s
+ds4: decode-progress: tokens=3000 window=35.33 t/s (1000 tokens in 28.306s) cumulative=37.25 t/s elapsed=80.538s
+ds4: decode-progress: tokens=4000 window=35.09 t/s (1000 tokens in 28.501s) cumulative=36.68 t/s elapsed=109.039s
+ds4: prefill: 8.60 t/s, generation: 36.68 t/s (4000 tokens in 109.039s)
+ds4: dspark perf: draft=223.6 tok/s, verify=66.5 proposed tok/s, verify-accepted=48.8 tok/s, block=47.13 ms (draft=10.60 verify=35.64 overhead=0.88 commit=0.66, tau=1.74, blocks=749)
+ds4: dspark verify GPU-busy: 35.05 ms/block of 35.64 ms verify (98.3% active, 1.7% idle)
+ds4: dspark acceptance: 73.4% (1303/1776 draft tokens)
+ds4: dspark full-accept: 63.8% (248/389 blocks), first-miss: 16.7% (65/389 blocks)
+ds4: dspark avg scheduled: 4.57 draft tokens/block (389 blocks)
+ALL DONE Wed Jul  8 10:33:50 PDT 2026

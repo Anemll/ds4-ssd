@@ -1,0 +1,1 @@
+Generate a JSON array of 40 fictional book records. Each record must have fields: title, author, year, genre, pages, summary (one sentence). Output only the JSON array, no commentary.

@@ -1,0 +1,14 @@
+A **ring buffer** (also called a circular buffer) is a data structure that uses a fixed-size array as if it were connected end-to-end. It's commonly used in producer-consumer scenarios, stream processing, or I/O buffering.
+
+---
+
+## How a Ring Buffer Wraps
+
+### The Core Idea
+
+A ring buffer has two pointers:
+- **Read pointer** (or head) – where the next read happens.
+- **Write pointer** (or tail) – where the next write happens.
+
+When the buffer is **empty**, read and write pointers point to the same location.  
+When data is added, the

@@ -1,0 +1,13 @@
+Ecco lo pseudocodice per inserire un elemento in un heap binario (min-heap o max-heap):
+
+```
+// Inserimento in un heap binario (min-heap)
+// Precondizioni: heap è un array, n è la dimensione corrente, 
+//                l'elemento da inserire è valido
+
+function insert(heap, n, element)
+    // Aggiungiamo spazio per il nuovo elemento
+    n = n + 1
+    
+    // Iniziamo inserendo l'elemento alla fine dell'array
+    heap[0] = element  // Not

@@ -1,0 +1,7 @@
+This is a classic problem with transformer-based LLMs, often caused by the **quadratic complexity** of attention (O(n²) in context length) or **KV cache** memory pressure.
+
+Here are the **first five measurements** to take to diagnose the root cause:
+
+### 1. KV Cache Memory Usage (GPU Memory)
+- **What to measure:** The total GPU memory allocated to the Key-Value (KV) cache *before* generation starts vs. *during* generation.
+- **Why it matters:** As the context grows, the KV cache grows linearly. If it exceeds VRAM, the system swaps to CPU memory

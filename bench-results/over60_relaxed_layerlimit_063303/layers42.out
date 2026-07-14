@@ -1,0 +1,50 @@
+Here's a complete game of Space Invaders in Pygame. This includes the player, player, enemies, and enemies, and shooting, and game over.
+
+```python
+import pygame
+import math
+import random
+
+# Initialize pygame
+pygame.init()
+
+# Screen()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPE =  # Player's speed
+PLAY_WIDTH =  # 30
+PLAYER_WIDTH = 30
+PLAYER_HEIGHT = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAY_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAY_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAY_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAY_WIDTH = 30
+PLAYER_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH = 30
+PLAY_WIDTH

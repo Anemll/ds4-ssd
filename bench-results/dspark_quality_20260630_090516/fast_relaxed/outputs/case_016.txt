@@ -1,0 +1,11 @@
+Questa domanda riguarda la configurazione di parametri in modelli di linguaggio (LLM) come GPT. Ecco un confronto tra **top-p** (nucleus sampling) e **temperatura zero** (decoding greedy).
+
+---
+
+### Temperatura Zero (Greedy Decoding)
+
+**Cosa fa:**  
+Imposta la temperatura a 0. Questo significa che il modello sceglie sempre la **token con la più alta probabilità** (la più "sicura"). Non c'è alcuna casualità.
+
+**Pro:**
+- **Deterministico:** A parità di

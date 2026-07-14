@@ -1,0 +1,9 @@
+prompt	variant	tps	tau	acc	suspect	out	err
+normal	allow_current	54.18	4.58	93.6	0	bench-results/normal_allow_current_065907.out	bench-results/normal_allow_current_065907.err
+normal	allow_top64_d4_off2	48.73	3.41	83.5	0	bench-results/normal_allow_top64_d4_off2_065907.out	bench-results/normal_allow_top64_d4_off2_065907.err
+normal	allow_top32_d3_off1	48.71	3.41	83.5	0	bench-results/normal_allow_top32_d3_off1_065907.out	bench-results/normal_allow_top32_d3_off1_065907.err
+normal	allow_top64_d4_temp02_off2	48.70	3.41	83.5	0	bench-results/normal_allow_top64_d4_temp02_off2_065907.out	bench-results/normal_allow_top64_d4_temp02_off2_065907.err
+html	allow_current	43.75	3.87	77.1	1	bench-results/html_allow_current_065907.out	bench-results/html_allow_current_065907.err
+html	allow_top64_d4_off2	45.54	3.19	78.2	1	bench-results/html_allow_top64_d4_off2_065907.out	bench-results/html_allow_top64_d4_off2_065907.err
+html	allow_top32_d3_off1	45.51	3.19	78.2	1	bench-results/html_allow_top32_d3_off1_065907.out	bench-results/html_allow_top32_d3_off1_065907.err
+html	allow_top64_d4_temp02_off2	45.52	3.19	78.2	1	bench-results/html_allow_top64_d4_temp02_off2_065907.out	bench-results/html_allow_top64_d4_temp02_off2_065907.err

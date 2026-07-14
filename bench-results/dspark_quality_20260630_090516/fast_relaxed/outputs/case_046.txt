@@ -1,0 +1,9 @@
+This is a great question that gets to the core of how modern large language models (like the one you're talking to) achieve their efficiency.
+
+In a **Mixture-of-Experts (MoE)** layer, the router is the "traffic controller" or "manager." Its sole job is to decide which expert(s) to send a specific input token to.
+
+Here is a breakdown of the role of the router in a MoE layer.
+
+### The Core Problem: Why Do We Need a Router?
+
+In a standard neural network, all input tokens pass through every layer of the network. In a MoE layer, instead of having

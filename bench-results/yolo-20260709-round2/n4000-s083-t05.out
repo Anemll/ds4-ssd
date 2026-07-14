@@ -1,0 +1,401 @@
+This HTML code creates a faithful, self-contained reproduction of the classic 1978 Taito arcade game "Astrans" (a fictional name for this exercise) within a single file. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito Arcade – Astrans</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #222;
+      border: 6px solid #8b5a2b;
+      border-radius: 20px 20px 10px 10px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 30px rgba(255, 200, 50, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .marquee {
+      background: #1a1a2e;
+      color: #f0c060;
+      font-size: 2.2rem;
+      font-weight: bold;
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #f0c060, 0 0 20px #ff8c00;
+      padding: 10px 30px;
+      border: 3px solid #b8860b;
+      border-radius: 10px 10px 0 0;
+      margin-bottom: 10px;
+      text-align: center;
+      width: 100%;
+    }
+    .screen-wrapper {
+      background: #000;
+      border: 6px solid #333;
+      border-radius: 10px;
+      padding: 10px;
+      margin: 5px 0;
+      box-shadow: inset 0 0 20px #000, 0 0 10px #f0c06040;
+    }
+    canvas {
+      display: block;
+      background: #0a0a0a;
+      width: 640px;
+      height: 480px;
+      image-rendering: pixelated;
+      border: 2px solid #5a3e1a;
+    }
+    .controls {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+      color: #ddd;
+      font-size: 1.1rem;
+      background: #2b1a0e;
+      padding: 10px 30px;
+      border-radius: 20px;
+      border: 2px solid #b8860b;
+    }
+    .controls span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .key {
+      background: #444;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 2px 10px;
+      color: #ffd966;
+      font-weight: bold;
+    }
+    .btn {
+      background: #c8411a;
+      border: 3px solid #ff6e1e;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      box-shadow: 0 0 10px #ff6e1e80;
+    }
+    .info {
+      color: #bdb76b;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      text-align: center;
+      border-top: 2px solid #6b4a2b;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="marquee">★ ASTRANS ★</div>
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="640" height="480"></canvas>
+  </div>
+  <div class="controls">
+    <span><span class="key">← →</span> move</span>
+    <span><span class="key">↑</span> thrust</span>
+    <span><span class="key">Z</span> fire</span>
+    <span><span class="key">R</span> restart</span>
+  </div>
+  <div class="info">1978 Taito · original rules · sprite fidelity</div>
+</div>
+<script>
+  (function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ---------- CONSTANTS ----------
+    const W = 640, H = 480;
+    const PLAYER_RADIUS = 14;
+    const ASTEROID_RADII = [24, 18, 12];
+    const UFO_RADIUS = 20;
+    const MAX_BULLETS = 6;
+    const MAX_UFO_BULLETS = 4;
+    const PLAYER_ACCEL = 0.2;
+    const PLAYER_FRICTION = 0.98;
+    const PLAYER_MAX_SPEED = 5;
+    const BULLET_SPEED = 6;
+    const UFO_BULLET_SPEED = 3.5;
+    const UFO_FIRE_RATE = 40; // frames between shots
+    const UFO_SPEED = 1.5;
+    const ASTEROID_SPEED = 1.8;
+    const RESPAWN_DELAY = 90; // frames
+
+    // ---------- GAME STATE ----------
+    let player = {
+      x: 320, y: 440, vx: 0, vy: 0, angle: -90, // up
+      radius: PLAYER_RADIUS, active: true, respawnTimer: 0
+    };
+    let bullets = [];
+    let ufoBullets = [];
+    let asteroids = [];
+    let ufo = { x: 0, y: 0, active: false, timer: 0, angle: 0, vx: 0, vy: 0, fireTimer: 0 };
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let frame = 0;
+
+    // ---------- HELPER: random between ----------
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+
+    // ---------- INIT / RESET ----------
+    function resetGame() {
+      player.x = 320; player.y = 440; player.vx = 0; player.vy = 0;
+      player.angle = -90; player.active = true; player.respawnTimer = 0;
+      bullets = [];
+      ufoBullets = [];
+      asteroids = [];
+      ufo.active = false; ufo.timer = 0; ufo.fireTimer = 0;
+      score = 0; lives = 3; gameOver = false;
+      // spawn initial asteroids
+      for (let i = 0; i < 6; i++) {
+        spawnAsteroid(true);
+      }
+      // ensure no asteroid on player start
+      clearAsteroidNearPlayer();
+    }
+
+    function clearAsteroidNearPlayer() {
+      const px = 320, py = 440;
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
+        const dx = a.x - px, dy = a.y - py;
+        if (Math.hypot(dx, dy) < 80) {
+          a.x = rand(30, 610); a.y = rand(20, 300);
+          a.vx = rand(-1, 1) * ASTEROID_SPEED;
+          a.vy = rand(-1, 1) * ASTEROID_SPEED;
+        }
+      }
+    }
+
+    // ---------- SPAWN ASTEROID ----------
+    function spawnAsteroid(initial = false) {
+      let x, y, vx, vy;
+      if (initial) {
+        x = rand(30, 610); y = rand(20, 300);
+        vx = rand(-1, 1) * ASTEROID_SPEED;
+        vy = rand(-1, 1) * ASTEROID_SPEED;
+      } else {
+        // spawn from edges
+        const side = Math.floor(Math.random() * 4);
+        if (side === 0) { x = rand(10, 630); y = 10; }
+        else if (side === 1) { x = rand(10, 630); y = 470; }
+        else if (side === 2) { x = 10; y = rand(10, 470); }
+        else { x = 630; y = rand(10, 470); }
+        vx = rand(-1, 1) * ASTEROID_SPEED;
+        vy = rand(-1, 1) * ASTEROID_SPEED;
+      }
+      const size = Math.floor(Math.random() * 3); // 0,1,2
+      const r = ASTEROID_RADII[size];
+      asteroids.push({ x, y, vx, vy, radius: r, size, hp: size+1 });
+    }
+
+    // ---------- UFO ----------
+    function spawnUfo() {
+      const side = Math.floor(Math.random() * 4);
+      let x, y, vx, vy;
+      if (side === 0) { x = rand(10, 630); y = 20; vx = (Math.random()>0.5?1:-1)*UFO_SPEED; vy = 0.3; }
+      else if (side === 1) { x = rand(10, 630); y = 460; vx = (Math.random()>0.5?1:-1)*UFO_SPEED; vy = -0.3; }
+      else if (side === 2) { x = 10; y = rand(20, 460); vx = 0.5; vy = (Math.random()>0.5?1:-1)*UFO_SPEED; }
+      else { x = 630; y = rand(20, 460); vx = -0.5; vy = (Math.random()>0.5?1:-1)*UFO_SPEED; }
+      ufo.active = true;
+      ufo.x = x; ufo.y = y; ufo.vx = vx; ufo.vy = vy;
+      ufo.fireTimer = 0;
+      ufo.timer = 0;
+    }
+
+    // ---------- COLLISION DETECTION ----------
+    function circleCollide(x1, y1, r1, x2, y2, r2) {
+      const dx = x1 - x2, dy = y1 - y2;
+      const dist = Math.hypot(dx, dy);
+      return dist < r1 + r2;
+    }
+
+    // ---------- DESTROY ASTEROID ----------
+    function destroyAsteroid(idx, bulletHit = true) {
+      const a = asteroids[idx];
+      if (a.size === 0) {
+        // small asteroid: just remove
+        asteroids.splice(idx, 1);
+        return;
+      }
+      // split into two smaller asteroids
+      const newSize = a.size - 1;
+      const newR = ASTEROID_RADII[newSize];
+      // remove original
+      asteroids.splice(idx, 1);
+      // spawn two children
+      for (let i = 0; i < 2; i++) {
+        const angle = rand(0, 2 * Math.PI);
+        const speed = ASTEROID_SPEED * (1.2 + Math.random() * 0.5);
+        asteroids.push({
+          x: a.x + rand(-8, 8), y: a.y + rand(-8, 8),
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: newR,
+          size: newSize,
+          hp: newSize+1
+        });
+      }
+    }
+
+    // ---------- PLAYER HIT ----------
+    function playerHit() {
+      if (!player.active) return;
+      player.active = false;
+      player.respawnTimer = RESPAWN_DELAY;
+      lives--;
+      if (lives <= 0) {
+        gameOver = true;
+      }
+    }
+
+    // ---------- UPDATE ----------
+    function update() {
+      if (gameOver) return;
+
+      // ----- player movement -----
+      if (player.active) {
+        // thrust
+        if (keys['ArrowUp']) {
+          const rad = player.angle * Math.PI / 180;
+          player.vx += Math.cos(rad) * PLAYER_ACCEL;
+          player.vy += Math.sin(rad) * PLAYER_ACCEL;
+        }
+        // rotation
+        if (keys['ArrowLeft']) player.angle -= 5;
+        if (keys['ArrowRight']) player.angle += 5;
+        // clamp speed
+        let spd = Math.hypot(player.vx, player.vy);
+        if (spd > PLAYER_MAX_SPEED) {
+          player.vx = (player.vx / spd) * PLAYER_MAX_SPEED;
+          player.vy = (player.vy / spd) * PLAYER_MAX_SPEED;
+        }
+        // friction
+        player.vx *= PLAYER_FRICTION;
+        player.vy *= PLAYER_FRICTION;
+        // move
+        player.x += player.vx;
+        player.y += player.vy;
+        // wrap
+        if (player.x < 0) player.x = W;
+        if (player.x > W) player.x = 0;
+        if (player.y < 0) player.y = H;
+        if (player.y > H) player.y = 0;
+
+        // fire
+        if (keys['KeyZ'] && bullets.length < MAX_BULLETS) {
+          const rad = player.angle * Math.PI / 180;
+          bullets.push({
+            x: player.x + Math.cos(rad) * 20,
+            y: player.y + Math.sin(rad) * 20,
+            vx: Math.cos(rad) * BULLET_SPEED,
+            vy: Math.sin(rad) * BULLET_SPEED,
+            life: 60
+          });
+        }
+      } else {
+        // respawn timer
+        player.respawnTimer--;
+        if (player.respawnTimer <= 0) {
+          player.active = true;
+          player.x = 320; player.y = 440;
+          player.vx = 0; player.vy = 0;
+          player.angle = -90;
+          // clear nearby asteroids
+          for (let i = 0; i < asteroids.length; i++) {
+            const a = asteroids[i];
+            if (Math.hypot(a.x - 320, a.y - 440) < 80) {
+              asteroids.splice(i, 1);
+              i--;
+            }
+          }
+        }
+      }
+
+      // ----- bullets -----
+      for (let i = 0; i < bullets.length; i++) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+        if (b.x < 0 || b.x > W || b.y < 0 || b.y > H || b.life <= 0) {
+          bullets.splice(i, 1);
+          i--;
+        }
+      }
+
+      // ----- ufo bullets -----
+      for (let i = 0; i < ufoBullets.length; i++) {
+        const b = ufoBullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+          ufoBullets.splice(i, 1);
+          i--;
+        }
+      }
+
+      // ----- asteroids -----
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
+        a.x += a.vx;
+        a.y += a.vy;
+        if (a.x < 0) a.x = W;
+        if (a.x > W) a.x = 0;
+        if (a.y < 0) a.y = H;
+        if (a.y > H) a.y = 0;
+      }
+
+      // ----- ufo -----
+      if (ufo.active) {
+        ufo.x += ufo.vx;
+        ufo.y += ufo.vy;
+        if (ufo.x < 0 || ufo.x > W || ufo.y < 0 || ufo.y > H) {
+          ufo.active = false;
+          ufo.timer = 0;
+        }
+        // fire
+        ufo.fireTimer++;
+        if (ufo.fireTimer >= UFO_FIRE_RATE && ufoBullets.length < MAX_UFO_BULLETS) {
+          ufo.fireTimer = 0;
+          const dx = player.x - ufo.x;
+          const dy = player.y - ufo.y;
+          const angle = Math.atan2(dy, dx);
+          ufoBullets.push({
+            x: ufo.x, y: ufo.y,
+            vx: Math.cos(angle) * UFO_BULLET_SPEED,
+            vy: Math.sin(angle) * UFO_BULLET_SPEED
+          });
+        }
+      } else {
+        ufo.timer++;
+        if (ufo.timer > 180 + Math.random() * 200) {
+          spawnUfo();
+        }
+      }
+
+      // ----- collisions: bullets vs asteroids -----
+      for (let i = 0; i < bullets.length; i++) {
+        const b = bullets[i];
+        for (let j = 0; j < asteroids.length; j++) {
+          const a = asteroids[j];
+          if (circleCollide(b.x, b.y, 3, a.x, a.y, a.radius)) {
+            // destroy asteroid

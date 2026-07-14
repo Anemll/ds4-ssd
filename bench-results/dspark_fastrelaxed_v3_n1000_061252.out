@@ -1,0 +1,138 @@
+Here's a complete Space Invaders game in Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.reset()
+    
+    def reset(self):
+        # Player
+        self.player = Player(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 50)
+        
+        # Invaders
+        self.invaders = []
+        self.create_invaders()
+        
+        # Bullets
+        self.bullets = []
+        self.invader_bullets = []
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.winner = False
+        
+    def create_invaders(self):
+        for i in range(6):  # rows
+            for j in range(10):  # columns
+                x = j * 60 + 50
+                y = i * 50 + 50
+                self.invaders.append(Invader(x, y))
+    
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.bullets.append(self.player.shoot())
+    
+    def update(self):
+        if self.game_over or self.winner:
+            return
+        
+        # Player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move(5, 0)
+        if keys[pygame.K_RIGHT]:
+            self.player.move(-5, 0)
+        
+        # Update invaders
+        for invader in self.invaders:
+            invader.update()
+        
+        # Random shooting from bottom
+        if random.random() < 0.02 and self.invaders:
+            bottom = random.choice([i for i in self.invaders if i == self.invaders[-1]])
+            if not self.invader_bullets:
+                self.invader_bullets.append(InvaderBullet(bottom, 200))
+        
+        # Update player bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.rect.bottom < 0:
+                self.bullets.remove(bullet)
+        
+        # Update invader bullets
+        for bullet in self.invader_bullets[:]:
+            bullet.update()
+            if bullet.rect.top > SCREEN_HEIGHT:
+                self.invader_bullets.remove(bullet)
+        
+        # Collision detection
+        for bullet in self.bullets[:]:
+            for invader in self.invaders[:]:
+                if bullet.rect.colliderect(invader.rect):
+                    self.bullets.remove(bullet)
+                    self.invaders.remove(invader)
+                    self.score += 10
+                    break
+        
+        # Check if invader bullets hit
+        for bullet in self.invader_bullets[:]:
+            if bullet.rect.colliderect(self.player.rect):
+                self.invader_bullets.remove(bullet)
+                self.lives -= 1
+                if self.lives <= 0:
+                    self.game_over = True
+                break
+        
+        # Check if game over
+        if not self.invaders:
+            self.winner = True
+        
+        # Check if invaders reach bottom
+        for invader in self.invaders:
+            if invader.rect.y > SCREEN_HEIGHT - 50:
+                self.game_over = True
+    
+    def draw(self):
+        self.screen.fill(BLACK)
+        
+        # Draw player
+        self.player.draw(self.screen)
+        
+        # Draw invaders
+        for invader in self.invaders:
+            invader.draw(self.screen)
+        
+        # Draw bullets
+        for bullet in self.bullets

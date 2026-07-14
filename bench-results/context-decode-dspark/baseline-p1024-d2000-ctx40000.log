@@ -1,0 +1,344 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.286 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=0.060s profile=0.001s model=0.006s sidecar=0.006s weights=0.001s dspark=0.000s backend=0.047s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 3.1GB Total <<<< 83.9GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=15.952s raw-graph=0.002s flash-moe=15.949s steering=0.000s draft-scratch=no
+processing 1023 input tokens: 0/1023 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 1023 input tokens: 23/1023 (2.2%) batch=116.64 t/s avg=116.42 t/s
+processing 1023 input tokens: 47/1023 (4.6%) batch=273.30 t/s avg=164.69 t/s
+processing 1023 input tokens: 71/1023 (6.9%) batch=236.92 t/s avg=183.61 t/s
+processing 1023 input tokens: 95/1023 (9.3%) batch=292.23 t/s avg=202.64 t/s
+processing 1023 input tokens: 118/1023 (11.5%) batch=281.87 t/s avg=214.39 t/s
+processing 1023 input tokens: 142/1023 (13.9%) batch=316.36 t/s avg=226.74 t/s
+processing 1023 input tokens: 166/1023 (16.2%) batch=273.40 t/s avg=232.48 t/s
+processing 1023 input tokens: 190/1023 (18.6%) batch=284.01 t/s avg=237.93 t/s
+processing 1023 input tokens: 214/1023 (20.9%) batch=245.15 t/s avg=238.72 t/s
+processing 1023 input tokens: 237/1023 (23.2%) batch=225.83 t/s avg=237.40 t/s
+processing 1023 input tokens: 261/1023 (25.5%) batch=249.55 t/s avg=238.47 t/s
+processing 1023 input tokens: 285/1023 (27.9%) batch=233.11 t/s avg=238.01 t/s
+processing 1023 input tokens: 309/1023 (30.2%) batch=220.18 t/s avg=236.52 t/s
+processing 1023 input tokens: 333/1023 (32.6%) batch=217.74 t/s avg=235.06 t/s
+processing 1023 input tokens: 356/1023 (34.8%) batch=204.86 t/s avg=232.84 t/s
+processing 1023 input tokens: 380/1023 (37.1%) batch=219.01 t/s avg=231.92 t/s
+processing 1023 input tokens: 404/1023 (39.5%) batch=243.47 t/s avg=232.57 t/s
+processing 1023 input tokens: 428/1023 (41.8%) batch=238.32 t/s avg=232.89 t/s
+processing 1023 input tokens: 452/1023 (44.2%) batch=219.10 t/s avg=232.11 t/s
+processing 1023 input tokens: 475/1023 (46.4%) batch=232.03 t/s avg=232.11 t/s
+processing 1023 input tokens: 499/1023 (48.8%) batch=237.51 t/s avg=232.36 t/s
+processing 1023 input tokens: 523/1023 (51.1%) batch=220.88 t/s avg=231.81 t/s
+processing 1023 input tokens: 547/1023 (53.5%) batch=214.80 t/s avg=231.01 t/s
+processing 1023 input tokens: 570/1023 (55.7%) batch=194.81 t/s avg=229.29 t/s
+processing 1023 input tokens: 594/1023 (58.1%) batch=218.72 t/s avg=228.84 t/s
+processing 1023 input tokens: 618/1023 (60.4%) batch=206.00 t/s avg=227.86 t/s
+processing 1023 input tokens: 642/1023 (62.8%) batch=227.19 t/s avg=227.84 t/s
+processing 1023 input tokens: 666/1023 (65.1%) batch=215.00 t/s avg=227.35 t/s
+processing 1023 input tokens: 689/1023 (67.4%) batch=192.20 t/s avg=225.97 t/s
+processing 1023 input tokens: 713/1023 (69.7%) batch=225.63 t/s avg=225.96 t/s
+processing 1023 input tokens: 737/1023 (72.0%) batch=201.76 t/s avg=225.08 t/s
+processing 1023 input tokens: 761/1023 (74.4%) batch=207.49 t/s avg=224.48 t/s
+processing 1023 input tokens: 785/1023 (76.7%) batch=208.81 t/s avg=223.96 t/s
+processing 1023 input tokens: 808/1023 (79.0%) batch=230.77 t/s avg=224.15 t/s
+processing 1023 input tokens: 832/1023 (81.3%) batch=216.57 t/s avg=223.93 t/s
+processing 1023 input tokens: 856/1023 (83.7%) batch=213.26 t/s avg=223.61 t/s
+processing 1023 input tokens: 880/1023 (86.0%) batch=227.86 t/s avg=223.73 t/s
+processing 1023 input tokens: 904/1023 (88.4%) batch=229.50 t/s avg=223.88 t/s
+processing 1023 input tokens: 927/1023 (90.6%) batch=205.97 t/s avg=223.39 t/s
+processing 1023 input tokens: 951/1023 (93.0%) batch=238.72 t/s avg=223.76 t/s
+processing 1023 input tokens: 975/1023 (95.3%) batch=248.97 t/s avg=224.31 t/s
+processing 1023 input tokens: 999/1023 (97.7%) batch=287.88 t/s avg=225.51 t/s
+processing 1023 input tokens: 1023/1023 (100.0%) batch=258.31 t/s avg=226.18 t/s
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+Here's a complete Tetris implementation in C++ for macOS using SFML:
+
+```cpp
+// Tetris.cpp - Full Tetris implementation for macOS
+// Compile with: g++ -std=c++11 Tetris.cpp -o Tetris -lsfml-graphics -lsfml-window -lsfml-system
+
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for side panel
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+
+// Tetromino shapes (4x4 matrices)
+// Each shape is represented as a 4x4 grid where 1 = filled, 0 = empty
+const std::vector<std::vector<std::vector<int>>> TETROMINOS = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1,0,0},
+     {1,1,0,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // T piece
+    {{0,1,0,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // S piece
+    {{0,1,1,0},
+     {1,1,0,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // Z piece
+    {{1,1,0,0},
+     {0,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // J piece
+    {{1,0,0,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // L piece
+    {{0,0,1,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}}
+};
+
+// Colors for each tetromino
+const std::vector<sf::Color> PIECE_COLORS = {
+    sf::Color::Cyan,    // I
+    sf::Color::Yellow,  // O
+    sf::Color::Magenta, // T
+    sf::Color::Green,   // S
+    sf::Color::Red,     // Z
+    sf::Color::Blue,    // J
+    sf::Color::Orange   // L
+};
+
+class Tetris {
+private:
+    sf::RenderWindow window;
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> currentPiece;
+    std::vector<std::vector<int>> nextPiece;
+    sf::Color currentColor;
+    sf::Color nextColor;
+    int pieceX, pieceY;
+    int score;
+    int level;
+    int linesCleared;
+    sf::Clock fallTimer;
+    sf::Clock inputTimer;
+    float fallSpeed;
+    bool gameOver;
+    bool paused;
+
+public:
+    Tetris() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Tetris"),
+               board(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0)),
+               score(0), level(1), linesCleared(0), gameOver(false), paused(false) {
+        window.setFramerateLimit(60);
+        std::srand(std::time(nullptr));
+        initializeGame();
+    }
+
+    void initializeGame() {
+        // Clear board
+        for (auto& row : board) {
+            std::fill(row.begin(), row.end(), 0);
+        }
+        
+        // Reset game state
+        score = 0;
+        level = 1;
+        linesCleared = 0;
+        gameOver = false;
+        fallSpeed = 1.0f;
+        
+        // Generate first pieces
+        generateNextPiece();
+        spawnNewPiece();
+    }
+
+    void generateNextPiece() {
+        int pieceIndex = std::rand() % TETROMINOS.size();
+        nextPiece = TETROMINOS[pieceIndex];
+        nextColor = PIECE_COLORS[pieceIndex];
+    }
+
+    void spawnNewPiece() {
+        // Move next piece to current
+        currentPiece = nextPiece;
+        currentColor = nextColor;
+        
+        // Generate new next piece
+        generateNextPiece();
+        
+        // Set starting position
+        pieceX = BOARD_WIDTH / 2 - 2;
+        pieceY = 0;
+        
+        // Check if game over
+        if (!isValidPosition(pieceX, pieceY, currentPiece)) {
+            gameOver = true;
+        }
+        
+        // Reset fall timer
+        fallTimer.restart();
+    }
+
+    bool isValidPosition(int x, int y, const std::vector<std::vector<int>>& piece) {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                if (piece[i][j]) {
+                    int boardX = x + j;
+                    int boardY = y + i;
+                    
+                    // Check boundaries
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                        boardY >= BOARD_HEIGHT) {
+                        return false;
+                    }
+                    
+                    // Check collision with placed pieces
+                    if (boardY >= 0 && board[boardY][boardX]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    void lockPiece() {
+        // Place current piece on board
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                if (currentPiece[i][j]) {
+                    int boardX = pieceX + j;
+                    int boardY = pieceY + i;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                        boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = 1;
+                    }
+                }
+            }
+        }
+        
+        // Check for completed lines
+        clearLines();
+        
+        // Spawn new piece
+        spawnNewPiece();
+    }
+
+    void clearLines() {
+        int cleared = 0;
+        
+        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+            bool fullLine = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (!board[y][x]) {
+                    fullLine = false;
+                    break;
+                }
+            }
+            
+            if (fullLine) {
+                // Remove the line
+                for (int row = y; row > 0; row--) {
+                    board[row] = board[row - 1];
+                }
+                board[0] = std::vector<int>(BOARD_WIDTH, 0);
+                cleared++;
+                y++; // Check same line again
+            }
+        }
+        
+        // Update score and level
+        if (cleared > 0) {
+            linesCleared += cleared;
+            score += cleared * 100 * level;
+            
+            // Level up every 10 lines
+            level = 1 + (linesCleared / 10);
+            fallSpeed = 1.0f - (level - 1) * 0.1f;
+            if (fallSpeed < 0.1f) fallSpeed = 0.1f;
+        }
+    }
+
+    void rotatePiece() {
+        std::vector<std::vector<int>> rotated(4, std::vector<int>(4, 0));
+        
+        // Rotate 90 degrees clockwise
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                rotated[j][3 - i] = currentPiece[i][j];
+            }
+        }
+        
+        // Check if rotation is valid
+        if (isValidPosition(pieceX, pieceY, rotated)) {
+            currentPiece = rotated;
+        }
+    }
+
+    void movePiece(int dx, int dy) {
+        if (isValidPosition(pieceX + dx, pieceY + dy, currentPiece)) {
+            pieceX += dx;
+            pieceY += dy;
+        }
+    }
+
+    void dropPiece() {
+        // Move piece down until it can't go further
+        while (isValidPosition(pieceX, pieceY + 1, currentPiece)) {
+            pieceY++;
+        }
+        lockPiece();
+    }
+
+    void handleInput() {
+        if (gameOver || paused) return;
+        
+        // Handle keyboard input
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
+            movePiece(-1, 0);
+        }
+        if (sf::Keyboard::isKey
+ds4: ----------------------------------------
+ds4: prefill: 225.95 t/s, generation: 29.96 t/s (2000 tokens in 66.757s)
+ds4: ttf: first-output=20.600s total=87.318s (engine=0.060s session=15.952s prompt=0.000s prefill=4.527s decode=66.757s)
+ds4: vm pressure: app=75.91 GiB resident=50.84 GiB wired=87.12 GiB compressed=0.30 GiB logical=0.78 GiB swap=3.12/4.00 GiB pressure=73% free=0.37 GiB gpu=75.84 GiB gpu-compressed=0.00 GiB task-compressed=21.80 GiB decompressions=3207540

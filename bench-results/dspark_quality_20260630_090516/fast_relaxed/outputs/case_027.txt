@@ -1,0 +1,5 @@
+This is an excellent question that gets to the heart of modern quantization techniques.
+
+The term "importance matrix" is not a standard, universally defined term in the same way as "weight matrix" or "activation matrix." However, in the context of **low-bit quantization**, it refers to a **matrix that captures the relative importance of different weights or activations for the final model's output.**
+
+The core idea is that **not all weights are equal.** Quantizing a weight from 16 bits to 4 bits introduces a small amount of error. However, the *impact* of this error on the model's final loss (e.g.,

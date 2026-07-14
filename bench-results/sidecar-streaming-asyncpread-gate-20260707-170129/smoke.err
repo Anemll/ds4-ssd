@@ -1,0 +1,79 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.307 ms, residency requested in 0.000 ms, warmup 0.001 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=0.056s profile=0.001s model=0.006s sidecar=0.006s weights=0.001s dspark=0.000s backend=0.042s prewarm=0.000s
+ds4: Flash-MoE slot banks allocated: layers=43 slots=32 gpu-bank=9.1GB Dense: 8.2GB Context: 3.1GB Total <<<< 20.4GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=16
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=32
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=0.003s raw-graph=0.002s flash-moe=0.001s steering=0.000s draft-scratch=no
+ds4: prefill chunk cap EFFECTIVE=16384 tokens (DS4_METAL_PREFILL_CHUNK=16384) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 10 input tokens: 0/10 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 10 input tokens: 0/10 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 10 input tokens: 0/10 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 10 input tokens: 0/10 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 10 input tokens: 0/10 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 10 input tokens: 1/10 (10.0%) batch=53.27 t/s avg=4.33 t/s
+processing 10 input tokens: 1/10 (10.0%) batch=0.00 t/s avg=4.04 t/s
+processing 10 input tokens: 1/10 (10.0%) batch=0.00 t/s avg=3.77 t/s
+processing 10 input tokens: 1/10 (10.0%) batch=0.00 t/s avg=3.52 t/s
+processing 10 input tokens: 2/10 (20.0%) batch=52.32 t/s avg=6.60 t/s
+processing 10 input tokens: 2/10 (20.0%) batch=0.00 t/s avg=6.22 t/s
+processing 10 input tokens: 2/10 (20.0%) batch=0.00 t/s avg=5.84 t/s
+processing 10 input tokens: 2/10 (20.0%) batch=0.00 t/s avg=5.56 t/s
+processing 10 input tokens: 3/10 (30.0%) batch=49.78 t/s avg=7.89 t/s
+processing 10 input tokens: 3/10 (30.0%) batch=0.00 t/s avg=7.46 t/s
+processing 10 input tokens: 3/10 (30.0%) batch=0.00 t/s avg=7.09 t/s
+processing 10 input tokens: 3/10 (30.0%) batch=0.00 t/s avg=6.74 t/s
+processing 10 input tokens: 3/10 (30.0%) batch=0.00 t/s avg=6.42 t/s
+processing 10 input tokens: 4/10 (40.0%) batch=51.07 t/s avg=8.22 t/s
+processing 10 input tokens: 4/10 (40.0%) batch=0.00 t/s avg=7.86 t/s
+processing 10 input tokens: 4/10 (40.0%) batch=0.00 t/s avg=7.48 t/s
+processing 10 input tokens: 4/10 (40.0%) batch=0.00 t/s avg=7.18 t/s
+processing 10 input tokens: 5/10 (50.0%) batch=46.04 t/s avg=8.64 t/s
+processing 10 input tokens: 5/10 (50.0%) batch=0.00 t/s avg=8.31 t/s
+processing 10 input tokens: 5/10 (50.0%) batch=0.00 t/s avg=7.99 t/s
+processing 10 input tokens: 5/10 (50.0%) batch=0.00 t/s avg=7.72 t/s
+processing 10 input tokens: 6/10 (60.0%) batch=43.31 t/s avg=8.95 t/s
+processing 10 input tokens: 6/10 (60.0%) batch=0.00 t/s avg=8.70 t/s
+processing 10 input tokens: 6/10 (60.0%) batch=0.00 t/s avg=8.40 t/s
+processing 10 input tokens: 6/10 (60.0%) batch=0.00 t/s avg=8.12 t/s
+processing 10 input tokens: 6/10 (60.0%) batch=0.00 t/s avg=7.90 t/s
+processing 10 input tokens: 7/10 (70.0%) batch=41.17 t/s avg=8.93 t/s
+processing 10 input tokens: 7/10 (70.0%) batch=0.00 t/s avg=8.66 t/s
+processing 10 input tokens: 7/10 (70.0%) batch=0.00 t/s avg=8.44 t/s
+processing 10 input tokens: 7/10 (70.0%) batch=0.00 t/s avg=8.22 t/s
+processing 10 input tokens: 8/10 (80.0%) batch=42.23 t/s avg=9.14 t/s
+processing 10 input tokens: 8/10 (80.0%) batch=0.00 t/s avg=8.91 t/s
+processing 10 input tokens: 8/10 (80.0%) batch=0.00 t/s avg=8.68 t/s
+processing 10 input tokens: 8/10 (80.0%) batch=0.00 t/s avg=8.44 t/s
+processing 10 input tokens: 9/10 (90.0%) batch=42.21 t/s avg=9.26 t/s
+processing 10 input tokens: 9/10 (90.0%) batch=0.00 t/s avg=9.03 t/s
+processing 10 input tokens: 9/10 (90.0%) batch=0.00 t/s avg=8.82 t/s
+processing 10 input tokens: 9/10 (90.0%) batch=0.00 t/s avg=8.60 t/s
+processing 10 input tokens: 10/10 (100.0%) batch=34.44 t/s avg=9.30 t/s
+ds4: prefill full: 10 tokens in 1078.1 ms (9.3 t/s)
+ds4: Flash-MoE mixed slot bank using fully fused banked decode path
+ds4: ----------------------------------------
+ds4: prefill: 9.28 t/s, generation: 3.16 t/s (1 tokens in 0.316s)
+ds4: ttf: first-output=1.483s total=1.483s (engine=0.056s session=0.003s prompt=0.000s prefill=1.078s decode=0.316s)
+ds4: vm pressure: app=11.71 GiB resident=1.91 GiB wired=24.49 GiB compressed=2.32 GiB logical=4.59 GiB swap=0.76/2.00 GiB pressure=34% free=59.49 GiB gpu=11.56 GiB gpu-compressed=0.00 GiB task-compressed=0.00 GiB decompressions=0
+ds4: Flash-MoE slot-bank stats hits=0 misses=1706 hit-rate=0.0% resident-slots=258/1376 (18.8%, avg=6.0/layer min=6 max=6 of 32) installed=11515.50 MiB
+ds4: Flash-MoE prefill dedup refs=2580 unique=1448 saved=1132 (43.9%) reuse=1.78x
+real 1.61
+user 0.27
+sys 1.90

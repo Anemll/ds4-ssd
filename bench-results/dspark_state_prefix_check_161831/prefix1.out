@@ -1,0 +1,66 @@
+Here's a complete Space Invaders game using Pygame:
+
+```python
+import pygame
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0,, 255255)
+RED = (255,, 00)
+BLUE = (0,, 025)
+
+# Set up the display
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+clock = pygame.time.Clock()
+
+# Player class
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HE_HEIGHT -50
+        self.width = 50
+        self.height = 30
+        self.speed = 5
+        self.bullets = []
+        self.lives = 3
+        
+    def draw(self):
+        pygame.draw.rect(screen, GREEN, (self.x - self.width//2, self.y - self.height//2,, self.width, self.height))
+        
+    def move(self, direction):
+        if direction == "left" and self.x > self.width////2:
+            self.x -= self.speed
+        if direction == == "right" and self.x < SCREEN_WIDTH - self.width////2:
+                self.x += self.speed
+    def shoot(self):
+        bullet = Bullet(self.x, self.y -20)
+        self.bulullets.append(bullet)
+    def update(self):
+        for bullet in self.bulullets[:]:
+            bullet.update()
+            if bullet.y <0:
+                self.bulullets.remove(bullet)
+
+class Bullet:
+    def def __initinit__(self, x, y):
+        self.x.x = x
+        self.y.y = y
+        self.s.speed =10
+    def draw(self(self):
+        pygame pygame.draw..rect(screencreen, WHITE, (selfself.x -2, self.y.y -10, 4, 20))
+    def update update(self):
+        self.y -= self.speed
+
+class Enemy:
+    def __init__(selfself, x x

@@ -1,0 +1,7 @@
+case	bank	gen_tps	decode_s	prefill_s	max_gpu_compressed_gib	last_gpu_compressed_gib	max_task_compressed_gib	log
+b112_resq	112	NA	NA	NA	0.00	0.00	0.00	bench-results/20260617-175416-b112_resq.log
+b120_resq	120	NA	NA	NA	0.00	0.00	0.00	bench-results/20260617-175416-b120_resq.log
+b128_resq	128	NA	NA	NA	0.00	0.00	0.06	bench-results/20260617-175416-b128_resq.log
+b132_resq	132	NA	NA	NA	0.00	0.00	0.01	bench-results/20260617-175416-b132_resq.log
+b134_resq	134	NA	NA	NA	0.00	0.00	0.02	bench-results/20260617-175416-b134_resq.log
+b134_dense_cliff	134	NA	NA	NA	0.08	0.08	2.53	bench-results/20260617-175416-b134_dense_cliff.log

@@ -1,0 +1,119 @@
+I'll create a complete Space Invaders game using Pygame. This will include the player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+ENEMY_SPEED = 1
+BULLET_SPEED = 7
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.lives = 3
+        self.score = 0
+        
+    def move_left(self):
+        self.x -= self.speed
+        if self.x < 0:
+            self.x = 0
+            
+    def move_right(self):
+        self.x += self.speed
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+            
+    def shoot(self):
+        bullet = Bullet(self.x + self.width//2 - 2, self.y, BULLET_SPEED, True)
+        self.bullets.append(bullet)
+        
+    def draw(self, screen):
+        # Draw player ship
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x + self.width, self.y + self.height//2),
+            (self.x + self.width - 10, self.y + self.height//2),
+            (self.x + self.width - 10, self.y + self.height),
+            (self.x + 10, self.y + self.height),
+            (self.x + 10, self.y + self.height//2),
+            (self.x, self.y + self.height//2)
+        ]
+        pygame.draw.polygon(screen, GREEN, points)
+        
+        # Draw bullets
+        for bullet in self.bullets[:]:
+            bullet.draw(screen)
+            bullet.move()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+
+class Enemy:
+    def __init__(self, x, y, row):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = ENEMY_SPEED
+        self.direction = 1
+        self.row = row
+        self.bullets = []
+        self.shoot_timer = random.randint(60, 180)
+        
+    def move(self):
+        self.x += self.speed * self.direction
+        
+    def draw(self, screen):
+        # Draw enemy ship
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x + self.width, self.y + self.height//2),
+            (self.x + self.width - 8, self.y + self.height//2),
+            (self.x + self.width - 8, self.y + self.height),
+            (self.x + 8, self.y + self.height),
+            (self.x + 8, self.y + self.height//2),
+            (self.x, self.y + self.height//2)
+        ]
+        color = RED if self.row == 0 else (255, 165, 0) if self.row == 1 else YELLOW
+        pygame.draw.polygon(screen, color, points)
+        
+    def shoot(self):
+        if self.shoot_timer <= 0:
+            bullet = Bullet(self.x + self.width//2 - 2, self.y + self.height, ENEMY_BULLET_SPEED, False)
+            self.bullets.append(bullet)
+            self.shoot_timer = random.randint(60, 180)
+        else:
+            self.shoot_timer -= 1
+
+class Bullet:
+    def __init__(self, x, y, speed, is_player_bullet):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 10
+        self.is_player_bullet = is_player_bullet
+        
+    def move(self):
+        if self.is_player_bul

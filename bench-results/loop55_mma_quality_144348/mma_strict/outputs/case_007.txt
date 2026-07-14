@@ -1,0 +1,9 @@
+This is a great question because it gets to the heart of why speculative decoding is useful: it speeds up generation *without* changing the model's output distribution.
+
+Here is the summary of how speculative decoding preserves the exact greedy output (i.e., the token with the highest probability at each step).
+
+### The Core Mechanism: Rejection Sampling
+
+Speculative decoding uses a **draft model** (a smaller, faster model) to predict multiple tokens in advance. The **target model** (the large, slow model) then verifies these predictions.
+
+The key to preserving exact output is a **rejection sampling** step. It works like

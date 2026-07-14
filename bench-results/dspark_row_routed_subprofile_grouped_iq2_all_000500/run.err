@@ -1,0 +1,846 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.274 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=30.72 t/s avg=0.66 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.65 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=54.87 t/s avg=1.29 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.27 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=54.06 t/s avg=1.89 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.86 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.84 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.80 t/s avg=2.43 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.40 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=50.37 t/s avg=2.96 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.93 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.04 t/s avg=3.48 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=3.44 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=59.99 t/s avg=3.98 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.94 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.90 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=54.85 t/s avg=4.42 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=4.36 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=57.30 t/s avg=4.86 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.81 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.36 t/s avg=5.29 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=5.23 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.07 t/s avg=5.70 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.65 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.61 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=51.19 t/s avg=6.06 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=6.00 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.13 t/s avg=6.43 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=6.38 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=53.32 t/s avg=6.80 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=6.75 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=56.56 t/s avg=7.17 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.10 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.04 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=51.88 t/s avg=7.44 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=7.37 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=53.55 t/s avg=7.76 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=7.69 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=53.98 t/s avg=8.07 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=8.00 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=45.62 t/s avg=8.36 t/s
+ds4: prefill full: 19 tokens in 2273.7 ms (8.4 t/s)
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=5 rows=5 in 150.1 ms (paid before decode timer)
+ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+ds4: dspark row-routed grouped exact IQ2 gate/up+SwiGLU enabled
+ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=54.078 ms down=0.409 ms sum=0.011 ms total=54.498 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.692 ms down=0.399 ms sum=0.001 ms total=2.092 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.842 ms down=0.380 ms sum=0.001 ms total=2.223 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.652 ms down=0.381 ms sum=0.001 ms total=2.034 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.960 ms down=0.362 ms sum=0.001 ms total=2.323 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.798 ms down=0.399 ms sum=0.000 ms total=2.197 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.996 ms down=0.409 ms sum=0.000 ms total=2.405 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.855 ms down=0.381 ms sum=0.001 ms total=2.237 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.880 ms down=0.369 ms sum=0.001 ms total=2.250 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.636 ms down=0.352 ms sum=0.001 ms total=1.989 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.315 ms down=0.347 ms sum=0.001 ms total=2.663 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.773 ms down=0.380 ms sum=0.001 ms total=2.154 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.123 ms down=0.339 ms sum=0.001 ms total=2.463 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.836 ms down=0.380 ms sum=0.001 ms total=2.217 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.239 ms down=0.539 ms sum=0.001 ms total=2.779 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.972 ms down=0.321 ms sum=0.001 ms total=2.294 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.104 ms down=0.387 ms sum=0.001 ms total=2.492 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.853 ms down=0.396 ms sum=0.001 ms total=2.250 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.974 ms down=0.393 ms sum=0.001 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.711 ms down=0.407 ms sum=0.001 ms total=2.119 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.256 ms down=0.444 ms sum=0.001 ms total=2.701 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.813 ms down=0.401 ms sum=0.001 ms total=2.215 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.174 ms down=0.321 ms sum=0.001 ms total=2.496 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.849 ms down=0.389 ms sum=0.001 ms total=2.239 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.272 ms down=0.413 ms sum=0.001 ms total=2.686 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.952 ms down=0.441 ms sum=0.001 ms total=2.394 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.152 ms down=0.408 ms sum=0.001 ms total=2.561 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.355 ms down=0.366 ms sum=0.001 ms total=2.722 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.293 ms down=0.354 ms sum=0.001 ms total=2.648 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.886 ms down=0.333 ms sum=0.000 ms total=2.219 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.955 ms down=0.262 ms sum=0.001 ms total=2.218 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.806 ms down=0.400 ms sum=0.001 ms total=2.207 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.109 ms down=0.359 ms sum=0.001 ms total=2.469 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.002 ms down=0.489 ms sum=0.001 ms total=2.492 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.292 ms down=0.346 ms sum=0.001 ms total=2.639 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.675 ms down=0.301 ms sum=0.001 ms total=1.977 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.018 ms down=0.378 ms sum=0.001 ms total=2.397 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.842 ms down=0.329 ms sum=0.000 ms total=2.171 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.186 ms down=0.371 ms sum=0.001 ms total=2.558 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.800 ms down=0.408 ms sum=0.001 ms total=2.209 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.218 ms down=0.368 ms sum=0.001 ms total=2.587 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.048 ms down=0.311 ms sum=0.001 ms total=2.360 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.938 ms down=0.344 ms sum=0.001 ms total=2.283 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.768 ms down=0.418 ms sum=0.001 ms total=2.187 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.673 ms down=0.368 ms sum=0.001 ms total=2.042 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.790 ms down=0.576 ms sum=0.004 ms total=2.370 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.830 ms down=0.388 ms sum=0.001 ms total=2.219 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.943 ms down=0.396 ms sum=0.000 ms total=2.339 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.805 ms down=0.385 ms sum=0.001 ms total=2.191 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.004 ms down=0.314 ms sum=0.001 ms total=2.319 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.853 ms down=0.387 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.879 ms down=0.368 ms sum=0.001 ms total=2.248 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.930 ms down=0.441 ms sum=0.001 ms total=2.372 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.232 ms down=0.458 ms sum=0.001 ms total=2.691 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.800 ms down=0.385 ms sum=0.002 ms total=2.187 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.013 ms down=0.455 ms sum=0.001 ms total=2.469 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.840 ms down=0.479 ms sum=0.002 ms total=2.321 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.090 ms down=0.417 ms sum=0.002 ms total=2.509 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.721 ms down=0.372 ms sum=0.001 ms total=2.094 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.117 ms down=0.412 ms sum=0.000 ms total=2.529 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.282 ms down=0.400 ms sum=0.002 ms total=2.684 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.020 ms down=0.389 ms sum=0.000 ms total=2.409 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.682 ms down=0.377 ms sum=0.001 ms total=2.060 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.874 ms down=0.307 ms sum=0.001 ms total=2.182 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.603 ms down=0.424 ms sum=0.001 ms total=2.028 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.919 ms down=0.393 ms sum=0.001 ms total=2.313 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.702 ms down=0.376 ms sum=0.001 ms total=2.079 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.857 ms down=0.535 ms sum=0.001 ms total=2.393 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.005 ms down=0.399 ms sum=0.001 ms total=2.405 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.046 ms down=0.346 ms sum=0.001 ms total=2.393 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.278 ms down=0.392 ms sum=0.001 ms total=2.671 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.242 ms down=0.361 ms sum=0.000 ms total=2.603 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.876 ms down=0.371 ms sum=0.001 ms total=2.248 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.171 ms down=0.408 ms sum=0.000 ms total=2.579 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.830 ms down=0.388 ms sum=0.000 ms total=2.218 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.274 ms down=0.408 ms sum=0.001 ms total=2.683 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.479 ms down=0.429 ms sum=0.001 ms total=2.909 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.950 ms down=0.367 ms sum=0.001 ms total=2.318 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.666 ms down=0.435 ms sum=0.001 ms total=2.102 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.027 ms down=0.364 ms sum=0.001 ms total=2.392 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.841 ms down=0.389 ms sum=0.001 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.113 ms down=0.372 ms sum=0.001 ms total=2.486 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.641 ms down=0.367 ms sum=0.001 ms total=2.009 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.201 ms down=0.350 ms sum=0.000 ms total=2.551 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.019 ms down=0.484 ms sum=0.005 ms total=2.508 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.897 ms down=0.354 ms sum=0.001 ms total=2.252 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.946 ms down=0.445 ms sum=0.001 ms total=2.392 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.676 ms down=0.385 ms sum=0.000 ms total=2.061 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.737 ms down=0.407 ms sum=0.001 ms total=2.145 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.829 ms down=0.383 ms sum=0.001 ms total=2.213 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.851 ms down=0.338 ms sum=0.000 ms total=2.189 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.093 ms down=0.381 ms sum=0.001 ms total=2.475 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.920 ms down=0.380 ms sum=0.001 ms total=2.301 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.797 ms down=0.342 ms sum=0.001 ms total=2.140 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.937 ms down=0.407 ms sum=0.001 ms total=2.345 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.704 ms down=0.471 ms sum=0.001 ms total=2.176 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.847 ms down=0.503 ms sum=0.001 ms total=2.351 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.800 ms down=0.369 ms sum=0.001 ms total=2.170 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.057 ms down=0.351 ms sum=0.001 ms total=2.409 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.902 ms down=0.385 ms sum=0.001 ms total=2.288 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.051 ms down=0.397 ms sum=0.001 ms total=2.449 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.713 ms down=0.433 ms sum=0.000 ms total=2.146 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.185 ms down=0.411 ms sum=0.001 ms total=2.597 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.263 ms down=0.343 ms sum=0.002 ms total=2.608 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.912 ms down=0.369 ms sum=0.001 ms total=2.282 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.793 ms down=0.447 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.223 ms down=0.371 ms sum=0.001 ms total=2.595 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.836 ms down=0.376 ms sum=0.000 ms total=2.212 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.009 ms down=0.363 ms sum=0.001 ms total=2.373 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.743 ms down=0.376 ms sum=0.000 ms total=2.119 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.117 ms down=0.368 ms sum=0.001 ms total=2.486 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.120 ms down=0.377 ms sum=0.001 ms total=2.498 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.869 ms down=0.361 ms sum=0.001 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.221 ms down=0.411 ms sum=0.001 ms total=2.633 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.183 ms down=0.370 ms sum=0.001 ms total=2.554 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.927 ms down=0.419 ms sum=0.001 ms total=2.347 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.061 ms down=0.357 ms sum=0.000 ms total=2.418 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.662 ms down=0.378 ms sum=0.000 ms total=2.040 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.978 ms down=0.385 ms sum=0.001 ms total=2.364 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.885 ms down=0.451 ms sum=0.000 ms total=2.336 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.334 ms down=0.356 ms sum=0.001 ms total=2.691 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.725 ms down=0.277 ms sum=0.001 ms total=2.003 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.950 ms down=0.373 ms sum=0.001 ms total=2.324 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.080 ms down=0.378 ms sum=0.001 ms total=2.459 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.999 ms down=0.369 ms sum=0.000 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.756 ms down=0.516 ms sum=0.000 ms total=2.272 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.936 ms down=0.334 ms sum=0.000 ms total=2.270 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.664 ms down=0.380 ms sum=0.001 ms total=2.045 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.883 ms down=0.386 ms sum=0.001 ms total=2.270 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.562 ms down=0.440 ms sum=0.001 ms total=2.003 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.785 ms down=0.450 ms sum=0.001 ms total=2.236 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.083 ms down=0.448 ms sum=0.001 ms total=2.532 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.960 ms down=0.414 ms sum=0.000 ms total=2.374 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.914 ms down=0.336 ms sum=0.000 ms total=2.250 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.015 ms down=0.396 ms sum=0.002 ms total=2.413 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.912 ms down=0.342 ms sum=0.001 ms total=2.255 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.376 ms sum=0.001 ms total=2.235 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.008 ms down=0.362 ms sum=0.001 ms total=2.371 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.787 ms down=0.387 ms sum=0.000 ms total=2.174 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.014 ms down=0.435 ms sum=0.001 ms total=2.450 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.703 ms down=0.381 ms sum=0.001 ms total=2.085 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.324 ms down=0.382 ms sum=0.001 ms total=2.707 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.186 ms down=0.371 ms sum=0.000 ms total=2.557 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.042 ms down=0.397 ms sum=0.000 ms total=2.439 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.737 ms down=0.443 ms sum=0.000 ms total=2.180 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.096 ms down=0.387 ms sum=0.000 ms total=2.483 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.753 ms down=0.407 ms sum=0.001 ms total=2.161 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.845 ms down=0.487 ms sum=0.001 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.695 ms down=0.369 ms sum=0.001 ms total=2.065 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.112 ms down=0.321 ms sum=0.000 ms total=2.433 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.031 ms down=0.393 ms sum=0.000 ms total=2.424 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.982 ms down=0.346 ms sum=0.000 ms total=2.328 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.889 ms down=0.381 ms sum=0.000 ms total=2.270 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.540 ms down=0.351 ms sum=0.000 ms total=2.891 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.392 ms down=0.441 ms sum=0.001 ms total=2.834 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.660 ms down=0.409 ms sum=0.000 ms total=3.069 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.997 ms down=0.444 ms sum=0.000 ms total=2.441 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.923 ms down=0.417 ms sum=0.001 ms total=3.341 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.755 ms down=0.440 ms sum=0.000 ms total=2.195 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.221 ms down=0.402 ms sum=0.001 ms total=2.624 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.429 ms sum=0.001 ms total=2.288 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.257 ms down=0.328 ms sum=0.001 ms total=2.586 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.126 ms down=0.416 ms sum=0.001 ms total=2.543 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.599 ms down=0.372 ms sum=0.001 ms total=2.972 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.012 ms down=0.460 ms sum=0.001 ms total=2.473 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.094 ms down=0.356 ms sum=0.001 ms total=2.451 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.367 ms sum=0.001 ms total=2.226 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.294 ms down=0.397 ms sum=0.001 ms total=2.692 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.071 ms down=0.411 ms sum=0.000 ms total=2.482 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.141 ms down=0.437 ms sum=0.001 ms total=2.579 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.928 ms down=0.425 ms sum=0.001 ms total=2.354 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.863 ms down=0.363 ms sum=0.001 ms total=2.227 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.549 ms down=0.445 ms sum=0.001 ms total=1.995 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.078 ms down=0.448 ms sum=0.000 ms total=2.526 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.714 ms down=0.499 ms sum=0.002 ms total=2.215 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.144 ms down=0.357 ms sum=0.001 ms total=2.502 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.950 ms down=0.367 ms sum=0.000 ms total=2.317 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.831 ms down=0.408 ms sum=0.000 ms total=2.239 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.892 ms down=0.363 ms sum=0.001 ms total=2.256 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.626 ms down=0.413 ms sum=0.001 ms total=2.040 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.996 ms down=0.248 ms sum=0.001 ms total=2.245 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.773 ms down=0.393 ms sum=0.001 ms total=2.167 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.985 ms down=0.358 ms sum=0.001 ms total=2.344 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.806 ms down=0.665 ms sum=0.002 ms total=2.473 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.987 ms down=0.306 ms sum=0.000 ms total=2.293 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.982 ms down=0.377 ms sum=0.001 ms total=2.360 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.097 ms down=0.368 ms sum=0.001 ms total=2.466 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.891 ms down=0.426 ms sum=0.001 ms total=2.318 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.102 ms down=0.377 ms sum=0.000 ms total=2.479 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.723 ms down=0.326 ms sum=0.001 ms total=2.050 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.404 ms down=0.342 ms sum=0.000 ms total=2.746 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.752 ms down=0.427 ms sum=0.001 ms total=2.180 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.000 ms down=0.391 ms sum=0.001 ms total=2.392 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.888 ms down=0.385 ms sum=0.001 ms total=2.274 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.035 ms down=0.424 ms sum=0.001 ms total=2.460 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.985 ms down=0.369 ms sum=0.001 ms total=2.355 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.338 ms down=0.360 ms sum=0.001 ms total=2.699 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.366 ms down=0.387 ms sum=0.001 ms total=2.754 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.428 ms down=0.314 ms sum=0.001 ms total=2.743 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.193 ms down=0.357 ms sum=0.000 ms total=2.550 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.722 ms down=0.411 ms sum=0.000 ms total=3.133 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.746 ms down=0.343 ms sum=0.001 ms total=2.090 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.254 ms down=0.360 ms sum=0.000 ms total=2.614 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.846 ms down=0.372 ms sum=0.001 ms total=2.219 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.186 ms down=0.355 ms sum=0.001 ms total=2.542 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.147 ms down=0.380 ms sum=0.000 ms total=2.527 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.446 ms down=0.383 ms sum=0.001 ms total=2.830 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.805 ms down=0.390 ms sum=0.000 ms total=2.195 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.214 ms down=0.368 ms sum=0.000 ms total=2.582 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.891 ms down=0.345 ms sum=0.001 ms total=2.237 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.131 ms down=0.427 ms sum=0.001 ms total=2.559 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.010 ms down=0.432 ms sum=0.001 ms total=2.443 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.285 ms down=0.455 ms sum=0.001 ms total=2.741 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.044 ms down=0.415 ms sum=0.000 ms total=2.459 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.936 ms down=0.380 ms sum=0.001 ms total=2.317 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.548 ms down=0.456 ms sum=0.001 ms total=2.005 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.891 ms down=0.413 ms sum=0.000 ms total=2.304 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.799 ms down=0.519 ms sum=0.003 ms total=2.321 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.067 ms down=0.398 ms sum=0.001 ms total=2.466 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.155 ms down=0.307 ms sum=0.001 ms total=2.463 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.007 ms down=0.426 ms sum=0.000 ms total=2.433 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.010 ms down=0.388 ms sum=0.001 ms total=2.399 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.811 ms down=0.372 ms sum=0.000 ms total=2.183 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.993 ms down=0.366 ms sum=0.000 ms total=2.359 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.912 ms down=0.385 ms sum=0.001 ms total=2.298 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.983 ms down=0.512 ms sum=0.001 ms total=2.496 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.909 ms down=0.331 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.997 ms down=0.373 ms sum=0.001 ms total=2.371 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.216 ms down=0.409 ms sum=0.000 ms total=2.625 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.058 ms down=0.339 ms sum=0.000 ms total=2.397 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.040 ms down=0.429 ms sum=0.001 ms total=2.470 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.511 ms down=0.431 ms sum=0.001 ms total=2.943 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.114 ms down=0.459 ms sum=0.001 ms total=2.574 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.036 ms down=0.352 ms sum=0.001 ms total=2.389 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.614 ms down=0.458 ms sum=0.001 ms total=2.073 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.320 ms down=0.290 ms sum=0.001 ms total=2.611 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.896 ms down=0.407 ms sum=0.001 ms total=2.304 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.025 ms down=0.392 ms sum=0.001 ms total=2.418 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.068 ms down=0.429 ms sum=0.000 ms total=2.497 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.384 ms down=0.425 ms sum=0.001 ms total=2.810 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.334 ms down=0.374 ms sum=0.002 ms total=2.710 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.430 ms down=0.301 ms sum=0.002 ms total=2.733 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.655 ms down=0.398 ms sum=0.001 ms total=2.054 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.080 ms down=0.360 ms sum=0.000 ms total=2.440 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.955 ms down=0.342 ms sum=0.001 ms total=2.298 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.141 ms down=0.396 ms sum=0.001 ms total=2.538 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.892 ms down=0.347 ms sum=0.001 ms total=2.240 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.013 ms down=0.378 ms sum=0.001 ms total=2.392 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.157 ms down=0.340 ms sum=0.000 ms total=2.497 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.067 ms down=0.384 ms sum=0.000 ms total=2.451 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.642 ms down=0.426 ms sum=0.001 ms total=2.069 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.078 ms down=0.381 ms sum=0.001 ms total=2.460 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.000 ms down=0.432 ms sum=0.000 ms total=2.432 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.027 ms down=0.309 ms sum=0.001 ms total=2.337 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.653 ms down=0.388 ms sum=0.000 ms total=2.041 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.088 ms down=0.397 ms sum=0.001 ms total=2.486 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.882 ms down=0.427 ms sum=0.001 ms total=2.310 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.844 ms down=0.396 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.984 ms down=0.470 ms sum=0.001 ms total=2.455 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.654 ms down=0.515 ms sum=0.003 ms total=2.172 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.790 ms down=0.403 ms sum=0.001 ms total=2.194 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.224 ms down=0.408 ms sum=0.000 ms total=2.632 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.850 ms down=0.390 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.898 ms down=0.346 ms sum=0.000 ms total=2.244 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.842 ms down=0.363 ms sum=0.001 ms total=2.206 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.663 ms down=0.452 ms sum=0.001 ms total=2.116 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.816 ms down=0.380 ms sum=0.001 ms total=2.197 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.728 ms down=0.347 ms sum=0.000 ms total=2.075 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.895 ms down=0.458 ms sum=0.000 ms total=2.353 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.922 ms down=0.347 ms sum=0.000 ms total=2.269 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.855 ms down=0.340 ms sum=0.001 ms total=2.196 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.865 ms down=0.364 ms sum=0.001 ms total=2.230 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.838 ms down=0.473 ms sum=0.000 ms total=2.311 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.826 ms down=0.420 ms sum=0.001 ms total=2.247 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.119 ms down=0.365 ms sum=0.001 ms total=2.485 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.839 ms down=0.578 ms sum=0.003 ms total=2.420 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.824 ms down=0.371 ms sum=0.001 ms total=2.196 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.558 ms down=0.390 ms sum=0.001 ms total=1.949 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.919 ms down=0.364 ms sum=0.001 ms total=2.284 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.767 ms down=0.373 ms sum=0.000 ms total=2.140 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.920 ms down=0.365 ms sum=0.000 ms total=2.285 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.936 ms down=0.337 ms sum=0.001 ms total=2.274 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.282 ms down=0.499 ms sum=0.002 ms total=2.783 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.431 ms down=0.365 ms sum=0.001 ms total=2.797 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.363 ms down=0.373 ms sum=0.000 ms total=2.736 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.984 ms down=0.511 ms sum=0.001 ms total=2.496 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.204 ms down=0.376 ms sum=0.001 ms total=2.581 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.852 ms down=0.395 ms sum=0.001 ms total=2.248 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.081 ms down=0.344 ms sum=0.000 ms total=2.425 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.893 ms down=0.397 ms sum=0.000 ms total=2.290 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.179 ms down=0.367 ms sum=0.001 ms total=2.547 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.994 ms down=0.375 ms sum=0.001 ms total=2.370 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.036 ms down=0.361 ms sum=0.000 ms total=2.397 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.695 ms down=0.347 ms sum=0.000 ms total=2.042 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.014 ms down=0.379 ms sum=0.001 ms total=2.394 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.831 ms down=0.364 ms sum=0.001 ms total=2.196 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.843 ms down=0.357 ms sum=0.000 ms total=2.200 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.727 ms down=0.365 ms sum=0.001 ms total=2.093 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.056 ms down=0.383 ms sum=0.000 ms total=2.439 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.177 ms down=0.399 ms sum=0.001 ms total=2.577 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.779 ms down=0.425 ms sum=0.000 ms total=2.204 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.696 ms down=0.407 ms sum=0.000 ms total=2.103 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.661 ms down=0.392 ms sum=0.001 ms total=2.054 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.702 ms down=0.451 ms sum=0.000 ms total=2.153 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.940 ms down=0.423 ms sum=0.001 ms total=2.364 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.987 ms down=0.370 ms sum=0.000 ms total=2.357 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.881 ms down=0.426 ms sum=0.001 ms total=2.308 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.933 ms down=0.367 ms sum=0.000 ms total=2.300 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.833 ms down=0.395 ms sum=0.001 ms total=2.229 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.384 ms sum=0.001 ms total=2.243 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.761 ms down=0.403 ms sum=0.001 ms total=2.165 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.933 ms down=0.401 ms sum=0.001 ms total=2.335 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.975 ms down=0.368 ms sum=0.001 ms total=2.344 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.069 ms down=0.357 ms sum=0.001 ms total=2.427 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.153 ms down=0.538 ms sum=0.005 ms total=2.696 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.978 ms down=0.395 ms sum=0.000 ms total=2.373 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.950 ms down=0.382 ms sum=0.001 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.135 ms down=0.353 ms sum=0.001 ms total=2.489 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.685 ms down=0.395 ms sum=0.001 ms total=2.081 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.000 ms down=0.376 ms sum=0.001 ms total=2.377 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.628 ms down=0.436 ms sum=0.001 ms total=2.065 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.957 ms down=0.377 ms sum=0.001 ms total=2.335 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.888 ms down=0.440 ms sum=0.001 ms total=2.329 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.844 ms down=0.397 ms sum=0.001 ms total=2.242 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.941 ms down=0.329 ms sum=0.001 ms total=2.271 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.055 ms down=0.385 ms sum=0.000 ms total=2.440 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.867 ms down=0.366 ms sum=0.001 ms total=2.234 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.993 ms down=0.436 ms sum=0.001 ms total=2.430 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.909 ms down=0.374 ms sum=0.001 ms total=2.284 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.451 ms down=0.481 ms sum=0.000 ms total=2.932 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.788 ms down=0.392 ms sum=0.001 ms total=2.181 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.404 ms down=0.376 ms sum=0.001 ms total=2.781 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.980 ms down=0.352 ms sum=0.001 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.003 ms down=0.435 ms sum=0.001 ms total=2.439 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.045 ms down=0.424 ms sum=0.001 ms total=2.470 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.923 ms down=0.381 ms sum=0.000 ms total=2.304 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.240 ms down=0.395 ms sum=0.001 ms total=2.636 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.071 ms down=0.413 ms sum=0.001 ms total=2.485 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.672 ms down=0.370 ms sum=0.001 ms total=2.043 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.121 ms down=0.380 ms sum=0.001 ms total=2.502 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.757 ms down=0.389 ms sum=0.002 ms total=2.148 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.992 ms down=0.383 ms sum=0.000 ms total=2.375 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.125 ms down=0.334 ms sum=0.001 ms total=2.460 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.937 ms down=0.400 ms sum=0.000 ms total=2.337 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.542 ms down=0.371 ms sum=0.001 ms total=1.914 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.675 ms down=0.410 ms sum=0.001 ms total=2.086 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.743 ms down=0.426 ms sum=0.001 ms total=2.170 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.029 ms down=0.426 ms sum=0.000 ms total=2.455 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.020 ms down=0.446 ms sum=0.000 ms total=2.466 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.916 ms down=0.404 ms sum=0.001 ms total=2.321 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.830 ms down=0.329 ms sum=0.000 ms total=2.159 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.777 ms down=0.384 ms sum=0.001 ms total=2.162 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.886 ms down=0.394 ms sum=0.000 ms total=2.280 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.928 ms down=0.381 ms sum=0.001 ms total=2.310 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.840 ms down=0.414 ms sum=0.000 ms total=2.254 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.804 ms down=0.433 ms sum=0.000 ms total=2.237 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.937 ms down=0.359 ms sum=0.000 ms total=2.296 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.798 ms down=0.420 ms sum=0.000 ms total=2.218 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.856 ms down=0.348 ms sum=0.001 ms total=2.205 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.832 ms down=0.387 ms sum=0.001 ms total=2.220 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.004 ms down=0.391 ms sum=0.001 ms total=2.396 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.780 ms down=0.364 ms sum=0.001 ms total=2.145 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.007 ms down=0.355 ms sum=0.000 ms total=2.362 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.626 ms down=0.371 ms sum=0.000 ms total=1.997 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.239 ms down=0.399 ms sum=0.000 ms total=2.638 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.781 ms down=0.372 ms sum=0.000 ms total=2.153 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.801 ms down=0.376 ms sum=0.000 ms total=2.177 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.887 ms down=0.379 ms sum=0.001 ms total=2.267 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.045 ms down=0.394 ms sum=0.001 ms total=2.440 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.994 ms down=0.367 ms sum=0.000 ms total=2.361 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.021 ms down=0.398 ms sum=0.000 ms total=2.419 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.820 ms down=0.356 ms sum=0.000 ms total=2.176 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.098 ms down=0.376 ms sum=0.000 ms total=2.474 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.744 ms down=0.393 ms sum=0.001 ms total=2.138 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.160 ms down=0.384 ms sum=0.001 ms total=2.545 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.912 ms down=0.445 ms sum=0.000 ms total=2.357 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.071 ms down=0.379 ms sum=0.001 ms total=2.451 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.092 ms down=0.369 ms sum=0.001 ms total=2.462 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.004 ms down=0.443 ms sum=0.001 ms total=2.448 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.670 ms down=0.411 ms sum=0.000 ms total=2.081 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.977 ms down=0.375 ms sum=0.000 ms total=2.352 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.730 ms down=0.371 ms sum=0.001 ms total=2.102 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.887 ms down=0.490 ms sum=0.001 ms total=2.378 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.648 ms down=0.399 ms sum=0.001 ms total=2.048 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.872 ms down=0.428 ms sum=0.001 ms total=2.301 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.695 ms down=0.401 ms sum=0.001 ms total=2.097 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.784 ms down=0.370 ms sum=0.000 ms total=2.154 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.561 ms down=0.491 ms sum=0.001 ms total=2.053 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.721 ms down=0.411 ms sum=0.001 ms total=2.133 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.797 ms down=0.403 ms sum=0.001 ms total=2.201 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.854 ms down=0.444 ms sum=0.000 ms total=2.298 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.982 ms down=0.438 ms sum=0.001 ms total=2.421 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.961 ms down=0.385 ms sum=0.000 ms total=2.346 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.935 ms down=0.408 ms sum=0.001 ms total=2.344 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.836 ms down=0.377 ms sum=0.000 ms total=2.213 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.943 ms down=0.349 ms sum=0.000 ms total=2.292 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.848 ms down=0.382 ms sum=0.001 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.898 ms down=0.446 ms sum=0.001 ms total=2.345 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.712 ms down=0.347 ms sum=0.001 ms total=2.060 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.924 ms down=0.444 ms sum=0.000 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.928 ms down=0.393 ms sum=0.001 ms total=2.322 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.983 ms down=0.375 ms sum=0.001 ms total=2.359 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.782 ms down=0.550 ms sum=0.001 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.884 ms down=0.432 ms sum=0.000 ms total=2.316 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.986 ms down=0.376 ms sum=0.000 ms total=2.362 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.880 ms down=0.349 ms sum=0.000 ms total=2.229 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.653 ms down=0.400 ms sum=0.001 ms total=2.054 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.883 ms down=0.406 ms sum=0.001 ms total=2.290 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.627 ms down=0.329 ms sum=0.001 ms total=1.957 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.899 ms down=0.374 ms sum=0.001 ms total=2.274 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.732 ms down=0.396 ms sum=0.001 ms total=2.129 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.922 ms down=0.357 ms sum=0.001 ms total=2.280 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.745 ms down=0.402 ms sum=0.001 ms total=2.148 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.812 ms down=0.381 ms sum=0.000 ms total=2.193 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.826 ms down=0.436 ms sum=0.000 ms total=2.262 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.949 ms down=0.369 ms sum=0.000 ms total=2.318 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.767 ms down=0.393 ms sum=0.000 ms total=2.160 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.243 ms down=0.415 ms sum=0.001 ms total=2.659 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.769 ms down=0.397 ms sum=0.000 ms total=2.166 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.894 ms down=0.438 ms sum=0.001 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.841 ms down=0.401 ms sum=0.000 ms total=2.242 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.955 ms down=0.364 ms sum=0.000 ms total=2.319 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.673 ms down=0.415 ms sum=0.001 ms total=2.089 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.904 ms down=0.400 ms sum=0.001 ms total=2.305 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.662 ms down=0.505 ms sum=0.002 ms total=2.169 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.932 ms down=0.386 ms sum=0.001 ms total=2.319 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.695 ms down=0.384 ms sum=0.001 ms total=2.080 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.943 ms down=0.393 ms sum=0.000 ms total=2.336 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.772 ms down=0.464 ms sum=0.000 ms total=2.236 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.854 ms down=0.421 ms sum=0.001 ms total=2.276 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.543 ms down=0.413 ms sum=0.001 ms total=1.957 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.686 ms down=0.403 ms sum=0.001 ms total=2.090 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.746 ms down=0.426 ms sum=0.000 ms total=2.172 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.079 ms down=0.399 ms sum=0.000 ms total=2.478 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.987 ms down=0.381 ms sum=0.000 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.859 ms down=0.381 ms sum=0.001 ms total=2.241 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.861 ms down=0.379 ms sum=0.000 ms total=2.240 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.774 ms down=0.346 ms sum=0.000 ms total=2.120 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.822 ms down=0.367 ms sum=0.000 ms total=2.189 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.740 ms down=0.403 ms sum=0.001 ms total=2.144 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.791 ms down=0.374 ms sum=0.000 ms total=2.165 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.907 ms down=0.385 ms sum=0.001 ms total=2.293 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.216 ms down=0.365 ms sum=0.001 ms total=2.582 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.872 ms down=0.398 ms sum=0.000 ms total=2.270 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.035 ms down=0.371 ms sum=0.001 ms total=2.407 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.861 ms down=0.386 ms sum=0.001 ms total=2.248 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.988 ms down=0.385 ms sum=0.001 ms total=2.374 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.906 ms down=0.384 ms sum=0.000 ms total=2.290 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.023 ms down=0.511 ms sum=0.003 ms total=2.537 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.613 ms down=0.456 ms sum=0.002 ms total=2.071 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.909 ms down=0.382 ms sum=0.001 ms total=2.292 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.710 ms down=0.413 ms sum=0.000 ms total=2.123 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.928 ms down=0.377 ms sum=0.001 ms total=2.306 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.061 ms down=0.427 ms sum=0.000 ms total=2.488 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.221 ms down=0.397 ms sum=0.001 ms total=2.619 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.123 ms down=0.384 ms sum=0.001 ms total=2.508 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.211 ms down=0.462 ms sum=0.001 ms total=2.674 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.982 ms down=0.398 ms sum=0.000 ms total=2.380 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.190 ms down=0.383 ms sum=0.000 ms total=2.573 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.916 ms down=0.397 ms sum=0.001 ms total=2.314 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.212 ms down=0.388 ms sum=0.001 ms total=2.601 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.881 ms down=0.392 ms sum=0.000 ms total=2.273 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.987 ms down=0.422 ms sum=0.001 ms total=2.410 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.049 ms down=0.338 ms sum=0.001 ms total=2.388 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.886 ms down=0.409 ms sum=0.000 ms total=2.295 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.777 ms down=0.438 ms sum=0.001 ms total=2.216 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.120 ms down=0.372 ms sum=0.001 ms total=2.493 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.787 ms down=0.412 ms sum=0.000 ms total=2.199 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.945 ms down=0.353 ms sum=0.001 ms total=2.299 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.723 ms down=0.393 ms sum=0.001 ms total=2.117 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.969 ms down=0.399 ms sum=0.000 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.853 ms down=0.369 ms sum=0.000 ms total=2.222 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.791 ms down=0.417 ms sum=0.001 ms total=2.209 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.578 ms down=0.395 ms sum=0.001 ms total=1.974 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.701 ms down=0.416 ms sum=0.001 ms total=2.118 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.750 ms down=0.390 ms sum=0.001 ms total=2.141 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.838 ms down=0.393 ms sum=0.000 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.920 ms down=0.388 ms sum=0.000 ms total=2.308 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.977 ms down=0.390 ms sum=0.002 ms total=2.369 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.859 ms down=0.364 ms sum=0.000 ms total=2.223 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.740 ms down=0.395 ms sum=0.000 ms total=2.135 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.803 ms down=0.379 ms sum=0.000 ms total=2.182 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.742 ms down=0.348 ms sum=0.001 ms total=2.091 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.764 ms down=0.394 ms sum=0.001 ms total=2.159 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.811 ms down=0.407 ms sum=0.000 ms total=2.218 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.001 ms down=0.396 ms sum=0.001 ms total=2.398 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.893 ms down=0.389 ms sum=0.000 ms total=2.282 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.823 ms down=0.366 ms sum=0.001 ms total=2.190 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.758 ms down=0.403 ms sum=0.001 ms total=2.162 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.116 ms down=0.371 ms sum=0.001 ms total=2.488 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.885 ms down=0.369 ms sum=0.000 ms total=2.254 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.812 ms down=0.357 ms sum=0.000 ms total=2.169 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.653 ms down=0.375 ms sum=0.001 ms total=2.029 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.985 ms down=0.400 ms sum=0.000 ms total=2.385 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.684 ms down=0.354 ms sum=0.001 ms total=2.039 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.957 ms down=0.413 ms sum=0.001 ms total=2.371 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.220 ms down=0.450 ms sum=0.000 ms total=2.670 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.061 ms down=0.354 ms sum=0.001 ms total=2.416 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.177 ms down=0.427 ms sum=0.001 ms total=2.605 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.271 ms down=0.340 ms sum=0.001 ms total=2.612 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.960 ms down=0.355 ms sum=0.000 ms total=2.315 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.404 ms down=0.362 ms sum=0.001 ms total=2.767 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.812 ms down=0.382 ms sum=0.000 ms total=2.194 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.517 ms down=0.365 ms sum=0.001 ms total=2.883 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.976 ms down=0.377 ms sum=0.000 ms total=2.353 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.136 ms down=0.413 ms sum=0.001 ms total=2.550 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.361 ms down=0.370 ms sum=0.001 ms total=2.732 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.059 ms down=0.422 ms sum=0.001 ms total=2.482 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.786 ms down=0.448 ms sum=0.001 ms total=2.235 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.391 ms down=0.437 ms sum=0.001 ms total=2.829 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.863 ms down=0.382 ms sum=0.001 ms total=2.246 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.085 ms down=0.369 ms sum=0.001 ms total=2.455 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.275 ms down=0.413 ms sum=0.000 ms total=2.688 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.969 ms down=0.365 ms sum=0.000 ms total=2.334 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.022 ms down=0.405 ms sum=0.001 ms total=2.428 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.795 ms down=0.378 ms sum=0.001 ms total=2.174 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.544 ms down=0.497 ms sum=0.001 ms total=2.042 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.702 ms down=0.411 ms sum=0.000 ms total=2.113 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.709 ms down=0.383 ms sum=0.001 ms total=2.093 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.050 ms down=0.321 ms sum=0.000 ms total=2.371 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.929 ms down=0.339 ms sum=0.001 ms total=2.269 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.929 ms down=0.369 ms sum=0.001 ms total=2.299 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.951 ms down=0.440 ms sum=0.000 ms total=2.391 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.883 ms down=0.402 ms sum=0.001 ms total=2.286 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.890 ms down=0.376 ms sum=0.001 ms total=2.267 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.940 ms down=0.401 ms sum=0.000 ms total=2.341 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.074 ms down=0.372 ms sum=0.000 ms total=2.446 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.021 ms down=0.325 ms sum=0.001 ms total=2.347 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.161 ms down=0.415 ms sum=0.001 ms total=2.577 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.169 ms down=0.389 ms sum=0.001 ms total=2.559 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.103 ms down=0.485 ms sum=0.002 ms total=2.590 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.806 ms down=0.464 ms sum=0.001 ms total=2.271 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.193 ms down=0.376 ms sum=0.001 ms total=2.570 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.969 ms down=0.370 ms sum=0.001 ms total=2.340 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.992 ms down=0.378 ms sum=0.001 ms total=2.371 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.813 ms down=0.399 ms sum=0.001 ms total=2.213 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.028 ms down=0.534 ms sum=0.000 ms total=2.562 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.958 ms down=0.370 ms sum=0.001 ms total=2.329 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.922 ms down=0.413 ms sum=0.001 ms total=2.336 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.887 ms down=0.383 ms sum=0.000 ms total=2.270 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.283 ms down=0.383 ms sum=0.000 ms total=2.666 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.947 ms down=0.430 ms sum=0.001 ms total=2.378 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.139 ms down=0.419 ms sum=0.001 ms total=2.559 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.919 ms down=0.393 ms sum=0.001 ms total=2.313 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.098 ms down=0.361 ms sum=0.001 ms total=2.460 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.256 ms down=0.407 ms sum=0.001 ms total=2.664 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.292 ms down=0.332 ms sum=0.001 ms total=2.625 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.891 ms down=0.427 ms sum=0.000 ms total=2.318 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.191 ms down=0.375 ms sum=0.000 ms total=2.566 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.042 ms down=0.368 ms sum=0.001 ms total=2.411 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.268 ms down=0.389 ms sum=0.001 ms total=2.658 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.911 ms down=0.411 ms sum=0.001 ms total=2.323 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.953 ms down=0.490 ms sum=0.000 ms total=2.443 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.711 ms down=0.443 ms sum=0.001 ms total=2.155 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.998 ms down=0.444 ms sum=0.001 ms total=2.443 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.741 ms down=0.416 ms sum=0.000 ms total=2.157 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.147 ms down=0.396 ms sum=0.001 ms total=2.544 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.728 ms down=0.342 ms sum=0.000 ms total=2.070 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.902 ms down=0.422 ms sum=0.000 ms total=2.324 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.584 ms down=0.452 ms sum=0.000 ms total=2.036 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.839 ms down=0.411 ms sum=0.000 ms total=2.250 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.887 ms down=0.381 ms sum=0.001 ms total=2.269 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.942 ms down=0.426 ms sum=0.000 ms total=2.368 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.288 ms down=0.415 ms sum=0.001 ms total=2.704 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.930 ms down=0.408 ms sum=0.001 ms total=2.339 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.976 ms down=0.364 ms sum=0.000 ms total=2.340 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.868 ms down=0.403 ms sum=0.001 ms total=2.272 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.049 ms down=0.385 ms sum=0.001 ms total=2.435 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.937 ms down=0.401 ms sum=0.001 ms total=2.339 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.993 ms down=0.389 ms sum=0.001 ms total=2.383 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.715 ms down=0.425 ms sum=0.000 ms total=2.140 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.962 ms down=0.335 ms sum=0.001 ms total=2.298 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.838 ms down=0.373 ms sum=0.001 ms total=2.212 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.824 ms down=0.344 ms sum=0.001 ms total=2.169 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.707 ms down=0.438 ms sum=0.000 ms total=2.145 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.042 ms down=0.384 ms sum=0.000 ms total=2.426 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.818 ms down=0.409 ms sum=0.001 ms total=2.228 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.917 ms down=0.385 ms sum=0.001 ms total=2.303 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.709 ms down=0.408 ms sum=0.000 ms total=2.117 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.852 ms down=0.416 ms sum=0.001 ms total=2.269 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.645 ms down=0.409 ms sum=0.001 ms total=2.055 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.917 ms down=0.368 ms sum=0.001 ms total=2.286 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.915 ms down=0.347 ms sum=0.000 ms total=2.262 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.035 ms down=0.320 ms sum=0.000 ms total=2.355 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.767 ms down=0.344 ms sum=0.001 ms total=2.112 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.877 ms down=0.267 ms sum=0.002 ms total=2.146 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.836 ms down=0.394 ms sum=0.001 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.992 ms down=0.413 ms sum=0.001 ms total=2.406 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.726 ms down=0.376 ms sum=0.001 ms total=2.103 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.184 ms down=0.471 ms sum=0.001 ms total=2.656 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.710 ms down=0.349 ms sum=0.000 ms total=2.059 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.939 ms down=0.360 ms sum=0.001 ms total=2.300 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.871 ms down=0.451 ms sum=0.000 ms total=2.322 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.893 ms down=0.335 ms sum=0.001 ms total=2.229 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.666 ms down=0.457 ms sum=0.002 ms total=2.125 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.354 ms sum=0.000 ms total=2.212 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.652 ms down=0.370 ms sum=0.000 ms total=2.022 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.825 ms down=0.347 ms sum=0.001 ms total=2.173 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.611 ms down=0.360 ms sum=0.001 ms total=1.972 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.023 ms down=0.380 ms sum=0.000 ms total=2.403 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.671 ms down=0.325 ms sum=0.001 ms total=1.997 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.864 ms down=0.401 ms sum=0.001 ms total=2.266 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.556 ms down=0.373 ms sum=0.000 ms total=1.929 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.659 ms down=0.386 ms sum=0.001 ms total=2.046 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.700 ms down=0.366 ms sum=0.000 ms total=2.066 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.821 ms down=0.373 ms sum=0.000 ms total=2.194 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.856 ms down=0.475 ms sum=0.000 ms total=2.331 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.841 ms down=0.376 ms sum=0.001 ms total=2.218 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.922 ms down=0.390 ms sum=0.001 ms total=2.313 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.939 ms down=0.420 ms sum=0.001 ms total=2.360 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.884 ms down=0.408 ms sum=0.000 ms total=2.292 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.868 ms down=0.362 ms sum=0.001 ms total=2.231 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.875 ms down=0.593 ms sum=0.002 ms total=2.470 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.790 ms down=0.356 ms sum=0.001 ms total=2.147 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.998 ms down=0.522 ms sum=0.001 ms total=2.521 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.927 ms down=0.370 ms sum=0.000 ms total=2.297 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.986 ms down=0.375 ms sum=0.001 ms total=2.362 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.737 ms down=0.361 ms sum=0.001 ms total=2.099 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.009 ms down=0.401 ms sum=0.001 ms total=2.411 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.884 ms down=0.403 ms sum=0.001 ms total=2.288 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.056 ms down=0.288 ms sum=0.001 ms total=2.345 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.674 ms down=0.400 ms sum=0.001 ms total=2.075 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.915 ms down=0.341 ms sum=0.000 ms total=2.256 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.795 ms down=0.411 ms sum=0.000 ms total=2.206 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.894 ms down=0.430 ms sum=0.000 ms total=2.324 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.857 ms down=0.398 ms sum=0.001 ms total=2.256 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.140 ms down=0.379 ms sum=0.001 ms total=2.520 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.969 ms down=0.417 ms sum=0.001 ms total=2.387 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.912 ms down=0.375 ms sum=0.001 ms total=2.288 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.704 ms down=0.427 ms sum=0.000 ms total=2.131 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.098 ms down=0.372 ms sum=0.001 ms total=2.471 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.708 ms down=0.393 ms sum=0.001 ms total=2.102 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.095 ms down=0.360 ms sum=0.000 ms total=2.455 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.722 ms down=0.382 ms sum=0.001 ms total=2.105 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.008 ms down=0.385 ms sum=0.001 ms total=2.394 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.987 ms down=0.363 ms sum=0.000 ms total=2.350 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.030 ms down=0.382 ms sum=0.001 ms total=2.413 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.726 ms down=0.424 ms sum=0.000 ms total=2.150 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.084 ms down=0.353 ms sum=0.001 ms total=2.438 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.666 ms down=0.466 ms sum=0.002 ms total=2.134 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.858 ms down=0.395 ms sum=0.000 ms total=2.253 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.741 ms down=0.368 ms sum=0.001 ms total=2.110 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.140 ms down=0.252 ms sum=0.001 ms total=2.393 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.740 ms down=0.416 ms sum=0.001 ms total=2.157 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.760 ms down=0.389 ms sum=0.002 ms total=2.151 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.518 ms down=0.395 ms sum=0.001 ms total=1.914 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.643 ms down=0.380 ms sum=0.001 ms total=2.024 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.832 ms down=0.495 ms sum=0.001 ms total=2.328 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.036 ms down=0.409 ms sum=0.000 ms total=2.445 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.715 ms down=0.467 ms sum=0.001 ms total=3.183 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.915 ms down=0.327 ms sum=0.001 ms total=2.243 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.853 ms down=0.343 ms sum=0.001 ms total=2.197 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.919 ms down=0.343 ms sum=0.001 ms total=2.263 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.855 ms down=0.378 ms sum=0.001 ms total=2.234 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.949 ms down=0.391 ms sum=0.000 ms total=2.340 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.969 ms down=0.439 ms sum=0.001 ms total=2.409 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.872 ms down=0.461 ms sum=0.000 ms total=2.333 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.948 ms down=0.368 ms sum=0.000 ms total=2.316 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.828 ms down=0.412 ms sum=0.000 ms total=2.240 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.859 ms down=0.370 ms sum=0.001 ms total=2.230 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.848 ms down=0.386 ms sum=0.001 ms total=2.235 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.045 ms down=0.358 ms sum=0.001 ms total=2.404 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.101 ms down=0.389 ms sum=0.001 ms total=2.491 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.775 ms down=0.403 ms sum=0.001 ms total=2.179 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.712 ms down=0.350 ms sum=0.000 ms total=2.062 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.812 ms down=0.363 ms sum=0.000 ms total=2.175 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.664 ms down=0.386 ms sum=0.000 ms total=2.050 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.885 ms down=0.383 ms sum=0.001 ms total=2.269 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.716 ms down=0.385 ms sum=0.000 ms total=2.101 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.932 ms down=0.374 ms sum=0.001 ms total=2.307 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.907 ms down=0.403 ms sum=0.000 ms total=2.310 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.795 ms down=0.370 ms sum=0.001 ms total=2.166 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.747 ms down=0.406 ms sum=0.001 ms total=2.154 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.030 ms down=0.426 ms sum=0.001 ms total=2.457 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.724 ms down=0.393 ms sum=0.000 ms total=2.117 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.175 ms down=0.366 ms sum=0.001 ms total=2.542 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.720 ms down=0.376 ms sum=0.001 ms total=2.097 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=2.017 ms down=0.366 ms sum=0.001 ms total=2.384 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.904 ms down=0.373 ms sum=0.001 ms total=2.278 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.826 ms down=0.347 ms sum=0.001 ms total=2.174 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.670 ms down=0.452 ms sum=0.000 ms total=2.122 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.934 ms down=0.361 ms sum=0.000 ms total=2.295 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.686 ms down=0.442 ms sum=0.001 ms total=2.129 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.779 ms down=0.387 ms sum=0.000 ms total=2.166 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.765 ms down=0.341 ms sum=0.000 ms total=2.106 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.870 ms down=0.343 ms sum=0.001 ms total=2.214 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.776 ms down=0.385 ms sum=0.001 ms total=2.162 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=5 experts=6 gate_type=16 down_type=10 gate=1.784 ms down=0.379 ms sum=0.000 ms total=2.163 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.774 ms down=0.328 ms sum=0.001 ms total=1.103 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.735 ms down=0.299 ms sum=0.001 ms total=1.035 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.965 ms down=0.289 ms sum=0.001 ms total=1.255 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.761 ms down=0.316 ms sum=0.000 ms total=1.077 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.692 ms down=0.333 ms sum=0.001 ms total=1.026 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.773 ms down=0.326 ms sum=0.000 ms total=1.099 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.864 ms down=0.265 ms sum=0.001 ms total=1.130 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.860 ms down=0.172 ms sum=0.000 ms total=1.032 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.737 ms down=0.251 ms sum=0.001 ms total=0.989 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.749 ms down=0.315 ms sum=0.001 ms total=1.065 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.760 ms down=0.326 ms sum=0.000 ms total=1.086 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.741 ms down=0.244 ms sum=0.001 ms total=0.986 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.758 ms down=0.239 ms sum=0.000 ms total=0.997 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.740 ms down=0.301 ms sum=0.001 ms total=1.042 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.827 ms down=0.295 ms sum=0.000 ms total=1.122 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.752 ms down=0.274 ms sum=0.000 ms total=1.026 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.826 ms down=0.312 ms sum=0.001 ms total=1.139 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.757 ms down=0.317 ms sum=0.001 ms total=1.075 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.758 ms down=0.250 ms sum=0.000 ms total=1.008 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.755 ms down=0.246 ms sum=0.000 ms total=1.001 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.783 ms down=0.316 ms sum=0.000 ms total=1.099 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.811 ms down=0.294 ms sum=0.001 ms total=1.106 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.801 ms down=0.247 ms sum=0.000 ms total=1.048 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.803 ms down=0.257 ms sum=0.000 ms total=1.060 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.777 ms down=0.315 ms sum=0.001 ms total=1.093 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.717 ms down=0.248 ms sum=0.000 ms total=0.965 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.752 ms down=0.253 ms sum=0.000 ms total=1.005 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.724 ms down=0.247 ms sum=0.001 ms total=0.972 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.758 ms down=0.385 ms sum=0.001 ms total=1.144 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.778 ms down=0.278 ms sum=0.000 ms total=1.056 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.801 ms down=0.243 ms sum=0.001 ms total=1.045 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.733 ms down=0.228 ms sum=0.000 ms total=0.961 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.780 ms down=0.253 ms sum=0.001 ms total=1.034 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.719 ms down=0.239 ms sum=0.000 ms total=0.958 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.770 ms down=0.255 ms sum=0.000 ms total=1.025 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.794 ms down=0.282 ms sum=0.001 ms total=1.077 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.780 ms down=0.299 ms sum=0.000 ms total=1.079 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.728 ms down=0.264 ms sum=0.001 ms total=0.993 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.766 ms down=0.253 ms sum=0.001 ms total=1.020 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.772 ms down=0.230 ms sum=0.001 ms total=1.003 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.827 ms down=0.302 ms sum=0.001 ms total=1.130 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.785 ms down=0.246 ms sum=0.001 ms total=1.032 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: dspark row-routed subprofile n=1 experts=6 gate_type=16 down_type=10 gate=0.785 ms down=0.245 ms sum=0.000 ms total=1.030 ms grouped_desc=1 grouped_iq2=1 direct_sum=1 native_sum=0
+ds4: ----------------------------------------
+ds4: prefill: 7.76 t/s, generation: 38.77 t/s (80 tokens in 2.064s)
+ds4: dspark perf: draft=450.2 tok/s, verify=44.5 proposed tok/s, verify-accepted=44.0 tok/s, block=125.70 ms (draft=11.11 verify=112.32 overhead=2.28 commit=1.82, tau=4.94, blocks=16)
+ds4: dspark verify GPU-busy: 82.08 ms/block of 112.32 ms verify (73.1% active, 26.9% idle)
+ds4: vm pressure: app=83.48 GiB resident=64.35 GiB wired=96.33 GiB compressed=2.52 GiB logical=3.89 GiB swap=6.31/7.00 GiB pressure=87% free=1.54 GiB gpu=83.40 GiB gpu-compressed=0.00 GiB task-compressed=27.41 GiB decompressions=4061383
+ds4: dspark acceptance: 98.8% (79/80 draft tokens)
+ds4: dspark acceptance by position: 1=16/16 2=16/16 3=16/16 4=16/16 5=15/16
+ds4: dspark conditional acceptance: 1=100.0% (16/16) 2|1=100.0% (16/16) 3|1-2=100.0% (16/16) 4|1-3=100.0% (16/16) 5|1-4=93.8% (15/16)
+ds4: dspark full-accept: 93.8% (15/16 blocks), first-miss: 0.0% (0/16 blocks)
+ds4: dspark avg scheduled: 5.00 draft tokens/block (16 blocks)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#071016" />
+    <title>DS4 Live Monitor</title>
+    <style>
+      :root { color-scheme:dark; --bg:#071016; --panel:rgba(14,27,38,.88); --line:rgba(148,181,203,.14); --muted:#8aa1af; --text:#f1f7fa; --cyan:#44d9e6; --green:#55e6a5; --yellow:#ffd166; --red:#ff7185; --blue:#7aa7ff; --shadow:0 20px 60px rgba(0,0,0,.32); }
+      * { box-sizing:border-box; }
+      body { margin:0; min-width:320px; min-height:100vh; color:var(--text); background:radial-gradient(900px 520px at 4% -10%,rgba(39,160,178,.2),transparent 70%),radial-gradient(800px 500px at 105% 0%,rgba(45,96,194,.18),transparent 65%),var(--bg); font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace; }
+      .shell { width:min(1460px,calc(100% - 32px)); margin:0 auto; padding:28px 0 34px; }
+      .topbar { display:flex; justify-content:space-between; align-items:start; gap:22px; margin-bottom:20px; }
+      .eyebrow,.metric-label,.section-kicker { color:var(--muted); font-size:10px; letter-spacing:.13em; text-transform:uppercase; font-weight:700; }
+      .eyebrow { color:var(--cyan); font-size:11px; letter-spacing:.14em; }
+      h1 { margin:7px 0 8px; font-size:clamp(26px,3vw,43px); letter-spacing:-.055em; font-family:ui-sans-serif,system-ui,sans-serif; }
+      .subline { color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+      .top-meta { display:flex; flex-wrap:wrap; justify-content:end; gap:8px; max-width:560px; }
+      .chip { border:1px solid var(--line); background:rgba(11,24,34,.62); color:#c3d3dc; padding:8px 10px; border-radius:8px; font-size:11px; white-space:nowrap; }
+      .chip.live { border-color:rgba(85,230,165,.36); color:var(--green); background:rgba(42,162,111,.11); }
+      .chip.stale { border-color:rgba(255,113,133,.42); color:var(--red); background:rgba(174,49,71,.12); }
+      .dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; background:currentColor; box-shadow:0 0 14px currentColor; }
+      .hero,.card,.chart-panel,.table-panel,.system-panel,.runtime-panel,.control-panel,.agent-panel { border:1px solid var(--line); background:var(--panel); box-shadow:var(--shadow); border-radius:14px; }
+      .hero { display:grid; grid-template-columns:1fr auto; gap:16px; align-items:center; padding:24px 26px; margin-bottom:14px; overflow:hidden; position:relative; }
+      .hero::after { content:""; position:absolute; inset:auto -60px -90px auto; width:260px; height:260px; border-radius:50%; background:rgba(68,217,230,.08); filter:blur(4px); }
+      .big-rate { margin-top:8px; display:flex; align-items:baseline; gap:11px; }
+      .big-rate strong { color:var(--green); font-size:clamp(47px,7.5vw,91px); letter-spacing:-.075em; line-height:.85; font-family:ui-sans-serif,system-ui,sans-serif; }
+      .big-rate span { color:#a5c6d2; font-size:clamp(14px,1.7vw,20px); }
+      .hero-note { margin-top:12px; color:var(--muted); font-size:11px; }
+      .hero-side { z-index:1; text-align:right; min-width:195px; }
+      .hero-side b { display:block; color:var(--cyan); font-size:22px; margin:6px 0; }
+      .hero-side small { color:var(--muted); font-size:10px; }
+      .metric-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:14px; }
+      .card { min-height:132px; padding:18px; position:relative; overflow:hidden; }
+      .card .value { margin-top:14px; font:700 clamp(24px,3vw,40px)/.9 ui-sans-serif,system-ui,sans-serif; letter-spacing:-.05em; }
+      .card .detail { position:absolute; bottom:17px; left:18px; color:var(--muted); font-size:10px; }
+      .green { color:var(--green); } .cyan { color:var(--cyan); } .blue { color:var(--blue); } .yellow { color:var(--yellow); } .red { color:var(--red); }
+      .system-panel,.runtime-panel,.control-panel,.agent-panel { display:grid; grid-template-columns:minmax(220px,.72fr) minmax(0,1.4fr); gap:20px; padding:20px 22px; margin-bottom:14px; background:linear-gradient(115deg,rgba(16,37,52,.92),rgba(11,23,33,.88)); }
+      .system-title { margin-top:6px; font:700 19px ui-sans-serif,system-ui,sans-serif; letter-spacing:-.025em; }
+      .system-copy p,.panel-copy p { margin:8px 0 0; color:var(--muted); font-size:10px; line-height:1.55; }
+      .system-grid,.runtime-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+      .system-card,.runtime-card { min-height:112px; padding:15px 16px; border-radius:10px; border:1px solid var(--line); background:rgba(4,13,19,.48); }
+      .system-value,.runtime-value { margin-top:10px; font:700 28px/.92 ui-sans-serif,system-ui,sans-serif; letter-spacing:-.05em; }
+      .system-detail,.runtime-detail { margin-top:14px; color:var(--muted); font-size:10px; line-height:1.45; }
+      .runtime-panel { display:block; padding:16px 18px; }
+      .runtime-panel .panel-copy { display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 16px; margin-bottom:12px; }
+      .runtime-panel .system-title { margin:0; }
+      .runtime-panel .panel-copy p { flex:1 1 420px; margin:0; }
+      .runtime-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+      .runtime-card { min-height:92px; padding:12px 13px; }
+      .runtime-value { margin-top:8px; font-size:clamp(19px,1.8vw,25px); overflow-wrap:anywhere; }
+      .runtime-detail { margin-top:9px; }
+      .chart-panel { padding:20px 22px 13px; margin-bottom:14px; }
+      .chart-head { display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:14px; }
+      .chart-title { font:700 17px ui-sans-serif,system-ui,sans-serif; letter-spacing:-.025em; }
+      .chart-caption { color:var(--muted); font-size:10px; }
+      .chart-wrap { height:266px; position:relative; }
+      canvas { display:block; width:100%; height:100%; }
+      .chart-empty { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:12px; pointer-events:none; }
+      .chart-empty[hidden] { display:none; }
+      .bottom-grid { display:grid; grid-template-columns:1.2fr 1fr; gap:14px; }
+      .table-panel { padding:18px; }
+      .table-title { margin-bottom:12px; font:700 14px ui-sans-serif,system-ui,sans-serif; }
+      .metric-row { display:grid; grid-template-columns:1fr auto; gap:12px; padding:10px 0; border-top:1px solid var(--line); font-size:12px; }
+      .metric-row:first-of-type { border-top:0; }
+      .metric-row span { color:var(--muted); }
+      .metric-row b { font-weight:600; }
+      .state-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:5px; }
+      .state { border-radius:9px; background:rgba(4,13,19,.56); border:1px solid var(--line); padding:12px; }
+      .state label { display:block; color:var(--muted); font-size:10px; }
+      .state b { display:block; margin-top:7px; font-size:23px; font-family:ui-sans-serif,system-ui,sans-serif; }
+      .control-panel,.agent-panel { grid-template-columns:minmax(220px,.55fr) minmax(0,1.45fr); }
+      .control-body { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,.82fr); gap:12px; }
+      .control-state,.token-box,.agent-card { border:1px solid var(--line); border-radius:10px; background:rgba(4,13,19,.48); padding:15px 16px; }
+      .control-state b { display:block; margin:9px 0 4px; font:700 23px/.98 ui-sans-serif,system-ui,sans-serif; letter-spacing:-.04em; }
+      .control-detail,.token-box small,.agent-card p,.agent-note { color:var(--muted); font-size:10px; line-height:1.5; }
+      .button-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+      button { appearance:none; border:1px solid rgba(68,217,230,.35); border-radius:8px; color:var(--cyan); background:rgba(21,112,126,.13); padding:9px 11px; font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace; cursor:pointer; }
+      button:hover:not(:disabled) { border-color:var(--cyan); background:rgba(30,151,169,.2); }
+      button.warn { color:var(--yellow); border-color:rgba(255,209,102,.34); background:rgba(163,123,20,.11); }
+      button.danger { color:var(--red); border-color:rgba(255,113,133,.34); background:rgba(174,49,71,.12); }
+      button:disabled { opacity:.43; cursor:not-allowed; }
+      label { display:block; color:var(--muted); font-size:10px; letter-spacing:.08em; text-transform:uppercase; }
+      input { width:100%; margin-top:8px; padding:9px 10px; border-radius:8px; border:1px solid var(--line); color:var(--text); background:rgba(1,8,13,.68); font:12px ui-monospace,SFMono-Regular,Menlo,monospace; }
+      .agent-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+      .agent-card { min-width:0; }
+      .agent-head { display:flex; align-items:start; justify-content:space-between; gap:12px; }
+      .agent-card h2 { margin:0; font:700 16px ui-sans-serif,system-ui,sans-serif; letter-spacing:-.02em; }
+      pre { margin:12px 0 0; max-height:280px; overflow:auto; padding:11px; border-radius:8px; border:1px solid var(--line); background:rgba(1,8,13,.72); color:#cbe3ed; font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre; }
+      .agent-note { margin-top:11px; }
+      footer { display:flex; justify-content:space-between; gap:16px; margin-top:16px; color:#708895; font-size:10px; }
+      code { color:#b9d4df; font-family:inherit; }
+      @media (max-width:1060px) { .runtime-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .control-body { grid-template-columns:1fr; } }
+      @media (max-width:920px) { .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .bottom-grid,.system-panel,.runtime-panel,.control-panel,.agent-panel { grid-template-columns:1fr; } .topbar { flex-direction:column; } .top-meta { justify-content:start; } .hero-side { text-align:left; } }
+      @media (max-width:620px) { .shell { width:min(100% - 20px,1460px); padding-top:16px; } .hero { grid-template-columns:1fr; padding:21px; } .metric-grid,.runtime-grid,.agent-grid { grid-template-columns:1fr; gap:9px; } .card { min-height:120px; padding:14px; } .card .detail { left:14px; bottom:13px; } .system-panel,.runtime-panel,.control-panel,.agent-panel { padding:16px; } .system-grid { grid-template-columns:1fr; } .chart-panel { padding:16px; } .chart-wrap { height:220px; } .big-rate strong { font-size:62px; } footer { flex-direction:column; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">DS4 · single inference worker · Apple Silicon</div>
+          <h1>DS4 Live Monitor</h1>
+          <div class="subline"><span id="modelName">Connecting to DS4…</span> · <code>native /metrics</code></div>
+        </div>
+        <div class="top-meta"><span class="chip" id="refreshChip">refreshing…</span><span class="chip live" id="healthChip"><i class="dot"></i>LIVE</span></div>
+      </header>
+
+      <section class="hero">
+        <div><div class="metric-label">Live decode rate</div><div class="big-rate"><strong id="generationTps">—</strong><span>tokens / second</span></div><div class="hero-note" id="heroNote">Waiting for the first two native counter samples…</div></div>
+        <div class="hero-side"><div class="metric-label">Per active request</div><b id="perRequest">—</b><small>single-worker aggregate ÷ running requests</small></div>
+      </section>
+
+      <section class="metric-grid">
+        <article class="card"><div class="metric-label">Requests</div><div class="value cyan" id="requests">—</div><div class="detail">running <span id="waiting">—</span> queued</div></article>
+        <article class="card"><div class="metric-label">Prefill chunk rate</div><div class="value red" id="prefillTps">—</div><div class="detail" id="prefillDetail">latest completed non-cached chunk</div></article>
+        <article class="card"><div class="metric-label">Completed</div><div class="value green" id="completed">—</div><div class="detail">successful inference requests</div></article>
+        <article class="card"><div class="metric-label">Errors</div><div class="value yellow" id="errors">—</div><div class="detail">inference or stream errors</div></article>
+      </section>
+
+      <section class="system-panel">
+        <div class="system-copy"><div class="section-kicker">macOS system</div><div class="system-title">Apple Silicon telemetry</div><p id="hardwareStatus">Inspecting local GPU identity…</p></div>
+        <div class="system-grid">
+          <article class="system-card"><div class="metric-label">GPU</div><div class="system-value blue" id="systemPlatform">—</div><div class="system-detail" id="gpuDetail">GPU cores — · backend —</div></article>
+          <article class="system-card"><div class="metric-label">Combined rail power</div><div class="system-value yellow" id="combinedPower">—</div><div class="system-detail" id="powerDetail">Optional powermetrics estimate</div></article>
+        </div>
+      </section>
+
+      <section class="chart-panel">
+        <div class="chart-head"><div><div class="section-kicker">Rolling window</div><div class="chart-title">Decode &amp; prefill throughput · last 60 seconds</div></div><div class="chart-caption" id="chartSummary">collecting samples</div></div>
+        <div class="chart-wrap"><canvas id="throughputChart" aria-label="Decode and prefill tokens per second chart"></canvas><div class="chart-empty" id="chartEmpty">Waiting for live throughput data</div></div>
+        <div class="chart-caption" style="margin-top:9px">Green/right = decode TPS · red/left = prefill TPS · dashed lines = active non-zero averages.</div>
+      </section>
+
+      <section class="runtime-panel">
+        <div class="panel-copy"><div class="section-kicker">DSpark &amp; unified memory</div><div class="system-title">Draft and compression status</div><p id="runtimeStatus">Waiting for a worker-side runtime snapshot…</p></div>
+        <div class="runtime-grid">
+          <article class="runtime-card"><div class="metric-label">DSpark acceptance</div><div class="runtime-value green" id="dsparkAcceptance">—</div><div class="runtime-detail" id="dsparkAcceptanceDetail">accepted / proposed draft tokens</div></article>
+          <article class="runtime-card"><div class="metric-label">DSpark tau</div><div class="runtime-value cyan" id="dsparkTau">—</div><div class="runtime-detail" id="dsparkTauDetail">accepted draft tokens per verified block</div></article>
+          <article class="runtime-card"><div class="metric-label">DSpark blocks</div><div class="runtime-value blue" id="dsparkBlocks">—</div><div class="runtime-detail" id="dsparkBlocksDetail">pre-draft and verify skips</div></article>
+          <article class="runtime-card"><div class="metric-label">Verifier mode</div><div class="runtime-value yellow" id="dsparkMode">—</div><div class="runtime-detail" id="dsparkModeDetail">static or dynamic verification</div></article>
+          <article class="runtime-card"><div class="metric-label">GPU memory</div><div class="runtime-value blue" id="gpuMemory">—</div><div class="runtime-detail" id="gpuMemoryDetail">unified GPU footprint and compression</div></article>
+          <article class="runtime-card"><div class="metric-label">CPU / system memory</div><div class="runtime-value cyan" id="systemMemory">—</div><div class="runtime-detail" id="systemMemoryDetail">used / total unified memory</div></article>
+          <article class="runtime-card"><div class="metric-label">Compression</div><div class="runtime-value yellow" id="compression">—</div><div class="runtime-detail" id="compressionDetail">GPU, task, and system compression</div></article>
+          <article class="runtime-card"><div class="metric-label">DS4 app memory</div><div class="runtime-value green" id="appMemory">—</div><div class="runtime-detail" id="appMemoryDetail">physical footprint / resident / MoE slots</div></article>
+        </div>
+      </section>
+
+      <section class="bottom-grid">
+        <section class="table-panel"><div class="table-title">Request latency · newly completed requests</div><div class="metric-row"><span>Time to first token</span><b id="ttft">—</b></div><div class="metric-row"><span>Inter-token latency</span><b id="itl">—</b></div><div class="metric-row"><span>End-to-end latency</span><b id="e2e">—</b></div><div class="metric-row"><span>Accepted requests</span><b id="requestTotal">—</b></div></section>
+        <section class="table-panel"><div class="table-title">Scheduler state</div><div class="state-strip"><div class="state"><label>RUNNING</label><b class="green" id="runningState">—</b></div><div class="state"><label>QUEUE</label><b class="yellow" id="queueState">—</b></div><div class="state"><label>BACKEND</label><b class="blue" id="backendState">—</b></div></div><div class="metric-row" style="margin-top:12px"><span>Generated tokens total</span><b id="generatedTotal">—</b></div><div class="metric-row"><span>Prefilled tokens total</span><b id="promptTotal">—</b></div></section>
+      </section>
+
+      <section class="control-panel">
+        <div class="panel-copy"><div class="section-kicker">Lifecycle</div><div class="system-title">DS4 server control</div><p id="serverControlStatus">Dashboard-managed server controls are checking their configuration…</p></div>
+        <div class="control-body">
+          <div class="control-state"><div class="metric-label">Managed server</div><b id="serverControlState">—</b><div class="control-detail" id="serverControlDetail">Only a server launched by this dashboard can be stopped or restarted.</div><div class="button-row"><button id="serverStart" type="button">Start</button><button class="danger" id="serverStop" type="button">Stop</button><button class="warn" id="serverRestart" type="button">Restart</button></div></div>
+          <div class="token-box"><label for="controlToken">Control token</label><input id="controlToken" type="password" autocomplete="off" spellcheck="false" placeholder="Required for start, stop, and restart" /><small>Kept only in this open page and sent as an Authorization header for a control action. Before launching, set <code>DASHBOARD_SERVER_COMMAND</code> to a fixed JSON argv such as <code>["/absolute/path/ds4-server","-m","/path/model.gguf"]</code>.</small></div>
+        </div>
+      </section>
+
+      <section class="agent-panel">
+        <div class="panel-copy"><div class="section-kicker">Agent setup</div><div class="system-title">Use this local model</div><p>Copy a mergeable provider entry for Pi or Droid. The advertised endpoint is <code id="agentApiBase">—</code>; override it at launch with <code>DS4_AGENT_API_BASE_URL</code> when an agent reaches DS4 through another host.</p><p class="agent-note" id="agentCopyStatus">Copy a configuration snippet, then merge it into the named agent settings file.</p></div>
+        <div class="agent-grid">
+          <article class="agent-card"><div class="agent-head"><div><h2>Pi</h2><p>Merge under <code>providers</code> in <code>~/.pi/agent/models.json</code>.</p></div><button id="copyPiConfig" type="button">Copy Pi config</button></div><pre id="piConfig">Preparing Pi configuration…</pre></article>
+          <article class="agent-card"><div class="agent-head"><div><h2>Droid</h2><p>Merge under <code>customModels</code> in <code>~/.factory/settings.json</code>.</p></div><button id="copyDroidConfig" type="button">Copy Droid config</button></div><pre id="droidConfig">Preparing Droid configuration…</pre></article>
+        </div>
+      </section>
+
+      <footer><span id="footerStatus">Connecting…</span><span>Source: DS4 native metrics · 0.5 s dashboard sampling</span></footer>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const formatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
+      const oneDecimal = new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      let latest = null;
+      let agentConfigBase = null;
+      let agentConfigs = { pi: "", droid: "" };
+      let serverControlMessage = "";
+
+      const value = (number, suffix = "", fallback = "—") => number == null || !Number.isFinite(number) ? fallback : `${oneDecimal.format(number)}${suffix}`;
+      const integer = (number) => number == null || !Number.isFinite(number) ? "—" : formatter.format(number);
+      const latency = (ms) => ms == null || !Number.isFinite(ms) ? "No new request" : ms >= 1000 ? `${oneDecimal.format(ms / 1000)} s` : ms < 1 ? `${oneDecimal.format(ms * 1000)} µs` : `${oneDecimal.format(ms)} ms`;
+      const bytes = (number) => { if (number == null || !Number.isFinite(number) || number <= 0) return "—"; const gib = 1024 ** 3, mib = 1024 ** 2; return number >= gib ? `${oneDecimal.format(number / gib)} GiB` : `${oneDecimal.format(number / mib)} MiB`; };
+      function setHealth(ok, message) { const chip = $("healthChip"); chip.className = `chip ${ok ? "live" : "stale"}`; chip.innerHTML = `<i class="dot"></i>${ok ? "LIVE" : "STALE"}`; $("footerStatus").textContent = message; }
+
+      function renderRuntime(dspark = {}, memory = {}) {
+        if (!dspark.available) {
+          $("runtimeStatus").textContent = "This ds4-server has not exported DSpark and memory telemetry yet. Rebuild and restart it.";
+          ["dsparkAcceptance", "dsparkTau", "dsparkBlocks", "dsparkMode"].forEach((id) => $(id).textContent = "—");
+          $("dsparkAcceptanceDetail").textContent = "native DSpark counters unavailable";
+          $("dsparkTauDetail").textContent = "native DSpark counters unavailable";
+          $("dsparkBlocksDetail").textContent = "native DSpark counters unavailable";
+          $("dsparkModeDetail").textContent = "native DSpark counters unavailable";
+        } else if (!dspark.enabled) {
+          $("runtimeStatus").textContent = "No DSpark draft package is loaded on this server. Memory telemetry remains available after a request.";
+          $("dsparkAcceptance").textContent = "off"; $("dsparkTau").textContent = "—"; $("dsparkBlocks").textContent = "—"; $("dsparkMode").textContent = "off";
+          $("dsparkAcceptanceDetail").textContent = "DSpark is not enabled";
+          $("dsparkTauDetail").textContent = "accepted draft tokens per verified block";
+          $("dsparkBlocksDetail").textContent = "no speculative blocks";
+          $("dsparkModeDetail").textContent = "load --draft dspark to enable";
+        } else {
+          const acceptance = dspark.acceptancePct;
+          $("runtimeStatus").textContent = dspark.draftedTokens > 0 ? "Server-lifetime DSpark counters mirror --debug-status: acceptance, tau, pre-draft skips, and post-draft verify skips." : "DSpark is loaded; waiting for the first speculative block.";
+          $("dsparkAcceptance").textContent = acceptance == null ? "—" : `${oneDecimal.format(acceptance)}%`;
+          $("dsparkAcceptanceDetail").textContent = `${integer(dspark.acceptedTokens)} accepted / ${integer(dspark.draftedTokens)} proposed`;
+          $("dsparkTau").textContent = dspark.tau == null ? "—" : oneDecimal.format(dspark.tau);
+          $("dsparkTauDetail").textContent = "accepted draft tokens per verified block";
+          $("dsparkBlocks").textContent = integer(dspark.blocks);
+          $("dsparkBlocksDetail").textContent = `skip ${integer(dspark.skipPreDraft)} pre · ${integer(dspark.skipVerify)} verify`;
+          $("dsparkMode").textContent = dspark.dynamic ? (dspark.activeVerifyBudget > 0 ? `dyn ${integer(dspark.activeVerifyBudget)}` : "dynamic") : "static";
+          $("dsparkModeDetail").textContent = dspark.dynamic ? "active adaptive verification budget" : "fixed verification budget";
+        }
+        if (!memory.available) {
+          ["gpuMemory", "systemMemory", "compression", "appMemory"].forEach((id) => $(id).textContent = "—");
+          $("gpuMemoryDetail").textContent = "waiting for a worker runtime snapshot";
+          $("systemMemoryDetail").textContent = "waiting for a worker runtime snapshot";
+          $("compressionDetail").textContent = "waiting for a worker runtime snapshot";
+          $("appMemoryDetail").textContent = "waiting for a worker runtime snapshot";
+          return;
+        }
+        $("gpuMemory").textContent = bytes(memory.gpuFootprintBytes);
+        $("gpuMemoryDetail").textContent = `GPU compressed ${bytes(memory.gpuCompressedBytes)} · unified allocation`;
+        $("systemMemory").textContent = memory.systemTotalBytes > 0 ? `${bytes(memory.systemUsedBytes)} / ${bytes(memory.systemTotalBytes)}` : "—";
+        $("systemMemoryDetail").textContent = `free ${bytes(memory.systemFreeBytes)} · pressure ${value(memory.pressurePct, "%")}`;
+        const compressionParts = [memory.gpuCompressedBytes, memory.systemCompressedBytes, memory.taskCompressedBytes].filter((number) => Number.isFinite(number) && number > 0);
+        $("compression").textContent = compressionParts.length ? compressionParts.map(bytes).join(" + ") : "none";
+        $("compressionDetail").textContent = `GPU ${bytes(memory.gpuCompressedBytes)} · task ${bytes(memory.taskCompressedBytes)} · system ${bytes(memory.systemCompressedBytes)}`;
+        $("appMemory").textContent = bytes(memory.processFootprintBytes);
+        $("appMemoryDetail").textContent = `resident ${bytes(memory.processResidentBytes)} · MoE slots ${integer(memory.moeSlots)} · swap ${bytes(memory.swapUsedBytes)}`;
+      }
+
+      function renderServerControl(control = {}) {
+        const enabled = Boolean(control.controlEnabled);
+        const configured = Boolean(control.configured);
+        const running = Boolean(control.running);
+        const stopping = Boolean(control.stopping);
+        const state = stopping ? "stopping" : running ? "running" : configured ? "stopped" : "not configured";
+        $("serverControlState").textContent = state;
+        $("serverControlDetail").textContent = running ? `PID ${control.pid || "—"} · ${control.lastAction || "managed by dashboard"}` : (control.lastAction || "Only a server launched by this dashboard can be controlled.");
+        $("serverControlStatus").textContent = !enabled ? "Read-only mode. Set DASHBOARD_CONTROL_TOKEN and a fixed DASHBOARD_SERVER_COMMAND JSON argv before launching the dashboard to enable controls." : !configured ? "No startup command is configured. Set DASHBOARD_SERVER_COMMAND to a JSON argv array and restart the dashboard." : (serverControlMessage || "Only the dashboard-owned child can be stopped or restarted; an externally started DS4 server is never adopted.");
+        $("serverStart").disabled = !enabled || !configured || running || stopping;
+        $("serverStop").disabled = !enabled || !running || stopping;
+        $("serverRestart").disabled = !enabled || !configured || stopping;
+      }
+
+      function buildPiConfig(baseUrl) {
+        return JSON.stringify({ providers: { ds4: { name: "ds4.c local", baseUrl, api: "openai-completions", apiKey: "dsv4-local", compat: { supportsStore: false, supportsDeveloperRole: false, supportsReasoningEffort: true, supportsUsageInStreaming: true, maxTokensField: "max_tokens", supportsStrictMode: false, thinkingFormat: "deepseek", requiresReasoningContentOnAssistantMessages: true }, models: [{ id: "deepseek-v4-flash", name: "DeepSeek V4 Flash (ds4.c local)", reasoning: true, thinkingLevelMap: { off: null, minimal: "low", low: "low", medium: "medium", high: "high", xhigh: "xhigh" }, input: ["text"], contextWindow: 100000, maxTokens: 384000, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] } } }, null, 2);
+      }
+
+      function buildDroidConfig(baseUrl) {
+        return JSON.stringify({ customModels: [{ model: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash (DS4 local)", baseUrl, apiKey: "dsv4-local", provider: "generic-chat-completion-api", maxContextLimit: 100000, maxOutputTokens: 384000, noImageSupport: true }] }, null, 2);
+      }
+
+      function renderAgentConfigs(baseUrl) {
+        const resolved = baseUrl || "http://127.0.0.1:8000/v1";
+        if (resolved === agentConfigBase) return;
+        agentConfigBase = resolved;
+        agentConfigs = { pi: buildPiConfig(resolved), droid: buildDroidConfig(resolved) };
+        $("agentApiBase").textContent = resolved;
+        $("piConfig").textContent = agentConfigs.pi;
+        $("droidConfig").textContent = agentConfigs.droid;
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          const copied = await Promise.race([
+            navigator.clipboard.writeText(text).then(() => true, () => false),
+            new Promise((resolve) => window.setTimeout(() => resolve(false), 800)),
+          ]);
+          if (copied) return true;
+        }
+        const area = document.createElement("textarea"); area.value = text; area.style.position = "fixed"; area.style.left = "-9999px"; document.body.appendChild(area); area.focus(); area.select(); area.setSelectionRange(0, area.value.length);
+        try { return document.execCommand("copy"); } catch (_) { return false; } finally { area.remove(); }
+      }
+
+      async function copyAgentConfig(kind) {
+        const label = kind === "pi" ? "Pi" : "Droid";
+        const copied = await copyText(agentConfigs[kind]);
+        $("agentCopyStatus").textContent = copied ? `${label} configuration copied. Merge it with the existing settings file; do not replace unrelated providers.` : `Could not copy the ${label} configuration. Select the visible JSON instead.`;
+      }
+
+      async function runServerAction(action) {
+        const token = $("controlToken").value;
+        if (!token) { serverControlMessage = "Enter DASHBOARD_CONTROL_TOKEN to control the managed server."; renderServerControl(latest?.serverControl || {}); return; }
+        serverControlMessage = `${action} requested…`;
+        renderServerControl(latest?.serverControl || {});
+        try {
+          const response = await fetch(`/api/server/${action}`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
+          const result = await response.json();
+          serverControlMessage = result.message || (result.ok ? `server ${action}ed` : "server control failed");
+          if (result.server) {
+            latest = { ...(latest || {}), serverControl: result.server };
+            renderServerControl(result.server);
+          }
+        } catch (_) { serverControlMessage = "Server control request failed; check the dashboard control token and local dashboard process."; renderServerControl(latest?.serverControl || {}); }
+      }
+
+      function render(data) {
+        latest = data;
+        const rate = data.generationTps, hardware = data.hardware || {};
+        $("modelName").textContent = data.model || "DeepSeek V4 Flash";
+        $("generationTps").textContent = value(rate);
+        $("perRequest").textContent = data.running > 0 && rate != null ? `${oneDecimal.format(rate / data.running)} t/s` : "—";
+        $("requests").textContent = integer(data.running); $("waiting").textContent = integer(data.waiting);
+        $("prefillTps").textContent = value(data.prefillTps, " t/s");
+        $("prefillDetail").textContent = data.prefillChunkSeconds == null ? "waiting for a completed non-cached chunk" : `latest completed chunk · ${oneDecimal.format(data.prefillChunkSeconds)} s`;
+        $("completed").textContent = integer(data.completedRequests); $("errors").textContent = integer(data.errors);
+        $("ttft").textContent = latency(data.ttftMs); $("itl").textContent = latency(data.itlMs); $("e2e").textContent = latency(data.e2eMs); $("requestTotal").textContent = integer(data.requestsTotal);
+        $("runningState").textContent = integer(data.running); $("queueState").textContent = integer(data.waiting); $("backendState").textContent = data.backend || "—"; $("generatedTotal").textContent = integer(data.generatedTokens); $("promptTotal").textContent = integer(data.promptTokens);
+        $("systemPlatform").textContent = hardware.platform || "Apple Silicon";
+        $("gpuDetail").textContent = `GPU cores ${integer(hardware.gpuCores)} · DS4 ${data.backend || "backend"}`;
+        $("combinedPower").textContent = value(hardware.combinedPowerW, " W");
+        $("powerDetail").textContent = hardware.combinedPowerW == null ? "Power telemetry is optional" : `CPU ${value(hardware.cpuPowerW, " W")} · GPU ${value(hardware.gpuPowerW, " W")} · ANE ${value(hardware.anePowerW, " W")}`;
+        $("hardwareStatus").textContent = hardware.status || "Apple Silicon identity detected.";
+        $("refreshChip").textContent = `scrape ${value(data.scrapeMs, " ms")}`;
+        const elapsed = data.sampledAt ? new Date(data.sampledAt).toLocaleTimeString() : "—";
+        $("heroNote").textContent = data.warmup ? "Sampling baseline…" : data.counterReset ? "DS4 counter reset detected; chart restarted" : rate === 0 && data.running === 0 ? "Server is idle — no tokens are currently generating" : "Live server-side decode throughput";
+        renderRuntime(data.dspark || {}, data.memory || {});
+        renderAgentConfigs(data.agentApiBaseUrl);
+        renderServerControl(data.serverControl || {});
+        setHealth(Boolean(data.healthy), data.healthy ? `Last successful DS4 metric sample ${elapsed}` : (data.message || "Metrics unavailable"));
+        drawChart(data.history || []);
+      }
+
+      function activeAverage(samples, field) { const included = samples.map((point) => point[field]).filter((number) => Number.isFinite(number) && number > 0); return included.length ? included.reduce((sum, number) => sum + number, 0) / included.length : null; }
+      function scaleMax(values) { const peak = Math.max(...values.filter(Number.isFinite), 1); const magnitude = 10 ** Math.floor(Math.log10(peak)); const step = magnitude / 2; return Math.max(1, Math.ceil(peak / step) * step); }
+      function scaleLabel(number) { return number >= 1000 ? `${oneDecimal.format(number / 1000)}k` : `${Math.round(number)}`; }
+      function lastFinite(samples, field) { for (let index = samples.length - 1; index >= 0; index -= 1) if (Number.isFinite(samples[index][field])) return samples[index][field]; return null; }
+      function traceSeries(ctx, samples, field, xAt, yAt) { let first = -1, last = -1, started = false; ctx.beginPath(); samples.forEach((point, index) => { const number = point[field]; if (!Number.isFinite(number)) return; if (!started) { ctx.moveTo(xAt(index), yAt(number)); first = index; started = true; } else ctx.lineTo(xAt(index), yAt(number)); last = index; }); return { first, last, started }; }
+      function drawChart(history) {
+        const canvas = $("throughputChart"), empty = $("chartEmpty"), box = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1, width = Math.max(1, Math.floor(box.width * dpr)), height = Math.max(1, Math.floor(box.height * dpr));
+        if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+        const ctx = canvas.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,box.width,box.height);
+        const samples = history.filter((point) => Number.isFinite(point.generationTps) || Number.isFinite(point.prefillTps));
+        const decodeValues = samples.map((point) => point.generationTps).filter(Number.isFinite), prefillValues = samples.map((point) => point.prefillTps).filter(Number.isFinite);
+        empty.hidden = samples.length >= 2;
+        if (samples.length < 2) { $("chartSummary").textContent = "collecting samples"; return; }
+        const decodeMax = scaleMax(decodeValues), prefillMax = scaleMax(prefillValues), decodeAverage = activeAverage(samples,"generationTps"), prefillAverage = activeAverage(samples,"prefillTps"), decodeCurrent = lastFinite(samples,"generationTps"), prefillCurrent = lastFinite(samples,"prefillTps");
+        $("chartSummary").textContent = `decode ${decodeCurrent == null ? "—" : oneDecimal.format(decodeCurrent)} / avg ${decodeAverage == null ? "—" : oneDecimal.format(decodeAverage)} · prefill ${prefillCurrent == null ? "—" : oneDecimal.format(prefillCurrent)} / avg ${prefillAverage == null ? "—" : oneDecimal.format(prefillAverage)} tok/s`;
+        const pad = { top:20,right:54,bottom:24,left:50 }, w = box.width-pad.left-pad.right, h = box.height-pad.top-pad.bottom, xAt = (index) => pad.left+(index/Math.max(1,samples.length-1))*w, yDecode = (number) => pad.top+h-Math.min(1,number/decodeMax)*h, yPrefill = (number) => pad.top+h-Math.min(1,number/prefillMax)*h;
+        ctx.font = "10px ui-monospace, monospace";
+        for (let tick=0; tick<=4; tick++) { const y=pad.top+h-(h*tick/4); ctx.strokeStyle="rgba(148,181,203,.14)"; ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+w,y); ctx.stroke(); ctx.fillStyle="#ff8b9b"; ctx.textAlign="right"; ctx.fillText(scaleLabel(prefillMax*tick/4),pad.left-9,y+3); ctx.fillStyle="#80e6b6"; ctx.textAlign="left"; ctx.fillText(scaleLabel(decodeMax*tick/4),pad.left+w+9,y+3); }
+        ctx.fillStyle="#ff8b9b"; ctx.textAlign="left"; ctx.fillText("PREFILL t/s",pad.left,11); ctx.fillStyle="#80e6b6"; ctx.textAlign="right"; ctx.fillText("DECODE t/s",pad.left+w,11);
+        const drawFilledSeries = (field,yAt,color,fillTop) => { const shape=traceSeries(ctx,samples,field,xAt,yAt); if(!shape.started)return; ctx.lineTo(xAt(shape.last),pad.top+h); ctx.lineTo(xAt(shape.first),pad.top+h); ctx.closePath(); const gradient=ctx.createLinearGradient(0,pad.top,0,pad.top+h); gradient.addColorStop(0,fillTop); gradient.addColorStop(1,"rgba(0,0,0,0)"); ctx.fillStyle=gradient; ctx.fill(); traceSeries(ctx,samples,field,xAt,yAt); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.shadowColor=color; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0; };
+        drawFilledSeries("prefillTps",yPrefill,"#ff7185","rgba(255,113,133,.16)"); drawFilledSeries("generationTps",yDecode,"#55e6a5","rgba(85,230,165,.27)");
+        const drawAverage = (average,yAt,color,label,align) => { if(average==null)return; const y=yAt(average); ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle=color; ctx.lineWidth=1.25; ctx.beginPath(); ctx.moveTo(pad.left,y); ctx.lineTo(pad.left+w,y); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle=color; ctx.textAlign=align; const x=align==="left"?pad.left+5:pad.left+w-5; ctx.fillText(label,x,Math.max(pad.top+12,y-6)); ctx.restore(); };
+        drawAverage(prefillAverage,yPrefill,"#ff7185",`prefill avg ${oneDecimal.format(prefillAverage)}`,"left"); drawAverage(decodeAverage,yDecode,"#ffd166",`decode avg ${oneDecimal.format(decodeAverage)}`,"right");
+        const drawLatestPoint = (field,yAt,color) => { const last=lastFinite(samples,field); if(last==null)return; const reverseIndex=[...samples].reverse().findIndex((point)=>Number.isFinite(point[field])); const actualIndex=samples.length-1-reverseIndex; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(xAt(actualIndex),yAt(last),3.5,0,Math.PI*2); ctx.fill(); };
+        drawLatestPoint("prefillTps",yPrefill,"#ff7185"); drawLatestPoint("generationTps",yDecode,"#f1f7fa"); ctx.fillStyle="#78919d"; ctx.textAlign="left"; ctx.fillText("60s ago",pad.left,box.height-5); ctx.textAlign="right"; ctx.fillText("now",pad.left+w,box.height-5);
+      }
+
+      async function poll() { try { const response = await fetch("/api/snapshot", { cache:"no-store" }); if (!response.ok) throw new Error("snapshot unavailable"); render(await response.json()); } catch (_) { setHealth(false,"Dashboard connection unavailable; retrying…"); } finally { window.setTimeout(poll,500); } }
+      $("copyPiConfig").addEventListener("click", () => { void copyAgentConfig("pi"); });
+      $("copyDroidConfig").addEventListener("click", () => { void copyAgentConfig("droid"); });
+      $("serverStart").addEventListener("click", () => { void runServerAction("start"); });
+      $("serverStop").addEventListener("click", () => { void runServerAction("stop"); });
+      $("serverRestart").addEventListener("click", () => { void runServerAction("restart"); });
+      new ResizeObserver(() => latest && drawChart(latest.history || [])).observe($("throughputChart").parentElement);
+      poll();
+    </script>
+  </body>
+</html>

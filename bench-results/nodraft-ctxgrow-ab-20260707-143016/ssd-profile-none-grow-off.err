@@ -1,0 +1,34 @@
+ds4: context buffers 1203.13 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=10002)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 2.168 ms, residency requested in 459.668 ms, warmup 3.268 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: off, block=2048 tokens
+ds4: prefill chunk cap: auto (<=4096 when prompt>4096), graph_raw_cap=auto
+ds4: startup timing: engine=0.502s profile=0.000s model=0.005s sidecar=0.000s weights=0.000s dspark=0.000s backend=0.496s prewarm=0.000s
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: metal prefill layer 1/43ds4: metal prefill layer 2/43ds4: metal prefill layer 3/43ds4: metal prefill layer 4/43ds4: metal prefill layer 5/43ds4: metal prefill layer 6/43ds4: metal prefill layer 7/43ds4: metal prefill layer 8/43ds4: metal prefill layer 9/43ds4: metal prefill layer 10/43ds4: metal prefill layer 11/43ds4: metal prefill layer 12/43ds4: metal prefill layer 13/43ds4: metal prefill layer 14/43ds4: metal prefill layer 15/43ds4: metal prefill layer 16/43ds4: metal prefill layer 17/43ds4: metal prefill layer 18/43ds4: metal prefill layer 19/43ds4: metal prefill layer 20/43ds4: metal prefill layer 21/43ds4: metal prefill layer 22/43ds4: metal prefill layer 23/43ds4: metal prefill layer 24/43ds4: metal prefill layer 25/43ds4: metal prefill layer 26/43ds4: metal prefill layer 27/43ds4: metal prefill layer 28/43ds4: metal prefill layer 29/43ds4: metal prefill layer 30/43ds4: metal prefill layer 31/43ds4: metal prefill layer 32/43ds4: metal prefill layer 33/43ds4: metal prefill layer 34/43ds4: metal prefill layer 35/43ds4: metal prefill layer 36/43ds4: metal prefill layer 37/43ds4: metal prefill layer 38/43ds4: metal prefill layer 39/43ds4: metal prefill layer 40/43ds4: metal prefill layer 41/43ds4: metal prefill layer 42/43ds4: metal prefill layer 43/43
+ds4: ----------------------------------------
+ds4: prefill: 77.66 t/s, generation: 29.58 t/s (5000 tokens in 169.021s)
+real 170.50
+user 8.65
+sys 1.95
+            83279872  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                5904  page reclaims
+                   3  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+               42145  involuntary context switches
+        192784373919  instructions retired
+         44070934094  cycles elapsed
+           846497256  peak memory footprint

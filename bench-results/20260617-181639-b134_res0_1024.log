@@ -1,0 +1,159 @@
+ds4-agent: detected DS4 sidecar package: -m /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)
+ds4-agent: context buffers 1051.74 MiB (ctx=32768, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=8194)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 117.19 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash (slot-bank=134, expert-record 12.75 MiB)
+ds4: Flash-MoE MXFP4 storage layout: mxfp4_plane_split_v1 (native plane sidecar, no runtime repack on direct native paths)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.394 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 4096, graph_raw_cap=auto
+ds4: Flash-MoE slot banks allocated: layers=43 slots=134 gpu-bank=71.7GB Dense: 8.2GB Context: 1.0GB Total <<<< 81.0GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=134, gpu-bank=71.74 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = MPP 4.1 native MXFP4 (plane-sidecar/no-repack) | dense proj = fp16-NAX (half x half)
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=67
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off resident=slot-bank slots=134
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (slotwise, experts=6)
+prefill 1/71 (1.4%) batch=0.4 t/s avg=0.4 t/s
+prefill 2/71 (2.8%) batch=0.4 t/s avg=0.4 t/s
+prefill 3/71 (4.2%) batch=0.5 t/s avg=0.4 t/s
+prefill 4/71 (5.6%) batch=0.5 t/s avg=0.4 t/s
+prefill 5/71 (7.0%) batch=0.6 t/s avg=0.5 t/s
+prefill 6/71 (8.5%) batch=0.9 t/s avg=0.5 t/s
+prefill 7/71 (9.9%) batch=5.6 t/s avg=0.6 t/s
+prefill 8/71 (11.3%) batch=4.9 t/s avg=0.7 t/s
+prefill 9/71 (12.7%) batch=8.0 t/s avg=0.7 t/s
+prefill 10/71 (14.1%) batch=6.1 t/s avg=0.8 t/s
+prefill 11/71 (15.5%) batch=11.7 t/s avg=0.9 t/s
+prefill 12/71 (16.9%) batch=9.2 t/s avg=0.9 t/s
+prefill 13/71 (18.3%) batch=7.9 t/s avg=1.0 t/s
+prefill 14/71 (19.7%) batch=12.2 t/s avg=1.1 t/s
+prefill 15/71 (21.1%) batch=8.1 t/s avg=1.1 t/s
+prefill 16/71 (22.5%) batch=7.9 t/s avg=1.2 t/s
+prefill 17/71 (23.9%) batch=11.1 t/s avg=1.3 t/s
+prefill 18/71 (25.4%) batch=9.0 t/s avg=1.3 t/s
+prefill 19/71 (26.8%) batch=9.2 t/s avg=1.4 t/s
+prefill 20/71 (28.2%) batch=7.8 t/s avg=1.5 t/s
+prefill 21/71 (29.6%) batch=8.9 t/s avg=1.5 t/s
+prefill 22/71 (31.0%) batch=8.4 t/s avg=1.6 t/s
+prefill 23/71 (32.4%) batch=7.5 t/s avg=1.6 t/s
+prefill 24/71 (33.8%) batch=10.1 t/s avg=1.7 t/s
+prefill 25/71 (35.2%) batch=6.1 t/s avg=1.7 t/s
+prefill 26/71 (36.6%) batch=6.2 t/s avg=1.8 t/s
+prefill 27/71 (38.0%) batch=7.6 t/s avg=1.9 t/s
+prefill 28/71 (39.4%) batch=7.2 t/s avg=1.9 t/s
+prefill 29/71 (40.8%) batch=10.5 t/s avg=2.0 t/s
+prefill 30/71 (42.3%) batch=5.6 t/s avg=2.0 t/s
+prefill 31/71 (43.7%) batch=7.3 t/s avg=2.0 t/s
+prefill 32/71 (45.1%) batch=10.0 t/s avg=2.1 t/s
+prefill 33/71 (46.5%) batch=6.6 t/s avg=2.1 t/s
+prefill 34/71 (47.9%) batch=7.8 t/s avg=2.2 t/s
+prefill 35/71 (49.3%) batch=10.7 t/s avg=2.2 t/s
+prefill 36/71 (50.7%) batch=7.0 t/s avg=2.3 t/s
+prefill 37/71 (52.1%) batch=8.7 t/s avg=2.3 t/s
+prefill 38/71 (53.5%) batch=7.4 t/s avg=2.4 t/s
+prefill 39/71 (54.9%) batch=13.7 t/s avg=2.4 t/s
+prefill 40/71 (56.3%) batch=11.1 t/s avg=2.5 t/s
+prefill 41/71 (57.7%) batch=9.5 t/s avg=2.5 t/s
+prefill 42/71 (59.2%) batch=10.0 t/s avg=2.6 t/s
+prefill 43/71 (60.6%) batch=15.7 t/s avg=2.6 t/s
+prefill 44/71 (62.0%) batch=16.7 t/s avg=2.7 t/s
+prefill 45/71 (63.4%) batch=9.6 t/s avg=2.7 t/s
+prefill 46/71 (64.8%) batch=9.9 t/s avg=2.8 t/s
+prefill 47/71 (66.2%) batch=10.6 t/s avg=2.8 t/s
+prefill 48/71 (67.6%) batch=11.9 t/s avg=2.8 t/s
+prefill 49/71 (69.0%) batch=12.0 t/s avg=2.9 t/s
+prefill 50/71 (70.4%) batch=12.5 t/s avg=2.9 t/s
+prefill 51/71 (71.8%) batch=10.8 t/s avg=3.0 t/s
+prefill 52/71 (73.2%) batch=12.2 t/s avg=3.0 t/s
+prefill 53/71 (74.6%) batch=8.5 t/s avg=3.1 t/s
+prefill 54/71 (76.1%) batch=15.9 t/s avg=3.1 t/s
+prefill 55/71 (77.5%) batch=14.9 t/s avg=3.1 t/s
+prefill 56/71 (78.9%) batch=14.4 t/s avg=3.2 t/s
+prefill 57/71 (80.3%) batch=14.7 t/s avg=3.2 t/s
+prefill 58/71 (81.7%) batch=12.9 t/s avg=3.3 t/s
+prefill 59/71 (83.1%) batch=8.3 t/s avg=3.3 t/s
+prefill 60/71 (84.5%) batch=10.6 t/s avg=3.4 t/s
+prefill 61/71 (85.9%) batch=6.8 t/s avg=3.4 t/s
+prefill 62/71 (87.3%) batch=10.3 t/s avg=3.4 t/s
+prefill 63/71 (88.7%) batch=11.1 t/s avg=3.5 t/s
+prefill 64/71 (90.1%) batch=11.4 t/s avg=3.5 t/s
+prefill 65/71 (91.5%) batch=14.3 t/s avg=3.5 t/s
+prefill 66/71 (93.0%) batch=13.9 t/s avg=3.6 t/s
+prefill 67/71 (94.4%) batch=12.0 t/s avg=3.6 t/s
+prefill 68/71 (95.8%) batch=10.6 t/s avg=3.6 t/s
+prefill 69/71 (97.2%) batch=13.4 t/s avg=3.7 t/s
+prefill 70/71 (98.6%) batch=7.9 t/s avg=3.7 t/s
+prefill 71/71 (100.0%) batch=10.0 t/s avg=3.7 t/s
+I'll build a pixel-perfect Space Invaders arcade game in a single HTML file. This will replicate the original 1978 Taito experience with authentic sprites, mechanics, and rules.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACE INVADERS - 1978</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden}
+#game-container{position:relative;background:#000;border:4px solid #333;box-shadow:0 0 40px rgba(0,255,0,.15),inset 0 0 60px rgba(0,255,0,.05)}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#ui-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#ui-overlay>*{pointer-events:auto}
+#start-screen,#game-over-screen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.85);color:#0f0;text-align:center}
+#start-screen h1{font-size:28px;letter-spacing:8px;margin-bottom:10px;text-shadow:0 0 20px #0f0}
+#start-screen .sub{font-size:12px;color:#0a0;margin-bottom:30px;letter-spacing:4px}
+#start-screen .blink{animation:blink 1s step-end infinite;font-size:14px;margin-top:20px}
+#game-over-screen h2{font-size:24px;letter-spacing:6px;margin-bottom:10px;text-shadow:0 0 20px #f00;color:#f00}
+#game-over-screen .score{font-size:16px;color:#0f0;margin-bottom:20px}
+#game-over-screen .blink{animation:blink 1s step-end infinite;font-size:12px;margin-top:10px;color:#0f0}
+.hidden{display:none!important}
+@keyframes blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas" width="448" height="512"></canvas>
+  <div id="ui-overlay">
+    <div id="start-screen">
+      <h1>SPACE INVADERS</h1>
+      <div class="sub">© 1978 TAITO CORPORATION</div>
+      <div style="font-size:11px;color:#080;line-height:1.8;margin-bottom:10px">
+        ← → : MOVE &nbsp;|&nbsp; SPACE : FIRE<br>
+        Z : 1 PLAYER &nbsp;|&nbsp; X : 2 PLAYERS
+      </div>
+      <div class="blink">PRESS Z OR X TO START</div>
+    </div>
+    <div id="game-over-screen" class="hidden">
+      <h2>GAME OVER</h2>
+      <div class="score" id="final-score">SCORE: 0</div>
+      <div class="score" id="high-score">HIGH SCORE: 0</div>
+      <div class="blink">PRESS Z OR X TO RESTART</div>
+    </div>
+  </div>
+</div>
+<script>
+// ===== SPACE INVADERS - FULL ARCADE REPLICA =====
+const canvas=document.getElementById('gameCanvas');
+const ctx=canvas.getContext('2d');
+const W=448,H=512;
+
+// Pixel-perfect sprite data (12x8 for invaders, 16x8 for player, etc.)
+// Each row is a hex string of bits (1=white/green, 0=black)
+const SPRITES={
+  invader1:[
+    0x0F,0x1F,0x3F,0x7F,0x3F,0x1F,0x0F,0x00,
+    0x0F,0x1F,0x3F,0x7F,0x3F,0x1F,0x0F,ds4-agent: turn-stats round=0 generated=1024 max=1024 decode_s=70.430081 gen_tps=14.539 ctx=2369 stop=max_tokens
+0
+

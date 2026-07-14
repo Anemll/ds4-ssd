@@ -1,0 +1,9 @@
+This is a great question. The core idea is that a single prompt gives you a single data point, while 50 prompts give you a statistical distribution. Here’s why that shift from one to many is so much more informative.
+
+### The Short Answer
+
+Evaluating 50 prompts is more informative because it measures **reliability, robustness, and breadth** rather than just a single, potentially lucky, outcome. A single prompt can hide weaknesses, while many prompts reveal the model's true capabilities and limitations.
+
+### The Detailed Explanation: Why One Prompt Isn't Enough
+
+Imagine you're testing a new car. You wouldn't judge its

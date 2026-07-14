@@ -1,0 +1,5 @@
+Per confrontare due quantizzazioni in modo affidabile, senza basarsi su una sola risposta, è necessario un approccio sistematico che consideri diversi aspetti e metriche. Ecco una procedura dettagliata:
+
+### 1. **Definire il contesto di confronto**
+Prima di tutto, bisogna stabilire cosa si sta confrontando:
+- **Tipo di quantizzazione**: lineare, logaritmica, a virgola fissa/virgola mobile, quantizzazione vettoriale (VQ), quantizzazione per reti neurali (es. INT

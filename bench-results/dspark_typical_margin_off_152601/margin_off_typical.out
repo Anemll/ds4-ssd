@@ -1,0 +1,110 @@
+This is a complete, self-contained HTML file that recreates the classic 1978 Space Invaders arcade experience in your browser. It includes the iconic sprite designs, sound effects, and game mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders · 1978 Taito</title>
+  <style>
+    /* Pixel-perfect CRT styling */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .arcade-cabinet {
+      background: #1a1a2e;
+      padding: 20px 20px 30px;
+      border-radius: 20px;
+      box-shadow: 0 0 0 4px #0f0f1a, 0 0 20px #3a3a5c;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .crt-screen {
+      background: #0a0a0a;
+      border: 6px solid #222;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: inset 0 0 20px #000, 0 0 10px #2f2f4f;
+      position: relative;
+    }
+    canvas {
+      display: block;
+      width: 600px;
+      height: 750px;
+      background: #0a0a0a;
+      image-rendering: pixelated;
+      box-shadow: 0 0 10px #1a1a1a inset;
+      margin: 0 auto;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin-top: 20px;
+      color: #eee;
+      font-size: 1.2rem;
+      text-shadow: 0 0 6px #7f7fff;
+      background: #111;
+      padding: 10px 30px;
+      border-radius: 30px;
+      border: 2px solid #3a3a5c;
+      letter-spacing: 2px;
+    }
+    .controls span {
+      background: #222;
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid #7a7aff;
+      color: #fff;
+    }
+    .btn-reset {
+      background: #2a2a3a;
+      border: 2px solid #7a7aff;
+      color: #ddd;
+      font-family: 'Courier New', monospace;
+      font-size: 1.1rem;
+      padding: 6px 18px;
+      border-radius: 20px;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: 0.2s;
+    }
+    .btn-reset:hover {
+      background: #3a3a5a;
+      border-color: #aab;
+    }
+    .scanlines {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) 2px,
+        transparent 2px,
+        transparent 4px
+      );
+      pointer-events: none;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="arcade-cabinet">
+  <div class="crt-screen" style="position:relative;">
+    <canvas id="gameCanvas" width="600" height="750"></canvas>

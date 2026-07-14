@@ -1,0 +1,13 @@
+Here are a few possible ways to complete the sentence, depending on the intended meaning:
+
+**Option 1 (Most common):**
+Il vantaggio principale della cache **è la velocità di accesso ai dati**.
+
+**Option 2 (Focus on performance):**
+Il vantaggio principale della cache **è quello di ridurre la latenza**.
+
+**Option 3 (Focus on system load):**
+Il vantaggio principale della cache **è diminuire il carico sul sistema principale** (es. database o disco rigido).
+
+**Option 4 (General):**
+Il vantaggio principale della cache **è migliorare le prestazioni compl

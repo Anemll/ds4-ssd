@@ -1,0 +1,159 @@
+This is a self-contained HTML file that recreates the classic 1978 Space Invaders arcade game. It includes the original rules, sprite designs, and mechanics in a single file.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPACE INVADERS · 1978</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #0a0f1e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .cabinet {
+      background: #1a1f2e;
+      padding: 2rem 2rem 1.8rem;
+      border-radius: 32px 32px 16px 16px;
+      box-shadow: 0 20px 30px rgba(0,0,0,0.8), inset 0 0 0 2px #4f5b73;
+      border-bottom: 8px solid #0b0e16;
+    }
+    .screen-wrapper {
+      background: #0b0e16;
+      padding: 20px 20px 16px;
+      border-radius: 24px 24px 12px 12px;
+      box-shadow: inset 0 0 0 2px #2f3547;
+    }
+    canvas {
+      display: block;
+      width: 600px;
+      height: 480px;
+      background: #0f121c;
+      image-rendering: pixelated;
+      box-shadow: 0 0 0 2px #3d445b, 0 8px 0 #05070c;
+      border-radius: 8px;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 18px;
+      padding: 0 8px;
+      color: #b7c0d6;
+      text-shadow: 0 2px 0 #030405;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .btn-group {
+      display: flex;
+      gap: 24px;
+    }
+    .btn {
+      background: #2d3447;
+      border: none;
+      border-bottom: 4px solid #0f121c;
+      color: #dbe3f5;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+      font-size: 1.2rem;
+      padding: 6px 18px;
+      border-radius: 40px;
+      cursor: pointer;
+      box-shadow: inset 0 2px 0 #5a6583, 0 4px 0 #080b12;
+      transition: 0.05s linear;
+      letter-spacing: 1.5px;
+    }
+    .btn:active {
+      transform: translateY(4px);
+      border-bottom-width: 2px;
+      box-shadow: inset 0 2px 0 #3b435b;
+    }
+    .info {
+      display: flex;
+      gap: 28px;
+      font-size: 1.2rem;
+    }
+    .info span {
+      background: #1b212f;
+      padding: 0 14px;
+      border-radius: 30px;
+      border-bottom: 2px solid #2f364a;
+      line-height: 2;
+    }
+    .badge {
+      color: #f5e9cb;
+      background: #1f2537;
+      padding: 0 16px;
+      border-radius: 30px;
+      border-bottom: 2px solid #3b425a;
+    }
+    @media (max-width: 660px) {
+      canvas { width: 100%; height: auto; aspect-ratio: 5/4; }
+      .controls { flex-wrap: wrap; gap: 12px; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="600" height="480"></canvas>
+  </div>
+  <div class="controls">
+    <div class="btn-group">
+      <button class="btn" id="moveLeftBtn">◀ LEFT</button>
+      <button class="btn" id="moveRightBtn">RIGHT ▶</button>
+      <button class="btn" id="fireBtn">FIRE</button>
+    </div>
+    <div class="info">
+      <span id="scoreDisplay">0000</span>
+      <span class="badge">🛸</span>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+
+    // ----- ORIGINAL 1978 CONSTANTS -----
+    const COLS = 11;
+    const ROWS = 5;
+    const INVADER_W = 24;
+    const INVADER_H = 18;
+    const PLAYER_W = 28;
+    const PLAYER_H = 16;
+    const BUNKER_COUNT = 4;
+    const INVADER_SPEED_INIT = 0.6;      // pixels per frame (original pace)
+    const INVADER_DROP = 8;              // drop per row shift
+    const PLAYER_SPEED = 3.2;
+    const BULLET_SPEED = 4.0;
+    const INVADER_BULLET_SPEED = 2.2;
+    const MAX_PLAYER_BULLETS = 1;        // original: only one shot at a time
+    const MAX_INVADER_BULLETS = 2;       // classic limit
+
+    // ----- GAME STATE -----
+    let invaders = [];
+    let bunkers = [];
+    let player = { x: 0, y: 0, width: PLAYER_W, height: PLAYER_H };
+    let playerBullets = [];
+    let invaderBullets = [];
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let win = false;
+    let frame = 0;
+    let invaderDir = 1;          // 1 = right, -1 = left
+    let invaderSpeed = INVADER_SPEED_INIT;
+    let moveDownCounter = 0;
+    let invaderShootTimer = 0;
+    let animFrame = 0;           // 0/1 for leg animation

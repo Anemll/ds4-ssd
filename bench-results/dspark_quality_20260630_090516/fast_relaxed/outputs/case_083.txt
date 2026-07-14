@@ -1,0 +1,7 @@
+Here is the Italian translation:
+
+**"Il modello dovrebbe rispondere solo dopo aver letto l'intero prompt."**
+
+Alternatively, if you want a slightly more natural phrasing:
+
+**"Il modello dovrebbe rispondere solo dopo aver letto l'intero messaggio."**

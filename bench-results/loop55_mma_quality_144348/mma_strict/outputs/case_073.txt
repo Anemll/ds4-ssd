@@ -1,0 +1,19 @@
+Ecco un breve esempio di **race condition** in C, tipico di un programma multi-thread che condivide una variabile globale senza sincronizzazione:
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+
+int counter = 0;  // variabile condivisa
+
+void* incrementa(void* arg) {
+    for (int i = 0; i < 100000; i++) {
+        counter++;  // operazione non atomica!
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t t1, t2;
+
+    pthread_create(&t1, NULL,

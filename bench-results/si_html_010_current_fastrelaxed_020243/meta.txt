@@ -1,0 +1,5 @@
+run=bench-results/si_html_010_current_fastrelaxed_020243
+mode=fast_relaxed
+started=2026-07-01T09:02:43Z
+status=0
+finished=2026-07-01T09:05:01Z

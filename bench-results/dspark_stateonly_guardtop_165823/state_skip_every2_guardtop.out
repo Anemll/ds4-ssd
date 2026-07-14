@@ -1,0 +1,60 @@
+Here's a complete game game of Space Space Invaders in Pygamegame:
+
+```python
+importimport pygame
+import pygame
+
+import random
+import random
+
+import math
+import math
+
+# Initialize pygame
+## Initialize pygame pygame
+pygamegame.init()
+pygame.init()
+()
+## Screen
+# Screen
+
+SCSCREEN_WIDTH = 800
+SCREEN_WIDTH_WIDTH =  800
+
+SCREENREEN_HEIGHT = 800800
+
+screen = pygame
+screenscreen = = pygame.display.set pygame.display = = pygame.display.set_mode((mode.display.set_mode_mode((SCREEN_WIDTH, SCREEN_HEIGHT, SCREENREEN_HE_HEIGHT)))
+HEIGHT = pygame pygame.display.set.set_mode_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display = = pygame.display.set_mode((SCSCREEN_WIDTH, SCREEN_HEIGHT))
+#gamegame.display = pygame.display = = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+# Title
+pygame = = pygame pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+# Title
+pygame.display.display.set_caption((SCREENREEN_WIDTH_WIDTH, SC SCREEN_HE_HEIGHT))
+# Title
+pygame.display.set_c_caption("Space Invitation")
+")
+# Colors
+pygamegame.display.display.set_caption("("Space Invadersaders")
+")
+## Colors
+colorscolors = {
+" = (WHWHITE = (255, 255, 255,, 255255)
+)
+BLBLACK = ( (0, 0,, 0)
+REDRED = ( (255,, 0, 0)
+GGREEN = ( ( (00, 255255, 00)
+BLUEUE = ( ( (0, 0, 255)
+)
+# = ( (255, 255, 255)
+# = = (0,, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# = = (255, 255, 255)
+# = = (0, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# =

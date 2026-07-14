@@ -1,0 +1,15 @@
+Ecco una breve funzione C che limita un intero a un intervallo specificato:
+
+```c
+int clamp(int value, int min, int max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+```
+
+Questa funzione:
+- Prende tre parametri: il valore da limitare, il minimo e il massimo dell'intervallo
+- Se il valore è inferiore al minimo, restituisce il minimo
+- Se il valore è superiore al massimo, restituisce il massimo
+- Altrimenti

@@ -1,0 +1,259 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 2.159 ms, residency requested in 430.324 ms, warmup 2.924 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 993.88 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=10002)
+ds4: using GPU graph generation with graph prefill
+ds4: using chunked GPU prefill (4096-token chunks for 16383 prompt tokens)
+processing 16383 input tokens: 0/16383 (0.0%)
+processing 16383 input tokens: 4096/16383 (25.0%)
+processing 16383 input tokens: 8192/16383 (50.0%)
+processing 16383 input tokens: 12288/16383 (75.0%)
+processing 16383 input tokens: 16383/16383 (100.0%)
+Here's a complete Tetris game implementation in C++ for macOS using SFML:
+
+```cpp
+// main.cpp
+#include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for UI
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+const int FPS = 60;
+
+// Tetromino shapes (7 standard pieces)
+// Each shape is represented as a 4x4 grid
+const std::vector<std::vector<std::vector<int>>> TETROMINOS = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each tetromino
+const std::vector<sf::Color> PIECE_COLORS = {
+    sf::Color::Cyan,      // I
+    sf::Color::Yellow,    // O
+    sf::Color::Magenta,   // T
+    sf::Color::Green,     // S
+    sf::Color::Red,       // Z
+    sf::Color::Blue,      // J
+    sf::Color::Orange     // L
+};
+
+class Tetris {
+private:
+    sf::RenderWindow window;
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> currentPiece;
+    std::vector<std::vector<int>> nextPiece;
+    sf::Color currentColor;
+    sf::Color nextColor;
+    int pieceX, pieceY;
+    int score;
+    int level;
+    int linesCleared;
+    float fallSpeed;
+    float fallTimer;
+    bool gameOver;
+    bool paused;
+    
+    // UI elements
+    sf::Font font;
+    sf::Text scoreText;
+    sf::Text levelText;
+    sf::Text linesText;
+    sf::Text gameOverText;
+    sf::Text pauseText;
+    
+    // Audio
+    sf::SoundBuffer clearSound;
+    sf::SoundBuffer gameOverSound;
+    sf::Sound sound;
+
+public:
+    Tetris() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Tetris"),
+               board(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0)),
+               score(0), level(1), linesCleared(0), fallSpeed(1.0f),
+               fallTimer(0), gameOver(false), paused(false) {
+        
+        // Initialize random seed
+        std::srand(std::time(nullptr));
+        
+        // Set up window
+        window.setFramerateLimit(FPS);
+        
+        // Load font
+        if (!font.loadFromFile("/System/Library/Fonts/Helvetica.ttc")) {
+            std::cerr << "Could not load font!" << std::endl;
+        }
+        
+        // Set up UI text
+        setupText(scoreText, "Score: 0", 30, BOARD_WIDTH * BLOCK_SIZE + 10, 10);
+        setupText(levelText, "Level: 1", 30, BOARD_WIDTH * BLOCK_SIZE + 10, 50);
+        setupText(linesText, "Lines: 0", 30, BOARD_WIDTH * BLOCK_SIZE + 10, 90);
+        setupText(gameOverText, "Game Over!", 50, BOARD_WIDTH * BLOCK_SIZE / 2 - 100, BOARD_HEIGHT * BLOCK_SIZE / 2 - 50);
+        setupText(pauseText, "PAUSED", 40, BOARD_WIDTH * BLOCK_SIZE / 2 - 80, BOARD_HEIGHT * BLOCK_SIZE / 2 - 30);
+        
+        // Spawn first piece
+        spawnPiece();
+        generateNextPiece();
+    }
+    
+    void setupText(sf::Text& text, const std::string& str, int size, int x, int y) {
+        text.setFont(font);
+        text.setString(str);
+        text.setCharacterSize(size);
+        text.setFillColor(sf::Color::White);
+        text.setPosition(x, y);
+    }
+    
+    void spawnPiece() {
+        // Random piece selection
+        int pieceIndex = std::rand() % TETROMINOS.size();
+        currentPiece = TETROMINOS[pieceIndex];
+        currentColor = PIECE_COLORS[pieceIndex];
+        pieceX = BOARD_WIDTH / 2 - currentPiece[0].size() / 2;
+        pieceY = 0;
+        
+        // Check if game over
+        if (!isValidPosition(pieceX, pieceY, currentPiece)) {
+            gameOver = true;
+        }
+    }
+    
+    void generateNextPiece() {
+        int pieceIndex = std::rand() % TETROMINOS.size();
+        nextPiece = TETROMINOS[pieceIndex];
+        nextColor = PIECE_COLORS[pieceIndex];
+    }
+    
+    bool isValidPosition(int x, int y, const std::vector<std::vector<int>>& piece) {
+        for (int i = 0; i < piece.size(); i++) {
+            for (int j = 0; j < piece[i].size(); j++) {
+                if (piece[i][j] != 0) {
+                    int boardX = x + j;
+                    int boardY = y + i;
+                    
+                    // Check boundaries
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || boardY >= BOARD_HEIGHT) {
+                        return false;
+                    }
+                    
+                    // Check collision with placed pieces
+                    if (boardY >= 0 && board[boardY][boardX] != 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    
+    void placePiece() {
+        // Place current piece on board
+        for (int i = 0; i < currentPiece.size(); i++) {
+            for (int j = 0; j < currentPiece[i].size(); j++) {
+                if (currentPiece[i][j] != 0) {
+                    int boardX = pieceX + j;
+                    int boardY = pieceY + i;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = 1; // Mark as occupied
+                    }
+                }
+            }
+        }
+        
+        // Check for completed lines
+        clearLines();
+        
+        // Spawn new piece
+        currentPiece = nextPiece;
+        currentColor = nextColor;
+        generateNextPiece();
+        pieceX = BOARD_WIDTH / 2 - currentPiece[0].size() / 2;
+        pieceY = 0;
+        
+        // Check if new piece can be placed
+        if (!isValidPosition(pieceX, pieceY, currentPiece)) {
+            gameOver = true;
+        }
+    }
+    
+    void clearLines() {
+        int linesRemoved = 0;
+        
+        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+            bool fullLine = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (board[y][x] == 0) {
+                    fullLine = false;
+                    break;
+                }
+            }
+            
+            if (fullLine) {
+                // Remove the line
+                for (int row = y; row > 0; row--) {
+                    for (int x = 0; x < BOARD_WIDTH; x++) {
+                        board[row][x] = board[row-1][x];
+                    }
+                }
+                linesRemoved++;
+                y++; // Check the same row again
+            }
+        }
+        
+        if (linesRemoved > 0) {
+            linesCleared += linesRemoved;
+            score += linesRemoved * 100 * level;
+            updateLevel();
+        }
+    }
+    
+    void updateLevel() {
+        level = linesCleared / 10 + 1;
+        fallSpeed = 1.0f - (level - 1) * 0.1f;
+        if (fallSpeed < 0.1f) fallSpeed = 0.1f;
+    }
+    
+    void rotatePiece() {
+        //
+ds4: prefill: 336.43 t/s, generation: 28.88 t/s

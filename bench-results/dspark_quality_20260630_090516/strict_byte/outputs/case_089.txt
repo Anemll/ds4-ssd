@@ -1,0 +1,13 @@
+A hash table handles collisions (when two different keys produce the same hash index) using two primary strategies:
+
+## 1. **Separate Chaining (Open Hashing)**
+
+Each bucket in the hash table is a linked list (or another data structure) that can hold multiple entries.
+
+**How it works:**
+- When a collision occurs, the new key-value pair is simply appended to the list at that index
+- To find a value, hash the key, go to the bucket, then search the list for the matching key
+
+**Example:**
+```
+Index 0: [key1, val1] -> [key2

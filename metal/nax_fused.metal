@@ -615,6 +615,8 @@ kernel void ds4_naalu_bench(
     if (do_na) {
         const int M = a.M, N = a.N, K = a.K;
         const int gx = N / NR1;                 // NA tiles across N
+        const int gy = (M + NR0 - 1) / NR0;
+        if (role_id >= (uint)(gx * gy)) return;
         const int tx = (int)(role_id % (uint)gx), ty = (int)(role_id / (uint)gx);
         const int r1 = tx * NR1, r0 = ty * NR0;
         threadgroup half *sa = (threadgroup half *)shmem;
@@ -646,13 +648,15 @@ kernel void ds4_naalu_bench(
         cT.store(mD);
     } else {
         const int ncol = a.alu_ncol, kk = a.alu_k;
-        const int rows_per = a.alu_rows / a.alu_tgs;
+        if (role_id >= (uint)a.alu_tgs) return;
+        const int rows_per = (a.alu_rows + a.alu_tgs - 1) / a.alu_tgs;
         const int base = (int)role_id * rows_per;
         const int total = rows_per * ncol;
         for (int it = 0; it < a.alu_iters; it++) {
             for (int o = tiitg; o < total; o += NUM_THREADS) {
                 const int rr = base + o / ncol;
                 const int cc = o % ncol;
+                if (rr >= a.alu_rows) continue;
                 float acc = 0.0f;
                 device const float *xp = X + (uint64_t)rr * kk;
                 device const float *wp = W + (uint64_t)cc * kk;

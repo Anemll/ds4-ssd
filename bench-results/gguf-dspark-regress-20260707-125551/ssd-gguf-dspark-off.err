@@ -1,0 +1,115 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Metal model views created in 2.133 ms, residency requested in 913.894 ms, warmup 3.922 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.9 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=6.408s profile=0.000s model=0.005s sidecar=0.000s weights=0.000s dspark=5.479s backend=0.920s prewarm=0.003s
+ds4: session startup timing: total=0.004s raw-graph=0.004s flash-moe=0.000s steering=0.000s draft-scratch=yes
+processing 53 input tokens: 0/53 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 53 input tokens: 1/53 (1.9%) batch=63.21 t/s avg=62.58 t/s
+processing 53 input tokens: 2/53 (3.8%) batch=8.98 t/s avg=15.71 t/s
+processing 53 input tokens: 3/53 (5.7%) batch=8.98 t/s avg=12.57 t/s
+processing 53 input tokens: 4/53 (7.5%) batch=9.00 t/s avg=11.43 t/s
+processing 53 input tokens: 6/53 (11.3%) batch=29.83 t/s avg=14.39 t/s
+processing 53 input tokens: 7/53 (13.2%) batch=18.20 t/s avg=14.84 t/s
+processing 53 input tokens: 8/53 (15.1%) batch=16.36 t/s avg=15.01 t/s
+processing 53 input tokens: 9/53 (17.0%) batch=18.91 t/s avg=15.36 t/s
+processing 53 input tokens: 11/53 (20.8%) batch=35.66 t/s avg=17.14 t/s
+processing 53 input tokens: 12/53 (22.6%) batch=18.07 t/s avg=17.21 t/s
+processing 53 input tokens: 13/53 (24.5%) batch=14.28 t/s avg=16.94 t/s
+processing 53 input tokens: 14/53 (26.4%) batch=15.42 t/s avg=16.82 t/s
+processing 53 input tokens: 16/53 (30.2%) batch=34.12 t/s avg=17.96 t/s
+processing 53 input tokens: 17/53 (32.1%) batch=21.55 t/s avg=18.14 t/s
+processing 53 input tokens: 18/53 (34.0%) batch=17.90 t/s avg=18.13 t/s
+processing 53 input tokens: 19/53 (35.8%) batch=19.15 t/s avg=18.18 t/s
+processing 53 input tokens: 20/53 (37.7%) batch=17.33 t/s avg=18.13 t/s
+processing 53 input tokens: 22/53 (41.5%) batch=40.33 t/s avg=19.09 t/s
+processing 53 input tokens: 23/53 (43.4%) batch=20.05 t/s avg=19.13 t/s
+processing 53 input tokens: 24/53 (45.3%) batch=19.00 t/s avg=19.12 t/s
+processing 53 input tokens: 25/53 (47.2%) batch=12.24 t/s avg=18.70 t/s
+processing 53 input tokens: 27/53 (50.9%) batch=33.64 t/s avg=19.34 t/s
+processing 53 input tokens: 28/53 (52.8%) batch=15.54 t/s avg=19.17 t/s
+processing 53 input tokens: 29/53 (54.7%) batch=17.25 t/s avg=19.10 t/s
+processing 53 input tokens: 30/53 (56.6%) batch=17.89 t/s avg=19.05 t/s
+processing 53 input tokens: 32/53 (60.4%) batch=44.67 t/s avg=19.76 t/s
+processing 53 input tokens: 33/53 (62.3%) batch=19.53 t/s avg=19.76 t/s
+processing 53 input tokens: 34/53 (64.2%) batch=22.94 t/s avg=19.84 t/s
+processing 53 input tokens: 35/53 (66.0%) batch=18.77 t/s avg=19.80 t/s
+processing 53 input tokens: 36/53 (67.9%) batch=18.72 t/s avg=19.77 t/s
+processing 53 input tokens: 38/53 (71.7%) batch=38.13 t/s avg=20.29 t/s
+processing 53 input tokens: 39/53 (73.6%) batch=17.52 t/s avg=20.21 t/s
+processing 53 input tokens: 40/53 (75.5%) batch=16.83 t/s avg=20.10 t/s
+processing 53 input tokens: 41/53 (77.4%) batch=23.07 t/s avg=20.17 t/s
+processing 53 input tokens: 43/53 (81.1%) batch=40.36 t/s avg=20.65 t/s
+processing 53 input tokens: 44/53 (83.0%) batch=17.61 t/s avg=20.57 t/s
+processing 53 input tokens: 45/53 (84.9%) batch=12.97 t/s avg=20.30 t/s
+processing 53 input tokens: 46/53 (86.8%) batch=19.59 t/s avg=20.29 t/s
+processing 53 input tokens: 48/53 (90.6%) batch=30.47 t/s avg=20.57 t/s
+processing 53 input tokens: 49/53 (92.5%) batch=18.62 t/s avg=20.53 t/s
+processing 53 input tokens: 50/53 (94.3%) batch=15.20 t/s avg=20.39 t/s
+processing 53 input tokens: 51/53 (96.2%) batch=18.67 t/s avg=20.35 t/s
+processing 53 input tokens: 53/53 (100.0%) batch=30.47 t/s avg=20.61 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark verifier strict_v1 active=3 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark hybrid row-routed verifier using monolithic row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: routed MoE exact ordered expert-sum kernel enabled
+ds4: ----------------------------------------
+ds4: prefill: 19.34 t/s, generation: 36.14 t/s (4352 tokens in 120.433s)
+ds4: ttf: first-output=9.382s total=129.719s (engine=6.408s session=0.004s prompt=0.000s prefill=2.740s decode=120.433s)
+ds4: dspark perf: draft=406.7 tok/s, verify=61.2 proposed tok/s, verify-accepted=43.4 tok/s, block=82.28 ms (draft=10.56 verify=70.19 overhead=1.53 commit=1.18, tau=3.05, blocks=1076)
+ds4: dspark verify GPU-busy: 68.71 ms/block of 70.19 ms verify (97.9% active, 2.1% idle)
+ds4: dspark draft-overlap upper-bound: 42.5 tok/s (1.15x block decode, hides 10.56 ms/block)
+ds4: vm pressure: app=11.49 GiB resident=10.75 GiB wired=97.05 GiB compressed=1.08 GiB logical=3.04 GiB swap=0.56/2.00 GiB pressure=77% free=0.16 GiB gpu=11.41 GiB gpu-compressed=0.00 GiB task-compressed=8.51 GiB decompressions=557209
+ds4: dspark acceptance: 70.9% (3277/4621 draft tokens)
+ds4: dspark acceptance by position: 1=844/1038 2=744/1003 3=639/926 4=561/858 5=489/796
+ds4: dspark conditional acceptance: 1=81.3% (844/1038) 2|1=90.6% (744/821) 3|1-2=90.1% (639/709) 4|1-3=92.7% (561/605) 5|1-4=91.4% (489/535)
+ds4: dspark full-accept: 58.5% (607/1038 blocks), first-miss: 18.7% (194/1038 blocks)
+ds4: dspark avg scheduled: 4.45 draft tokens/block (1038 blocks)
+real 129.95
+user 6.74
+sys 7.16
+         16777199616  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              926959  page reclaims
+              337121  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  10  voluntary context switches
+              190008  involuntary context switches
+        184301969912  instructions retired
+         58901315729  cycles elapsed
+         12403638736  peak memory footprint

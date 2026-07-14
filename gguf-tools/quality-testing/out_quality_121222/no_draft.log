@@ -1,0 +1,130 @@
+generate_samples: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.298 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: auto (<=4096 when prompt>4096), graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=off pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=off reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+case_000 1/100 generated=24 tps=36.75 acc=0.0% out=out_quality_121222/no_draft/outputs/case_000.txt
+case_001 2/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_001.txt
+case_002 3/100 generated=24 tps=36.83 acc=0.0% out=out_quality_121222/no_draft/outputs/case_002.txt
+case_003 4/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_003.txt
+case_004 5/100 generated=24 tps=36.77 acc=0.0% out=out_quality_121222/no_draft/outputs/case_004.txt
+case_005 6/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_005.txt
+case_006 7/100 generated=24 tps=36.52 acc=0.0% out=out_quality_121222/no_draft/outputs/case_006.txt
+case_007 8/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_007.txt
+case_008 9/100 generated=24 tps=36.78 acc=0.0% out=out_quality_121222/no_draft/outputs/case_008.txt
+case_009 10/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_009.txt
+case_010 11/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_010.txt
+case_011 12/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_011.txt
+case_012 13/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_012.txt
+case_013 14/100 generated=24 tps=36.66 acc=0.0% out=out_quality_121222/no_draft/outputs/case_013.txt
+case_014 15/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_014.txt
+case_015 16/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_015.txt
+case_016 17/100 generated=24 tps=36.78 acc=0.0% out=out_quality_121222/no_draft/outputs/case_016.txt
+case_017 18/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_017.txt
+case_018 19/100 generated=24 tps=36.69 acc=0.0% out=out_quality_121222/no_draft/outputs/case_018.txt
+case_019 20/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_019.txt
+case_020 21/100 generated=24 tps=36.74 acc=0.0% out=out_quality_121222/no_draft/outputs/case_020.txt
+case_021 22/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_021.txt
+case_022 23/100 generated=24 tps=36.65 acc=0.0% out=out_quality_121222/no_draft/outputs/case_022.txt
+case_023 24/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_023.txt
+case_024 25/100 generated=24 tps=36.75 acc=0.0% out=out_quality_121222/no_draft/outputs/case_024.txt
+case_025 26/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_025.txt
+case_026 27/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_026.txt
+case_027 28/100 generated=24 tps=36.78 acc=0.0% out=out_quality_121222/no_draft/outputs/case_027.txt
+case_028 29/100 generated=24 tps=36.63 acc=0.0% out=out_quality_121222/no_draft/outputs/case_028.txt
+case_029 30/100 generated=24 tps=36.59 acc=0.0% out=out_quality_121222/no_draft/outputs/case_029.txt
+case_030 31/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_030.txt
+case_031 32/100 generated=24 tps=36.63 acc=0.0% out=out_quality_121222/no_draft/outputs/case_031.txt
+case_032 33/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_032.txt
+case_033 34/100 generated=24 tps=36.74 acc=0.0% out=out_quality_121222/no_draft/outputs/case_033.txt
+case_034 35/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_034.txt
+case_035 36/100 generated=24 tps=36.74 acc=0.0% out=out_quality_121222/no_draft/outputs/case_035.txt
+case_036 37/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_036.txt
+case_037 38/100 generated=24 tps=36.78 acc=0.0% out=out_quality_121222/no_draft/outputs/case_037.txt
+case_038 39/100 generated=24 tps=36.77 acc=0.0% out=out_quality_121222/no_draft/outputs/case_038.txt
+case_039 40/100 generated=24 tps=36.67 acc=0.0% out=out_quality_121222/no_draft/outputs/case_039.txt
+case_040 41/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_040.txt
+case_041 42/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_041.txt
+case_042 43/100 generated=24 tps=36.69 acc=0.0% out=out_quality_121222/no_draft/outputs/case_042.txt
+case_043 44/100 generated=24 tps=36.62 acc=0.0% out=out_quality_121222/no_draft/outputs/case_043.txt
+case_044 45/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_044.txt
+case_045 46/100 generated=24 tps=36.65 acc=0.0% out=out_quality_121222/no_draft/outputs/case_045.txt
+case_046 47/100 generated=24 tps=36.71 acc=0.0% out=out_quality_121222/no_draft/outputs/case_046.txt
+case_047 48/100 generated=24 tps=36.63 acc=0.0% out=out_quality_121222/no_draft/outputs/case_047.txt
+case_048 49/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_048.txt
+case_049 50/100 generated=24 tps=36.74 acc=0.0% out=out_quality_121222/no_draft/outputs/case_049.txt
+case_050 51/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_050.txt
+case_051 52/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_051.txt
+case_052 53/100 generated=24 tps=36.66 acc=0.0% out=out_quality_121222/no_draft/outputs/case_052.txt
+case_053 54/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_053.txt
+case_054 55/100 generated=24 tps=36.74 acc=0.0% out=out_quality_121222/no_draft/outputs/case_054.txt
+case_055 56/100 generated=24 tps=36.64 acc=0.0% out=out_quality_121222/no_draft/outputs/case_055.txt
+case_056 57/100 generated=24 tps=36.73 acc=0.0% out=out_quality_121222/no_draft/outputs/case_056.txt
+case_057 58/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_057.txt
+case_058 59/100 generated=24 tps=36.64 acc=0.0% out=out_quality_121222/no_draft/outputs/case_058.txt
+case_059 60/100 generated=24 tps=36.05 acc=0.0% out=out_quality_121222/no_draft/outputs/case_059.txt
+case_060 61/100 generated=24 tps=36.69 acc=0.0% out=out_quality_121222/no_draft/outputs/case_060.txt
+case_061 62/100 generated=24 tps=36.41 acc=0.0% out=out_quality_121222/no_draft/outputs/case_061.txt
+case_062 63/100 generated=24 tps=36.67 acc=0.0% out=out_quality_121222/no_draft/outputs/case_062.txt
+case_063 64/100 generated=24 tps=36.32 acc=0.0% out=out_quality_121222/no_draft/outputs/case_063.txt
+case_064 65/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_064.txt
+case_065 66/100 generated=24 tps=36.76 acc=0.0% out=out_quality_121222/no_draft/outputs/case_065.txt
+case_066 67/100 generated=24 tps=36.65 acc=0.0% out=out_quality_121222/no_draft/outputs/case_066.txt
+case_067 68/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_067.txt
+case_068 69/100 generated=24 tps=36.69 acc=0.0% out=out_quality_121222/no_draft/outputs/case_068.txt
+case_069 70/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_069.txt
+case_070 71/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_070.txt
+case_071 72/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_071.txt
+case_072 73/100 generated=24 tps=36.66 acc=0.0% out=out_quality_121222/no_draft/outputs/case_072.txt
+case_073 74/100 generated=24 tps=36.63 acc=0.0% out=out_quality_121222/no_draft/outputs/case_073.txt
+case_074 75/100 generated=24 tps=36.71 acc=0.0% out=out_quality_121222/no_draft/outputs/case_074.txt
+case_075 76/100 generated=24 tps=36.67 acc=0.0% out=out_quality_121222/no_draft/outputs/case_075.txt
+case_076 77/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_076.txt
+case_077 78/100 generated=24 tps=36.51 acc=0.0% out=out_quality_121222/no_draft/outputs/case_077.txt
+case_078 79/100 generated=24 tps=36.64 acc=0.0% out=out_quality_121222/no_draft/outputs/case_078.txt
+case_079 80/100 generated=24 tps=36.63 acc=0.0% out=out_quality_121222/no_draft/outputs/case_079.txt
+case_080 81/100 generated=17 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_080.txt
+case_081 82/100 generated=24 tps=36.71 acc=0.0% out=out_quality_121222/no_draft/outputs/case_081.txt
+case_082 83/100 generated=24 tps=36.66 acc=0.0% out=out_quality_121222/no_draft/outputs/case_082.txt
+case_083 84/100 generated=24 tps=36.60 acc=0.0% out=out_quality_121222/no_draft/outputs/case_083.txt
+case_084 85/100 generated=21 tps=36.57 acc=0.0% out=out_quality_121222/no_draft/outputs/case_084.txt
+case_085 86/100 generated=24 tps=36.66 acc=0.0% out=out_quality_121222/no_draft/outputs/case_085.txt
+case_086 87/100 generated=24 tps=36.75 acc=0.0% out=out_quality_121222/no_draft/outputs/case_086.txt
+case_087 88/100 generated=24 tps=36.56 acc=0.0% out=out_quality_121222/no_draft/outputs/case_087.txt
+case_088 89/100 generated=24 tps=36.65 acc=0.0% out=out_quality_121222/no_draft/outputs/case_088.txt
+case_089 90/100 generated=24 tps=36.75 acc=0.0% out=out_quality_121222/no_draft/outputs/case_089.txt
+case_090 91/100 generated=24 tps=36.72 acc=0.0% out=out_quality_121222/no_draft/outputs/case_090.txt
+case_091 92/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_091.txt
+case_092 93/100 generated=24 tps=36.68 acc=0.0% out=out_quality_121222/no_draft/outputs/case_092.txt
+case_093 94/100 generated=24 tps=36.71 acc=0.0% out=out_quality_121222/no_draft/outputs/case_093.txt
+case_094 95/100 generated=7 tps=36.99 acc=0.0% out=out_quality_121222/no_draft/outputs/case_094.txt
+case_095 96/100 generated=13 tps=36.81 acc=0.0% out=out_quality_121222/no_draft/outputs/case_095.txt
+case_096 97/100 generated=11 tps=36.77 acc=0.0% out=out_quality_121222/no_draft/outputs/case_096.txt
+case_097 98/100 generated=10 tps=36.65 acc=0.0% out=out_quality_121222/no_draft/outputs/case_097.txt
+case_098 99/100 generated=8 tps=36.77 acc=0.0% out=out_quality_121222/no_draft/outputs/case_098.txt
+case_099 100/100 generated=24 tps=36.70 acc=0.0% out=out_quality_121222/no_draft/outputs/case_099.txt
+wrote out_quality_121222/no_draft/summary.tsv

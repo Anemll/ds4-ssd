@@ -1,0 +1,8 @@
+Ecco una spiegazione dettagliata di come funziona l'inserimento in un B-tree, con particolare attenzione agli split e alla crescita della radice.
+
+## Concetti fondamentali
+
+Un B-tree è un albero bilanciato di grado minimo **t** (o ordine **m**). Ogni nodo può contenere:
+- **Al massimo** `2t - 1` chiavi (nodi interni e foglia)
+- **Al minimo** `t - 1` chiavi (tranne la radice)
+- Un nodo con `k

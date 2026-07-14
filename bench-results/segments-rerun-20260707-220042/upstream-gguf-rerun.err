@@ -1,0 +1,178 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal shader compilation failed: program_source:22:9: warning: 'M_PI_F' macro redefined [-Wmacro-redefined]
+#define M_PI_F 3.14159265358979323846f
+        ^
+/System/Library/PrivateFrameworks/GPUCompiler.framework/Versions/32023/Libraries/lib/clang/32023/include/metal/metal_types:319:9: note: previous definition is here
+#define M_PI_F __FLT_M_PI__
+        ^
+program_source:2156:34: warning: comparison of integers of different signs: 'uint32_t' (aka 'unsigned int') and 'const constant int32_t' (aka 'const constant int') [-Wsign-compare]
+                if ((uint32_t)rr < args.ne01) {
+                    ~~~~~~~~~~~~ ^ ~~~~~~~~~
+program_source:2190:34: warning: comparison of integers of different signs: 'uint32_t' (aka 'unsigned int') and 'const constant int32_t' (aka 'const constant int') [-Wsign-compare]
+                if ((uint32_t)rr < args.ne01) {
+                    ~~~~~~~~~~~~ ^ ~~~~~~~~~
+program_source:2226:34: warning: comparison of integers of different signs: 'uint32_t' (aka 'unsigned int') and 'const constant int32_t' (aka 'const constant int') [-Wsign-compare]
+                if ((uint32_t)rr < args.ne01) {
+                    ~~~~~~~~~~~~ ^ ~~~~~~~~~
+program_source:2265:34: warning: comparison of integers of different signs: 'uint32_t' (aka 'unsigned int') and 'const constant int32_t' (aka 'const constant int') [-Wsign-compare]
+                if ((uint32_t)rr < args.ne01) {
+                    ~~~~~~~~~~~~ ^ ~~~~~~~~~
+program_source:5313:57: error: use of undeclared identifier 'FC_MUL_MM_M5_SGMATRIX'
+constant bool FC_mul_mm_m5_sgmatrix [[function_constant(FC_MUL_MM_M5_SGMATRIX)]];
+                                                        ^
+program_source:5313:15: error: variable in constant address space must be initialized
+constant bool FC_mul_mm_m5_sgmatrix [[function_constant(FC_MUL_MM_M5_SGMATRIX)]];
+              ^
+program_source:6462:48: error: use of undeclared identifier 'ds4_metal_iq3xxs_grid'; did you mean 'ds4_metal_iq2xxs_grid'?
+    constant uchar *grid1 = (constant uchar *)(iq3xxs_grid + q3[4 * il + 0]);
+                                               ^~~~~~~~~~~
+                                               ds4_metal_iq2xxs_grid
+program_source:5632:21: note: expanded from macro 'iq3xxs_grid'
+#define iq3xxs_grid ds4_metal_iq3xxs_grid
+                    ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:6463:48: error: use of undeclared identifier 'ds4_metal_iq3xxs_grid'; did you mean 'ds4_metal_iq2xxs_grid'?
+    constant uchar *grid2 = (constant uchar *)(iq3xxs_grid + q3[4 * il + 1]);
+                                               ^~~~~~~~~~~
+                                               ds4_metal_iq2xxs_grid
+program_source:5632:21: note: expanded from macro 'iq3xxs_grid'
+#define iq3xxs_grid ds4_metal_iq3xxs_grid
+                    ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:6469:32: error: use of undeclared identifier 'ds4_metal_iq3xxs_grid'; did you mean 'ds4_metal_iq2xxs_grid'?
+    grid1 = (constant uchar *)(iq3xxs_grid + q3[4 * il + 2]);
+                               ^~~~~~~~~~~
+                               ds4_metal_iq2xxs_grid
+program_source:5632:21: note: expanded from macro 'iq3xxs_grid'
+#define iq3xxs_grid ds4_metal_iq3xxs_grid
+                    ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:6470:32: error: use of undeclared identifier 'ds4_metal_iq3xxs_grid'; did you mean 'ds4_metal_iq2xxs_grid'?
+    grid2 = (constant uchar *)(iq3xxs_grid + q3[4 * il + 3]);
+                               ^~~~~~~~~~~
+                               ds4_metal_iq2xxs_grid
+program_source:5632:21: note: expanded from macro 'iq3xxs_grid'
+#define iq3xxs_grid ds4_metal_iq3xxs_grid
+                    ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:6509:51: error: use of undeclared identifier 'IQ1M_DELTA'
+    const float ml1 = dl * (qh[0] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                  ^
+program_source:6509:71: error: use of undeclared identifier 'IQ1M_DELTA'
+    const float ml1 = dl * (qh[0] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                      ^
+program_source:6510:51: error: use of undeclared identifier 'IQ1M_DELTA'
+    const float ml2 = dl * (qh[0] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                  ^
+program_source:6510:71: error: use of undeclared identifier 'IQ1M_DELTA'
+    const float ml2 = dl * (qh[0] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                      ^
+program_source:6511:48: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+    constant uchar *grid1 = (constant uchar *)(iq1s_grid_gpu + (qs[0] | ((qh[0] << 8) & 0x700)));
+                                               ^~~~~~~~~~~~~
+                                               ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:6512:48: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+    constant uchar *grid2 = (constant uchar *)(iq1s_grid_gpu + (qs[1] | ((qh[0] << 4) & 0x700)));
+                                               ^~~~~~~~~~~~~
+                                               ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7235:59: error: use of undeclared identifier 'ds4_metal_iq3xxs_grid'; did you mean 'ds4_metal_iq2xxs_grid'?
+        for (int i = 0; i < nval; ++i) svalues[pos + i] = iq3xxs_grid[pos + i];
+                                                          ^~~~~~~~~~~
+                                                          ds4_metal_iq2xxs_grid
+program_source:5632:21: note: expanded from macro 'iq3xxs_grid'
+#define iq3xxs_grid ds4_metal_iq3xxs_grid
+                    ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7342:56: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+            constant uchar *grid1 = (constant uchar *)(iq1s_grid_gpu + (qs[0] | ((qh[0] << 8) & 0x700)));
+                                                       ^~~~~~~~~~~~~
+                                                       ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7343:56: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+            constant uchar *grid2 = (constant uchar *)(iq1s_grid_gpu + (qs[1] | ((qh[0] << 4) & 0x700)));
+                                                       ^~~~~~~~~~~~~
+                                                       ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7344:56: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+            constant uchar *grid3 = (constant uchar *)(iq1s_grid_gpu + (qs[2] | ((qh[1] << 8) & 0x700)));
+                                                       ^~~~~~~~~~~~~
+                                                       ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7345:56: error: use of undeclared identifier 'ds4_metal_iq1s_grid_gpu'; did you mean 'ds4_metal_iq2xxs_grid'?
+            constant uchar *grid4 = (constant uchar *)(iq1s_grid_gpu + (qs[3] | ((qh[1] << 4) & 0x700)));
+                                                       ^~~~~~~~~~~~~
+                                                       ds4_metal_iq2xxs_grid
+program_source:5633:23: note: expanded from macro 'iq1s_grid_gpu'
+#define iq1s_grid_gpu ds4_metal_iq1s_grid_gpu
+                      ^
+program_source:5562:23: note: 'ds4_metal_iq2xxs_grid' declared here
+static constant ulong ds4_metal_iq2xxs_grid[256] = {
+                      ^
+program_source:7354:67: error: use of undeclared identifier 'IQ1M_DELTA'
+            const float delta1 = sumy[0] * (qh[0] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA) +
+                                                                  ^
+program_source:7354:87: error: use of undeclared identifier 'IQ1M_DELTA'
+            const float delta1 = sumy[0] * (qh[0] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA) +
+                                                                                      ^
+program_source:7355:67: error: use of undeclared identifier 'IQ1M_DELTA'
+                                 sumy[1] * (qh[0] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                  ^
+program_source:7355:87: error: use of undeclared identifier 'IQ1M_DELTA'
+                                 sumy[1] * (qh[0] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                                      ^
+program_source:7356:67: error: use of undeclared identifier 'IQ1M_DELTA'
+            const float delta2 = sumy[2] * (qh[1] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA) +
+                                                                  ^
+program_source:7356:87: error: use of undeclared identifier 'IQ1M_DELTA'
+            const float delta2 = sumy[2] * (qh[1] & 0x08 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA) +
+                                                                                      ^
+program_source:7357:67: error: use of undeclared identifier 'IQ1M_DELTA'
+                                 sumy[3] * (qh[1] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                  ^
+program_source:7357:87: error: use of undeclared identifier 'IQ1M_DELTA'
+                                 sumy[3] * (qh[1] & 0x80 ? -1.f - IQ1M_DELTA : -1.f + IQ1M_DELTA);
+                                                                                      ^
+
+ds4: metal backend unavailable; aborting startup
+real 0.67
+user 0.02
+sys 0.01

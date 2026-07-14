@@ -1,0 +1,9 @@
+This is a great question that gets to the core of how modern LLMs work. The key insight is that **quantization is not just about reducing file size; it's about changing the mathematical landscape of the model.**
+
+Here’s a breakdown of why quantization error disproportionately affects "rare experts" (specialized knowledge) compared to "common experts" (common knowledge).
+
+### The Core Concept: The "Rare" vs. "Common" Expert
+
+Think of a model as a giant, multi-dimensional map. The "experts" are the specific patterns and knowledge clusters in this map.
+
+- **Common Experts (e.g., grammar

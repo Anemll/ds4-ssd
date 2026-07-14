@@ -1,0 +1,72 @@
+OUTDIR=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624
+PURGE before ds4ssd-sidecar Mon Jul  6 09:36:24 PDT 2026
+RUN ds4ssd-sidecar Mon Jul  6 09:36:24 PDT 2026
+DONE ds4ssd-sidecar rc=0 Mon Jul  6 09:40:26 PDT 2026 out=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-sidecar.out log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-sidecar.log
+101:ds4: decode-progress: tokens=1000 window=38.78 t/s (1000 tokens in 25.788s) cumulative=38.78 t/s elapsed=25.788s
+102:ds4: decode-progress: tokens=2000 window=29.96 t/s (1000 tokens in 33.377s) cumulative=33.80 t/s elapsed=59.164s
+103:ds4: decode-progress: tokens=3000 window=35.41 t/s (1000 tokens in 28.238s) cumulative=34.32 t/s elapsed=87.402s
+104:ds4: decode-progress: tokens=4000 window=32.76 t/s (1000 tokens in 30.528s) cumulative=33.92 t/s elapsed=117.930s
+105:ds4: decode-progress: tokens=5000 window=31.42 t/s (1000 tokens in 31.825s) cumulative=33.39 t/s elapsed=149.756s
+106:ds4: decode-progress: tokens=6000 window=29.21 t/s (1000 tokens in 34.230s) cumulative=32.61 t/s elapsed=183.986s
+107:ds4: decode-progress: tokens=7000 window=33.13 t/s (1000 tokens in 30.187s) cumulative=32.68 t/s elapsed=214.173s
+109:ds4: prefill: 19.11 t/s, generation: 32.68 t/s (7000 tokens in 214.173s)
+110:ds4: ttf: first-output=24.927s total=239.026s (engine=1.354s session=20.487s prompt=0.000s prefill=2.983s decode=214.173s)
+111:ds4: dspark perf: draft=404.5 tok/s, verify=60.4 proposed tok/s, verify-accepted=38.7 tok/s, block=90.38 ms (draft=11.54 verify=77.28 overhead=1.56 commit=1.23, tau=2.99, blocks=2175)
+114:ds4: vm pressure: app=85.02 GiB resident=63.73 GiB wired=97.41 GiB compressed=1.45 GiB logical=2.96 GiB swap=3.73/5.00 GiB pressure=87% free=0.25 GiB gpu=84.33 GiB gpu-compressed=0.54 GiB task-compressed=28.12 GiB decompressions=4183998
+115:ds4: dspark acceptance: 82.1% (6498/7919 draft tokens)
+119:ds4: dspark avg scheduled: 4.67 draft tokens/block (1697 blocks)
+120:real 241.36
+121:user 13.71
+122:sys 33.66
+   24434 /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-sidecar.out
+RUN ds4ssd-gguf-dspark Mon Jul  6 09:40:46 PDT 2026
+DONE ds4ssd-gguf-dspark rc=0 Mon Jul  6 09:43:39 PDT 2026 out=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-gguf-dspark.out log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-gguf-dspark.log
+84:ds4: decode-progress: tokens=1000 window=36.24 t/s (1000 tokens in 27.594s) cumulative=36.24 t/s elapsed=27.594s
+85:ds4: decode-progress: tokens=2000 window=33.07 t/s (1000 tokens in 30.240s) cumulative=34.58 t/s elapsed=57.835s
+86:ds4: decode-progress: tokens=3000 window=31.65 t/s (1000 tokens in 31.591s) cumulative=33.55 t/s elapsed=89.425s
+87:ds4: decode-progress: tokens=4000 window=30.09 t/s (1000 tokens in 33.232s) cumulative=32.61 t/s elapsed=122.657s
+88:ds4: decode-progress: tokens=5000 window=30.77 t/s (1000 tokens in 32.494s) cumulative=32.23 t/s elapsed=155.151s
+90:ds4: prefill: 18.90 t/s, generation: 31.86 t/s (5115 tokens in 160.569s)
+91:ds4: ttf: first-output=12.688s total=173.099s (engine=9.502s session=0.004s prompt=0.000s prefill=3.016s decode=160.569s)
+92:ds4: dspark perf: draft=389.7 tok/s, verify=65.0 proposed tok/s, verify-accepted=38.3 tok/s, block=81.94 ms (draft=11.50 verify=69.01 overhead=1.43 commit=1.12, tau=2.64, blocks=1762)
+95:ds4: vm pressure: app=11.50 GiB resident=19.24 GiB wired=97.33 GiB compressed=1.41 GiB logical=2.96 GiB swap=3.73/5.00 GiB pressure=87% free=0.33 GiB gpu=11.40 GiB gpu-compressed=0.00 GiB task-compressed=0.02 GiB decompressions=31748
+96:ds4: dspark acceptance: 79.3% (4656/5868 draft tokens)
+100:ds4: dspark avg scheduled: 4.42 draft tokens/block (1328 blocks)
+101:real 173.33
+102:user 9.01
+103:sys 9.23
+   17063 /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/ds4ssd-gguf-dspark.out
+PURGE before upstream-gguf Mon Jul  6 09:43:59 PDT 2026
+RUN upstream-gguf Mon Jul  6 09:43:59 PDT 2026
+DONE upstream-gguf rc=0 Mon Jul  6 09:46:52 PDT 2026 out=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf.out log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf.log
+10:ds4: prefill: 78.32 t/s, generation: 32.13 t/s
+11:real 172.27
+12:user 7.34
+13:sys 4.48
+   21620 /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf.out
+PURGE before upstream-gguf-rerun Mon Jul  6 09:47:48 PDT 2026
+RUN upstream-gguf-rerun Mon Jul  6 09:47:48 PDT 2026
+DONE upstream-gguf-rerun rc=0 Mon Jul  6 09:50:40 PDT 2026 out=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-rerun.out log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-rerun.log
+10:ds4: decode-progress: tokens=1000 window=34.38 t/s (1000 tokens in 29.089s) cumulative=34.38 t/s elapsed=29.089s
+11:ds4: decode-progress: tokens=2000 window=33.89 t/s (1000 tokens in 29.510s) cumulative=34.13 t/s elapsed=58.599s
+12:ds4: decode-progress: tokens=3000 window=33.50 t/s (1000 tokens in 29.850s) cumulative=33.92 t/s elapsed=88.449s
+13:ds4: decode-progress: tokens=4000 window=33.15 t/s (1000 tokens in 30.163s) cumulative=33.72 t/s elapsed=118.612s
+14:ds4: decode-progress: tokens=5000 window=28.65 t/s (1000 tokens in 34.901s) cumulative=32.57 t/s elapsed=153.513s
+15:ds4: prefill: 78.92 t/s, generation: 32.15 t/s
+16:real 172.11
+17:user 7.32
+18:sys 4.48
+   21620 /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-rerun.out
+PURGE before upstream-gguf-final Mon Jul  6 09:51:48 PDT 2026
+RUN upstream-gguf-final Mon Jul  6 09:51:48 PDT 2026
+DONE upstream-gguf-final rc=0 Mon Jul  6 09:54:40 PDT 2026 out=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-final.out log=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-final.log
+10:ds4: decode-progress: tokens=1000 window=34.38 t/s (1000 tokens in 29.084s) cumulative=34.38 t/s elapsed=29.084s
+11:ds4: decode-progress: tokens=2000 window=33.95 t/s (1000 tokens in 29.457s) cumulative=34.16 t/s elapsed=58.541s
+12:ds4: decode-progress: tokens=3000 window=33.48 t/s (1000 tokens in 29.867s) cumulative=33.93 t/s elapsed=88.408s
+13:ds4: decode-progress: tokens=4000 window=33.12 t/s (1000 tokens in 30.196s) cumulative=33.73 t/s elapsed=118.603s
+14:ds4: decode-progress: tokens=5000 window=28.67 t/s (1000 tokens in 34.880s) cumulative=32.58 t/s elapsed=153.484s
+15:ds4: prefill: 79.10 t/s, generation: 32.16 t/s (5483 tokens in 170.493s)
+16:real 172.09
+17:user 7.33
+18:sys 4.48
+   21620 /Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/space-invaders-20260706-093624/upstream-gguf-final.out

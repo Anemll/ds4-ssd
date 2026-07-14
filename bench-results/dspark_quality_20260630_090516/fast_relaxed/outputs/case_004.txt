@@ -1,0 +1,11 @@
+This is a great question that gets at the heart of how modern LLM agents work efficiently.
+
+The core reason **KV Cache checkpointing** helps agentic sessions is that it **saves the model from having to re-process the entire conversation history** when the user sends a new message or when the agent takes a tool call.
+
+Let's break down the "why" in detail.
+
+### The Problem: The "Context Window Tax" in Agentic Loops
+
+In an agentic session, the agent often goes through multiple internal steps (thinking) and external steps (tool calls, API requests) before responding to the user.
+
+**Example

@@ -1,0 +1,16 @@
+A **ring buffer** (also called a circular buffer) is a data structure that uses a fixed-size array as if it were connected end-to-end, forming a circle.
+
+---
+
+## How a Ring Buffer "Wraps"
+
+### The core idea
+You have:
+- A fixed-size array (e.g., size `N`)
+- Two pointers: **read** (head) and **write** (tail)
+- Both pointers move forward, but when they reach the end of the array, they **wrap around** to index 0.
+
+### Wrapping mechanism
+```text
+Initial state (size = 5):
+[ _

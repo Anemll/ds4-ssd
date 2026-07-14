@@ -1,0 +1,5 @@
+run=bench-results/si_html_010_nodraft_control_020834
+mode=no_draft
+started=2026-07-01T09:08:34Z
+status=0
+finished=2026-07-01T09:10:58Z

@@ -1,0 +1,9 @@
+Questa è una domanda interessante che riguarda due parametri fondamentali per controllare la generazione di testo nei modelli linguistici (come GPT).
+
+È importante fare una premessa: **temperatura zero** e **top-p (nucleus sampling)** non sono due metodi alternativi, ma agiscono su due aspetti diversi della stessa fase di selezione delle parole. Spesso si usano insieme.
+
+Vediamo i pro e contro di ciascuno, partendo da una definizione chiara.
+
+### Temperatura Zero (T=0)
+
+La temperatura controlla la **distribuzione di probabilità

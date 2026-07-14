@@ -1,0 +1,11 @@
+Ecco una checklist per revisionare la gestione della memoria (memory lifetime) in una PR:
+
+## Checklist per la revisione della memoria
+
+### 1. Ownership e borrowing
+- [ ] I `Box`, `Rc`, `Arc` e altri smart pointer sono usati correttamente
+- [ ] I prestiti (`&`, `&mut`) non creano conflitti di accesso
+- [ ] Non ci sono dangling reference (riferimenti a dati già deallocati)
+
+### 2. Lifetime dei dati
+- [ ] I dati temporanei non vengono referenziati dopo la loro

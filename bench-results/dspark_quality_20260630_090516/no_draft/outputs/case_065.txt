@@ -1,0 +1,12 @@
+A **trie** (also called a prefix tree) represents a set of strings by storing them in a tree structure where:
+
+1. **Each node** represents a single character (or a prefix).
+2. **Edges** between nodes correspond to the next character in a string.
+3. **Multiple strings** share the same prefix by merging their paths.
+
+## How it works
+
+- Start from the **root node** (which is empty).
+- For each string, follow the path character by character:
+  - If a child node for the next character exists, go there.
+  - If not, create a new node for

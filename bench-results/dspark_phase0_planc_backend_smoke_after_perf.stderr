@@ -1,0 +1,4 @@
+dspark phase0: baseline_tps=33
+dspark phase0: draft budget=2 -> bench-results/dspark_phase0_planc_backend_smoke_after_perf/dspark_b2.err
+dspark phase0: unified backend=strict_v1 budget=2 -> bench-results/dspark_phase0_planc_backend_smoke_after_perf/dspark_unified_strict_v1_b2.err
+dspark phase0: wrote bench-results/dspark_phase0_planc_backend_smoke_after_perf/summary.tsv

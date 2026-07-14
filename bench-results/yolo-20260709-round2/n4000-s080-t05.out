@@ -1,0 +1,397 @@
+This HTML code creates a faithful, self-contained reproduction of the classic 1978 Taito arcade game "Astrans" (a fictional name for this exercise) within a single file. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito Arcade – Astrans</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #222;
+      border: 6px solid #8b5a2b;
+      border-radius: 20px 20px 10px 10px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 30px rgba(255, 200, 50, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .marquee {
+      background: #1a1a2e;
+      color: #f0c060;
+      font-size: 2.2rem;
+      font-weight: bold;
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #f0c060, 0 0 20px #ff8c00;
+      padding: 10px 30px;
+      border: 3px solid #b8860b;
+      border-radius: 10px 10px 0 0;
+      margin-bottom: 10px;
+      text-align: center;
+      width: 100%;
+    }
+    .screen-wrapper {
+      background: #000;
+      border: 6px solid #333;
+      border-radius: 10px;
+      padding: 10px;
+      margin: 5px 0;
+      box-shadow: inset 0 0 20px #000, 0 0 10px #f0c06040;
+    }
+    canvas {
+      display: block;
+      background: #0a0a0a;
+      width: 640px;
+      height: 480px;
+      image-rendering: pixelated;
+      border: 2px solid #5a3e1a;
+    }
+    .controls {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+      color: #ddd;
+      font-size: 1.1rem;
+      background: #2b1a0e;
+      padding: 10px 30px;
+      border-radius: 20px;
+      border: 2px solid #b8860b;
+    }
+    .controls span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .key {
+      background: #444;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 2px 10px;
+      color: #ffd966;
+      font-weight: bold;
+    }
+    .btn {
+      background: #c8411a;
+      border: 3px solid #ff6e1e;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      box-shadow: 0 0 10px #ff6e1e80;
+    }
+    .info {
+      color: #bdb76b;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      text-align: center;
+      border-top: 2px solid #6b4a2b;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="marquee">★ ASTRANS ★</div>
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="640" height="480"></canvas>
+  </div>
+  <div class="controls">
+    <span><span class="key">← →</span> move</span>
+    <span><span class="key">↑</span> thrust</span>
+    <span><span class="key">Z</span> fire</span>
+    <span><span class="key">R</span> restart</span>
+  </div>
+  <div class="info">1978 Taito · original rules · sprite fidelity</div>
+</div>
+<script>
+  (function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // ---------- CONSTANTS ----------
+    const W = 640, H = 480;
+    const PLAYER_RADIUS = 14;
+    const ASTEROID_RADII = [24, 18, 12];
+    const UFO_RADIUS = 20;
+    const MAX_BULLETS = 6;
+    const MAX_UFO_BULLETS = 4;
+    const PLAYER_ACCEL = 0.2;
+    const PLAYER_FRICTION = 0.98;
+    const PLAYER_MAX_SPEED = 5;
+    const BULLET_SPEED = 6;
+    const UFO_BULLET_SPEED = 3.5;
+    const UFO_FIRE_RATE = 40; // frames between shots
+    const UFO_SPEED = 1.5;
+    const ASTEROID_SPEED = 1.8;
+    const RESPAWN_DELAY = 90; // frames
+
+    // ---------- GAME STATE ----------
+    let player = {
+      x: 320, y: 440, vx: 0, vy: 0, angle: -90, // up
+      radius: PLAYER_RADIUS, active: true, respawnTimer: 0
+    };
+    let bullets = [];
+    let ufoBullets = [];
+    let asteroids = [];
+    let ufo = { x: 0, y: 0, active: false, timer: 0, angle: 0, vx: 0, vy: 0, fireTimer: 0 };
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let frame = 0;
+
+    // ---------- HELPER: random between ----------
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+
+    // ---------- INIT / RESET ----------
+    function resetGame() {
+      player.x = 320; player.y = 440; player.vx = 0; player.vy = 0;
+      player.angle = -90; player.active = true; player.respawnTimer = 0;
+      bullets = [];
+      ufoBullets = [];
+      asteroids = [];
+      ufo.active = false; ufo.timer = 0; ufo.fireTimer = 0;
+      score = 0; lives = 3; gameOver = false;
+      // spawn initial asteroids
+      for (let i = 0; i < 6; i++) {
+        spawnAsteroid(true);
+      }
+      // ensure no asteroid on player start
+      clearAsteroidNearPlayer();
+    }
+
+    function clearAsteroidNearPlayer() {
+      const px = 320, py = 440;
+      for (let i = 0; i < asteroids.length; i++) {
+        const a = asteroids[i];
+        const dx = a.x - px, dy = a.y - py;
+        if (Math.hypot(dx, dy) < 80) {
+          a.x = rand(30, 610); a.y = rand(20, 300);
+          a.vx = rand(-1, 1) * ASTEROID_SPEED;
+          a.vy = rand(-1, 1) * ASTEROID_SPEED;
+        }
+      }
+    }
+
+    // ---------- SPAWN ASTEROID ----------
+    function spawnAsteroid(initial = false) {
+      let x, y, vx, vy;
+      if (initial) {
+        x = rand(30, 610); y = rand(20, 300);
+        vx = rand(-1, 1) * ASTEROID_SPEED;
+        vy = rand(-1, 1) * ASTEROID_SPEED;
+      } else {
+        // spawn from edges
+        const side = Math.floor(Math.random() * 4);
+        if (side === 0) { x = rand(10, 630); y = 10; }
+        else if (side === 1) { x = rand(10, 630); y = 470; }
+        else if (side === 2) { x = 10; y = rand(10, 470); }
+        else { x = 630; y = rand(10, 470); }
+        vx = rand(-1, 1) * ASTEROID_SPEED;
+        vy = rand(-1, 1) * ASTEROID_SPEED;
+      }
+      const size = Math.floor(Math.random() * 3); // 0,1,2
+      const r = ASTEROID_RADII[size];
+      asteroids.push({ x, y, vx, vy, radius: r, size, hp: size+1 });
+    }
+
+    // ---------- UFO ----------
+    function spawnUfo() {
+      const side = Math.floor(Math.random() * 4);
+      let x, y, vx, vy;
+      if (side === 0) { x = rand(20, 620); y = 20; vx = rand(-0.5, 0.5); vy = 1; }
+      else if (side === 1) { x = rand(20, 620); y = 460; vx = rand(-0.5, 0.5); vy = -1; }
+      else if (side === 2) { x = 20; y = rand(20, 460); vx = 1; vy = rand(-0.5, 0.5); }
+      else { x = 620; y = rand(20, 460); vx = -1; vy = rand(-0.5, 0.5); }
+      ufo.active = true;
+      ufo.x = x; ufo.y = y; ufo.vx = vx * UFO_SPEED; ufo.vy = vy * UFO_SPEED;
+      ufo.fireTimer = 0;
+      ufo.timer = 0;
+    }
+
+    // ---------- DRAW SPRITES (original 1978 style) ----------
+    function drawPlayer(x, y, angle) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle * Math.PI / 180);
+      // original Taito sprite: triangle with detail
+      ctx.beginPath();
+      ctx.moveTo(0, -18);
+      ctx.lineTo(-12, 12);
+      ctx.lineTo(0, 6);
+      ctx.lineTo(12, 12);
+      ctx.closePath();
+      ctx.fillStyle = '#c0e0ff';
+      ctx.shadowColor = '#7fcaff';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.strokeStyle = '#e0f0ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // cockpit detail
+      ctx.beginPath();
+      ctx.arc(0, -4, 4, 0, Math.PI*2);
+      ctx.fillStyle = '#ffd966';
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawAsteroid(a) {
+      const r = a.radius;
+      ctx.save();
+      ctx.translate(a.x, a.y);
+      // classic jagged polygon
+      const spikes = 10;
+      ctx.beginPath();
+      for (let i = 0; i < spikes; i++) {
+        const angle = (i / spikes) * Math.PI * 2 - Math.PI/2;
+        const len = r * (0.7 + 0.3 * Math.sin(i * 3.7));
+        const xOff = Math.cos(angle) * len;
+        const yOff = Math.sin(angle) * len;
+        if (i === 0) ctx.moveTo(xOff, yOff);
+        else ctx.lineTo(xOff, yOff);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#6b4a2b';
+      ctx.shadowColor = '#3a2a1a';
+      ctx.shadowBlur = 6;
+      ctx.fill();
+      ctx.strokeStyle = '#8b6b3a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // highlight
+      ctx.beginPath();
+      ctx.arc(-3, -3, 4, 0, Math.PI*2);
+      ctx.fillStyle = '#a07a40';
+      ctx.shadowBlur = 4;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawUfo(u) {
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      // classic saucer
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 24, 10, 0, 0, Math.PI*2);
+      ctx.fillStyle = '#b03030';
+      ctx.shadowColor = '#ff4040';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.strokeStyle = '#ff6e6e';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // dome
+      ctx.beginPath();
+      ctx.arc(0, -4, 10, 0, Math.PI);
+      ctx.fillStyle = '#4a7a8a';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.strokeStyle = '#8ac0d0';
+      ctx.stroke();
+      // light
+      ctx.beginPath();
+      ctx.arc(0, -8, 3, 0, Math.PI*2);
+      ctx.fillStyle = '#ffff80';
+      ctx.shadowBlur = 20;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBullet(b) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.fillStyle = '#ffd966';
+      ctx.shadowColor = '#ffaa00';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawUfoBullet(b) {
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      ctx.fillStyle = '#ff4040';
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // ---------- COLLISION & GAME MECHANICS ----------
+    function handleCollisions() {
+      // player vs asteroids
+      if (player.active) {
+        for (let i = 0; i < asteroids.length; i++) {
+          const a = asteroids[i];
+          const dx = player.x - a.x, dy = player.y - a.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < player.radius + a.radius) {
+            // destroy asteroid, player dies
+            score += a.size * 10 + 10;
+            asteroids.splice(i, 1);
+            player.active = false;
+            player.respawnTimer = RESPAWN_DELAY;
+            lives--;
+            if (lives <= 0) gameOver = true;
+            break;
+          }
+        }
+      }
+      // player vs ufo
+      if (player.active && ufo.active) {
+        const dx = player.x - ufo.x, dy = player.y - ufo.y;
+        if (Math.hypot(dx, dy) < player.radius + UFO_RADIUS) {
+          ufo.active = false;
+          ufo.timer = 0;
+          player.active = false;
+          player.respawnTimer = RESPAWN_DELAY;
+          lives--;
+          if (lives <= 0) gameOver = true;
+          score += 100;
+        }
+      }
+      // bullets vs asteroids
+      for (let b = 0; b < bullets.length; b++) {
+        const bullet = bullets[b];
+        for (let i = 0; i < asteroids.length; i++) {
+          const a = asteroids[i];
+          if (Math.hypot(bullet.x - a.x, bullet.y - a.y) < a.radius + 4) {
+            bullets.splice(b, 1);
+            // destroy asteroid
+            score += a.size * 20 + 20;
+            if (a.size > 0) {
+              // spawn two smaller
+              const r1 = ASTEROID_RADII[a.size-1];
+              const r2 = ASTEROID_RADII[a.size-1];
+              asteroids.push({ x: a.x+10, y: a.y+10, vx: a.vx*1.2, vy: a.vy*1.2, radius: r1, size: a.size-1, hp: a.size });
+              asteroids.push({ x: a.x-10, y: a.y-10, vx: a.vx*-1.2, vy: a.vy*-1.2, radius: r2, size: a.size-1, hp: a.size });
+            }
+            asteroids.splice(i, 1);
+            break;
+          }
+        }
+      }
+      // bullets vs ufo
+      for (let b = 0; b < bullets.length; b++) {
+        const bullet = bullets[b];
+        if (ufo.active && Math.hypot(bullet.x - ufo.x, bullet.y - ufo.y) < UFO_RADIUS + 4) {
+          bullets.splice(b, 1);
+          u

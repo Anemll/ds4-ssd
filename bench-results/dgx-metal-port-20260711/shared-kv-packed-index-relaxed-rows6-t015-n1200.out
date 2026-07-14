@@ -1,0 +1,164 @@
+I'll create a faithful reproduction of the 1978 Taito arcade classic "Asteroids" as a single self-contained HTML file with inline CSS and JS.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade - Asteroids</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        canvas {
+            display: block;
+            border: 2px solid #333;
+            background: #000;
+            image-rendering: pixelated;
+        }
+        .game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .score-board {
+            color: #fff;
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 10px #00ffff;
+            letter-spacing: 4px;
+        }
+        .controls {
+            color: #555;
+            font-size: 12px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .controls span {
+            color: #0ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="score-board" id="scoreDisplay">SCORE: 0</div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <span>↑</span> THRUST &nbsp; <span>←</span><span>→</span> ROTATE &nbsp; <span>SPACE</span> FIRE
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+
+        // Game constants
+        const W = 800, H = 600;
+        const ASTEROID_COUNT = 5;
+        const MAX_ASTEROID_SPEED = 3;
+        const PLAYER_SPEED = 0.5;
+        const ROTATION_SPEED = 0.05;
+        const THRUST_FORCE = 0.15;
+        const BULLET_SPEED = 8;
+        const BULLET_LIFE = 40;
+        const SHIP_RADIUS = 20;
+
+        // Game state
+        let score = 0;
+        let gameOver = false;
+        let keys = {};
+
+        // Player
+        let player = {
+            x: 0,
+            y: 0,
+            angle: -Math.PI / 2,
+            vx: 0,
+            vy: 0,
+            radius: 20,
+            alive: true,
+            invincible: 0
+        };
+
+        // Asteroids
+        let asteroids = [];
+        let bullets = [];
+        let particles = [];
+
+        // Initialize
+        function init() {
+            player.x = W / 2;
+            player.y = H / 2;
+            player.angle = -Math.PI / 2;
+            player.vx = 0;
+            player.vy = 0;
+            player.alive = true;
+            player.invincible = 0;
+            score = 0;
+            gameOver = false;
+            asteroids = [];
+            bullets = [];
+            particles = [];
+            for (let i = 0; i < ASTEROID_COUNT; i++) {
+                spawnAsteroid(true);
+            }
+            updateScore();
+        }
+
+        function spawnAsteroid(isLarge = true) {
+            const size = isLarge ? 3 : (Math.random() < 0.5 ? 2 : 1);
+            let angle = Math.random() * Math.PI * 2;
+            let speed = 0.5 + Math.random() * 1.5;
+            let x, y;
+            if (isLarge) {
+                // Spawn away from player
+                do {
+                    x = Math.random() * W;
+                    y = Math.random() * H;
+                } while (Math.hypot(x - player.x, y - player.y) < 150);
+            } else {
+                x = Math.random() * W;
+                y = Math.random() * H;
+            }
+            asteroids.push({
+                x, y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: size,
+                radius: 15 * size
+            });
+        }
+
+        // Input
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space') e.preventDefault();
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // Update
+        function update() {
+            if (gameOver) return;
+
+            // Player
+            if (player.alive) {
+                // Rotation
+                if (keys['ArrowLeft'] || keys['aA']) player.angle -= ROTATION_SPEED;
+                if (keys['ArrowRight'] || keys['dD']) player.angle += ROTATION_SPEED;
+
+                // Thrust

@@ -1,0 +1,7 @@
+Questa è una domanda molto interessante e tecnica. Ecco un riassunto chiaro del perché la **decodifica speculativa** può mantenere l'output esatto (cioè, la stessa distribuzione del modello "oracle" o "target").
+
+---
+
+### Riassunto: Perché la Decodifica Speculativa Mantiene l'Output Esatto
+
+La decodifica speculativa mantiene l'output esatto perché si basa su un **meccanismo di verifica e rigetto** che garantisce la conservazione della distribuzione di probabilità del modello target, indipendent

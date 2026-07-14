@@ -1,0 +1,68 @@
+Here's a complete game for Space Invader with Python code using pygame
+```python
+import pygame
+import sys
+import random
+
+# Initialize pygame
+pygame.init()
+pygame.mixer.init()
+
+# Initialize screen
+screen = pygame.display.set_mode((800, 600))
+pygame.display.setup, 0))
+py = None)
+# ======0)
+# ======0)
+# ======0)
+# ======0)
+# ======0)
+# ======0)
+# =======0
+# ======0. 
+
+# ======0)
+# ======00
+0.0
+0.0
+0
+0)
+   0
+0
+0
+0
+0
+0
+0
+0
+
+0
+# 
+0
+0
+0
+0
+0
+0
+0
+0
+
+# 
+# 
+# 
+# 
+# 
+# 
+# = []
+# 
+# = []
+# 
+# = []
+# 
+# = []
+# = []
+# = []
+# = []
+## ==========# ==========# = 
+# ==========0
+# ==========# 0 ==========# ==========#  #0.0 ==========0 ==========0.0 ==========0 ==========0.0 ==========0 ==========0 ==========0 ==========0 ==========

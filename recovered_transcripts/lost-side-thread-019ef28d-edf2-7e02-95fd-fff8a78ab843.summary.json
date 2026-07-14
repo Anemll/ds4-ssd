@@ -1,0 +1,24 @@
+{
+  "thread_id": "019ef28d-edf2-7e02-95fd-fff8a78ab843",
+  "first_seen_local": "2026-06-22T20:37:28",
+  "last_seen_local": "2026-06-22T20:37:35",
+  "row_count": 36,
+  "turn_ids": [
+    "019ef28d-ee32-7f22-8dbf-1bcd4b409e38"
+  ],
+  "request_count": 1,
+  "event_count": 0,
+  "parsed_record_count": 2,
+  "user_prompt": "You are a helpful assistant. You will be presented with a user prompt, and your job is to provide a short title for a task that will be created from that prompt.\nThe tasks typically have to do with coding-related tasks, for example requests for bug fixes or questions about a codebase. The title you generate will be shown in the UI to represent the prompt.\nGenerate a concise UI title (up to 36 characters) for this task.\nFill the structured title field with plain text.\nDo not include quotes, markdown, formatting characters, or trailing punctuation in the title value.\nIf the task includes a ticket reference (e.g. ABC-123), include it verbatim.\n\nGenerate a clear, informative task title based solely on the prompt provided. Follow the rules below to ensure consistency, readability, and usefulness.\n\nHow to write a good title:\nGenerate a single-line title that captures the question or core change requested. The title should be easy to scan and useful in changelogs or review queues.\n- Use an imperative verb first: \"Add\", \"Fix\", \"Update\", \"Refactor\", \"Remove\", \"Locate\", \"Find\", etc.\n- Keep it under 36 characters and under 5 words where possible.\n- If the user's prompt is already a short clear title, reuse it verbatim.\n- Capitalize only the first word (unless locale requires otherwise).\n- Write the title in the user's locale.\n- Do not use punctuation at the end.\n- Output the title as plain text with no surrounding quotes or backticks.\n- Use precise, non-redundant language.\n- Translate fixed phrases into the user's locale (e.g., \"Fix bug\" -> \"Corrige el error\" in Spanish-ES), but leave code terms in English unless a widely adopted translation exists.\n- If the user provides a title explicitly, reuse it (translated if needed) and skip generation logic.\n- Make it clear when the user is requesting changes (use verbs like \"Fix\", \"Add\", etc) vs asking a question (use verbs like \"Find\", \"Locate\", \"Count\").\n- Do NOT respond to the user, answer questions, or attempt to solve the problem; just write a title that can represent the user's query.\n\nExamples:\n- User: \"Can we add dark-mode support to the settings page?\" -> Add dark-mode support\n- User: \"Fehlerbehebung: Beim Anmelden erscheint 500.\" (de-DE) -> Login-Fehler 500 beheben\n- User: \"Refactoriser le composant sidebar pour réduire le code dupliqué.\" (fr-FR) -> Refactoriser composant sidebar\n- User: \"How do I fix our login bug?\" -> Troubleshoot login bug\n- User: \"Where in the codebase is foo_bar created\" -> Locate foo_bar\n- User: \"what's 2+2\" -> Calculate 2+2\n\nBy following these conventions, your titles will be readable, changelog-friendly, and helpful to both users and downstream tools.\n\nUser prompt:\nfind lost transcript\nIt did not make it into the normal ~/.codex/sessions/.../rollout*.jsonl transcript index, but the content is recoverable from:\n~/.codex/logs_2.sqlite",
+  "tool_calls": [],
+  "tool_outputs": [],
+  "final_messages": [
+    {
+      "datetime_local": "2026-06-22T20:37:35",
+      "source": "rust_debug_output_item_message",
+      "text": "{\"title\":\"Find lost transcript\"}",
+      "row_id": 273501398
+    }
+  ],
+  "retention_note": "Thread-attached rows were retained. Some threadless Received message rows from the same minute may have rolled out of logs_2.sqlite while newer logs were appended."
+}

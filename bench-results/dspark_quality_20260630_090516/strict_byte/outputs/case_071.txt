@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca il cuore dell'informatica e degli algoritmi.
+
+La risposta breve è: **perché permettono di usare algoritmi di ricerca più efficienti che sfruttano la struttura ordinata dei dati per scartare grandi porzioni di dati in un solo passo.**
+
+Ecco la spiegazione dettagliata, confrontando la ricerca in array non ordinati e ordinati.
+
+### 1. Ricerca in un Array NON Ordinato
+
+In un array non ordinato, gli elementi sono disposti in modo casuale. Non c'è

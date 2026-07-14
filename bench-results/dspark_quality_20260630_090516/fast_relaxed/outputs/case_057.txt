@@ -1,0 +1,5 @@
+Ecco una spiegazione chiara e strutturale della differenza tra righe KV (Key-Value) raw e righe KV compresse, concetti fondamentali nell'architettura di database come Apache Cassandra o sistemi di storage distribuiti.
+
+### Differenza tra Righe KV Raw e Righe KV Compresse
+
+La differenza principale riguarda **come vengono memorizzate le colonne** (o le coppie chiave-valore) all'interno di una riga. Questo impatta direttamente sull'efficienza dello spazio di archiviazione, sulla velocità di lettura e sulla

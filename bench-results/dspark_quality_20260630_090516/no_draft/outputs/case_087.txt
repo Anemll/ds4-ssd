@@ -1,0 +1,7 @@
+Here are three useful server metrics, each with a brief explanation of why it matters:
+
+1.  **CPU Utilization (Average & Peak)**
+    - **Why it's useful:** This tells you how hard your server's processor is working. Consistently high CPU usage (e.g., >80%) indicates your server is under-provisioned or has a performance bottleneck (like a tight loop or inefficient algorithm). It helps you plan capacity and identify abnormal spikes from issues like DDoS attacks or runaway processes.
+
+2.  **Memory Usage (RAM)**
+    - **Why it's useful:** Tracking memory consumption helps you detect memory

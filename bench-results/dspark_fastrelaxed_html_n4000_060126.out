@@ -1,0 +1,210 @@
+Here is a complete HTML file that recreates a pixel-perfect Space Invaders game, a single HTML file with embedded CSS and JavaScript.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders (1978) – Pixel Perfect</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      image-rendering: pixelated;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .cabinet-wrapper {
+      background: #111;
+      border: 2px solid #000;
+      border-radius: 12px;
+      padding: 20px 20px 10px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.9), inset 0 0 10px #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .canvas-wrapper {
+      position: relative;
+      background: #000;
+      border: 4px solid #222;
+      border-radius: 4px;
+      box-shadow: inset 0 0 2px #0f0, 0 0 0 1px #333;
+      line-height: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 800px;
+      height: 800px;
+      background: #000;
+      image-rendering: pixelated;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      margin-top: 12px;
+      color: #f0f0;
+      font-size: 14px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 0 10px;
+    }
+
+    .controls span {
+      background: #000;
+      padding: 4px 12px;
+      border: 1px solid #333;
+      border-radius: 2px;
+      color: #0f0;
+      text-shadow: 0 0 6px #0f0;
+      font-weight: bold;
+    }
+
+    .controls .score {
+      color: #fff;
+      background: #000;
+      border: 1px solid #0f0;
+    }
+
+    .info {
+      color: #aaa;
+      font-size: 12px;
+      margin-top: 6px;
+      text-align: center;
+      border-top: 1px solid #222;
+      padding-top: 6px;
+      width: 100%;
+    }
+
+    .info a {
+      color: #0f0;
+      text-decoration: none;
+    }
+
+    /* 1978 pixel art style */
+    .sprite {
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="cabinet-wrapper">
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas" width="800" height="800"></canvas>
+    </div>
+    <div class="controls">
+      <span>🔴 <span style="color:#0f0;">⬇</span>  </span>
+      <span class="score" id="scoreDisplay">000</span>
+      <span>⬅ ⬇ ➡</span>
+    </div>
+    <div class="info">
+      <span>⏺ 1978 TAI · COSMIC ·  </span> <span style="color:#0f0;"> SPACE INVADERS</span>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      // 256x256 pixel art - but we can scale up to 800 canvas
+      // Original 1978: 224x256, but we'll use 256x256 for pixel perfect.
+      // Canvas 800x800 -> 4x4 pixel per square.
+      const G = 800; // 800x800
+      const CELL = 4; // each pixel art
+      const W = 256, H = 256;
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const scoreSpan = document.getElementById('scoreDisplay');
+
+      // ---------- GAME STATE ----------
+      let score = 0;
+      let lives = 3;
+      let level = 1;
+      let gameOver = false;
+      let win = false;
+      // invaders
+      let invaders = [];
+      let invaderRows = 5;
+      let invaderCols = 10;
+      let invaderWidth = 12; // pixels
+      let invaderHeight = 8;
+      let invaderDirection = 1; // 1 right, -1 left
+      let invaderSpeed = 1.5; // pixels per frame
+      let invaderStep = 0;
+      let invaderAnim = 0;
+      // player
+      let playerX = 128 - 16; // 2*8? 16 pixel width
+      let playerY = 240;
+      let playerWidth = 16;
+      let playerSpeed = 3;
+      // bullets
+      let playerBullets = [];
+      let enemyBullets = [];
+      let bulletSpeed = 4;
+      // explosions
+      let explosions = [];
+      // game
+      let frameCount = 0;
+      let invaderTimer = 0;
+      let invaderInterval = 10; // frames per step
+      let shootTimer = 0;
+      let shootInterval = 60; // frames between enemy shots
+      let playerShoot = false;
+      let playerShootCooldown = 0;
+      const PLAYER_SHOOT_COOLDOWN_MAX = 20;
+
+      // ---------- 1978 SPRITE DESIGNS (PIXEL ART) ----------
+      // 16x16 pixel art for each sprite
+      // We'll draw them as 4x16 = 64px on canvas
+      // Player 16x16
+      function drawPlayer() {
+          const s = 16;
+        const x = 0, y = 0;
+          const img = ctx.createImageData(16,16);
+          // pixel art
+          const p = [
+            '........'....'..',
+            '...######..',
+            '..##########..',
+            '.########## .',
+            '.########',
+            '..########',
+            '...######',
+            '....####',
+            '....',
+            '....',
+            '....',
+            '....'
+        ];
+        // Actually, let's define a simple 16x16 pattern
+        // 1978 style: spaceship, pixel art
+        const pixel = [
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            0,0,0,0,0,0,0,0,0

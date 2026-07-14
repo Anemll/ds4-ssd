@@ -1,0 +1,7 @@
+This is a great question. The core idea is that a single prompt gives you a single data point, while 50 prompts give you a **distribution** of data. Evaluating a model on a single, "favorite" prompt is like judging a student's entire semester's worth of knowledge based on one question they answered perfectly.
+
+Here’s a breakdown of why 50 prompts are more informative, structured around key statistical and practical concepts.
+
+### 1. Sampling and Statistical Significance
+
+- **The Single Prompt:** This is a sample size of **n=1**. You cannot draw any reliable conclusions about the model's overall performance from this

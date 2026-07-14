@@ -1,0 +1,1223 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (disable with DS4_DSPARK_RESIDENT=0)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.578 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=29.50 t/s avg=0.50 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.50 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=54.66 t/s avg=0.99 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.98 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=54.22 t/s avg=1.46 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.44 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.43 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=48.03 t/s avg=1.88 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.86 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=47.49 t/s avg=2.31 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.29 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=51.59 t/s avg=2.72 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.70 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=57.27 t/s avg=3.12 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.10 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.08 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=53.89 t/s avg=3.49 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.45 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=57.28 t/s avg=3.85 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.82 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.84 t/s avg=4.21 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.18 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.89 t/s avg=4.56 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.53 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.50 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=50.54 t/s avg=4.87 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.83 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.11 t/s avg=5.19 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.16 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=54.08 t/s avg=5.51 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.47 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=57.32 t/s avg=5.83 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.78 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.74 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=52.63 t/s avg=6.08 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=6.03 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=54.19 t/s avg=6.36 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=6.31 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=53.36 t/s avg=6.64 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.59 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.84 t/s avg=6.90 t/s
+ds4: prefill full: 19 tokens in 2755.6 ms (6.9 t/s)
+ds4: dspark block profile layer=0 hc_attn=1.352 ms
+ds4: dspark block profile layer=0 q_proj=9.750 ms
+ds4: dspark block profile layer=0 kv_proj=0.311 ms
+ds4: dspark block profile layer=0 attn=0.370 ms
+ds4: dspark block profile layer=0 attn_out=21.449 ms
+ds4: dspark block profile layer=0 ffn_hc=1.012 ms
+ds4: dspark block profile layer=0 shared_router=9.548 ms
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark block profile layer=0 routed=20.818 ms
+ds4: dspark graph profile block0=64.679 ms
+ds4: dspark block profile layer=1 hc_attn=1.228 ms
+ds4: dspark block profile layer=1 q_proj=9.387 ms
+ds4: dspark block profile layer=1 kv_proj=0.371 ms
+ds4: dspark block profile layer=1 attn=0.361 ms
+ds4: dspark block profile layer=1 attn_out=19.772 ms
+ds4: dspark block profile layer=1 ffn_hc=1.054 ms
+ds4: dspark block profile layer=1 shared_router=8.967 ms
+ds4: dspark block profile layer=1 routed=1.432 ms
+ds4: dspark graph profile block1=42.663 ms
+ds4: dspark block profile layer=2 hc_attn=1.979 ms
+ds4: dspark block profile layer=2 q_proj=10.377 ms
+ds4: dspark block profile layer=2 kv_proj=0.416 ms
+ds4: dspark block profile layer=2 attn=0.253 ms
+ds4: dspark block profile layer=2 attn_out=22.021 ms
+ds4: dspark block profile layer=2 ffn_hc=1.125 ms
+ds4: dspark block profile layer=2 shared_router=9.965 ms
+ds4: dspark block profile layer=2 routed=1.257 ms
+ds4: dspark graph profile block2=47.489 ms
+ds4: dspark graph profile head=2.500 ms
+ds4: dspark draft profile cap=5 rows=5 graph=157.453 ms markov=35.545 ms total=192.998 ms
+ds4: DSpark draft warmup: cap=5 rows=5 in 193.0 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark block profile layer=0 hc_attn=0.405 ms
+ds4: dspark block profile layer=0 q_proj=1.001 ms
+ds4: dspark block profile layer=0 kv_proj=0.337 ms
+ds4: dspark block profile layer=0 attn=0.224 ms
+ds4: dspark block profile layer=0 attn_out=2.782 ms
+ds4: dspark block profile layer=0 ffn_hc=0.290 ms
+ds4: dspark block profile layer=0 shared_router=0.862 ms
+ds4: dspark block profile layer=0 routed=1.016 ms
+ds4: dspark graph profile block0=6.971 ms
+ds4: dspark block profile layer=1 hc_attn=0.258 ms
+ds4: dspark block profile layer=1 q_proj=0.967 ms
+ds4: dspark block profile layer=1 kv_proj=0.334 ms
+ds4: dspark block profile layer=1 attn=0.290 ms
+ds4: dspark block profile layer=1 attn_out=2.769 ms
+ds4: dspark block profile layer=1 ffn_hc=0.302 ms
+ds4: dspark block profile layer=1 shared_router=0.773 ms
+ds4: dspark block profile layer=1 routed=0.944 ms
+ds4: dspark graph profile block1=6.669 ms
+ds4: dspark block profile layer=2 hc_attn=0.239 ms
+ds4: dspark block profile layer=2 q_proj=1.024 ms
+ds4: dspark block profile layer=2 kv_proj=0.304 ms
+ds4: dspark block profile layer=2 attn=0.306 ms
+ds4: dspark block profile layer=2 attn_out=2.720 ms
+ds4: dspark block profile layer=2 ffn_hc=0.244 ms
+ds4: dspark block profile layer=2 shared_router=0.797 ms
+ds4: dspark block profile layer=2 routed=1.007 ms
+ds4: dspark graph profile block2=6.684 ms
+ds4: dspark graph profile head=1.466 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.826 ms markov=2.974 ms total=24.800 ms
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: dspark block profile layer=0 hc_attn=0.326 ms
+ds4: dspark block profile layer=0 q_proj=1.002 ms
+ds4: dspark block profile layer=0 kv_proj=0.313 ms
+ds4: dspark block profile layer=0 attn=0.265 ms
+ds4: dspark block profile layer=0 attn_out=3.533 ms
+ds4: dspark block profile layer=0 ffn_hc=0.249 ms
+ds4: dspark block profile layer=0 shared_router=0.769 ms
+ds4: dspark block profile layer=0 routed=0.928 ms
+ds4: dspark graph profile block0=7.417 ms
+ds4: dspark block profile layer=1 hc_attn=0.300 ms
+ds4: dspark block profile layer=1 q_proj=0.946 ms
+ds4: dspark block profile layer=1 kv_proj=0.315 ms
+ds4: dspark block profile layer=1 attn=0.266 ms
+ds4: dspark block profile layer=1 attn_out=2.670 ms
+ds4: dspark block profile layer=1 ffn_hc=0.226 ms
+ds4: dspark block profile layer=1 shared_router=0.759 ms
+ds4: dspark block profile layer=1 routed=0.951 ms
+ds4: dspark graph profile block1=6.473 ms
+ds4: dspark block profile layer=2 hc_attn=0.248 ms
+ds4: dspark block profile layer=2 q_proj=1.038 ms
+ds4: dspark block profile layer=2 kv_proj=0.342 ms
+ds4: dspark block profile layer=2 attn=0.286 ms
+ds4: dspark block profile layer=2 attn_out=2.762 ms
+ds4: dspark block profile layer=2 ffn_hc=0.294 ms
+ds4: dspark block profile layer=2 shared_router=0.801 ms
+ds4: dspark block profile layer=2 routed=0.979 ms
+ds4: dspark graph profile block2=6.780 ms
+ds4: dspark graph profile head=1.412 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.131 ms markov=3.013 ms total=25.144 ms
+ds4: dspark block profile layer=0 hc_attn=0.262 ms
+ds4: dspark block profile layer=0 q_proj=0.991 ms
+ds4: dspark block profile layer=0 kv_proj=0.321 ms
+ds4: dspark block profile layer=0 attn=0.280 ms
+ds4: dspark block profile layer=0 attn_out=2.930 ms
+ds4: dspark block profile layer=0 ffn_hc=0.265 ms
+ds4: dspark block profile layer=0 shared_router=0.815 ms
+ds4: dspark block profile layer=0 routed=0.962 ms
+ds4: dspark graph profile block0=6.874 ms
+ds4: dspark block profile layer=1 hc_attn=0.262 ms
+ds4: dspark block profile layer=1 q_proj=0.943 ms
+ds4: dspark block profile layer=1 kv_proj=0.652 ms
+ds4: dspark block profile layer=1 attn=0.324 ms
+ds4: dspark block profile layer=1 attn_out=2.901 ms
+ds4: dspark block profile layer=1 ffn_hc=0.296 ms
+ds4: dspark block profile layer=1 shared_router=0.837 ms
+ds4: dspark block profile layer=1 routed=0.944 ms
+ds4: dspark graph profile block1=7.197 ms
+ds4: dspark block profile layer=2 hc_attn=0.309 ms
+ds4: dspark block profile layer=2 q_proj=1.026 ms
+ds4: dspark block profile layer=2 kv_proj=0.313 ms
+ds4: dspark block profile layer=2 attn=0.220 ms
+ds4: dspark block profile layer=2 attn_out=2.775 ms
+ds4: dspark block profile layer=2 ffn_hc=0.280 ms
+ds4: dspark block profile layer=2 shared_router=0.828 ms
+ds4: dspark block profile layer=2 routed=0.975 ms
+ds4: dspark graph profile block2=6.788 ms
+ds4: dspark graph profile head=1.431 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.375 ms markov=3.092 ms total=25.467 ms
+ds4: dspark block profile layer=0 hc_attn=0.302 ms
+ds4: dspark block profile layer=0 q_proj=0.971 ms
+ds4: dspark block profile layer=0 kv_proj=0.282 ms
+ds4: dspark block profile layer=0 attn=0.237 ms
+ds4: dspark block profile layer=0 attn_out=2.801 ms
+ds4: dspark block profile layer=0 ffn_hc=0.281 ms
+ds4: dspark block profile layer=0 shared_router=0.848 ms
+ds4: dspark block profile layer=0 routed=0.963 ms
+ds4: dspark graph profile block0=6.722 ms
+ds4: dspark block profile layer=1 hc_attn=0.275 ms
+ds4: dspark block profile layer=1 q_proj=0.973 ms
+ds4: dspark block profile layer=1 kv_proj=0.336 ms
+ds4: dspark block profile layer=1 attn=0.239 ms
+ds4: dspark block profile layer=1 attn_out=2.827 ms
+ds4: dspark block profile layer=1 ffn_hc=0.309 ms
+ds4: dspark block profile layer=1 shared_router=1.483 ms
+ds4: dspark block profile layer=1 routed=1.076 ms
+ds4: dspark graph profile block1=7.557 ms
+ds4: dspark block profile layer=2 hc_attn=0.271 ms
+ds4: dspark block profile layer=2 q_proj=0.964 ms
+ds4: dspark block profile layer=2 kv_proj=0.313 ms
+ds4: dspark block profile layer=2 attn=0.234 ms
+ds4: dspark block profile layer=2 attn_out=2.741 ms
+ds4: dspark block profile layer=2 ffn_hc=0.249 ms
+ds4: dspark block profile layer=2 shared_router=1.473 ms
+ds4: dspark block profile layer=2 routed=0.970 ms
+ds4: dspark graph profile block2=7.271 ms
+ds4: dspark graph profile head=1.396 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.995 ms markov=3.032 ms total=26.027 ms
+ds4: dspark block profile layer=0 hc_attn=0.323 ms
+ds4: dspark block profile layer=0 q_proj=1.038 ms
+ds4: dspark block profile layer=0 kv_proj=0.302 ms
+ds4: dspark block profile layer=0 attn=0.255 ms
+ds4: dspark block profile layer=0 attn_out=2.827 ms
+ds4: dspark block profile layer=0 ffn_hc=0.287 ms
+ds4: dspark block profile layer=0 shared_router=0.797 ms
+ds4: dspark block profile layer=0 routed=0.945 ms
+ds4: dspark graph profile block0=6.821 ms
+ds4: dspark block profile layer=1 hc_attn=0.256 ms
+ds4: dspark block profile layer=1 q_proj=1.762 ms
+ds4: dspark block profile layer=1 kv_proj=0.320 ms
+ds4: dspark block profile layer=1 attn=0.324 ms
+ds4: dspark block profile layer=1 attn_out=2.809 ms
+ds4: dspark block profile layer=1 ffn_hc=0.278 ms
+ds4: dspark block profile layer=1 shared_router=0.844 ms
+ds4: dspark block profile layer=1 routed=0.994 ms
+ds4: dspark graph profile block1=7.654 ms
+ds4: dspark block profile layer=2 hc_attn=0.305 ms
+ds4: dspark block profile layer=2 q_proj=1.060 ms
+ds4: dspark block profile layer=2 kv_proj=0.330 ms
+ds4: dspark block profile layer=2 attn=0.299 ms
+ds4: dspark block profile layer=2 attn_out=2.763 ms
+ds4: dspark block profile layer=2 ffn_hc=0.360 ms
+ds4: dspark block profile layer=2 shared_router=0.829 ms
+ds4: dspark block profile layer=2 routed=0.975 ms
+ds4: dspark graph profile block2=6.968 ms
+ds4: dspark graph profile head=1.435 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.952 ms markov=2.927 ms total=25.879 ms
+ds4: dspark block profile layer=0 hc_attn=0.297 ms
+ds4: dspark block profile layer=0 q_proj=1.048 ms
+ds4: dspark block profile layer=0 kv_proj=0.290 ms
+ds4: dspark block profile layer=0 attn=0.266 ms
+ds4: dspark block profile layer=0 attn_out=2.780 ms
+ds4: dspark block profile layer=0 ffn_hc=0.280 ms
+ds4: dspark block profile layer=0 shared_router=0.805 ms
+ds4: dspark block profile layer=0 routed=0.981 ms
+ds4: dspark graph profile block0=6.774 ms
+ds4: dspark block profile layer=1 hc_attn=0.268 ms
+ds4: dspark block profile layer=1 q_proj=0.995 ms
+ds4: dspark block profile layer=1 kv_proj=0.243 ms
+ds4: dspark block profile layer=1 attn=0.221 ms
+ds4: dspark block profile layer=1 attn_out=2.869 ms
+ds4: dspark block profile layer=1 ffn_hc=0.359 ms
+ds4: dspark block profile layer=1 shared_router=0.810 ms
+ds4: dspark block profile layer=1 routed=0.948 ms
+ds4: dspark graph profile block1=6.752 ms
+ds4: dspark block profile layer=2 hc_attn=0.292 ms
+ds4: dspark block profile layer=2 q_proj=1.019 ms
+ds4: dspark block profile layer=2 kv_proj=0.299 ms
+ds4: dspark block profile layer=2 attn=0.294 ms
+ds4: dspark block profile layer=2 attn_out=2.709 ms
+ds4: dspark block profile layer=2 ffn_hc=0.238 ms
+ds4: dspark block profile layer=2 shared_router=0.756 ms
+ds4: dspark block profile layer=2 routed=1.665 ms
+ds4: dspark graph profile block2=7.334 ms
+ds4: dspark graph profile head=1.531 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.441 ms markov=2.924 ms total=25.365 ms
+ds4: dspark block profile layer=0 hc_attn=0.327 ms
+ds4: dspark block profile layer=0 q_proj=1.742 ms
+ds4: dspark block profile layer=0 kv_proj=0.268 ms
+ds4: dspark block profile layer=0 attn=0.208 ms
+ds4: dspark block profile layer=0 attn_out=2.761 ms
+ds4: dspark block profile layer=0 ffn_hc=0.263 ms
+ds4: dspark block profile layer=0 shared_router=0.853 ms
+ds4: dspark block profile layer=0 routed=0.953 ms
+ds4: dspark graph profile block0=7.413 ms
+ds4: dspark block profile layer=1 hc_attn=0.232 ms
+ds4: dspark block profile layer=1 q_proj=1.009 ms
+ds4: dspark block profile layer=1 kv_proj=0.340 ms
+ds4: dspark block profile layer=1 attn=0.225 ms
+ds4: dspark block profile layer=1 attn_out=2.672 ms
+ds4: dspark block profile layer=1 ffn_hc=0.172 ms
+ds4: dspark block profile layer=1 shared_router=0.843 ms
+ds4: dspark block profile layer=1 routed=0.910 ms
+ds4: dspark graph profile block1=6.436 ms
+ds4: dspark block profile layer=2 hc_attn=0.249 ms
+ds4: dspark block profile layer=2 q_proj=0.957 ms
+ds4: dspark block profile layer=2 kv_proj=0.259 ms
+ds4: dspark block profile layer=2 attn=0.215 ms
+ds4: dspark block profile layer=2 attn_out=3.473 ms
+ds4: dspark block profile layer=2 ffn_hc=0.323 ms
+ds4: dspark block profile layer=2 shared_router=0.847 ms
+ds4: dspark block profile layer=2 routed=0.944 ms
+ds4: dspark graph profile block2=7.313 ms
+ds4: dspark graph profile head=1.414 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.638 ms markov=3.782 ms total=26.420 ms
+ds4: dspark block profile layer=0 hc_attn=0.250 ms
+ds4: dspark block profile layer=0 q_proj=0.969 ms
+ds4: dspark block profile layer=0 kv_proj=0.302 ms
+ds4: dspark block profile layer=0 attn=0.207 ms
+ds4: dspark block profile layer=0 attn_out=3.423 ms
+ds4: dspark block profile layer=0 ffn_hc=0.256 ms
+ds4: dspark block profile layer=0 shared_router=0.755 ms
+ds4: dspark block profile layer=0 routed=0.963 ms
+ds4: dspark graph profile block0=7.163 ms
+ds4: dspark block profile layer=1 hc_attn=0.271 ms
+ds4: dspark block profile layer=1 q_proj=1.022 ms
+ds4: dspark block profile layer=1 kv_proj=0.311 ms
+ds4: dspark block profile layer=1 attn=0.272 ms
+ds4: dspark block profile layer=1 attn_out=2.641 ms
+ds4: dspark block profile layer=1 ffn_hc=0.239 ms
+ds4: dspark block profile layer=1 shared_router=0.753 ms
+ds4: dspark block profile layer=1 routed=0.953 ms
+ds4: dspark graph profile block1=6.494 ms
+ds4: dspark block profile layer=2 hc_attn=0.245 ms
+ds4: dspark block profile layer=2 q_proj=0.968 ms
+ds4: dspark block profile layer=2 kv_proj=0.279 ms
+ds4: dspark block profile layer=2 attn=0.216 ms
+ds4: dspark block profile layer=2 attn_out=2.825 ms
+ds4: dspark block profile layer=2 ffn_hc=0.231 ms
+ds4: dspark block profile layer=2 shared_router=0.784 ms
+ds4: dspark block profile layer=2 routed=0.965 ms
+ds4: dspark graph profile block2=6.551 ms
+ds4: dspark graph profile head=1.507 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.774 ms markov=2.876 ms total=24.650 ms
+ds4: dspark block profile layer=0 hc_attn=0.279 ms
+ds4: dspark block profile layer=0 q_proj=1.770 ms
+ds4: dspark block profile layer=0 kv_proj=0.294 ms
+ds4: dspark block profile layer=0 attn=0.226 ms
+ds4: dspark block profile layer=0 attn_out=2.845 ms
+ds4: dspark block profile layer=0 ffn_hc=0.230 ms
+ds4: dspark block profile layer=0 shared_router=0.776 ms
+ds4: dspark block profile layer=0 routed=0.939 ms
+ds4: dspark graph profile block0=7.399 ms
+ds4: dspark block profile layer=1 hc_attn=0.250 ms
+ds4: dspark block profile layer=1 q_proj=1.007 ms
+ds4: dspark block profile layer=1 kv_proj=0.279 ms
+ds4: dspark block profile layer=1 attn=0.309 ms
+ds4: dspark block profile layer=1 attn_out=3.337 ms
+ds4: dspark block profile layer=1 ffn_hc=0.266 ms
+ds4: dspark block profile layer=1 shared_router=0.807 ms
+ds4: dspark block profile layer=1 routed=0.971 ms
+ds4: dspark graph profile block1=7.273 ms
+ds4: dspark block profile layer=2 hc_attn=0.237 ms
+ds4: dspark block profile layer=2 q_proj=0.978 ms
+ds4: dspark block profile layer=2 kv_proj=0.257 ms
+ds4: dspark block profile layer=2 attn=0.235 ms
+ds4: dspark block profile layer=2 attn_out=2.827 ms
+ds4: dspark block profile layer=2 ffn_hc=0.239 ms
+ds4: dspark block profile layer=2 shared_router=0.764 ms
+ds4: dspark block profile layer=2 routed=0.965 ms
+ds4: dspark graph profile block2=6.534 ms
+ds4: dspark graph profile head=1.419 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.672 ms markov=2.925 ms total=25.597 ms
+ds4: dspark block profile layer=0 hc_attn=0.278 ms
+ds4: dspark block profile layer=0 q_proj=1.036 ms
+ds4: dspark block profile layer=0 kv_proj=0.274 ms
+ds4: dspark block profile layer=0 attn=0.303 ms
+ds4: dspark block profile layer=0 attn_out=2.815 ms
+ds4: dspark block profile layer=0 ffn_hc=0.328 ms
+ds4: dspark block profile layer=0 shared_router=0.824 ms
+ds4: dspark block profile layer=0 routed=0.988 ms
+ds4: dspark graph profile block0=6.893 ms
+ds4: dspark block profile layer=1 hc_attn=0.268 ms
+ds4: dspark block profile layer=1 q_proj=1.038 ms
+ds4: dspark block profile layer=1 kv_proj=0.355 ms
+ds4: dspark block profile layer=1 attn=0.216 ms
+ds4: dspark block profile layer=1 attn_out=2.757 ms
+ds4: dspark block profile layer=1 ffn_hc=0.268 ms
+ds4: dspark block profile layer=1 shared_router=0.821 ms
+ds4: dspark block profile layer=1 routed=1.178 ms
+ds4: dspark graph profile block1=6.982 ms
+ds4: dspark block profile layer=2 hc_attn=0.491 ms
+ds4: dspark block profile layer=2 q_proj=0.925 ms
+ds4: dspark block profile layer=2 kv_proj=0.302 ms
+ds4: dspark block profile layer=2 attn=0.246 ms
+ds4: dspark block profile layer=2 attn_out=2.840 ms
+ds4: dspark block profile layer=2 ffn_hc=0.288 ms
+ds4: dspark block profile layer=2 shared_router=0.889 ms
+ds4: dspark block profile layer=2 routed=0.975 ms
+ds4: dspark graph profile block2=7.011 ms
+ds4: dspark graph profile head=1.480 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.437 ms markov=3.035 ms total=25.472 ms
+ds4: dspark block profile layer=0 hc_attn=0.290 ms
+ds4: dspark block profile layer=0 q_proj=1.055 ms
+ds4: dspark block profile layer=0 kv_proj=0.317 ms
+ds4: dspark block profile layer=0 attn=0.253 ms
+ds4: dspark block profile layer=0 attn_out=3.060 ms
+ds4: dspark block profile layer=0 ffn_hc=0.528 ms
+ds4: dspark block profile layer=0 shared_router=0.863 ms
+ds4: dspark block profile layer=0 routed=0.951 ms
+ds4: dspark graph profile block0=7.365 ms
+ds4: dspark block profile layer=1 hc_attn=0.261 ms
+ds4: dspark block profile layer=1 q_proj=0.979 ms
+ds4: dspark block profile layer=1 kv_proj=0.301 ms
+ds4: dspark block profile layer=1 attn=0.302 ms
+ds4: dspark block profile layer=1 attn_out=2.831 ms
+ds4: dspark block profile layer=1 ffn_hc=0.277 ms
+ds4: dspark block profile layer=1 shared_router=0.816 ms
+ds4: dspark block profile layer=1 routed=0.996 ms
+ds4: dspark graph profile block1=6.812 ms
+ds4: dspark block profile layer=2 hc_attn=0.259 ms
+ds4: dspark block profile layer=2 q_proj=0.949 ms
+ds4: dspark block profile layer=2 kv_proj=0.345 ms
+ds4: dspark block profile layer=2 attn=0.234 ms
+ds4: dspark block profile layer=2 attn_out=2.862 ms
+ds4: dspark block profile layer=2 ffn_hc=0.303 ms
+ds4: dspark block profile layer=2 shared_router=0.789 ms
+ds4: dspark block profile layer=2 routed=0.942 ms
+ds4: dspark graph profile block2=6.750 ms
+ds4: dspark graph profile head=1.400 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.372 ms markov=3.091 ms total=25.463 ms
+ds4: dspark block profile layer=0 hc_attn=0.287 ms
+ds4: dspark block profile layer=0 q_proj=0.961 ms
+ds4: dspark block profile layer=0 kv_proj=0.340 ms
+ds4: dspark block profile layer=0 attn=0.235 ms
+ds4: dspark block profile layer=0 attn_out=2.766 ms
+ds4: dspark block profile layer=0 ffn_hc=0.272 ms
+ds4: dspark block profile layer=0 shared_router=0.839 ms
+ds4: dspark block profile layer=0 routed=0.988 ms
+ds4: dspark graph profile block0=6.724 ms
+ds4: dspark block profile layer=1 hc_attn=0.272 ms
+ds4: dspark block profile layer=1 q_proj=0.994 ms
+ds4: dspark block profile layer=1 kv_proj=0.292 ms
+ds4: dspark block profile layer=1 attn=0.315 ms
+ds4: dspark block profile layer=1 attn_out=3.488 ms
+ds4: dspark block profile layer=1 ffn_hc=0.324 ms
+ds4: dspark block profile layer=1 shared_router=0.833 ms
+ds4: dspark block profile layer=1 routed=0.975 ms
+ds4: dspark graph profile block1=7.543 ms
+ds4: dspark block profile layer=2 hc_attn=0.258 ms
+ds4: dspark block profile layer=2 q_proj=1.012 ms
+ds4: dspark block profile layer=2 kv_proj=0.349 ms
+ds4: dspark block profile layer=2 attn=0.314 ms
+ds4: dspark block profile layer=2 attn_out=2.823 ms
+ds4: dspark block profile layer=2 ffn_hc=0.302 ms
+ds4: dspark block profile layer=2 shared_router=0.762 ms
+ds4: dspark block profile layer=2 routed=0.944 ms
+ds4: dspark graph profile block2=6.827 ms
+ds4: dspark graph profile head=1.376 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.518 ms markov=3.101 ms total=25.619 ms
+ds4: dspark block profile layer=0 hc_attn=0.288 ms
+ds4: dspark block profile layer=0 q_proj=1.017 ms
+ds4: dspark block profile layer=0 kv_proj=0.328 ms
+ds4: dspark block profile layer=0 attn=0.256 ms
+ds4: dspark block profile layer=0 attn_out=2.808 ms
+ds4: dspark block profile layer=0 ffn_hc=0.314 ms
+ds4: dspark block profile layer=0 shared_router=0.770 ms
+ds4: dspark block profile layer=0 routed=0.941 ms
+ds4: dspark graph profile block0=6.776 ms
+ds4: dspark block profile layer=1 hc_attn=0.254 ms
+ds4: dspark block profile layer=1 q_proj=1.008 ms
+ds4: dspark block profile layer=1 kv_proj=0.311 ms
+ds4: dspark block profile layer=1 attn=0.282 ms
+ds4: dspark block profile layer=1 attn_out=2.677 ms
+ds4: dspark block profile layer=1 ffn_hc=0.352 ms
+ds4: dspark block profile layer=1 shared_router=0.794 ms
+ds4: dspark block profile layer=1 routed=0.942 ms
+ds4: dspark graph profile block1=6.665 ms
+ds4: dspark block profile layer=2 hc_attn=0.311 ms
+ds4: dspark block profile layer=2 q_proj=0.989 ms
+ds4: dspark block profile layer=2 kv_proj=0.281 ms
+ds4: dspark block profile layer=2 attn=0.356 ms
+ds4: dspark block profile layer=2 attn_out=2.799 ms
+ds4: dspark block profile layer=2 ffn_hc=0.301 ms
+ds4: dspark block profile layer=2 shared_router=0.860 ms
+ds4: dspark block profile layer=2 routed=1.019 ms
+ds4: dspark graph profile block2=7.020 ms
+ds4: dspark graph profile head=1.510 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.045 ms markov=3.130 ms total=25.175 ms
+ds4: dspark block profile layer=0 hc_attn=0.317 ms
+ds4: dspark block profile layer=0 q_proj=0.986 ms
+ds4: dspark block profile layer=0 kv_proj=0.357 ms
+ds4: dspark block profile layer=0 attn=0.246 ms
+ds4: dspark block profile layer=0 attn_out=2.858 ms
+ds4: dspark block profile layer=0 ffn_hc=0.311 ms
+ds4: dspark block profile layer=0 shared_router=0.764 ms
+ds4: dspark block profile layer=0 routed=0.925 ms
+ds4: dspark graph profile block0=6.806 ms
+ds4: dspark block profile layer=1 hc_attn=0.272 ms
+ds4: dspark block profile layer=1 q_proj=0.988 ms
+ds4: dspark block profile layer=1 kv_proj=0.328 ms
+ds4: dspark block profile layer=1 attn=0.253 ms
+ds4: dspark block profile layer=1 attn_out=2.706 ms
+ds4: dspark block profile layer=1 ffn_hc=0.317 ms
+ds4: dspark block profile layer=1 shared_router=0.805 ms
+ds4: dspark block profile layer=1 routed=0.998 ms
+ds4: dspark graph profile block1=6.731 ms
+ds4: dspark block profile layer=2 hc_attn=0.276 ms
+ds4: dspark block profile layer=2 q_proj=1.019 ms
+ds4: dspark block profile layer=2 kv_proj=0.290 ms
+ds4: dspark block profile layer=2 attn=0.267 ms
+ds4: dspark block profile layer=2 attn_out=2.773 ms
+ds4: dspark block profile layer=2 ffn_hc=0.303 ms
+ds4: dspark block profile layer=2 shared_router=0.848 ms
+ds4: dspark block profile layer=2 routed=0.923 ms
+ds4: dspark graph profile block2=6.740 ms
+ds4: dspark graph profile head=1.380 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.709 ms markov=2.969 ms total=24.678 ms
+ds4: dspark block profile layer=0 hc_attn=0.286 ms
+ds4: dspark block profile layer=0 q_proj=1.032 ms
+ds4: dspark block profile layer=0 kv_proj=0.271 ms
+ds4: dspark block profile layer=0 attn=0.225 ms
+ds4: dspark block profile layer=0 attn_out=2.794 ms
+ds4: dspark block profile layer=0 ffn_hc=0.257 ms
+ds4: dspark block profile layer=0 shared_router=0.764 ms
+ds4: dspark block profile layer=0 routed=0.983 ms
+ds4: dspark graph profile block0=6.663 ms
+ds4: dspark block profile layer=1 hc_attn=0.248 ms
+ds4: dspark block profile layer=1 q_proj=1.017 ms
+ds4: dspark block profile layer=1 kv_proj=0.294 ms
+ds4: dspark block profile layer=1 attn=0.286 ms
+ds4: dspark block profile layer=1 attn_out=2.800 ms
+ds4: dspark block profile layer=1 ffn_hc=0.296 ms
+ds4: dspark block profile layer=1 shared_router=0.785 ms
+ds4: dspark block profile layer=1 routed=0.937 ms
+ds4: dspark graph profile block1=6.704 ms
+ds4: dspark block profile layer=2 hc_attn=0.260 ms
+ds4: dspark block profile layer=2 q_proj=0.993 ms
+ds4: dspark block profile layer=2 kv_proj=0.317 ms
+ds4: dspark block profile layer=2 attn=0.266 ms
+ds4: dspark block profile layer=2 attn_out=2.777 ms
+ds4: dspark block profile layer=2 ffn_hc=0.316 ms
+ds4: dspark block profile layer=2 shared_router=0.793 ms
+ds4: dspark block profile layer=2 routed=0.963 ms
+ds4: dspark graph profile block2=6.725 ms
+ds4: dspark graph profile head=1.461 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.639 ms markov=2.966 ms total=24.605 ms
+ds4: dspark block profile layer=0 hc_attn=0.289 ms
+ds4: dspark block profile layer=0 q_proj=0.976 ms
+ds4: dspark block profile layer=0 kv_proj=0.315 ms
+ds4: dspark block profile layer=0 attn=0.233 ms
+ds4: dspark block profile layer=0 attn_out=2.765 ms
+ds4: dspark block profile layer=0 ffn_hc=0.274 ms
+ds4: dspark block profile layer=0 shared_router=0.803 ms
+ds4: dspark block profile layer=0 routed=0.997 ms
+ds4: dspark graph profile block0=6.685 ms
+ds4: dspark block profile layer=1 hc_attn=0.244 ms
+ds4: dspark block profile layer=1 q_proj=1.025 ms
+ds4: dspark block profile layer=1 kv_proj=0.311 ms
+ds4: dspark block profile layer=1 attn=0.323 ms
+ds4: dspark block profile layer=1 attn_out=2.727 ms
+ds4: dspark block profile layer=1 ffn_hc=0.287 ms
+ds4: dspark block profile layer=1 shared_router=0.811 ms
+ds4: dspark block profile layer=1 routed=0.986 ms
+ds4: dspark graph profile block1=6.749 ms
+ds4: dspark block profile layer=2 hc_attn=0.254 ms
+ds4: dspark block profile layer=2 q_proj=1.023 ms
+ds4: dspark block profile layer=2 kv_proj=0.286 ms
+ds4: dspark block profile layer=2 attn=0.310 ms
+ds4: dspark block profile layer=2 attn_out=2.752 ms
+ds4: dspark block profile layer=2 ffn_hc=0.310 ms
+ds4: dspark block profile layer=2 shared_router=0.799 ms
+ds4: dspark block profile layer=2 routed=0.943 ms
+ds4: dspark graph profile block2=6.710 ms
+ds4: dspark graph profile head=1.366 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.545 ms markov=2.801 ms total=24.346 ms
+ds4: dspark block profile layer=0 hc_attn=0.302 ms
+ds4: dspark block profile layer=0 q_proj=0.970 ms
+ds4: dspark block profile layer=0 kv_proj=0.317 ms
+ds4: dspark block profile layer=0 attn=0.241 ms
+ds4: dspark block profile layer=0 attn_out=2.875 ms
+ds4: dspark block profile layer=0 ffn_hc=0.306 ms
+ds4: dspark block profile layer=0 shared_router=0.768 ms
+ds4: dspark block profile layer=0 routed=0.949 ms
+ds4: dspark graph profile block0=6.788 ms
+ds4: dspark block profile layer=1 hc_attn=0.248 ms
+ds4: dspark block profile layer=1 q_proj=0.948 ms
+ds4: dspark block profile layer=1 kv_proj=0.313 ms
+ds4: dspark block profile layer=1 attn=0.298 ms
+ds4: dspark block profile layer=1 attn_out=2.744 ms
+ds4: dspark block profile layer=1 ffn_hc=0.273 ms
+ds4: dspark block profile layer=1 shared_router=0.830 ms
+ds4: dspark block profile layer=1 routed=0.985 ms
+ds4: dspark graph profile block1=6.677 ms
+ds4: dspark block profile layer=2 hc_attn=0.271 ms
+ds4: dspark block profile layer=2 q_proj=1.121 ms
+ds4: dspark block profile layer=2 kv_proj=0.321 ms
+ds4: dspark block profile layer=2 attn=0.231 ms
+ds4: dspark block profile layer=2 attn_out=3.464 ms
+ds4: dspark block profile layer=2 ffn_hc=0.278 ms
+ds4: dspark block profile layer=2 shared_router=0.794 ms
+ds4: dspark block profile layer=2 routed=0.980 ms
+ds4: dspark graph profile block2=7.515 ms
+ds4: dspark graph profile head=1.438 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.522 ms markov=3.073 ms total=25.595 ms
+ds4: dspark block profile layer=0 hc_attn=0.241 ms
+ds4: dspark block profile layer=0 q_proj=0.995 ms
+ds4: dspark block profile layer=0 kv_proj=0.317 ms
+ds4: dspark block profile layer=0 attn=0.240 ms
+ds4: dspark block profile layer=0 attn_out=2.782 ms
+ds4: dspark block profile layer=0 ffn_hc=0.312 ms
+ds4: dspark block profile layer=0 shared_router=0.836 ms
+ds4: dspark block profile layer=0 routed=0.955 ms
+ds4: dspark graph profile block0=6.731 ms
+ds4: dspark block profile layer=1 hc_attn=0.242 ms
+ds4: dspark block profile layer=1 q_proj=1.048 ms
+ds4: dspark block profile layer=1 kv_proj=0.326 ms
+ds4: dspark block profile layer=1 attn=0.238 ms
+ds4: dspark block profile layer=1 attn_out=2.698 ms
+ds4: dspark block profile layer=1 ffn_hc=0.247 ms
+ds4: dspark block profile layer=1 shared_router=0.766 ms
+ds4: dspark block profile layer=1 routed=0.944 ms
+ds4: dspark graph profile block1=6.562 ms
+ds4: dspark block profile layer=2 hc_attn=0.239 ms
+ds4: dspark block profile layer=2 q_proj=1.742 ms
+ds4: dspark block profile layer=2 kv_proj=0.283 ms
+ds4: dspark block profile layer=2 attn=0.325 ms
+ds4: dspark block profile layer=2 attn_out=2.745 ms
+ds4: dspark block profile layer=2 ffn_hc=0.270 ms
+ds4: dspark block profile layer=2 shared_router=0.797 ms
+ds4: dspark block profile layer=2 routed=1.041 ms
+ds4: dspark graph profile block2=7.508 ms
+ds4: dspark graph profile head=1.496 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.350 ms markov=2.970 ms total=25.320 ms
+ds4: dspark block profile layer=0 hc_attn=0.305 ms
+ds4: dspark block profile layer=0 q_proj=1.057 ms
+ds4: dspark block profile layer=0 kv_proj=0.350 ms
+ds4: dspark block profile layer=0 attn=0.291 ms
+ds4: dspark block profile layer=0 attn_out=2.774 ms
+ds4: dspark block profile layer=0 ffn_hc=0.289 ms
+ds4: dspark block profile layer=0 shared_router=0.812 ms
+ds4: dspark block profile layer=0 routed=0.989 ms
+ds4: dspark graph profile block0=6.931 ms
+ds4: dspark block profile layer=1 hc_attn=0.281 ms
+ds4: dspark block profile layer=1 q_proj=1.026 ms
+ds4: dspark block profile layer=1 kv_proj=0.303 ms
+ds4: dspark block profile layer=1 attn=0.274 ms
+ds4: dspark block profile layer=1 attn_out=2.876 ms
+ds4: dspark block profile layer=1 ffn_hc=0.327 ms
+ds4: dspark block profile layer=1 shared_router=0.767 ms
+ds4: dspark block profile layer=1 routed=0.957 ms
+ds4: dspark graph profile block1=6.870 ms
+ds4: dspark block profile layer=2 hc_attn=0.272 ms
+ds4: dspark block profile layer=2 q_proj=0.976 ms
+ds4: dspark block profile layer=2 kv_proj=0.297 ms
+ds4: dspark block profile layer=2 attn=0.241 ms
+ds4: dspark block profile layer=2 attn_out=2.827 ms
+ds4: dspark block profile layer=2 ffn_hc=0.304 ms
+ds4: dspark block profile layer=2 shared_router=0.771 ms
+ds4: dspark block profile layer=2 routed=0.916 ms
+ds4: dspark graph profile block2=6.650 ms
+ds4: dspark graph profile head=1.446 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.980 ms markov=3.119 ms total=25.099 ms
+ds4: dspark block profile layer=0 hc_attn=0.275 ms
+ds4: dspark block profile layer=0 q_proj=0.958 ms
+ds4: dspark block profile layer=0 kv_proj=0.340 ms
+ds4: dspark block profile layer=0 attn=0.224 ms
+ds4: dspark block profile layer=0 attn_out=2.786 ms
+ds4: dspark block profile layer=0 ffn_hc=0.281 ms
+ds4: dspark block profile layer=0 shared_router=0.868 ms
+ds4: dspark block profile layer=0 routed=0.950 ms
+ds4: dspark graph profile block0=6.718 ms
+ds4: dspark block profile layer=1 hc_attn=0.253 ms
+ds4: dspark block profile layer=1 q_proj=1.041 ms
+ds4: dspark block profile layer=1 kv_proj=0.346 ms
+ds4: dspark block profile layer=1 attn=0.238 ms
+ds4: dspark block profile layer=1 attn_out=2.716 ms
+ds4: dspark block profile layer=1 ffn_hc=0.311 ms
+ds4: dspark block profile layer=1 shared_router=0.864 ms
+ds4: dspark block profile layer=1 routed=0.918 ms
+ds4: dspark graph profile block1=6.729 ms
+ds4: dspark block profile layer=2 hc_attn=0.242 ms
+ds4: dspark block profile layer=2 q_proj=1.008 ms
+ds4: dspark block profile layer=2 kv_proj=0.314 ms
+ds4: dspark block profile layer=2 attn=0.279 ms
+ds4: dspark block profile layer=2 attn_out=2.758 ms
+ds4: dspark block profile layer=2 ffn_hc=0.320 ms
+ds4: dspark block profile layer=2 shared_router=0.827 ms
+ds4: dspark block profile layer=2 routed=0.979 ms
+ds4: dspark graph profile block2=6.762 ms
+ds4: dspark graph profile head=1.380 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.630 ms markov=3.115 ms total=24.745 ms
+ds4: dspark block profile layer=0 hc_attn=0.350 ms
+ds4: dspark block profile layer=0 q_proj=0.975 ms
+ds4: dspark block profile layer=0 kv_proj=0.335 ms
+ds4: dspark block profile layer=0 attn=0.327 ms
+ds4: dspark block profile layer=0 attn_out=2.793 ms
+ds4: dspark block profile layer=0 ffn_hc=0.297 ms
+ds4: dspark block profile layer=0 shared_router=0.831 ms
+ds4: dspark block profile layer=0 routed=1.078 ms
+ds4: dspark graph profile block0=7.042 ms
+ds4: dspark block profile layer=1 hc_attn=0.302 ms
+ds4: dspark block profile layer=1 q_proj=0.976 ms
+ds4: dspark block profile layer=1 kv_proj=0.270 ms
+ds4: dspark block profile layer=1 attn=0.254 ms
+ds4: dspark block profile layer=1 attn_out=2.760 ms
+ds4: dspark block profile layer=1 ffn_hc=0.302 ms
+ds4: dspark block profile layer=1 shared_router=0.796 ms
+ds4: dspark block profile layer=1 routed=0.982 ms
+ds4: dspark graph profile block1=6.707 ms
+ds4: dspark block profile layer=2 hc_attn=0.241 ms
+ds4: dspark block profile layer=2 q_proj=0.952 ms
+ds4: dspark block profile layer=2 kv_proj=0.325 ms
+ds4: dspark block profile layer=2 attn=0.277 ms
+ds4: dspark block profile layer=2 attn_out=2.744 ms
+ds4: dspark block profile layer=2 ffn_hc=0.319 ms
+ds4: dspark block profile layer=2 shared_router=0.831 ms
+ds4: dspark block profile layer=2 routed=0.935 ms
+ds4: dspark graph profile block2=6.664 ms
+ds4: dspark graph profile head=1.403 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.902 ms markov=3.257 ms total=25.159 ms
+ds4: dspark block profile layer=0 hc_attn=0.283 ms
+ds4: dspark block profile layer=0 q_proj=0.984 ms
+ds4: dspark block profile layer=0 kv_proj=0.330 ms
+ds4: dspark block profile layer=0 attn=0.255 ms
+ds4: dspark block profile layer=0 attn_out=2.767 ms
+ds4: dspark block profile layer=0 ffn_hc=0.293 ms
+ds4: dspark block profile layer=0 shared_router=0.837 ms
+ds4: dspark block profile layer=0 routed=0.962 ms
+ds4: dspark graph profile block0=6.750 ms
+ds4: dspark block profile layer=1 hc_attn=0.256 ms
+ds4: dspark block profile layer=1 q_proj=1.026 ms
+ds4: dspark block profile layer=1 kv_proj=0.333 ms
+ds4: dspark block profile layer=1 attn=0.263 ms
+ds4: dspark block profile layer=1 attn_out=2.768 ms
+ds4: dspark block profile layer=1 ffn_hc=0.263 ms
+ds4: dspark block profile layer=1 shared_router=0.822 ms
+ds4: dspark block profile layer=1 routed=0.977 ms
+ds4: dspark graph profile block1=6.745 ms
+ds4: dspark block profile layer=2 hc_attn=0.261 ms
+ds4: dspark block profile layer=2 q_proj=1.014 ms
+ds4: dspark block profile layer=2 kv_proj=0.296 ms
+ds4: dspark block profile layer=2 attn=0.328 ms
+ds4: dspark block profile layer=2 attn_out=2.745 ms
+ds4: dspark block profile layer=2 ffn_hc=0.273 ms
+ds4: dspark block profile layer=2 shared_router=0.808 ms
+ds4: dspark block profile layer=2 routed=0.976 ms
+ds4: dspark graph profile block2=6.736 ms
+ds4: dspark graph profile head=1.396 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.689 ms markov=2.893 ms total=24.582 ms
+ds4: dspark block profile layer=0 hc_attn=0.297 ms
+ds4: dspark block profile layer=0 q_proj=1.050 ms
+ds4: dspark block profile layer=0 kv_proj=0.275 ms
+ds4: dspark block profile layer=0 attn=0.325 ms
+ds4: dspark block profile layer=0 attn_out=2.789 ms
+ds4: dspark block profile layer=0 ffn_hc=0.317 ms
+ds4: dspark block profile layer=0 shared_router=0.797 ms
+ds4: dspark block profile layer=0 routed=0.982 ms
+ds4: dspark graph profile block0=6.867 ms
+ds4: dspark block profile layer=1 hc_attn=0.276 ms
+ds4: dspark block profile layer=1 q_proj=1.011 ms
+ds4: dspark block profile layer=1 kv_proj=0.304 ms
+ds4: dspark block profile layer=1 attn=0.303 ms
+ds4: dspark block profile layer=1 attn_out=2.700 ms
+ds4: dspark block profile layer=1 ffn_hc=0.428 ms
+ds4: dspark block profile layer=1 shared_router=0.841 ms
+ds4: dspark block profile layer=1 routed=0.951 ms
+ds4: dspark graph profile block1=6.855 ms
+ds4: dspark block profile layer=2 hc_attn=0.277 ms
+ds4: dspark block profile layer=2 q_proj=0.988 ms
+ds4: dspark block profile layer=2 kv_proj=0.298 ms
+ds4: dspark block profile layer=2 attn=0.326 ms
+ds4: dspark block profile layer=2 attn_out=2.829 ms
+ds4: dspark block profile layer=2 ffn_hc=0.321 ms
+ds4: dspark block profile layer=2 shared_router=0.778 ms
+ds4: dspark block profile layer=2 routed=0.945 ms
+ds4: dspark graph profile block2=6.797 ms
+ds4: dspark graph profile head=1.454 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.041 ms markov=3.135 ms total=25.176 ms
+ds4: dspark block profile layer=0 hc_attn=0.296 ms
+ds4: dspark block profile layer=0 q_proj=0.988 ms
+ds4: dspark block profile layer=0 kv_proj=0.331 ms
+ds4: dspark block profile layer=0 attn=0.357 ms
+ds4: dspark block profile layer=0 attn_out=2.817 ms
+ds4: dspark block profile layer=0 ffn_hc=0.295 ms
+ds4: dspark block profile layer=0 shared_router=0.754 ms
+ds4: dspark block profile layer=0 routed=0.952 ms
+ds4: dspark graph profile block0=6.828 ms
+ds4: dspark block profile layer=1 hc_attn=0.318 ms
+ds4: dspark block profile layer=1 q_proj=0.969 ms
+ds4: dspark block profile layer=1 kv_proj=0.320 ms
+ds4: dspark block profile layer=1 attn=0.297 ms
+ds4: dspark block profile layer=1 attn_out=2.692 ms
+ds4: dspark block profile layer=1 ffn_hc=0.325 ms
+ds4: dspark block profile layer=1 shared_router=0.793 ms
+ds4: dspark block profile layer=1 routed=0.974 ms
+ds4: dspark graph profile block1=6.726 ms
+ds4: dspark block profile layer=2 hc_attn=0.296 ms
+ds4: dspark block profile layer=2 q_proj=1.014 ms
+ds4: dspark block profile layer=2 kv_proj=0.296 ms
+ds4: dspark block profile layer=2 attn=0.339 ms
+ds4: dspark block profile layer=2 attn_out=2.754 ms
+ds4: dspark block profile layer=2 ffn_hc=0.350 ms
+ds4: dspark block profile layer=2 shared_router=0.792 ms
+ds4: dspark block profile layer=2 routed=0.935 ms
+ds4: dspark graph profile block2=6.817 ms
+ds4: dspark graph profile head=1.386 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.813 ms markov=2.915 ms total=24.728 ms
+ds4: dspark block profile layer=0 hc_attn=0.392 ms
+ds4: dspark block profile layer=0 q_proj=1.019 ms
+ds4: dspark block profile layer=0 kv_proj=0.545 ms
+ds4: dspark block profile layer=0 attn=0.342 ms
+ds4: dspark block profile layer=0 attn_out=2.968 ms
+ds4: dspark block profile layer=0 ffn_hc=0.313 ms
+ds4: dspark block profile layer=0 shared_router=0.802 ms
+ds4: dspark block profile layer=0 routed=0.944 ms
+ds4: dspark graph profile block0=7.357 ms
+ds4: dspark block profile layer=1 hc_attn=0.287 ms
+ds4: dspark block profile layer=1 q_proj=1.063 ms
+ds4: dspark block profile layer=1 kv_proj=0.284 ms
+ds4: dspark block profile layer=1 attn=0.336 ms
+ds4: dspark block profile layer=1 attn_out=2.675 ms
+ds4: dspark block profile layer=1 ffn_hc=0.228 ms
+ds4: dspark block profile layer=1 shared_router=0.759 ms
+ds4: dspark block profile layer=1 routed=0.937 ms
+ds4: dspark graph profile block1=6.615 ms
+ds4: dspark block profile layer=2 hc_attn=0.249 ms
+ds4: dspark block profile layer=2 q_proj=1.013 ms
+ds4: dspark block profile layer=2 kv_proj=0.312 ms
+ds4: dspark block profile layer=2 attn=0.303 ms
+ds4: dspark block profile layer=2 attn_out=2.774 ms
+ds4: dspark block profile layer=2 ffn_hc=0.256 ms
+ds4: dspark block profile layer=2 shared_router=0.799 ms
+ds4: dspark block profile layer=2 routed=1.010 ms
+ds4: dspark graph profile block2=6.757 ms
+ds4: dspark graph profile head=1.427 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.218 ms markov=2.990 ms total=25.208 ms
+ds4: dspark block profile layer=0 hc_attn=0.266 ms
+ds4: dspark block profile layer=0 q_proj=0.979 ms
+ds4: dspark block profile layer=0 kv_proj=0.300 ms
+ds4: dspark block profile layer=0 attn=0.256 ms
+ds4: dspark block profile layer=0 attn_out=2.777 ms
+ds4: dspark block profile layer=0 ffn_hc=0.278 ms
+ds4: dspark block profile layer=0 shared_router=0.887 ms
+ds4: dspark block profile layer=0 routed=0.923 ms
+ds4: dspark graph profile block0=6.697 ms
+ds4: dspark block profile layer=1 hc_attn=0.261 ms
+ds4: dspark block profile layer=1 q_proj=0.965 ms
+ds4: dspark block profile layer=1 kv_proj=0.290 ms
+ds4: dspark block profile layer=1 attn=0.322 ms
+ds4: dspark block profile layer=1 attn_out=2.642 ms
+ds4: dspark block profile layer=1 ffn_hc=0.263 ms
+ds4: dspark block profile layer=1 shared_router=0.796 ms
+ds4: dspark block profile layer=1 routed=0.974 ms
+ds4: dspark graph profile block1=6.573 ms
+ds4: dspark block profile layer=2 hc_attn=0.298 ms
+ds4: dspark block profile layer=2 q_proj=0.967 ms
+ds4: dspark block profile layer=2 kv_proj=0.265 ms
+ds4: dspark block profile layer=2 attn=0.245 ms
+ds4: dspark block profile layer=2 attn_out=2.700 ms
+ds4: dspark block profile layer=2 ffn_hc=0.341 ms
+ds4: dspark block profile layer=2 shared_router=0.785 ms
+ds4: dspark block profile layer=2 routed=1.000 ms
+ds4: dspark graph profile block2=6.643 ms
+ds4: dspark graph profile head=1.399 ms
+ds4: dspark draft profile cap=5 rows=5 graph=21.367 ms markov=3.125 ms total=24.492 ms
+ds4: dspark block profile layer=0 hc_attn=0.283 ms
+ds4: dspark block profile layer=0 q_proj=1.035 ms
+ds4: dspark block profile layer=0 kv_proj=0.283 ms
+ds4: dspark block profile layer=0 attn=0.346 ms
+ds4: dspark block profile layer=0 attn_out=2.816 ms
+ds4: dspark block profile layer=0 ffn_hc=0.278 ms
+ds4: dspark block profile layer=0 shared_router=1.310 ms
+ds4: dspark block profile layer=0 routed=0.911 ms
+ds4: dspark graph profile block0=7.305 ms
+ds4: dspark block profile layer=1 hc_attn=0.251 ms
+ds4: dspark block profile layer=1 q_proj=0.999 ms
+ds4: dspark block profile layer=1 kv_proj=0.284 ms
+ds4: dspark block profile layer=1 attn=0.356 ms
+ds4: dspark block profile layer=1 attn_out=2.799 ms
+ds4: dspark block profile layer=1 ffn_hc=0.285 ms
+ds4: dspark block profile layer=1 shared_router=0.768 ms
+ds4: dspark block profile layer=1 routed=0.951 ms
+ds4: dspark graph profile block1=6.749 ms
+ds4: dspark block profile layer=2 hc_attn=0.257 ms
+ds4: dspark block profile layer=2 q_proj=1.027 ms
+ds4: dspark block profile layer=2 kv_proj=0.289 ms
+ds4: dspark block profile layer=2 attn=0.306 ms
+ds4: dspark block profile layer=2 attn_out=2.773 ms
+ds4: dspark block profile layer=2 ffn_hc=0.316 ms
+ds4: dspark block profile layer=2 shared_router=0.808 ms
+ds4: dspark block profile layer=2 routed=0.925 ms
+ds4: dspark graph profile block2=6.765 ms
+ds4: dspark graph profile head=1.401 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.269 ms markov=2.910 ms total=25.179 ms
+ds4: dspark block profile layer=0 hc_attn=0.297 ms
+ds4: dspark block profile layer=0 q_proj=0.958 ms
+ds4: dspark block profile layer=0 kv_proj=0.336 ms
+ds4: dspark block profile layer=0 attn=0.274 ms
+ds4: dspark block profile layer=0 attn_out=2.785 ms
+ds4: dspark block profile layer=0 ffn_hc=0.309 ms
+ds4: dspark block profile layer=0 shared_router=0.795 ms
+ds4: dspark block profile layer=0 routed=0.953 ms
+ds4: dspark graph profile block0=6.763 ms
+ds4: dspark block profile layer=1 hc_attn=0.270 ms
+ds4: dspark block profile layer=1 q_proj=0.964 ms
+ds4: dspark block profile layer=1 kv_proj=0.317 ms
+ds4: dspark block profile layer=1 attn=0.345 ms
+ds4: dspark block profile layer=1 attn_out=3.560 ms
+ds4: dspark block profile layer=1 ffn_hc=0.258 ms
+ds4: dspark block profile layer=1 shared_router=0.770 ms
+ds4: dspark block profile layer=1 routed=0.999 ms
+ds4: dspark graph profile block1=7.532 ms
+ds4: dspark block profile layer=2 hc_attn=0.255 ms
+ds4: dspark block profile layer=2 q_proj=1.007 ms
+ds4: dspark block profile layer=2 kv_proj=0.330 ms
+ds4: dspark block profile layer=2 attn=0.271 ms
+ds4: dspark block profile layer=2 attn_out=2.763 ms
+ds4: dspark block profile layer=2 ffn_hc=0.284 ms
+ds4: dspark block profile layer=2 shared_router=0.821 ms
+ds4: dspark block profile layer=2 routed=0.971 ms
+ds4: dspark graph profile block2=6.737 ms
+ds4: dspark graph profile head=1.473 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.579 ms markov=3.051 ms total=25.630 ms
+ds4: dspark block profile layer=0 hc_attn=0.283 ms
+ds4: dspark block profile layer=0 q_proj=0.961 ms
+ds4: dspark block profile layer=0 kv_proj=0.264 ms
+ds4: dspark block profile layer=0 attn=0.272 ms
+ds4: dspark block profile layer=0 attn_out=2.862 ms
+ds4: dspark block profile layer=0 ffn_hc=0.265 ms
+ds4: dspark block profile layer=0 shared_router=0.849 ms
+ds4: dspark block profile layer=0 routed=1.610 ms
+ds4: dspark graph profile block0=7.394 ms
+ds4: dspark block profile layer=1 hc_attn=0.253 ms
+ds4: dspark block profile layer=1 q_proj=1.069 ms
+ds4: dspark block profile layer=1 kv_proj=0.264 ms
+ds4: dspark block profile layer=1 attn=0.355 ms
+ds4: dspark block profile layer=1 attn_out=2.709 ms
+ds4: dspark block profile layer=1 ffn_hc=0.279 ms
+ds4: dspark block profile layer=1 shared_router=0.784 ms
+ds4: dspark block profile layer=1 routed=0.944 ms
+ds4: dspark graph profile block1=6.697 ms
+ds4: dspark block profile layer=2 hc_attn=0.315 ms
+ds4: dspark block profile layer=2 q_proj=0.977 ms
+ds4: dspark block profile layer=2 kv_proj=0.253 ms
+ds4: dspark block profile layer=2 attn=0.246 ms
+ds4: dspark block profile layer=2 attn_out=2.774 ms
+ds4: dspark block profile layer=2 ffn_hc=0.293 ms
+ds4: dspark block profile layer=2 shared_router=0.770 ms
+ds4: dspark block profile layer=2 routed=0.948 ms
+ds4: dspark graph profile block2=6.641 ms
+ds4: dspark graph profile head=1.400 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.171 ms markov=3.104 ms total=25.275 ms
+ds4: dspark block profile layer=0 hc_attn=0.297 ms
+ds4: dspark block profile layer=0 q_proj=0.986 ms
+ds4: dspark block profile layer=0 kv_proj=0.309 ms
+ds4: dspark block profile layer=0 attn=0.317 ms
+ds4: dspark block profile layer=0 attn_out=2.743 ms
+ds4: dspark block profile layer=0 ffn_hc=0.306 ms
+ds4: dspark block profile layer=0 shared_router=0.793 ms
+ds4: dspark block profile layer=0 routed=0.933 ms
+ds4: dspark graph profile block0=6.721 ms
+ds4: dspark block profile layer=1 hc_attn=0.230 ms
+ds4: dspark block profile layer=1 q_proj=0.969 ms
+ds4: dspark block profile layer=1 kv_proj=0.271 ms
+ds4: dspark block profile layer=1 attn=0.294 ms
+ds4: dspark block profile layer=1 attn_out=2.755 ms
+ds4: dspark block profile layer=1 ffn_hc=0.275 ms
+ds4: dspark block profile layer=1 shared_router=0.829 ms
+ds4: dspark block profile layer=1 routed=0.941 ms
+ds4: dspark graph profile block1=6.612 ms
+ds4: dspark block profile layer=2 hc_attn=0.259 ms
+ds4: dspark block profile layer=2 q_proj=1.025 ms
+ds4: dspark block profile layer=2 kv_proj=0.352 ms
+ds4: dspark block profile layer=2 attn=0.271 ms
+ds4: dspark block profile layer=2 attn_out=3.372 ms
+ds4: dspark block profile layer=2 ffn_hc=0.267 ms
+ds4: dspark block profile layer=2 shared_router=0.765 ms
+ds4: dspark block profile layer=2 routed=0.922 ms
+ds4: dspark graph profile block2=7.280 ms
+ds4: dspark graph profile head=1.416 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.081 ms markov=2.896 ms total=24.977 ms
+ds4: dspark block profile layer=0 hc_attn=0.303 ms
+ds4: dspark block profile layer=0 q_proj=1.095 ms
+ds4: dspark block profile layer=0 kv_proj=0.283 ms
+ds4: dspark block profile layer=0 attn=0.273 ms
+ds4: dspark block profile layer=0 attn_out=2.888 ms
+ds4: dspark block profile layer=0 ffn_hc=0.664 ms
+ds4: dspark block profile layer=0 shared_router=0.797 ms
+ds4: dspark block profile layer=0 routed=1.030 ms
+ds4: dspark graph profile block0=7.366 ms
+ds4: dspark block profile layer=1 hc_attn=0.260 ms
+ds4: dspark block profile layer=1 q_proj=0.959 ms
+ds4: dspark block profile layer=1 kv_proj=0.361 ms
+ds4: dspark block profile layer=1 attn=0.262 ms
+ds4: dspark block profile layer=1 attn_out=2.739 ms
+ds4: dspark block profile layer=1 ffn_hc=0.294 ms
+ds4: dspark block profile layer=1 shared_router=0.817 ms
+ds4: dspark block profile layer=1 routed=1.002 ms
+ds4: dspark graph profile block1=6.727 ms
+ds4: dspark block profile layer=2 hc_attn=0.251 ms
+ds4: dspark block profile layer=2 q_proj=1.014 ms
+ds4: dspark block profile layer=2 kv_proj=0.289 ms
+ds4: dspark block profile layer=2 attn=0.358 ms
+ds4: dspark block profile layer=2 attn_out=2.855 ms
+ds4: dspark block profile layer=2 ffn_hc=0.282 ms
+ds4: dspark block profile layer=2 shared_router=0.800 ms
+ds4: dspark block profile layer=2 routed=0.976 ms
+ds4: dspark graph profile block2=6.888 ms
+ds4: dspark graph profile head=1.394 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.431 ms markov=3.001 ms total=25.432 ms
+ds4: dspark block profile layer=0 hc_attn=0.286 ms
+ds4: dspark block profile layer=0 q_proj=0.964 ms
+ds4: dspark block profile layer=0 kv_proj=0.392 ms
+ds4: dspark block profile layer=0 attn=0.293 ms
+ds4: dspark block profile layer=0 attn_out=2.740 ms
+ds4: dspark block profile layer=0 ffn_hc=0.264 ms
+ds4: dspark block profile layer=0 shared_router=0.805 ms
+ds4: dspark block profile layer=0 routed=0.938 ms
+ds4: dspark graph profile block0=6.730 ms
+ds4: dspark block profile layer=1 hc_attn=0.254 ms
+ds4: dspark block profile layer=1 q_proj=1.036 ms
+ds4: dspark block profile layer=1 kv_proj=0.342 ms
+ds4: dspark block profile layer=1 attn=0.261 ms
+ds4: dspark block profile layer=1 attn_out=3.348 ms
+ds4: dspark block profile layer=1 ffn_hc=0.258 ms
+ds4: dspark block profile layer=1 shared_router=0.782 ms
+ds4: dspark block profile layer=1 routed=0.958 ms
+ds4: dspark graph profile block1=7.291 ms
+ds4: dspark block profile layer=2 hc_attn=0.269 ms
+ds4: dspark block profile layer=2 q_proj=1.015 ms
+ds4: dspark block profile layer=2 kv_proj=0.353 ms
+ds4: dspark block profile layer=2 attn=0.262 ms
+ds4: dspark block profile layer=2 attn_out=2.860 ms
+ds4: dspark block profile layer=2 ffn_hc=0.319 ms
+ds4: dspark block profile layer=2 shared_router=0.777 ms
+ds4: dspark block profile layer=2 routed=1.039 ms
+ds4: dspark graph profile block2=6.949 ms
+ds4: dspark graph profile head=1.453 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.490 ms markov=3.805 ms total=26.295 ms
+ds4: dspark block profile layer=0 hc_attn=0.321 ms
+ds4: dspark block profile layer=0 q_proj=1.013 ms
+ds4: dspark block profile layer=0 kv_proj=0.297 ms
+ds4: dspark block profile layer=0 attn=0.339 ms
+ds4: dspark block profile layer=0 attn_out=2.803 ms
+ds4: dspark block profile layer=0 ffn_hc=0.286 ms
+ds4: dspark block profile layer=0 shared_router=0.843 ms
+ds4: dspark block profile layer=0 routed=1.494 ms
+ds4: dspark graph profile block0=7.438 ms
+ds4: dspark block profile layer=1 hc_attn=0.256 ms
+ds4: dspark block profile layer=1 q_proj=0.955 ms
+ds4: dspark block profile layer=1 kv_proj=0.305 ms
+ds4: dspark block profile layer=1 attn=0.322 ms
+ds4: dspark block profile layer=1 attn_out=2.777 ms
+ds4: dspark block profile layer=1 ffn_hc=0.284 ms
+ds4: dspark block profile layer=1 shared_router=0.837 ms
+ds4: dspark block profile layer=1 routed=0.954 ms
+ds4: dspark graph profile block1=6.739 ms
+ds4: dspark block profile layer=2 hc_attn=0.276 ms
+ds4: dspark block profile layer=2 q_proj=0.979 ms
+ds4: dspark block profile layer=2 kv_proj=0.353 ms
+ds4: dspark block profile layer=2 attn=0.265 ms
+ds4: dspark block profile layer=2 attn_out=2.824 ms
+ds4: dspark block profile layer=2 ffn_hc=0.276 ms
+ds4: dspark block profile layer=2 shared_router=0.793 ms
+ds4: dspark block profile layer=2 routed=0.925 ms
+ds4: dspark graph profile block2=6.742 ms
+ds4: dspark graph profile head=1.956 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.940 ms markov=2.894 ms total=25.834 ms
+ds4: dspark block profile layer=0 hc_attn=0.280 ms
+ds4: dspark block profile layer=0 q_proj=0.959 ms
+ds4: dspark block profile layer=0 kv_proj=0.548 ms
+ds4: dspark block profile layer=0 attn=0.327 ms
+ds4: dspark block profile layer=0 attn_out=2.960 ms
+ds4: dspark block profile layer=0 ffn_hc=0.308 ms
+ds4: dspark block profile layer=0 shared_router=0.796 ms
+ds4: dspark block profile layer=0 routed=0.940 ms
+ds4: dspark graph profile block0=7.164 ms
+ds4: dspark block profile layer=1 hc_attn=0.259 ms
+ds4: dspark block profile layer=1 q_proj=1.142 ms
+ds4: dspark block profile layer=1 kv_proj=0.291 ms
+ds4: dspark block profile layer=1 attn=0.245 ms
+ds4: dspark block profile layer=1 attn_out=2.720 ms
+ds4: dspark block profile layer=1 ffn_hc=0.303 ms
+ds4: dspark block profile layer=1 shared_router=0.823 ms
+ds4: dspark block profile layer=1 routed=0.953 ms
+ds4: dspark graph profile block1=6.781 ms
+ds4: dspark block profile layer=2 hc_attn=0.270 ms
+ds4: dspark block profile layer=2 q_proj=1.008 ms
+ds4: dspark block profile layer=2 kv_proj=0.327 ms
+ds4: dspark block profile layer=2 attn=0.289 ms
+ds4: dspark block profile layer=2 attn_out=2.780 ms
+ds4: dspark block profile layer=2 ffn_hc=0.324 ms
+ds4: dspark block profile layer=2 shared_router=0.787 ms
+ds4: dspark block profile layer=2 routed=0.941 ms
+ds4: dspark graph profile block2=6.769 ms
+ds4: dspark graph profile head=1.439 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.199 ms markov=3.225 ms total=25.424 ms
+ds4: dspark block profile layer=0 hc_attn=0.385 ms
+ds4: dspark block profile layer=0 q_proj=1.116 ms
+ds4: dspark block profile layer=0 kv_proj=0.347 ms
+ds4: dspark block profile layer=0 attn=0.353 ms
+ds4: dspark block profile layer=0 attn_out=3.412 ms
+ds4: dspark block profile layer=0 ffn_hc=0.247 ms
+ds4: dspark block profile layer=0 shared_router=0.780 ms
+ds4: dspark block profile layer=0 routed=0.946 ms
+ds4: dspark graph profile block0=7.616 ms
+ds4: dspark block profile layer=1 hc_attn=0.301 ms
+ds4: dspark block profile layer=1 q_proj=0.951 ms
+ds4: dspark block profile layer=1 kv_proj=0.314 ms
+ds4: dspark block profile layer=1 attn=0.313 ms
+ds4: dspark block profile layer=1 attn_out=2.685 ms
+ds4: dspark block profile layer=1 ffn_hc=0.311 ms
+ds4: dspark block profile layer=1 shared_router=0.872 ms
+ds4: dspark block profile layer=1 routed=0.973 ms
+ds4: dspark graph profile block1=6.760 ms
+ds4: dspark block profile layer=2 hc_attn=0.271 ms
+ds4: dspark block profile layer=2 q_proj=0.960 ms
+ds4: dspark block profile layer=2 kv_proj=0.297 ms
+ds4: dspark block profile layer=2 attn=0.344 ms
+ds4: dspark block profile layer=2 attn_out=2.751 ms
+ds4: dspark block profile layer=2 ffn_hc=0.292 ms
+ds4: dspark block profile layer=2 shared_router=0.821 ms
+ds4: dspark block profile layer=2 routed=0.978 ms
+ds4: dspark graph profile block2=6.792 ms
+ds4: dspark graph profile head=1.413 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.639 ms markov=3.024 ms total=25.663 ms
+ds4: dspark block profile layer=0 hc_attn=0.328 ms
+ds4: dspark block profile layer=0 q_proj=0.987 ms
+ds4: dspark block profile layer=0 kv_proj=0.311 ms
+ds4: dspark block profile layer=0 attn=0.320 ms
+ds4: dspark block profile layer=0 attn_out=2.777 ms
+ds4: dspark block profile layer=0 ffn_hc=0.312 ms
+ds4: dspark block profile layer=0 shared_router=0.831 ms
+ds4: dspark block profile layer=0 routed=0.941 ms
+ds4: dspark graph profile block0=6.868 ms
+ds4: dspark block profile layer=1 hc_attn=0.249 ms
+ds4: dspark block profile layer=1 q_proj=1.008 ms
+ds4: dspark block profile layer=1 kv_proj=0.325 ms
+ds4: dspark block profile layer=1 attn=0.343 ms
+ds4: dspark block profile layer=1 attn_out=2.752 ms
+ds4: dspark block profile layer=1 ffn_hc=0.307 ms
+ds4: dspark block profile layer=1 shared_router=0.762 ms
+ds4: dspark block profile layer=1 routed=0.935 ms
+ds4: dspark graph profile block1=6.727 ms
+ds4: dspark block profile layer=2 hc_attn=0.264 ms
+ds4: dspark block profile layer=2 q_proj=0.999 ms
+ds4: dspark block profile layer=2 kv_proj=0.301 ms
+ds4: dspark block profile layer=2 attn=0.400 ms
+ds4: dspark block profile layer=2 attn_out=3.070 ms
+ds4: dspark block profile layer=2 ffn_hc=0.267 ms
+ds4: dspark block profile layer=2 shared_router=0.797 ms
+ds4: dspark block profile layer=2 routed=0.982 ms
+ds4: dspark graph profile block2=7.149 ms
+ds4: dspark graph profile head=1.389 ms
+ds4: dspark draft profile cap=5 rows=5 graph=22.183 ms markov=3.080 ms total=25.263 ms
+ds4: dspark block profile layer=0 hc_attn=0.288 ms
+ds4: dspark block profile layer=0 q_proj=0.842 ms
+ds4: dspark block profile layer=0 kv_proj=0.280 ms
+ds4: dspark block profile layer=0 attn=0.281 ms
+ds4: dspark block profile layer=0 attn_out=2.276 ms
+ds4: dspark block profile layer=0 ffn_hc=0.307 ms
+ds4: dspark block profile layer=0 shared_router=0.668 ms
+ds4: dspark block profile layer=0 routed=0.911 ms
+ds4: dspark graph profile block0=5.914 ms
+ds4: dspark block profile layer=1 hc_attn=0.233 ms
+ds4: dspark block profile layer=1 q_proj=0.839 ms
+ds4: dspark block profile layer=1 kv_proj=0.290 ms
+ds4: dspark block profile layer=1 attn=0.310 ms
+ds4: dspark block profile layer=1 attn_out=2.217 ms
+ds4: dspark block profile layer=1 ffn_hc=0.326 ms
+ds4: dspark block profile layer=1 shared_router=0.724 ms
+ds4: dspark block profile layer=1 routed=0.838 ms
+ds4: dspark graph profile block1=5.844 ms
+ds4: dspark block profile layer=2 hc_attn=0.222 ms
+ds4: dspark block profile layer=2 q_proj=0.830 ms
+ds4: dspark block profile layer=2 kv_proj=0.262 ms
+ds4: dspark block profile layer=2 attn=0.261 ms
+ds4: dspark block profile layer=2 attn_out=2.365 ms
+ds4: dspark block profile layer=2 ffn_hc=0.267 ms
+ds4: dspark block profile layer=2 shared_router=0.690 ms
+ds4: dspark block profile layer=2 routed=0.847 ms
+ds4: dspark graph profile block2=5.802 ms
+ds4: dspark graph profile head=1.693 ms
+ds4: dspark draft profile cap=4 rows=4 graph=19.297 ms markov=2.341 ms total=21.638 ms
+ds4: dspark block profile layer=0 hc_attn=0.277 ms
+ds4: dspark block profile layer=0 q_proj=0.428 ms
+ds4: dspark block profile layer=0 kv_proj=0.317 ms
+ds4: dspark block profile layer=0 attn=0.302 ms
+ds4: dspark block profile layer=0 attn_out=0.787 ms
+ds4: dspark block profile layer=0 ffn_hc=0.217 ms
+ds4: dspark block profile layer=0 shared_router=0.384 ms
+ds4: dspark block profile layer=0 routed=0.408 ms
+ds4: dspark graph profile block0=3.149 ms
+ds4: dspark block profile layer=1 hc_attn=0.223 ms
+ds4: dspark block profile layer=1 q_proj=0.404 ms
+ds4: dspark block profile layer=1 kv_proj=0.349 ms
+ds4: dspark block profile layer=1 attn=0.253 ms
+ds4: dspark block profile layer=1 attn_out=0.782 ms
+ds4: dspark block profile layer=1 ffn_hc=0.228 ms
+ds4: dspark block profile layer=1 shared_router=0.377 ms
+ds4: dspark block profile layer=1 routed=0.367 ms
+ds4: dspark graph profile block1=3.015 ms
+ds4: dspark block profile layer=2 hc_attn=0.306 ms
+ds4: dspark block profile layer=2 q_proj=0.411 ms
+ds4: dspark block profile layer=2 kv_proj=0.342 ms
+ds4: dspark block profile layer=2 attn=0.306 ms
+ds4: dspark block profile layer=2 attn_out=0.768 ms
+ds4: dspark block profile layer=2 ffn_hc=0.226 ms
+ds4: dspark block profile layer=2 shared_router=0.385 ms
+ds4: dspark block profile layer=2 routed=0.365 ms
+ds4: dspark graph profile block2=3.149 ms
+ds4: dspark graph profile head=1.240 ms
+ds4: dspark draft profile cap=1 rows=1 graph=10.598 ms markov=0.656 ms total=11.254 ms
+ds4: ----------------------------------------
+ds4: prefill: 6.39 t/s, generation: 16.45 t/s (96 tokens in 5.836s)
+ds4: dspark acceptance: 31.4% (58/185 draft tokens)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

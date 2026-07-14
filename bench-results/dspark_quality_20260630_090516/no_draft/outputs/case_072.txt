@@ -1,0 +1,9 @@
+Questa è un'ottima domanda, perché tocca un concetto fondamentale nei sistemi distribuiti.
+
+In un database distribuito, la **consistenza eventuale** (o *eventual consistency*) è un modello di coerenza dei dati che è molto più debole rispetto alla "consistenza forte" dei database tradizionali (come quelli relazionali).
+
+Ecco il significato e come funziona.
+
+### Definizione semplice
+
+Immagina di avere un database distribuito su 3 server in diverse parti del mondo. Tu scrivi un dato (es. "Il mio nome è Mario

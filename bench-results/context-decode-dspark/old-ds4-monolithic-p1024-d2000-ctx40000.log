@@ -1,0 +1,302 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 2.470 ms, residency requested in 7973.094 ms, warmup 9.098 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 993.88 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=10002)
+ds4: using GPU graph generation with graph prefill
+ds4: gpu prefill layer 1/43
+ds4: gpu prefill layer 2/43
+ds4: gpu prefill layer 3/43
+ds4: gpu prefill layer 4/43
+ds4: gpu prefill layer 5/43
+ds4: gpu prefill layer 6/43
+ds4: gpu prefill layer 7/43
+ds4: gpu prefill layer 8/43
+ds4: gpu prefill layer 9/43
+ds4: gpu prefill layer 10/43
+ds4: gpu prefill layer 11/43
+ds4: gpu prefill layer 12/43
+ds4: gpu prefill layer 13/43
+ds4: gpu prefill layer 14/43
+ds4: gpu prefill layer 15/43
+ds4: gpu prefill layer 16/43
+ds4: gpu prefill layer 17/43
+ds4: gpu prefill layer 18/43
+ds4: gpu prefill layer 19/43
+ds4: gpu prefill layer 20/43
+ds4: gpu prefill layer 21/43
+ds4: gpu prefill layer 22/43
+ds4: gpu prefill layer 23/43
+ds4: gpu prefill layer 24/43
+ds4: gpu prefill layer 25/43
+ds4: gpu prefill layer 26/43
+ds4: gpu prefill layer 27/43
+ds4: gpu prefill layer 28/43
+ds4: gpu prefill layer 29/43
+ds4: gpu prefill layer 30/43
+ds4: gpu prefill layer 31/43
+ds4: gpu prefill layer 32/43
+ds4: gpu prefill layer 33/43
+ds4: gpu prefill layer 34/43
+ds4: gpu prefill layer 35/43
+ds4: gpu prefill layer 36/43
+ds4: gpu prefill layer 37/43
+ds4: gpu prefill layer 38/43
+ds4: gpu prefill layer 39/43
+ds4: gpu prefill layer 40/43
+ds4: gpu prefill layer 41/43
+ds4: gpu prefill layer 42/43
+ds4: gpu prefill layer 43/43
+Here's a complete Tetris implementation in C++ for macOS using SFML:
+
+```cpp
+// Tetris.cpp - Full implementation for macOS
+// Compile with: g++ -std=c++11 Tetris.cpp -o Tetris -lsfml-graphics -lsfml-window -lsfml-system
+
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for side panel
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+
+// Tetromino shapes (4x4 matrices)
+const std::vector<std::vector<std::vector<int>>> SHAPES = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each piece type
+const sf::Color PIECE_COLORS[] = {
+    sf::Color::Cyan,    // I
+    sf::Color::Yellow,  // O
+    sf::Color::Magenta, // T
+    sf::Color::Green,   // S
+    sf::Color::Red,     // Z
+    sf::Color::Blue,    // J
+    sf::Color::Orange   // L
+};
+
+class Tetris {
+private:
+    sf::RenderWindow window;
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> currentPiece;
+    std::vector<std::vector<int>> nextPiece;
+    int currentX, currentY;
+    int score;
+    int level;
+    int linesCleared;
+    sf::Clock fallTimer;
+    sf::Clock inputTimer;
+    float fallSpeed;
+    bool gameOver;
+    bool paused;
+
+public:
+    Tetris() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Tetris"),
+               board(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0)),
+               currentX(BOARD_WIDTH/2 - 2), currentY(0),
+               score(0), level(1), linesCleared(0),
+               fallSpeed(1.0f), gameOver(false), paused(false) {
+        window.setFramerateLimit(60);
+        std::srand(std::time(nullptr));
+        spawnNewPiece();
+        generateNextPiece();
+    }
+
+    void run() {
+        while (window.isOpen()) {
+            handleEvents();
+            if (!gameOver && !paused) {
+                update();
+            }
+            render();
+        }
+    }
+
+private:
+    void handleEvents() {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+            
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::P) {
+                    paused = !paused;
+                }
+                if (!gameOver && !paused) {
+                    handleInput(event.key.code);
+                }
+                if (gameOver && event.key.code == sf::Keyboard::R) {
+                    resetGame();
+                }
+            }
+        }
+    }
+
+    void handleInput(sf::Keyboard::Key key) {
+        // Prevent too fast input
+        if (inputTimer.getElapsedTime().asSeconds() < 0.1f) return;
+        inputTimer.restart();
+
+        switch (key) {
+            case sf::Keyboard::Left:
+                if (canMove(currentPiece, currentX - 1, currentY))
+                    currentX--;
+                break;
+            case sf::Keyboard::Right:
+                if (canMove(currentPiece, currentX + 1, currentY))
+                    currentX++;
+                break;
+            case sf::Keyboard::Down:
+                if (canMove(currentPiece, currentX, currentY + 1))
+                    currentY++;
+                break;
+            case sf::Keyboard::Up:
+                rotatePiece();
+                break;
+            case sf::Keyboard::Space:
+                // Hard drop
+                while (canMove(currentPiece, currentX, currentY + 1))
+                    currentY++;
+                lockPiece();
+                break;
+        }
+    }
+
+    void update() {
+        // Auto-fall
+        if (fallTimer.getElapsedTime().asSeconds() >= fallSpeed) {
+            if (canMove(currentPiece, currentX, currentY + 1)) {
+                currentY++;
+            } else {
+                lockPiece();
+            }
+            fallTimer.restart();
+        }
+    }
+
+    void render() {
+        window.clear(sf::Color::Black);
+        
+        // Draw board
+        drawBoard();
+        drawCurrentPiece();
+        drawNextPiece();
+        drawInfo();
+        
+        if (gameOver) {
+            drawGameOver();
+        }
+        
+        window.display();
+    }
+
+    void drawBoard() {
+        // Draw grid lines
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE - 1, BLOCK_SIZE - 1));
+                cell.setPosition(x * BLOCK_SIZE + 1, y * BLOCK_SIZE + 1);
+                
+                if (board[y][x] != 0) {
+                    cell.setFillColor(PIECE_COLORS[board[y][x] - 1]);
+                } else {
+                    cell.setFillColor(sf::Color(50, 50, 50));
+                }
+                cell.setOutlineThickness(1);
+                cell.setOutlineColor(sf::Color(100, 100, 100));
+                window.draw(cell);
+            }
+        }
+    }
+
+    void drawCurrentPiece() {
+        for (int y = 0; y < currentPiece.size(); y++) {
+            for (int x = 0; x < currentPiece[y].size(); x++) {
+                if (currentPiece[y][x] != 0) {
+                    sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE - 1, BLOCK_SIZE - 1));
+                    cell.setPosition((currentX + x) * BLOCK_SIZE + 1, 
+                                    (currentY + y) * BLOCK_SIZE + 1);
+                    cell.setFillColor(PIECE_COLORS[getPieceType()]);
+                    cell.setOutlineThickness(1);
+                    cell.setOutlineColor(sf::Color(200, 200, 200));
+                    window.draw(cell);
+                }
+            }
+        }
+    }
+
+    void drawNextPiece() {
+        // Draw next piece preview
+        sf::Text nextText("NEXT", sf::Font::getDefaultFont(), 20);
+        nextText.setPosition(BOARD_WIDTH * BLOCK_SIZE + 20, 10);
+        nextText.setFillColor(sf::Color::White);
+        window.draw(nextText);
+
+        int offsetX = BOARD_WIDTH * BLOCK_SIZE + 40;
+        int offsetY = 40;
+        
+        for (int y = 0; y < nextPiece.size(); y++) {
+            for (int x = 0; x < nextPiece[y].size(); x++) {
+                if (nextPiece[y][x] != 0) {
+                    sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE - 1, BLOCK_SIZE - 1));
+                    cell.setPosition(offsetX + x * BLOCK_SIZE, offsetY + y * BLOCK_SIZE);
+                    cell.setFillColor(PIECE_COLORS[getNextPieceType()]);
+                    cell.setOutlineThickness(1);
+                    cell.setOutlineColor(sf::Color(200, 200, 200));
+                    window.draw(cell);
+                }
+            }
+        }
+    }
+
+    void drawInfo() {
+        sf::Font font;
+        // Note: SFML doesn't have a default font, you need to load one
+        // For simplicity, we'll use a basic text rendering
+        sf::Text scoreText("Score: " + std::to_string(score), sf::Font::getDefaultFont(), 18);
+        scoreText.setPosition(BOARD_WIDTH * BLOCK_SIZE + 20, 150);
+        scoreText.setFillColor(sf::Color::White);
+        window.draw(scoreText);
+
+        sf::Text levelText("Level: " + std
+ds4: prefill: 297.13 t/s, generation: 32.66 t/s

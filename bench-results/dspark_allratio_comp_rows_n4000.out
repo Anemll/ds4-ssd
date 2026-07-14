@@ -1,0 +1,310 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+BULLET_SPEED = 7
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.lives = 3
+        self.score = 0
+        
+    def move_left(self):
+        self.x -= self.speed
+        if self.x < 0:
+            self.x = 0
+            
+    def move_right(self):
+        self.x += self.speed
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+            
+    def shoot(self):
+        bullet = Bullet(self.x + self.width//2 - 2, self.y, -BULLET_SPEED)
+        self.bullets.append(bullet)
+        
+    def draw(self, screen):
+        # Draw player ship (triangle shape)
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x, self.y + self.height),
+            (self.x + self.width, self.y + self.height)
+        ]
+        pygame.draw.polygon(screen, GREEN, points)
+        
+        # Draw bullets
+        for bullet in self.bullets:
+            bullet.draw(screen)
+            
+    def update(self):
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+
+class Enemy:
+    def __init__(self, x, y, row, col):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = ENEMY_SPEED
+        self.direction = 1  # 1 for right, -1 for left
+        self.row = row
+        self.col = col
+        self.alive = True
+        
+    def draw(self, screen):
+        if self.alive:
+            # Draw enemy (rectangle with details)
+            pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+            # Draw eyes
+            eye_y = self.y + 10
+            pygame.draw.circle(screen, WHITE, (self.x + 10, eye_y), 5)
+            pygame.draw.circle(screen, WHITE, (self.x + 30, eye_y), 5)
+            pygame.draw.circle(screen, BLACK, (self.x + 10, eye_y), 2)
+            pygame.draw.circle(screen, BLACK, (self.x + 30, eye_y), 2)
+            
+    def update(self, enemies):
+        # Move enemy
+        self.x += self.speed * self.direction
+        
+        # Check if enemy reaches edge
+        if self.x <= 0 or self.x >= SCREEN_WIDTH - self.width:
+            self.direction *= -1
+            # Move all enemies down
+            for enemy in enemies:
+                enemy.y += 10
+                
+    def shoot(self):
+        # Random shooting
+        if random.random() < 0.02:  # 2% chance per frame
+            return Bullet(self.x + self.width//2 - 2, self.y + self.height, ENEMY_BULLET_SPEED)
+        return None
+
+class Bullet:
+    def __init__(self, x, y, speed):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 10
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, YELLOW, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        self.y += self.speed
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class SpaceInvaders:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.game_over = False
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Create game objects
+        self.player = Player(SCREEN_WIDTH//2 - 25, SCREEN_HEIGHT - 60)
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        
+    def create_enemies(self):
+        # Create grid of enemies
+        rows = 5
+        cols = 10
+        for row in range(rows):
+            for col in range(cols):
+                x = 50 + col * 70
+                y = 50 + row * 50
+                enemy = Enemy(x, y, row, col)
+                self.enemies.append(enemy)
+                
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.player.shoot()
+                if event.key == pygame.K_r and self.game_over:
+                    self.reset_game()
+                    
+    def update(self):
+        if self.game_over:
+            return
+            
+        # Update player
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move_left()
+        if keys[pygame.K_RIGHT]:
+            self.player.move_right()
+        self.player.update()
+        
+        # Update enemies
+        for enemy in self.enemies:
+            enemy.update(self.enemies)
+            
+        # Enemy shooting
+        for enemy in self.enemies:
+            bullet = enemy.shoot()
+            if bullet:
+                self.enemy_bullets.append(bullet)
+                
+        # Update enemy bullets
+        for bullet in self.enemy_bullets[:]:
+            bullet.update()
+            if bullet.y > SCREEN_HEIGHT:
+                self.enemy_bullets.remove(bullet)
+                
+        # Check collisions
+        self.check_collisions()
+        
+        # Check win/lose conditions
+        self.check_game_over()
+        
+    def check_collisions(self):
+        # Player bullets vs enemies
+        for bullet in self.player.bullets[:]:
+            bullet_rect = bullet.get_rect()
+            for enemy in self.enemies:
+                if enemy.alive:
+                    enemy_rect = pygame.Rect(enemy.x, enemy.y, enemy.width, enemy.height)
+                    if bullet_rect.colliderect(enemy_rect):
+                        self.player.bullets.remove(bullet)
+                        enemy.alive = False
+                        self.player.score += 10
+                        break
+                        
+        # Enemy bullets vs player
+        player_rect = pygame.Rect(self.player.x, self.player.y, 
+                                 self.player.width, self.player.height)
+        for bullet in self.enemy_bullets[:]:
+            bullet_rect = bullet.get_rect()
+            if bullet_rect.colliderect(player_rect):
+                self.enemy_bullets.remove(bullet)
+                self.player.lives -= 1
+                if self.player.lives <= 0:
+                    self.game_over = True
+                break
+                
+    def check_game_over(self):
+        # Check if all enemies are destroyed
+        alive_enemies = [e for e in self.enemies if e.alive]
+        if len(alive_enemies) == 0:
+            self.game_over = True
+            
+        # Check if enemies reached the player
+        for enemy in self.enemies:
+            if enemy.alive and enemy.y + enemy.height >= self.player.y:
+                self.game_over = True
+                break
+                
+    def draw(self):
+        self.screen.fill(BLACK)
+        
+        # Draw game objects
+        self.player.draw(self.screen)
+        
+        for enemy in self.enemies:
+            enemy.draw(self.screen)
+            
+        for bullet in self.enemy_bullets:
+            bullet.draw(self.screen)
+            
+        # Draw UI
+        score_text = self.font.render(f"Score: {self.player.score}", True, WHITE)
+        lives_text = self.font.render(f"Lives: {self.player.lives}", True, WHITE)
+        self.screen.blit(score_text, (10, 10))
+        self.screen.blit(lives_text, (SCREEN_WIDTH - 150, 10))
+        
+        # Draw game over message
+        if self.game_over:
+            game_over_text = self.font.render("GAME OVER", True, RED)
+            restart_text = self.small_font.render("Press R to restart", True, WHITE)
+            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 40))
+            self.screen.blit(game_over_text, text_rect)
+            self.screen.blit(restart_text, restart_rect)
+            
+        pygame.display.flip()
+        
+    def reset_game(self):
+        self.player = Player(SCREEN_WIDTH//2 - 25, SCREEN_HEIGHT - 60)
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        self.game_over = False
+        
+    def run(self):
+        while self.running:
+            self.handle_events()
+            self.update()
+            self.draw()
+            self.clock.tick(60)
+            
+        pygame.quit()
+
+# Run the game
+if __name__ == "__main__":
+    game = SpaceInvaders()
+    game.run()
+```
+
+This Space Invaders game includes:
+
+1. **Player Ship**: A green triangle that can move left/right and shoot bullets
+2. **Enemies**: Red rectangles with eyes that move in formation and shoot back
+3. **Bullets**: Yellow rectangles for both player and enemy projectiles
+4. **Scoring**: 10 points per enemy destroyed
+5. **Lives**: Player has 3 lives
+6. **Game Over**: Triggers when lives are depleted, all enemies are destroyed (win), or enemies reach the player
+
+**Controls:**
+- Left/Right arrow keys to move
+- Space to shoot
+- R to restart after game over
+
+**Features:**
+- Enemy formation movement with edge detection
+- Random enemy shooting
+- Collision detection for all projectiles
+- Score display
+- Lives display
+- Game over screen with restart option
+
+To run the game, make sure you have Pygame installed (`pip install pygame`) and run the script. The game runs at 60 FPS for smooth gameplay.

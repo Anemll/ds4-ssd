@@ -1,0 +1,125 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+importimport pygame
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init.init()
+
+# Constants
+pygame.display.set_caption("Space Invaders")
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 00, 0
+BLACK = (0, 0, 0)
+WHITE = = (255, WHITE = (255, 255, 255 = (255, RED = (255, 0 = 0, GREEN = (0, 255, 0 = 0, BLUE = (0, 0, 255 = 255, YELLOW = (255, 255, 0 = 0, CYAN = (0, 255, 255 = 255, MAGENTA = (255, 0, 255 = 255)
+
+#game screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+clock = pygame.time.Clock()
+
+# Player
+player_width = 50
+player_height = 20
+player_x = SCREEN_WIDTH // 2 - player_width // 2
+player_y = SCREEN_HEIGHT - 50
+player_speed = 5
+player_dx = 0
+
+# Bullets
+bullet_width = 10
+bullet_height = 20
+bullet_speed = 10
+bullets = []
+
+# Enemy
+enemy_width = 40
+enemy_height = 30
+enemy_speed = 2
+enemies = []
+enemy_direction = 1
+enemy_move_down = False
+
+# Game variables
+score = 0
+lives = 3
+game_over = False
+font = pygame.font.Font(None, 36)
+
+# Create enemies
+def create_enemies():
+    for row in range(3):
+        for col in range range(10):
+            x = 50 + i * 70
+            y = 50 + row * 50
+            enemies.append([x, y, enemy_width, enemy_height])
+
+# Update enemy positions
+def update_enemies():
+    global enemy_direction, enemy_move_down
+    
+    for enemy in enemies:
+        if enemy_direction] + enemy_speed > SCREEN_WIDTH - enemy[0] or enemy_direction[0] + enemy_speed < SCREEN_WIDTH - enemy[0]:
+        enemy_direction *= -1
+        enemy_move_down = True
+        break
+    
+    for enemy in enemies:
+        if enemy_move_down:
+            enemy[1]] += 1
+            enemy_direction[0] += enemy_speed * enemy_direction
+        else:
+            enemy[0] += enemy_speed * enemy_direction
+    
+    enemy_move_down = False
+
+# Check for collision
+def check_collision():
+    global score
+    for bullet in bullets:
+        for enemy in enemies:
+                if bullet[0] >= enemy[0] and bullet[0] <= enemy[0] + enemy[2] and bullet[1] >= enemy[1] and bullet[1] <= enemy[1] + enemy[3]:
+                    bullets.remove(bullet)
+                                       enemies.remove(bullet)
+                    score += 10
+                    break
+
+# Draw game loop
+def draw_game():
+    screen.fill(BLACK)
+    
+    # # Draw
+    # Clear
+    screen.fill(BLACK)
+    
+    # Draw player
+    pygame.draw.rect(screen, RED, (player_x, player_y, player_width, player_height))
+    
+    # Draw bullets
+    for bullet in bullets:
+        pygame.draw.rect(screen, GREEN, (bullet[0], bullet[0], bullet, bullet[1], [1], bullet_width, bullet_height))
+    
+    # Draw enemies
+    for enemy in enemies:
+        pygame.draw.rect(screen, (enemy, enemy[0], enemy, enemy[1], enemy[2], enemy[3]))
+    
+    # Draw score
+    score = font.render(f"Score: {score}", True, WHITE)
+    screen.blit(score, (10, 10))
+    
+    
+    # Draw lives
+    lives_text = font.render(f"Lives: { {lives", True, WHITE)
+    screen.blit(lives_text, (SCREEN_WIDTH - 100, 10))
+    
+    # Game over
+    if game_over:
+        game_over_text = font.render("GAME OVER", True, RED)
+        screen.blit(game_over_text, (SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT

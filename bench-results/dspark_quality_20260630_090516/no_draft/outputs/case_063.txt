@@ -1,0 +1,20 @@
+Here's a short example of a race condition in C where two threads try to increment a shared counter without synchronization:
+
+```c
+#include <stdio.h>
+#include <pthread.h>
+
+int counter = 0;  // shared resource
+
+void* increment(void* arg) {
+    for (int i = 0; i < 1000000; i++) {
+        counter++;  // RACE CONDITION: not atomic
+    }
+    return NULL;
+}
+
+int main() {
+    pthread_t t1, t2;
+    
+    pthread_create(&t1, NULL, increment, NULL);
+    pthread_create(&t2

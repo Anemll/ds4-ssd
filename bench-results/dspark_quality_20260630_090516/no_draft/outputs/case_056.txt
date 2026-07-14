@@ -1,0 +1,6 @@
+Questa è una domanda molto tecnica e interessante, che tocca il cuore dell'architettura dei moderni modelli di linguaggio di grandi dimensioni (LLM).
+
+In un modello **Mixture-of-Experts (MoE)** , il **router** (o *gating network*) ha un ruolo assolutamente centrale e critico. La sua funzione principale è quella di **instradare ogni input (token) verso il sotto-modello (expert) più adatto a elaborarlo.**
+
+Per capire il suo ruolo, dobbiamo prima capire la struttura di un layer MoE.
+

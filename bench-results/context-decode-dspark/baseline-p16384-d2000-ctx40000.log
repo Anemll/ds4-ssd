@@ -1,0 +1,343 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.720 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=0.057s profile=0.001s model=0.006s sidecar=0.006s weights=0.000s dspark=0.000s backend=0.044s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 3.1GB Total <<<< 83.9GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=14.484s raw-graph=0.002s flash-moe=14.482s steering=0.000s draft-scratch=no
+processing 16383 input tokens: 0/16383 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 16383 input tokens: 381/16383 (2.3%) batch=235.88 t/s avg=235.19 t/s
+processing 16383 input tokens: 762/16383 (4.7%) batch=442.75 t/s avg=307.20 t/s
+processing 16383 input tokens: 1143/16383 (7.0%) batch=293.43 t/s avg=302.46 t/s
+processing 16383 input tokens: 1524/16383 (9.3%) batch=425.11 t/s avg=325.98 t/s
+processing 16383 input tokens: 1905/16383 (11.6%) batch=308.00 t/s avg=322.21 t/s
+processing 16383 input tokens: 2286/16383 (14.0%) batch=410.98 t/s avg=334.25 t/s
+processing 16383 input tokens: 2667/16383 (16.3%) batch=304.92 t/s avg=329.72 t/s
+processing 16383 input tokens: 3048/16383 (18.6%) batch=413.14 t/s avg=338.25 t/s
+processing 16383 input tokens: 3429/16383 (20.9%) batch=292.56 t/s avg=332.48 t/s
+processing 16383 input tokens: 3810/16383 (23.3%) batch=403.53 t/s avg=338.44 t/s
+processing 16383 input tokens: 4191/16383 (25.6%) batch=291.21 t/s avg=333.52 t/s
+processing 16383 input tokens: 4572/16383 (27.9%) batch=415.13 t/s avg=339.08 t/s
+processing 16383 input tokens: 4953/16383 (30.2%) batch=297.52 t/s avg=335.47 t/s
+processing 16383 input tokens: 5334/16383 (32.6%) batch=407.76 t/s avg=339.78 t/s
+processing 16383 input tokens: 5715/16383 (34.9%) batch=297.40 t/s avg=336.58 t/s
+processing 16383 input tokens: 6096/16383 (37.2%) batch=403.93 t/s avg=340.12 t/s
+processing 16383 input tokens: 6477/16383 (39.5%) batch=289.48 t/s avg=336.66 t/s
+processing 16383 input tokens: 6858/16383 (41.9%) batch=401.98 t/s avg=339.73 t/s
+processing 16383 input tokens: 7239/16383 (44.2%) batch=296.49 t/s avg=337.14 t/s
+processing 16383 input tokens: 7620/16383 (46.5%) batch=410.35 t/s avg=340.17 t/s
+processing 16383 input tokens: 8001/16383 (48.8%) batch=289.89 t/s avg=337.39 t/s
+processing 16383 input tokens: 8382/16383 (51.2%) batch=403.20 t/s avg=339.91 t/s
+processing 16383 input tokens: 8763/16383 (53.5%) batch=291.05 t/s avg=337.45 t/s
+processing 16383 input tokens: 9144/16383 (55.8%) batch=389.01 t/s avg=339.32 t/s
+processing 16383 input tokens: 9525/16383 (58.1%) batch=290.12 t/s avg=337.03 t/s
+processing 16383 input tokens: 9906/16383 (60.5%) batch=400.32 t/s avg=339.09 t/s
+processing 16383 input tokens: 10287/16383 (62.8%) batch=292.44 t/s avg=337.10 t/s
+processing 16383 input tokens: 10668/16383 (65.1%) batch=398.46 t/s avg=338.97 t/s
+processing 16383 input tokens: 11049/16383 (67.4%) batch=291.93 t/s avg=337.09 t/s
+processing 16383 input tokens: 11430/16383 (69.8%) batch=404.29 t/s avg=338.97 t/s
+processing 16383 input tokens: 11811/16383 (72.1%) batch=282.67 t/s avg=336.81 t/s
+processing 16383 input tokens: 12192/16383 (74.4%) batch=399.39 t/s avg=338.47 t/s
+processing 16383 input tokens: 12573/16383 (76.7%) batch=290.60 t/s avg=336.78 t/s
+processing 16383 input tokens: 12954/16383 (79.1%) batch=403.85 t/s avg=338.44 t/s
+processing 16383 input tokens: 13335/16383 (81.4%) batch=284.69 t/s avg=336.62 t/s
+processing 16383 input tokens: 13716/16383 (83.7%) batch=398.28 t/s avg=338.08 t/s
+processing 16383 input tokens: 14097/16383 (86.0%) batch=290.62 t/s avg=336.59 t/s
+processing 16383 input tokens: 14478/16383 (88.4%) batch=393.48 t/s avg=337.88 t/s
+processing 16383 input tokens: 14859/16383 (90.7%) batch=286.65 t/s avg=336.33 t/s
+processing 16383 input tokens: 15240/16383 (93.0%) batch=403.67 t/s avg=337.74 t/s
+processing 16383 input tokens: 15621/16383 (95.3%) batch=289.82 t/s avg=336.39 t/s
+processing 16383 input tokens: 16002/16383 (97.7%) batch=402.26 t/s avg=337.70 t/s
+processing 16383 input tokens: 16383/16383 (100.0%) batch=295.16 t/s avg=336.58 t/s
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+I'll create a complete Tetris game in C++ for macOS. This implementation uses the standard library and ncurses for terminal-based graphics.
+
+```cpp
+// tetris.cpp
+// A complete Tetris game implementation for macOS
+// Compile with: g++ -std=c++11 tetris.cpp -o tetris -lncurses
+
+#include <curses.h>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include <vector>
+#include <string>
+#include <chrono>
+#include <thread>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 2;  // Each block is 2x2 characters for better visibility
+
+// Tetromino shapes (7 standard pieces)
+// Each shape is represented as a 4x4 grid
+const std::vector<std::vector<std::vector<int>>> SHAPES = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each piece type
+const std::vector<int> PIECE_COLORS = {1, 2, 3, 4, 5, 6, 7};
+
+class Tetris {
+private:
+    WINDOW *game_win;
+    WINDOW *info_win;
+    WINDOW *next_win;
+    
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> current_piece;
+    std::vector<std::vector<int>> next_piece;
+    
+    int current_x, current_y;
+    int current_piece_type;
+    int next_piece_type;
+    int score;
+    int level;
+    int lines_cleared;
+    bool game_over;
+    bool paused;
+    
+    // Timing
+    std::chrono::steady_clock::time_point last_drop;
+    int drop_interval;  // milliseconds
+    
+public:
+    Tetris() : score(0), level(1), lines_cleared(0), 
+               game_over(false), paused(false) {
+        // Initialize ncurses
+        initscr();
+        cbreak();
+        noecho();
+        curs_set(0);
+        keypad(stdscr, TRUE);
+        timeout(100);  // Non-blocking input
+        
+        // Initialize colors
+        start_color();
+        init_pair(1, COLOR_CYAN, COLOR_BLACK);    // I piece
+        init_pair(2, COLOR_YELLOW, COLOR_BLACK);  // O piece
+        init_pair(3, COLOR_MAGENTA, COLOR_BLACK); // T piece
+        init_pair(4, COLOR_GREEN, COLOR_BLACK);   // S piece
+        init_pair(5, COLOR_RED, COLOR_BLACK);     // Z piece
+        init_pair(6, COLOR_BLUE, COLOR_BLACK);    // J piece
+        init_pair(7, COLOR_WHITE, COLOR_BLACK);   // L piece
+        
+        // Initialize random seed
+        srand(time(nullptr));
+        
+        // Create windows
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+        
+        // Calculate center position
+        int game_start_x = (max_x - BOARD_WIDTH * BLOCK_SIZE) / 2;
+        int game_start_y = (max_y - BOARD_HEIGHT) / 2;
+        
+        game_win = newwin(BOARD_HEIGHT + 2, BOARD_WIDTH * BLOCK_SIZE + 2, 
+                         game_start_y, game_start_x);
+        info_win = newwin(5, 20, game_start_y, game_start_x + BOARD_WIDTH * BLOCK_SIZE + 4);
+        next_win = newwin(8, 20, game_start_y + 6, game_start_x + BOARD_WIDTH * BLOCK_SIZE + 4);
+        
+        // Initialize board
+        board.resize(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0));
+        
+        // Initialize pieces
+        current_piece_type = rand() % 7;
+        next_piece_type = rand() % 7;
+        current_piece = SHAPES[current_piece_type];
+        next_piece = SHAPES[next_piece_type];
+        
+        // Set initial position
+        current_x = BOARD_WIDTH / 2 - current_piece[0].size() / 2;
+        current_y = 0;
+        
+        // Set drop interval based on level
+        updateDropInterval();
+        last_drop = std::chrono::steady_clock::now();
+    }
+    
+    ~Tetris() {
+        delwin(game_win);
+        delwin(info_win);
+        delwin(next_win);
+        endwin();
+    }
+    
+    void run() {
+        while (!game_over) {
+            if (!paused) {
+                handleInput();
+                updateGame();
+                draw();
+                
+                // Control game speed
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>
+                              (now - last_drop).count();
+                if (elapsed >= drop_interval) {
+                    moveDown();
+                    last_drop = now;
+                }
+            } else {
+                // Handle input even when paused
+                handleInput();
+                draw();
+            }
+            
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        
+        // Game over screen
+        drawGameOver();
+        timeout(-1);  // Wait for input
+        getch();
+    }
+    
+private:
+    void handleInput() {
+        int ch = getch();
+        switch(ch) {
+            case 'q':
+            case 'Q':
+                game_over = true;
+                break;
+            case 'p':
+            case 'P':
+                paused = !paused;
+                break;
+            case KEY_LEFT:
+                if (!paused) moveLeft();
+                break;
+            case KEY_RIGHT:
+                if (!paused) moveRight();
+                break;
+            case KEY_DOWN:
+                if (!paused) moveDown();
+                break;
+            case KEY_UP:
+                if (!paused) rotate();
+                break;
+            case ' ':
+                if (!paused) hardDrop();
+                break;
+        }
+    }
+    
+    void updateGame() {
+        // Check for completed lines
+        int cleared = 0;
+        for (int y = BOARD_HEIGHT - 1; y >= 0; ) {
+            bool complete = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (board[y][x] == 0) {
+                    complete = false;
+                    break;
+                }
+            }
+            if (complete) {
+                // Remove the line
+                for (int row = y; row > 0; row--) {
+                    board[row] = board[row - 1];
+                }
+                board[0] = std::vector<int>(BOARD_WIDTH, 0);
+                cleared++;
+                // Check same y again (line shifted down)
+            } else {
+                y--;
+            }
+        }
+        
+        if (cleared > 0) {
+            lines_cleared += cleared;
+            score += cleared * 100 * level;
+            
+            // Level up every 10 lines
+            level = lines_cleared / 10 + 1;
+            updateDropInterval();
+        }
+    }
+    
+    void draw() {
+        // Draw game board
+        werase(game_win);
+        box(game_win, 0, 0);
+        
+        // Draw board contents
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (board[y][x] > 0) {
+                    int color = PIECE_COLORS[board[y][x] - 1];
+                    wattron(game_win, COLOR_PAIR(color));
+                    mvwprintw(game_win, y + 1, x * BLOCK_SIZE + 1, "[]");
+                    wattroff(game_win, COLOR_PAIR(color));
+                }
+            }
+        }
+        
+        // Draw current piece
+        drawPiece(game_win, current_piece, current_x, current_y, 
+                 PIECE_COLORS[current_piece_type]);
+        
+        // Draw ghost piece (shadow)
+        int ghost_y = current_y;
+        while (isValidPosition(current_piece, current_x, ghost_y + 1)) {
+            ghost_y++;
+       
+ds4: ----------------------------------------
+ds4: prefill: 336.56 t/s, generation: 26.41 t/s (2000 tokens in 75.719s)
+ds4: ttf: first-output=63.294s total=138.961s (engine=0.057s session=14.484s prompt=0.002s prefill=48.677s decode=75.719s)
+ds4: vm pressure: app=87.92 GiB resident=61.74 GiB wired=88.14 GiB compressed=0.41 GiB logical=0.91 GiB swap=3.21/4.00 GiB pressure=82% free=0.54 GiB gpu=87.86 GiB gpu-compressed=0.00 GiB task-compressed=11.14 GiB decompressions=2440450

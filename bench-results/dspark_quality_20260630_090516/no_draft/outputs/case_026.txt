@@ -1,0 +1,13 @@
+Here is a brief plan for testing long-context prompt chunking, focusing on a practical, iterative approach.
+
+### Testing Plan: Long-Context Prompt Chunking
+
+**Goal:** Validate that the chunking strategy preserves context integrity, maintains model performance, and reduces latency/cost compared to sending the entire raw prompt.
+
+**Core Hypothesis:** Chunking a long prompt (e.g., > 50k tokens) into smaller, overlapping segments, processing them sequentially, and aggregating results will yield comparable accuracy to a single, monolithic prompt while significantly reducing token waste and processing time.
+
+---
+
+### Phase 1: Baseline & Setup
+
+1

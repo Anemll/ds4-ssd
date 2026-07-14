@@ -1,0 +1,9 @@
+This is a great question that gets at a core tension in system design, particularly in distributed systems, databases, and UI rendering.
+
+The short answer is: **A single, large buffer creates a "monolithic" point of failure and contention, while multiple overlapping views allow for parallelism, isolation, and incremental processing.**
+
+Let's break down the "why" by looking at the specific problems a large buffer creates and how overlapping views solve them.
+
+### The Problem with One Large Metal Buffer
+
+Think of a "Metal buffer" (or any buffer in graphics, databases, or data processing) as a single, shared, mutable resource. The problems

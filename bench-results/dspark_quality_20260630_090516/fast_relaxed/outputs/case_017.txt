@@ -1,0 +1,5 @@
+Questa è una domanda molto interessante e precisa. La decodifica speculativa mantiene l'output esatto perché è un metodo di **decompressione** di un modello più grande tramite un modello più piccolo, non un metodo di approssimazione.
+
+Ecco il riassunto dei meccanismi chiave che garantiscono l'esattezza:
+
+1.  **Verifica a posteriori (Rejection Sampling)**: Il modello piccolo (draft model) genera un intero blocco di token in modo *autoregressivo* e veloce. Il modello grande (target model) poi

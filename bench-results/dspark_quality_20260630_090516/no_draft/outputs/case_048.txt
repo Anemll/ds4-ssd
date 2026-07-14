@@ -1,0 +1,8 @@
+Here is a comprehensive checklist for validating that a quantized model still follows instructions. This checklist is designed to be model-agnostic and focuses on functional correctness rather than just numerical similarity.
+
+### Phase 1: Sanity Checks (Pre-Validation)
+
+**Objective:** Ensure the quantization process itself did not break the model's basic functionality.
+
+- [ ] **Loadability Check:** Can the quantized model be loaded without errors (e.g., `CUDA out of memory`, `shape mismatch`, `key not found`)?
+- [ ] **Forward Pass Check:** Does a single forward pass on a simple, non-instruction input (e

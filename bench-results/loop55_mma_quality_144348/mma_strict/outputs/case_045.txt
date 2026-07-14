@@ -1,0 +1,9 @@
+This is a great question that gets at a core tension in system design, particularly in distributed systems, databases, and UI rendering.
+
+The principle is that **a single, large, monolithic buffer** often creates a **single point of contention and a single point of failure**, whereas **multiple, smaller, overlapping views** allow for **parallelism, isolation, and graceful degradation**.
+
+Let's break down the "why" across different contexts.
+
+### The Core Problem: The "Big Lock" vs. "Fine-Grained Locks"
+
+Think of a large buffer as a single, giant room that everyone must use. An overlapping view is like having

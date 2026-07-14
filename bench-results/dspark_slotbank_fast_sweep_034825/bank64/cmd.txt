@@ -1,0 +1,1 @@
+--moe-slot-bank 64

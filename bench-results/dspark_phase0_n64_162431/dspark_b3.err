@@ -1,0 +1,855 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=3 active=3 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.277 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=30.50 t/s avg=0.46 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.46 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=52.62 t/s avg=0.91 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.90 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=51.96 t/s avg=1.35 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.33 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.32 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=47.95 t/s avg=1.75 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.73 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=49.30 t/s avg=2.14 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.13 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=53.25 t/s avg=2.53 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.51 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.29 t/s avg=2.91 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.89 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.87 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=53.29 t/s avg=3.25 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.22 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=56.00 t/s avg=3.60 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.57 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=50.54 t/s avg=3.94 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.90 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=56.43 t/s avg=4.26 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.23 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.21 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=49.30 t/s avg=4.56 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.52 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=48.20 t/s avg=4.86 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.83 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=51.96 t/s avg=5.16 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.13 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=53.33 t/s avg=5.46 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.41 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.37 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=51.22 t/s avg=5.69 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=5.65 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=51.16 t/s avg=5.96 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=5.92 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=51.99 t/s avg=6.22 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.18 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.29 t/s avg=6.48 t/s
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=3 rows=3 in 157.2 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=3 prefixN=1
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark route overlap path=hybrid block=1 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 5:1 14:1 29:1 46:1
+ds4: routed MoE exact ordered expert-sum kernel enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark route overlap path=hybrid block=1 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 37:1 44:1 48:1 74:1
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark route overlap path=hybrid block=1 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 16:1 24:1 26:1 40:1
+ds4: dspark route overlap path=hybrid block=1 layer=3 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 96:3 72:2 101:2 4:1
+ds4: dspark route overlap path=hybrid block=1 layer=4 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 97:3 224:3 8:2 113:2
+ds4: dspark route overlap path=hybrid block=1 layer=5 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 63:3 169:3 73:2 161:2
+ds4: dspark route overlap path=hybrid block=1 layer=6 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 1:3 51:3 111:3 15:1
+ds4: dspark route overlap path=hybrid block=1 layer=7 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 122:3 238:3 33:2 125:2
+ds4: dspark route overlap path=hybrid block=1 layer=8 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 115:3 200:3 56:2 1:1
+ds4: dspark route overlap path=hybrid block=1 layer=9 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 50:2 235:2 242:2 3:1
+ds4: dspark route overlap path=hybrid block=1 layer=10 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 11:3 40:3 214:2 221:2
+ds4: dspark route overlap path=hybrid block=1 layer=11 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 26:3 16:2 163:2 225:2
+ds4: dspark route overlap path=hybrid block=1 layer=12 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 122:3 142:3 185:3 217:2
+ds4: dspark route overlap path=hybrid block=1 layer=13 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 15:3 195:3 230:3 14:2
+ds4: dspark route overlap path=hybrid block=1 layer=14 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 1:3 49:3 235:3 73:2
+ds4: dspark route overlap path=hybrid block=1 layer=15 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 17:3 104:3 176:3 71:2
+ds4: dspark route overlap path=hybrid block=1 layer=16 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 84:3 179:3 104:2 122:2
+ds4: dspark route overlap path=hybrid block=1 layer=17 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 3:3 35:2 61:2 68:2
+ds4: dspark route overlap path=hybrid block=1 layer=18 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 166:3 134:2 160:2 185:2
+ds4: dspark route overlap path=hybrid block=1 layer=19 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 60:3 181:3 79:2 159:2
+ds4: dspark route overlap path=hybrid block=1 layer=20 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 45:3 187:3 129:2 250:2
+ds4: dspark route overlap path=hybrid block=1 layer=21 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 17:3 47:3 49:3 235:2
+ds4: dspark route overlap path=hybrid block=1 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 66:3 220:3 135:2 148:2
+ds4: dspark route overlap path=hybrid block=1 layer=23 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 5:2 118:2 124:2 165:2
+ds4: dspark route overlap path=hybrid block=1 layer=24 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 39:3 112:3 124:2 177:2
+ds4: dspark route overlap path=hybrid block=1 layer=25 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 176:3 19:2 44:2 71:2
+ds4: dspark route overlap path=hybrid block=1 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 4:3 63:3 78:2 136:2
+ds4: dspark route overlap path=hybrid block=1 layer=27 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 152:3 7:2 86:2 23:1
+ds4: dspark route overlap path=hybrid block=1 layer=28 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 23:3 229:3 40:2 94:2
+ds4: dspark route overlap path=hybrid block=1 layer=29 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 65:3 238:3 70:2 58:1
+ds4: dspark route overlap path=hybrid block=1 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 229:3 248:3 13:2 132:2
+ds4: dspark route overlap path=hybrid block=1 layer=31 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 43:3 129:3 237:3 172:2
+ds4: dspark route overlap path=hybrid block=1 layer=32 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 214:3 221:3 72:2 204:2
+ds4: dspark route overlap path=hybrid block=1 layer=33 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 25:3 251:3 47:2 213:2
+ds4: dspark route overlap path=hybrid block=1 layer=34 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 81:3 134:3 158:3 214:3
+ds4: dspark route overlap path=hybrid block=1 layer=35 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 84:3 105:2 10:1 21:1
+ds4: dspark route overlap path=hybrid block=1 layer=36 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 136:3 84:2 168:2 247:2
+ds4: dspark route overlap path=hybrid block=1 layer=37 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 169:3 13:2 43:2 76:2
+ds4: dspark route overlap path=hybrid block=1 layer=38 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 35:3 53:2 94:2 139:2
+ds4: dspark route overlap path=hybrid block=1 layer=39 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 69:2 106:2 223:2 5:1
+ds4: dspark route overlap path=hybrid block=1 layer=40 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 22:3 71:2 112:2 136:2
+ds4: dspark route overlap path=hybrid block=1 layer=41 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 159:3 152:2 236:2 23:1
+ds4: dspark route overlap path=hybrid block=1 layer=42 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 7:2 98:2 117:2 225:2
+ds4: dspark verify dispatch path=hybrid block=1 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=1 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=1 n=3 layers=43 slots=774 unique=518 reuse=1.49x dup=33.1% pair_overlap=2.52/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=37 reuse>=1.50=29 avg_reuse=1.49x avg_pair_overlap=2.52/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.281 ms snapshot=0.709 ms verify=78.901 ms dspark_kv=1.223 ms total=93.220 ms
+ds4: dspark route overlap path=hybrid block=2 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 8:1 18:1 25:1 37:1
+ds4: dspark route overlap path=hybrid block=2 layer=1 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 180:2 28:1 38:1 46:1
+ds4: dspark route overlap path=hybrid block=2 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 6:1 10:1 40:1 42:1
+ds4: dspark route overlap path=hybrid block=2 layer=3 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 85:3 187:3 52:2 72:2
+ds4: dspark route overlap path=hybrid block=2 layer=4 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 67:3 100:3 126:3 28:2
+ds4: dspark route overlap path=hybrid block=2 layer=5 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 36:3 73:3 225:3 211:2
+ds4: dspark route overlap path=hybrid block=2 layer=6 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 6:3 202:3 205:3 13:1
+ds4: dspark route overlap path=hybrid block=2 layer=7 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 9:3 170:3 212:3 244:3
+ds4: dspark route overlap path=hybrid block=2 layer=8 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 60:3 98:3 25:2 37:2
+ds4: dspark route overlap path=hybrid block=2 layer=9 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 47:3 203:3 222:3 233:3
+ds4: dspark route overlap path=hybrid block=2 layer=10 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 89:3 213:3 13:2 87:2
+ds4: dspark route overlap path=hybrid block=2 layer=11 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 23:3 94:3 131:3 114:2
+ds4: dspark route overlap path=hybrid block=2 layer=12 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 0:3 32:3 80:3 255:3
+ds4: dspark route overlap path=hybrid block=2 layer=13 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 43:3 75:3 146:3 127:2
+ds4: dspark route overlap path=hybrid block=2 layer=14 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 84:3 113:3 51:2 56:2
+ds4: dspark route overlap path=hybrid block=2 layer=15 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 96:3 179:3 246:3 60:2
+ds4: dspark route overlap path=hybrid block=2 layer=16 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 84:3 85:3 179:3 252:3
+ds4: dspark route overlap path=hybrid block=2 layer=17 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 3:3 202:3 68:2 166:2
+ds4: dspark route overlap path=hybrid block=2 layer=18 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 160:3 184:3 253:3 79:2
+ds4: dspark route overlap path=hybrid block=2 layer=19 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 5:3 19:2 53:2 182:2
+ds4: dspark route overlap path=hybrid block=2 layer=20 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 49:3 73:3 181:3 14:2
+ds4: dspark route overlap path=hybrid block=2 layer=21 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 69:3 142:2 193:2 208:2
+ds4: dspark route overlap path=hybrid block=2 layer=22 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 66:2 73:2 135:2 193:2
+ds4: dspark route overlap path=hybrid block=2 layer=23 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 54:3 248:3 16:2 39:2
+ds4: dspark route overlap path=hybrid block=2 layer=24 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 35:3 39:3 99:2 131:2
+ds4: dspark route overlap path=hybrid block=2 layer=25 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 19:3 176:3 253:2 10:1
+ds4: dspark route overlap path=hybrid block=2 layer=26 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 202:3 63:2 168:2 179:2
+ds4: dspark route overlap path=hybrid block=2 layer=27 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 7:3 36:3 66:2 86:2
+ds4: dspark route overlap path=hybrid block=2 layer=28 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 23:3 69:3 229:3 40:2
+ds4: dspark route overlap path=hybrid block=2 layer=29 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 63:3 76:3 215:3 65:2
+ds4: dspark route overlap path=hybrid block=2 layer=30 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 13:3 132:3 229:3 251:3
+ds4: dspark route overlap path=hybrid block=2 layer=31 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 49:3 129:3 237:3 223:2
+ds4: dspark route overlap path=hybrid block=2 layer=32 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 72:3 221:3 228:3 167:2
+ds4: dspark route overlap path=hybrid block=2 layer=33 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 25:3 214:3 87:2 152:2
+ds4: dspark route overlap path=hybrid block=2 layer=34 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 81:3 69:2 214:2 30:1
+ds4: dspark route overlap path=hybrid block=2 layer=35 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 177:3 35:2 159:2 179:2
+ds4: dspark route overlap path=hybrid block=2 layer=36 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 3:3 84:3 247:3 136:2
+ds4: dspark route overlap path=hybrid block=2 layer=37 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 43:3 169:3 233:3 13:2
+ds4: dspark route overlap path=hybrid block=2 layer=38 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 139:3 187:3 216:3 218:2
+ds4: dspark route overlap path=hybrid block=2 layer=39 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 125:2 154:2 18:1 36:1
+ds4: dspark route overlap path=hybrid block=2 layer=40 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 71:3 105:3 136:3 22:2
+ds4: dspark route overlap path=hybrid block=2 layer=41 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 144:3 235:3 247:3 152:2
+ds4: dspark route overlap path=hybrid block=2 layer=42 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 15:2 46:2 150:2 185:2
+ds4: dspark verify dispatch path=hybrid block=2 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=2 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=2 n=3 layers=43 slots=774 unique=482 reuse=1.61x dup=37.7% pair_overlap=3.01/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=39 reuse>=1.50=33 avg_reuse=1.55x avg_pair_overlap=2.76/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.481 ms snapshot=0.373 ms verify=65.667 ms dspark_kv=1.375 ms total=79.985 ms
+ds4: dspark route overlap path=hybrid block=3 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 233:2 1:1 32:1 36:1
+ds4: dspark route overlap path=hybrid block=3 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 38:1 39:1 58:1 63:1
+ds4: dspark route overlap path=hybrid block=3 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 4:1 18:1 27:1 44:1
+ds4: dspark route overlap path=hybrid block=3 layer=3 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 72:3 241:3 21:2 101:2
+ds4: dspark route overlap path=hybrid block=3 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 97:2 100:2 177:2
+ds4: dspark route overlap path=hybrid block=3 layer=5 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 211:3 73:2 150:2 161:2
+ds4: dspark route overlap path=hybrid block=3 layer=6 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 64:3 47:2 51:2 187:2
+ds4: dspark route overlap path=hybrid block=3 layer=7 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 238:3 78:2 93:2 153:2
+ds4: dspark route overlap path=hybrid block=3 layer=8 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 60:3 76:2 10:1 25:1
+ds4: dspark route overlap path=hybrid block=3 layer=9 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 195:3 20:2 108:2 203:2
+ds4: dspark route overlap path=hybrid block=3 layer=10 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 11:3 45:2 118:2 150:2
+ds4: dspark route overlap path=hybrid block=3 layer=11 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 26:3 204:3 131:2 94:1
+ds4: dspark route overlap path=hybrid block=3 layer=12 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 0:3 122:3 80:2 185:2
+ds4: dspark route overlap path=hybrid block=3 layer=13 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 191:3 192:3 230:3 43:2
+ds4: dspark route overlap path=hybrid block=3 layer=14 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 199:3 235:3 1:2 99:2
+ds4: dspark route overlap path=hybrid block=3 layer=15 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 71:3 40:2 60:2 148:2
+ds4: dspark route overlap path=hybrid block=3 layer=16 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 84:3 85:3 179:3 230:3
+ds4: dspark route overlap path=hybrid block=3 layer=17 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 35:3 68:3 3:2 167:2
+ds4: dspark route overlap path=hybrid block=3 layer=18 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 34:3 160:3 79:2 253:2
+ds4: dspark route overlap path=hybrid block=3 layer=19 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 19:2 254:2 12:1 22:1
+ds4: dspark route overlap path=hybrid block=3 layer=20 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 45:2 181:2 187:2 213:2
+ds4: dspark route overlap path=hybrid block=3 layer=21 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 9:3 235:3 49:2 176:2
+ds4: dspark route overlap path=hybrid block=3 layer=22 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 66:3 220:3 71:2 195:2
+ds4: dspark route overlap path=hybrid block=3 layer=23 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 5:3 248:3 4:2 54:2
+ds4: dspark route overlap path=hybrid block=3 layer=24 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 39:3 112:3 116:2 118:2
+ds4: dspark route overlap path=hybrid block=3 layer=25 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 19:3 171:3 176:3 253:3
+ds4: dspark route overlap path=hybrid block=3 layer=26 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 63:3 78:2 91:2 202:2
+ds4: dspark route overlap path=hybrid block=3 layer=27 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 7:3 133:3 57:2 86:2
+ds4: dspark route overlap path=hybrid block=3 layer=28 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 23:3 40:3 229:3 94:2
+ds4: dspark route overlap path=hybrid block=3 layer=29 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 70:3 58:2 240:2 20:1
+ds4: dspark route overlap path=hybrid block=3 layer=30 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 12:3 229:3 0:2 13:2
+ds4: dspark route overlap path=hybrid block=3 layer=31 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 129:3 237:3 223:2 227:2
+ds4: dspark route overlap path=hybrid block=3 layer=32 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 221:3 15:2 174:2 214:2
+ds4: dspark route overlap path=hybrid block=3 layer=33 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 5:3 25:3 160:2 166:2
+ds4: dspark route overlap path=hybrid block=3 layer=34 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 214:3 81:2 158:2 175:2
+ds4: dspark route overlap path=hybrid block=3 layer=35 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 35:3 143:3 179:2 0:1
+ds4: dspark route overlap path=hybrid block=3 layer=36 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 136:3 62:2 90:2 208:2
+ds4: dspark route overlap path=hybrid block=3 layer=37 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 6:3 169:3 123:2 197:2
+ds4: dspark route overlap path=hybrid block=3 layer=38 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 139:3 51:2 187:2 10:1
+ds4: dspark route overlap path=hybrid block=3 layer=39 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 93:2 110:2 175:2 223:2
+ds4: dspark route overlap path=hybrid block=3 layer=40 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 22:3 105:3 136:3 54:2
+ds4: dspark route overlap path=hybrid block=3 layer=41 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 159:3 247:3 236:2 23:1
+ds4: dspark route overlap path=hybrid block=3 layer=42 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 15:3 96:2 0:1 3:1
+ds4: dspark verify dispatch path=hybrid block=3 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=3 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=3 n=3 layers=43 slots=774 unique=533 reuse=1.45x dup=31.1% pair_overlap=2.38/6 max_multiplicity=3 unique_min=9 unique_max=18 reuse>=1.25=37 reuse>=1.50=26 avg_reuse=1.51x avg_pair_overlap=2.64/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.190 ms snapshot=0.417 ms verify=65.374 ms dspark_kv=1.330 ms total=79.392 ms
+ds4: dspark route overlap path=hybrid block=4 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 0:1 1:1 14:1 29:1
+ds4: dspark route overlap path=hybrid block=4 layer=1 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 48:2 0:1 5:1 37:1
+ds4: dspark route overlap path=hybrid block=4 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 2:1 24:1 26:1 33:1
+ds4: dspark route overlap path=hybrid block=4 layer=3 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 101:3 187:3 4:2 72:2
+ds4: dspark route overlap path=hybrid block=4 layer=4 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 156:3 233:3 250:3 113:2
+ds4: dspark route overlap path=hybrid block=4 layer=5 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 159:3 161:3 247:3 73:2
+ds4: dspark route overlap path=hybrid block=4 layer=6 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 51:3 64:3 111:2 124:2
+ds4: dspark route overlap path=hybrid block=4 layer=7 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 103:3 238:3 122:2 135:2
+ds4: dspark route overlap path=hybrid block=4 layer=8 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 56:3 200:3 237:3 1:2
+ds4: dspark route overlap path=hybrid block=4 layer=9 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 175:3 4:2 162:2 195:2
+ds4: dspark route overlap path=hybrid block=4 layer=10 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 152:3 217:3 11:2 30:2
+ds4: dspark route overlap path=hybrid block=4 layer=11 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 26:3 98:2 110:2 187:2
+ds4: dspark route overlap path=hybrid block=4 layer=12 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 122:3 0:2 142:2 6:1
+ds4: dspark route overlap path=hybrid block=4 layer=13 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 173:3 230:3 15:2 16:1
+ds4: dspark route overlap path=hybrid block=4 layer=14 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 66:3 235:3 1:2 113:2
+ds4: dspark route overlap path=hybrid block=4 layer=15 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 17:2 104:2 176:2 183:2
+ds4: dspark route overlap path=hybrid block=4 layer=16 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 84:3 176:3 179:3 59:2
+ds4: dspark route overlap path=hybrid block=4 layer=17 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 3:3 105:3 45:2 61:2
+ds4: dspark route overlap path=hybrid block=4 layer=18 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 166:3 118:2 163:2 185:2
+ds4: dspark route overlap path=hybrid block=4 layer=19 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 79:3 181:3 197:3 38:2
+ds4: dspark route overlap path=hybrid block=4 layer=20 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 45:3 121:3 251:3 129:2
+ds4: dspark route overlap path=hybrid block=4 layer=21 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 57:3 60:3 155:3 17:2
+ds4: dspark route overlap path=hybrid block=4 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 66:3 220:3 80:2 156:2
+ds4: dspark route overlap path=hybrid block=4 layer=23 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 39:3 248:3 5:2 108:2
+ds4: dspark route overlap path=hybrid block=4 layer=24 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 39:3 112:3 195:3 209:2
+ds4: dspark route overlap path=hybrid block=4 layer=25 active=3 slots=18 unique=7 duplicate_slots=11 reuse=2.57x max_multiplicity=3 pair_overlap=5.00/6 top_experts: 19:3 129:3 163:3 176:3
+ds4: dspark route overlap path=hybrid block=4 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 4:3 63:3 228:3 202:2
+ds4: dspark route overlap path=hybrid block=4 layer=27 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 86:3 152:3 7:2 68:2
+ds4: dspark route overlap path=hybrid block=4 layer=28 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 23:3 227:3 229:3 40:2
+ds4: dspark route overlap path=hybrid block=4 layer=29 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 46:3 65:3 89:2 115:2
+ds4: dspark route overlap path=hybrid block=4 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 19:3 229:3 248:3 8:2
+ds4: dspark route overlap path=hybrid block=4 layer=31 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 80:3 129:3 237:3 10:2
+ds4: dspark route overlap path=hybrid block=4 layer=32 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 97:3 204:3 221:3 214:2
+ds4: dspark route overlap path=hybrid block=4 layer=33 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 25:3 213:3 214:3 251:3
+ds4: dspark route overlap path=hybrid block=4 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 81:3 134:3 241:3 176:2
+ds4: dspark route overlap path=hybrid block=4 layer=35 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 2:2 90:2 229:2 21:1
+ds4: dspark route overlap path=hybrid block=4 layer=36 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 84:3 136:3 168:3 247:3
+ds4: dspark route overlap path=hybrid block=4 layer=37 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 13:3 76:3 169:2 189:2
+ds4: dspark route overlap path=hybrid block=4 layer=38 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 139:3 155:3 216:3 240:2
+ds4: dspark route overlap path=hybrid block=4 layer=39 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 11:2 69:2 106:2 223:2
+ds4: dspark route overlap path=hybrid block=4 layer=40 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 22:3 136:3 243:3 40:2
+ds4: dspark route overlap path=hybrid block=4 layer=41 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 152:3 159:3 236:3
+ds4: dspark route overlap path=hybrid block=4 layer=42 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 33:2 50:2 98:2 117:2
+ds4: dspark verify dispatch path=hybrid block=4 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=4 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=4 n=3 layers=43 slots=774 unique=488 reuse=1.59x dup=37.0% pair_overlap=2.93/6 max_multiplicity=3 unique_min=7 unique_max=18 reuse>=1.25=39 reuse>=1.50=35 avg_reuse=1.53x avg_pair_overlap=2.71/6
+ds4: dspark timing decodeN-prefix drafted=3 committed=1 draft=12.466 ms snapshot=0.375 ms verify=66.573 ms prefix=1.251 ms total=80.737 ms
+ds4: dspark route overlap path=hybrid block=5 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 74:2 8:1 13:1 17:1
+ds4: dspark route overlap path=hybrid block=5 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 19:1 28:1 32:1 36:1
+ds4: dspark route overlap path=hybrid block=5 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 20:1 23:1 74:1 77:1
+ds4: dspark route overlap path=hybrid block=5 layer=3 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 72:3 172:3 187:3 85:2
+ds4: dspark route overlap path=hybrid block=5 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 32:2 67:2 114:2
+ds4: dspark route overlap path=hybrid block=5 layer=5 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 73:3 180:2 190:2 211:2
+ds4: dspark route overlap path=hybrid block=5 layer=6 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 205:3 146:2 202:2 1:1
+ds4: dspark route overlap path=hybrid block=5 layer=7 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 195:3 86:2 93:2 170:2
+ds4: dspark route overlap path=hybrid block=5 layer=8 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 60:3 37:2 98:2 199:2
+ds4: dspark route overlap path=hybrid block=5 layer=9 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 47:3 81:2 115:2 203:2
+ds4: dspark route overlap path=hybrid block=5 layer=10 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 198:3 229:2 23:1 30:1
+ds4: dspark route overlap path=hybrid block=5 layer=11 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 23:3 76:2 119:2 128:2
+ds4: dspark route overlap path=hybrid block=5 layer=12 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 0:3 7:3 32:3 3:1
+ds4: dspark route overlap path=hybrid block=5 layer=13 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 43:3 127:3 146:3 75:2
+ds4: dspark route overlap path=hybrid block=5 layer=14 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 56:3 113:3 84:2 123:2
+ds4: dspark route overlap path=hybrid block=5 layer=15 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 179:3 39:2 96:2 234:2
+ds4: dspark route overlap path=hybrid block=5 layer=16 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 179:3 24:2 33:2 129:2
+ds4: dspark route overlap path=hybrid block=5 layer=17 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 1:2 3:2 80:2 8:1
+ds4: dspark route overlap path=hybrid block=5 layer=18 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 26:3 79:2 167:2 213:2
+ds4: dspark route overlap path=hybrid block=5 layer=19 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 3:2 5:2 41:2 44:2
+ds4: dspark route overlap path=hybrid block=5 layer=20 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 137:3 144:2 202:2 60:1
+ds4: dspark route overlap path=hybrid block=5 layer=21 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 69:3 73:2 208:2 247:2
+ds4: dspark route overlap path=hybrid block=5 layer=22 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 66:3 70:2 83:2 197:2
+ds4: dspark route overlap path=hybrid block=5 layer=23 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 16:3 54:3 151:3 248:3
+ds4: dspark route overlap path=hybrid block=5 layer=24 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 39:3 99:3 131:3 150:3
+ds4: dspark route overlap path=hybrid block=5 layer=25 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 19:3 100:3 253:2 11:1
+ds4: dspark route overlap path=hybrid block=5 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 17:3 168:3 232:3 96:2
+ds4: dspark route overlap path=hybrid block=5 layer=27 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 7:3 66:3 188:3 31:2
+ds4: dspark route overlap path=hybrid block=5 layer=28 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 69:3 133:3 229:3 23:2
+ds4: dspark route overlap path=hybrid block=5 layer=29 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 184:3 205:3 175:2 176:2
+ds4: dspark route overlap path=hybrid block=5 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 192:3 229:3 13:2 38:2
+ds4: dspark route overlap path=hybrid block=5 layer=31 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 49:3 124:3 146:3 63:2
+ds4: dspark route overlap path=hybrid block=5 layer=32 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 46:3 72:3 221:3 120:2
+ds4: dspark route overlap path=hybrid block=5 layer=33 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 53:3 213:3 214:3 10:2
+ds4: dspark route overlap path=hybrid block=5 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 81:3 226:3 8:2 48:2
+ds4: dspark route overlap path=hybrid block=5 layer=35 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 35:2 104:2 159:2 177:2
+ds4: dspark route overlap path=hybrid block=5 layer=36 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 136:3 143:3 202:3 247:3
+ds4: dspark route overlap path=hybrid block=5 layer=37 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 207:3 233:3 70:2 76:2
+ds4: dspark route overlap path=hybrid block=5 layer=38 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 94:3 139:3 216:3 240:3
+ds4: dspark route overlap path=hybrid block=5 layer=39 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 43:3 125:3 3:2 170:2
+ds4: dspark route overlap path=hybrid block=5 layer=40 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 71:3 131:3 136:3 22:2
+ds4: dspark route overlap path=hybrid block=5 layer=41 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 152:3 194:3 48:2 251:2
+ds4: dspark route overlap path=hybrid block=5 layer=42 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 150:3 250:3 15:2 119:2
+ds4: dspark verify dispatch path=hybrid block=5 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=5 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=5 n=3 layers=43 slots=774 unique=518 reuse=1.49x dup=33.1% pair_overlap=2.59/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=38 reuse>=1.50=26 avg_reuse=1.52x avg_pair_overlap=2.69/6
+ds4: dspark timing decodeN-prefix drafted=3 committed=1 draft=12.473 ms snapshot=0.369 ms verify=65.878 ms prefix=1.712 ms total=80.503 ms
+ds4: dspark route overlap path=hybrid block=6 layer=0 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 29:2 62:2 74:2 106:2
+ds4: dspark route overlap path=hybrid block=6 layer=1 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 36:2 86:2 114:2 155:2
+ds4: dspark route overlap path=hybrid block=6 layer=2 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 20:2 74:2 77:2 125:2
+ds4: dspark route overlap path=hybrid block=6 layer=3 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 187:3 23:2 85:2 101:2
+ds4: dspark route overlap path=hybrid block=6 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 53:2 69:2 97:2
+ds4: dspark route overlap path=hybrid block=6 layer=5 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 73:3 36:2 107:2 211:2
+ds4: dspark route overlap path=hybrid block=6 layer=6 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 51:2 111:2 165:2 202:2
+ds4: dspark route overlap path=hybrid block=6 layer=7 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 86:3 47:2 170:2 195:2
+ds4: dspark route overlap path=hybrid block=6 layer=8 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 60:3 12:2 98:2 199:2
+ds4: dspark route overlap path=hybrid block=6 layer=9 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 47:3 24:2 172:2 222:2
+ds4: dspark route overlap path=hybrid block=6 layer=10 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 23:2 150:2 198:2 24:1
+ds4: dspark route overlap path=hybrid block=6 layer=11 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 23:3 58:2 128:2 131:2
+ds4: dspark route overlap path=hybrid block=6 layer=12 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 0:3 32:3 7:2 239:2
+ds4: dspark route overlap path=hybrid block=6 layer=13 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 146:3 43:2 75:2 127:2
+ds4: dspark route overlap path=hybrid block=6 layer=14 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 113:3 56:2 67:2 123:2
+ds4: dspark route overlap path=hybrid block=6 layer=15 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 179:3 96:2 165:2 198:2
+ds4: dspark route overlap path=hybrid block=6 layer=16 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 179:3 24:2 33:2 176:2
+ds4: dspark route overlap path=hybrid block=6 layer=17 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 80:2 126:2 137:2 151:2
+ds4: dspark route overlap path=hybrid block=6 layer=18 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 26:3 57:2 166:2 5:1
+ds4: dspark route overlap path=hybrid block=6 layer=19 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 9:2 30:2 181:2 203:2
+ds4: dspark route overlap path=hybrid block=6 layer=20 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 60:2 72:2 77:2 205:2
+ds4: dspark route overlap path=hybrid block=6 layer=21 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 69:3 73:2 194:2 47:1
+ds4: dspark route overlap path=hybrid block=6 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 66:3 70:3 33:2 80:2
+ds4: dspark route overlap path=hybrid block=6 layer=23 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 16:3 54:3 248:3 39:2
+ds4: dspark route overlap path=hybrid block=6 layer=24 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 39:3 99:3 131:3 150:3
+ds4: dspark route overlap path=hybrid block=6 layer=25 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 19:3 100:3 253:3 174:2
+ds4: dspark route overlap path=hybrid block=6 layer=26 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 17:3 168:3 232:3 62:1
+ds4: dspark route overlap path=hybrid block=6 layer=27 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 7:3 66:3 188:3 31:1
+ds4: dspark route overlap path=hybrid block=6 layer=28 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 69:3 133:3 229:3 23:2
+ds4: dspark route overlap path=hybrid block=6 layer=29 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 176:3 184:3 129:2 175:2
+ds4: dspark route overlap path=hybrid block=6 layer=30 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 192:3 13:2 38:2 132:2
+ds4: dspark route overlap path=hybrid block=6 layer=31 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 49:3 124:3 43:2 76:2
+ds4: dspark route overlap path=hybrid block=6 layer=32 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 46:3 221:3 72:2 15:1
+ds4: dspark route overlap path=hybrid block=6 layer=33 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 10:3 53:3 78:3 214:3
+ds4: dspark route overlap path=hybrid block=6 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 81:3 226:3 48:2 87:2
+ds4: dspark route overlap path=hybrid block=6 layer=35 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 25:2 104:2 117:2 229:2
+ds4: dspark route overlap path=hybrid block=6 layer=36 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 42:3 136:3 143:3 247:3
+ds4: dspark route overlap path=hybrid block=6 layer=37 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 69:3 76:3 233:3 169:2
+ds4: dspark route overlap path=hybrid block=6 layer=38 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 139:3 240:3 95:2 216:2
+ds4: dspark route overlap path=hybrid block=6 layer=39 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 86:3 125:3 25:2 43:2
+ds4: dspark route overlap path=hybrid block=6 layer=40 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 71:3 131:3 136:3 22:2
+ds4: dspark route overlap path=hybrid block=6 layer=41 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 152:3 194:3 25:2 44:2
+ds4: dspark route overlap path=hybrid block=6 layer=42 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 7:3 250:3 33:2 98:2
+ds4: dspark verify dispatch path=hybrid block=6 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=6 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=6 n=3 layers=43 slots=774 unique=502 reuse=1.54x dup=35.1% pair_overlap=2.63/6 max_multiplicity=3 unique_min=8 unique_max=15 reuse>=1.25=42 reuse>=1.50=30 avg_reuse=1.53x avg_pair_overlap=2.68/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.416 ms snapshot=0.363 ms verify=66.911 ms dspark_kv=1.225 ms total=80.986 ms
+ds4: dspark route overlap path=hybrid block=7 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 74:2 24:1 27:1 29:1
+ds4: dspark route overlap path=hybrid block=7 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 8:1 19:1 21:1 22:1
+ds4: dspark route overlap path=hybrid block=7 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 2:1 20:1 37:1 39:1
+ds4: dspark route overlap path=hybrid block=7 layer=3 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 101:3 187:3 85:2 223:2
+ds4: dspark route overlap path=hybrid block=7 layer=4 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 233:3 53:2 32:1 67:1
+ds4: dspark route overlap path=hybrid block=7 layer=5 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 73:3 107:2 222:2 225:2
+ds4: dspark route overlap path=hybrid block=7 layer=6 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 51:2 90:2 111:2 165:2
+ds4: dspark route overlap path=hybrid block=7 layer=7 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 195:3 47:2 135:2 170:2
+ds4: dspark route overlap path=hybrid block=7 layer=8 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 60:3 164:2 200:2 12:1
+ds4: dspark route overlap path=hybrid block=7 layer=9 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 47:3 99:2 128:2 24:1
+ds4: dspark route overlap path=hybrid block=7 layer=10 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 23:2 30:2 138:2 198:2
+ds4: dspark route overlap path=hybrid block=7 layer=11 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 23:3 128:3 131:3 199:2
+ds4: dspark route overlap path=hybrid block=7 layer=12 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 0:3 32:2 211:2 239:2
+ds4: dspark route overlap path=hybrid block=7 layer=13 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 75:2 146:2 191:2 235:2
+ds4: dspark route overlap path=hybrid block=7 layer=14 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 113:3 56:2 67:2 123:2
+ds4: dspark route overlap path=hybrid block=7 layer=15 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 39:3 246:3 96:2 153:2
+ds4: dspark route overlap path=hybrid block=7 layer=16 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 84:3 179:3 33:2 176:2
+ds4: dspark route overlap path=hybrid block=7 layer=17 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 3:3 187:3 126:2 129:2
+ds4: dspark route overlap path=hybrid block=7 layer=18 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 57:3 150:2 166:2 184:2
+ds4: dspark route overlap path=hybrid block=7 layer=19 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 30:2 181:2 185:2 0:1
+ds4: dspark route overlap path=hybrid block=7 layer=20 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 45:2 60:2 77:2 205:2
+ds4: dspark route overlap path=hybrid block=7 layer=21 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 73:3 65:2 69:2 188:2
+ds4: dspark route overlap path=hybrid block=7 layer=22 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 66:3 220:3 33:2 80:2
+ds4: dspark route overlap path=hybrid block=7 layer=23 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 16:3 39:3 248:3 54:2
+ds4: dspark route overlap path=hybrid block=7 layer=24 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 39:3 99:3 131:2 195:2
+ds4: dspark route overlap path=hybrid block=7 layer=25 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 19:3 253:3 68:2 171:2
+ds4: dspark route overlap path=hybrid block=7 layer=26 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 202:3 6:2 63:2 168:2
+ds4: dspark route overlap path=hybrid block=7 layer=27 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 7:3 137:3 20:2 36:2
+ds4: dspark route overlap path=hybrid block=7 layer=28 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 23:3 40:3 69:3 133:3
+ds4: dspark route overlap path=hybrid block=7 layer=29 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 101:2 129:2 175:2 184:2
+ds4: dspark route overlap path=hybrid block=7 layer=30 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 229:3 13:2 19:2 38:2
+ds4: dspark route overlap path=hybrid block=7 layer=31 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 43:3 146:3 19:2 129:2
+ds4: dspark route overlap path=hybrid block=7 layer=32 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 221:3 46:2 72:2 215:2
+ds4: dspark route overlap path=hybrid block=7 layer=33 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 213:3 214:3 53:2 86:2
+ds4: dspark route overlap path=hybrid block=7 layer=34 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 81:3 87:3 48:2 241:2
+ds4: dspark route overlap path=hybrid block=7 layer=35 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 48:2 105:2 117:2 229:2
+ds4: dspark route overlap path=hybrid block=7 layer=36 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 42:3 127:3 247:3 136:2
+ds4: dspark route overlap path=hybrid block=7 layer=37 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 13:2 76:2 169:2 207:2
+ds4: dspark route overlap path=hybrid block=7 layer=38 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 139:3 42:2 47:2 105:2
+ds4: dspark route overlap path=hybrid block=7 layer=39 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 125:3 222:3 223:3 86:2
+ds4: dspark route overlap path=hybrid block=7 layer=40 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 22:3 71:3 105:3 136:3
+ds4: dspark route overlap path=hybrid block=7 layer=41 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 194:3 25:2 44:2 140:2
+ds4: dspark route overlap path=hybrid block=7 layer=42 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 7:3 33:3 224:2 250:2
+ds4: dspark verify dispatch path=hybrid block=7 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=7 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=7 n=3 layers=43 slots=774 unique=540 reuse=1.43x dup=30.2% pair_overlap=2.26/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=38 reuse>=1.50=23 avg_reuse=1.51x avg_pair_overlap=2.62/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.381 ms snapshot=0.386 ms verify=68.136 ms dspark_kv=1.211 ms total=82.183 ms
+ds4: dspark route overlap path=hybrid block=8 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 60:2 1:1 19:1 25:1
+ds4: dspark route overlap path=hybrid block=8 layer=1 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 12:2 75:2 27:1 35:1
+ds4: dspark route overlap path=hybrid block=8 layer=2 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 15:2 8:1 29:1 34:1
+ds4: dspark route overlap path=hybrid block=8 layer=3 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 68:3 72:3 101:3 71:2
+ds4: dspark route overlap path=hybrid block=8 layer=4 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 97:3 233:3 8:2 154:2
+ds4: dspark route overlap path=hybrid block=8 layer=5 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 93:3 161:3 169:3 73:2
+ds4: dspark route overlap path=hybrid block=8 layer=6 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 51:3 57:3 1:2 111:2
+ds4: dspark route overlap path=hybrid block=8 layer=7 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 122:3 140:3 238:3 125:2
+ds4: dspark route overlap path=hybrid block=8 layer=8 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 115:3 135:3 200:3 213:2
+ds4: dspark route overlap path=hybrid block=8 layer=9 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 28:3 105:2 141:2 228:2
+ds4: dspark route overlap path=hybrid block=8 layer=10 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 11:3 40:3 219:3 5:1
+ds4: dspark route overlap path=hybrid block=8 layer=11 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 3:3 26:3 1:2 40:2
+ds4: dspark route overlap path=hybrid block=8 layer=12 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 122:3 142:3 185:3 210:3
+ds4: dspark route overlap path=hybrid block=8 layer=13 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 14:3 15:3 148:2 170:2
+ds4: dspark route overlap path=hybrid block=8 layer=14 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 1:3 235:3 242:3 49:2
+ds4: dspark route overlap path=hybrid block=8 layer=15 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 71:3 104:3 176:3 213:3
+ds4: dspark route overlap path=hybrid block=8 layer=16 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 104:3 176:3 179:3 84:2
+ds4: dspark route overlap path=hybrid block=8 layer=17 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 61:3 69:3 108:3 14:2
+ds4: dspark route overlap path=hybrid block=8 layer=18 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 5:3 166:3 183:3 9:2
+ds4: dspark route overlap path=hybrid block=8 layer=19 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 60:3 99:3 12:2 246:2
+ds4: dspark route overlap path=hybrid block=8 layer=20 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 39:3 162:3 233:3 111:2
+ds4: dspark route overlap path=hybrid block=8 layer=21 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 49:3 68:3 250:3 28:2
+ds4: dspark route overlap path=hybrid block=8 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 71:3 148:3 220:3 22:2
+ds4: dspark route overlap path=hybrid block=8 layer=23 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 118:3 228:3 244:2 248:2
+ds4: dspark route overlap path=hybrid block=8 layer=24 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 39:3 116:3 186:3 112:2
+ds4: dspark route overlap path=hybrid block=8 layer=25 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 19:3 171:3 176:3 253:3
+ds4: dspark route overlap path=hybrid block=8 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 56:3 63:3 202:3 188:2
+ds4: dspark route overlap path=hybrid block=8 layer=27 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 47:3 7:2 25:2 149:2
+ds4: dspark route overlap path=hybrid block=8 layer=28 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 23:3 229:3 40:2 69:2
+ds4: dspark route overlap path=hybrid block=8 layer=29 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 171:3 238:3 58:2 70:2
+ds4: dspark route overlap path=hybrid block=8 layer=30 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 13:3 128:3 132:3 229:3
+ds4: dspark route overlap path=hybrid block=8 layer=31 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 160:3 42:2 48:2 143:2
+ds4: dspark route overlap path=hybrid block=8 layer=32 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 50:3 72:3 214:3 6:2
+ds4: dspark route overlap path=hybrid block=8 layer=33 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 5:3 212:3 214:3 219:3
+ds4: dspark route overlap path=hybrid block=8 layer=34 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 81:3 158:3 214:3 224:3
+ds4: dspark route overlap path=hybrid block=8 layer=35 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 35:2 65:2 87:2 216:2
+ds4: dspark route overlap path=hybrid block=8 layer=36 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 136:3 143:3 55:2 104:2
+ds4: dspark route overlap path=hybrid block=8 layer=37 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 169:3 99:2 100:2 160:2
+ds4: dspark route overlap path=hybrid block=8 layer=38 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 10:3 127:3 139:3 216:3
+ds4: dspark route overlap path=hybrid block=8 layer=39 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 11:3 33:3 175:3 42:1
+ds4: dspark route overlap path=hybrid block=8 layer=40 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 136:3 186:3 86:2 187:2
+ds4: dspark route overlap path=hybrid block=8 layer=41 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 152:3 159:3 49:2 52:2
+ds4: dspark route overlap path=hybrid block=8 layer=42 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 96:3 28:2 137:2 179:2
+ds4: dspark verify dispatch path=hybrid block=8 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=8 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=8 n=3 layers=43 slots=774 unique=472 reuse=1.64x dup=39.0% pair_overlap=3.14/6 max_multiplicity=3 unique_min=8 unique_max=17 reuse>=1.25=40 reuse>=1.50=37 avg_reuse=1.53x avg_pair_overlap=2.68/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.319 ms snapshot=0.406 ms verify=67.340 ms dspark_kv=1.235 ms total=81.401 ms
+ds4: dspark route overlap path=hybrid block=9 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 7:1 16:1 21:1 25:1
+ds4: dspark route overlap path=hybrid block=9 layer=1 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 192:2 2:1 12:1 27:1
+ds4: dspark route overlap path=hybrid block=9 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 8:1 50:1 53:1 73:1
+ds4: dspark route overlap path=hybrid block=9 layer=3 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 64:3 72:3 187:3 189:3
+ds4: dspark route overlap path=hybrid block=9 layer=4 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 67:3 233:2 3:1 20:1
+ds4: dspark route overlap path=hybrid block=9 layer=5 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 73:3 211:3 225:3 15:1
+ds4: dspark route overlap path=hybrid block=9 layer=6 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 202:3 38:2 51:2 74:2
+ds4: dspark route overlap path=hybrid block=9 layer=7 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 238:3 93:2 122:2 153:2
+ds4: dspark route overlap path=hybrid block=9 layer=8 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 60:3 76:3 115:2 200:2
+ds4: dspark route overlap path=hybrid block=9 layer=9 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 203:3 222:3 39:2 123:2
+ds4: dspark route overlap path=hybrid block=9 layer=10 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 11:3 57:3 87:3 5:1
+ds4: dspark route overlap path=hybrid block=9 layer=11 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 131:3 8:2 122:2 172:2
+ds4: dspark route overlap path=hybrid block=9 layer=12 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 0:3 80:3 6:2 7:1
+ds4: dspark route overlap path=hybrid block=9 layer=13 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 146:3 191:3 192:3 223:3
+ds4: dspark route overlap path=hybrid block=9 layer=14 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 56:3 84:3 110:2 113:2
+ds4: dspark route overlap path=hybrid block=9 layer=15 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 116:3 179:3 204:2 246:2
+ds4: dspark route overlap path=hybrid block=9 layer=16 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 71:3 82:3 94:3 179:3
+ds4: dspark route overlap path=hybrid block=9 layer=17 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 47:3 68:3 80:3 88:3
+ds4: dspark route overlap path=hybrid block=9 layer=18 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 94:3 158:2 166:2 225:2
+ds4: dspark route overlap path=hybrid block=9 layer=19 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 150:3 181:2 10:1 19:1
+ds4: dspark route overlap path=hybrid block=9 layer=20 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 233:3 39:2 72:2 111:2
+ds4: dspark route overlap path=hybrid block=9 layer=21 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 35:3 68:3 204:3 207:2
+ds4: dspark route overlap path=hybrid block=9 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 71:3 224:3 90:2 99:2
+ds4: dspark route overlap path=hybrid block=9 layer=23 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 16:3 244:3 248:3 118:2
+ds4: dspark route overlap path=hybrid block=9 layer=24 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=5.00/6 top_experts: 36:3 39:3 99:3 116:3
+ds4: dspark route overlap path=hybrid block=9 layer=25 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 19:3 64:3 171:3 253:3
+ds4: dspark route overlap path=hybrid block=9 layer=26 active=3 slots=18 unique=7 duplicate_slots=11 reuse=2.57x max_multiplicity=3 pair_overlap=5.33/6 top_experts: 56:3 63:3 202:3 210:3
+ds4: dspark route overlap path=hybrid block=9 layer=27 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 7:3 25:3 57:3 66:3
+ds4: dspark route overlap path=hybrid block=9 layer=28 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 40:3 69:3 229:3
+ds4: dspark route overlap path=hybrid block=9 layer=29 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 58:3 211:3 55:2 78:2
+ds4: dspark route overlap path=hybrid block=9 layer=30 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 13:3 192:3 229:3 115:2
+ds4: dspark route overlap path=hybrid block=9 layer=31 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 194:3 42:2 49:2 215:2
+ds4: dspark route overlap path=hybrid block=9 layer=32 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 46:3 50:3 72:3 75:2
+ds4: dspark route overlap path=hybrid block=9 layer=33 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 53:3 212:3 214:3 217:3
+ds4: dspark route overlap path=hybrid block=9 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 175:3 214:3 224:3 48:2
+ds4: dspark route overlap path=hybrid block=9 layer=35 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 35:3 51:3 30:2 87:2
+ds4: dspark route overlap path=hybrid block=9 layer=36 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 69:3 136:3 5:2 143:2
+ds4: dspark route overlap path=hybrid block=9 layer=37 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 169:3 217:3 29:2 209:2
+ds4: dspark route overlap path=hybrid block=9 layer=38 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 127:3 139:3 175:3 51:2
+ds4: dspark route overlap path=hybrid block=9 layer=39 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 93:3 175:3 30:2 125:2
+ds4: dspark route overlap path=hybrid block=9 layer=40 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 136:3 186:3 187:3 37:2
+ds4: dspark route overlap path=hybrid block=9 layer=41 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 159:3 194:2 210:2 41:1
+ds4: dspark route overlap path=hybrid block=9 layer=42 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 28:2 96:2 7:1 38:1
+ds4: dspark verify dispatch path=hybrid block=9 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=9 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=9 n=3 layers=43 slots=774 unique=489 reuse=1.58x dup=36.8% pair_overlap=2.98/6 max_multiplicity=3 unique_min=7 unique_max=18 reuse>=1.25=37 reuse>=1.50=31 avg_reuse=1.53x avg_pair_overlap=2.72/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.260 ms snapshot=0.382 ms verify=67.330 ms dspark_kv=1.314 ms total=81.381 ms
+ds4: dspark route overlap path=hybrid block=10 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 9:1 16:1 19:1 26:1
+ds4: dspark route overlap path=hybrid block=10 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 2:1 17:1 24:1 48:1
+ds4: dspark route overlap path=hybrid block=10 layer=2 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 110:2 53:1 63:1 90:1
+ds4: dspark route overlap path=hybrid block=10 layer=3 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 72:3 187:3 189:3 9:2
+ds4: dspark route overlap path=hybrid block=10 layer=4 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 3:3 67:3 118:2 233:2
+ds4: dspark route overlap path=hybrid block=10 layer=5 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 73:3 211:3 129:2 133:2
+ds4: dspark route overlap path=hybrid block=10 layer=6 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 51:3 202:3 13:1 38:1
+ds4: dspark route overlap path=hybrid block=10 layer=7 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 88:2 122:2 5:1 45:1
+ds4: dspark route overlap path=hybrid block=10 layer=8 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 60:3 76:2 98:2 115:2
+ds4: dspark route overlap path=hybrid block=10 layer=9 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 203:3 39:2 73:2 74:2
+ds4: dspark route overlap path=hybrid block=10 layer=10 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 57:3 11:2 87:2 155:2
+ds4: dspark route overlap path=hybrid block=10 layer=11 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=3 pair_overlap=1.00/6 top_experts: 131:3 23:1 37:1 40:1
+ds4: dspark route overlap path=hybrid block=10 layer=12 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 0:3 80:3 7:1 17:1
+ds4: dspark route overlap path=hybrid block=10 layer=13 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 192:3 146:2 191:2 3:1
+ds4: dspark route overlap path=hybrid block=10 layer=14 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 113:3 246:3 84:2 1:1
+ds4: dspark route overlap path=hybrid block=10 layer=15 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 116:2 179:2 204:2 9:1
+ds4: dspark route overlap path=hybrid block=10 layer=16 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 82:3 94:3 179:3 71:2
+ds4: dspark route overlap path=hybrid block=10 layer=17 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 47:3 68:2 88:2 201:2
+ds4: dspark route overlap path=hybrid block=10 layer=18 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 94:2 158:2 166:2 5:1
+ds4: dspark route overlap path=hybrid block=10 layer=19 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 150:2 181:2 4:1 27:1
+ds4: dspark route overlap path=hybrid block=10 layer=20 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 39:2 111:2 187:2
+ds4: dspark route overlap path=hybrid block=10 layer=21 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 68:3 204:3 250:3 35:2
+ds4: dspark route overlap path=hybrid block=10 layer=22 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 71:3 148:3 224:3 90:1
+ds4: dspark route overlap path=hybrid block=10 layer=23 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 244:3 158:2 248:2 0:1
+ds4: dspark route overlap path=hybrid block=10 layer=24 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 39:3 99:3 116:3 23:2
+ds4: dspark route overlap path=hybrid block=10 layer=25 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 19:3 144:3 253:3 171:2
+ds4: dspark route overlap path=hybrid block=10 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 56:3 63:3 226:3 210:2
+ds4: dspark route overlap path=hybrid block=10 layer=27 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 7:3 57:2 66:2 25:1
+ds4: dspark route overlap path=hybrid block=10 layer=28 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 40:3 69:3 229:3
+ds4: dspark route overlap path=hybrid block=10 layer=29 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 55:2 184:2 222:2 45:1
+ds4: dspark route overlap path=hybrid block=10 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 13:3 229:3 128:2 132:2
+ds4: dspark route overlap path=hybrid block=10 layer=31 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 48:2 49:2 194:2 247:2
+ds4: dspark route overlap path=hybrid block=10 layer=32 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 46:3 50:3 72:3 75:2
+ds4: dspark route overlap path=hybrid block=10 layer=33 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 212:3 214:3 11:2 141:2
+ds4: dspark route overlap path=hybrid block=10 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 214:3 224:3 77:2 158:2
+ds4: dspark route overlap path=hybrid block=10 layer=35 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 32:2 35:2 51:2 87:2
+ds4: dspark route overlap path=hybrid block=10 layer=36 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 69:3 136:3 247:3 59:2
+ds4: dspark route overlap path=hybrid block=10 layer=37 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 169:3 29:2 67:2 0:1
+ds4: dspark route overlap path=hybrid block=10 layer=38 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 127:3 139:3 175:3 10:2
+ds4: dspark route overlap path=hybrid block=10 layer=39 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 125:3 175:3 25:2 54:2
+ds4: dspark route overlap path=hybrid block=10 layer=40 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 136:3 186:3 187:3 97:2
+ds4: dspark route overlap path=hybrid block=10 layer=41 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 152:3 159:3 123:2 194:2
+ds4: dspark route overlap path=hybrid block=10 layer=42 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 28:2 96:2 7:1 38:1
+ds4: dspark verify dispatch path=hybrid block=10 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=10 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=10 n=3 layers=43 slots=774 unique=550 reuse=1.41x dup=28.9% pair_overlap=2.26/6 max_multiplicity=3 unique_min=9 unique_max=18 reuse>=1.25=33 reuse>=1.50=22 avg_reuse=1.52x avg_pair_overlap=2.67/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.167 ms snapshot=0.435 ms verify=66.756 ms dspark_kv=1.189 ms total=80.649 ms
+ds4: dspark route overlap path=hybrid block=11 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 233:2 1:1 35:1 36:1
+ds4: dspark route overlap path=hybrid block=11 layer=1 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 183:2 3:1 38:1 58:1
+ds4: dspark route overlap path=hybrid block=11 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 4:1 18:1 27:1 40:1
+ds4: dspark route overlap path=hybrid block=11 layer=3 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 72:3 187:3 189:3 5:2
+ds4: dspark route overlap path=hybrid block=11 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 67:3 233:3 32:2 3:1
+ds4: dspark route overlap path=hybrid block=11 layer=5 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 73:3 211:3 225:3 103:2
+ds4: dspark route overlap path=hybrid block=11 layer=6 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 146:3 187:3 188:3 202:3
+ds4: dspark route overlap path=hybrid block=11 layer=7 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 86:3 170:3 5:2 78:2
+ds4: dspark route overlap path=hybrid block=11 layer=8 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 60:3 98:3 231:3 76:2
+ds4: dspark route overlap path=hybrid block=11 layer=9 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 10:3 203:3 222:3 35:2
+ds4: dspark route overlap path=hybrid block=11 layer=10 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 11:3 30:2 150:2 151:2
+ds4: dspark route overlap path=hybrid block=11 layer=11 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 122:3 131:3 7:2 172:2
+ds4: dspark route overlap path=hybrid block=11 layer=12 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 99:3 155:3 173:3 0:2
+ds4: dspark route overlap path=hybrid block=11 layer=13 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 146:3 148:3 192:3
+ds4: dspark route overlap path=hybrid block=11 layer=14 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 199:3 242:3 56:2 235:2
+ds4: dspark route overlap path=hybrid block=11 layer=15 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 39:3 40:3 60:3 116:3
+ds4: dspark route overlap path=hybrid block=11 layer=16 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 31:3 82:3 94:3 179:3
+ds4: dspark route overlap path=hybrid block=11 layer=17 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 4:3 80:3 167:2 172:2
+ds4: dspark route overlap path=hybrid block=11 layer=18 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 133:3 33:2 59:2 79:2
+ds4: dspark route overlap path=hybrid block=11 layer=19 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 254:3 19:2 64:2 119:2
+ds4: dspark route overlap path=hybrid block=11 layer=20 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 137:3 200:3 233:3 39:2
+ds4: dspark route overlap path=hybrid block=11 layer=21 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 68:3 98:3 9:2 250:2
+ds4: dspark route overlap path=hybrid block=11 layer=22 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 71:3 170:3 197:3 10:2
+ds4: dspark route overlap path=hybrid block=11 layer=23 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 244:3 248:3 54:2 82:2
+ds4: dspark route overlap path=hybrid block=11 layer=24 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 39:3 116:3 186:3 248:3
+ds4: dspark route overlap path=hybrid block=11 layer=25 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=5.00/6 top_experts: 19:3 166:3 171:3 176:3
+ds4: dspark route overlap path=hybrid block=11 layer=26 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=5.00/6 top_experts: 63:3 113:3 202:3 210:3
+ds4: dspark route overlap path=hybrid block=11 layer=27 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 7:3 57:2 150:2 214:2
+ds4: dspark route overlap path=hybrid block=11 layer=28 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 23:3 149:3 229:3 40:2
+ds4: dspark route overlap path=hybrid block=11 layer=29 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 58:3 70:3 238:3 57:2
+ds4: dspark route overlap path=hybrid block=11 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 13:3 229:3 12:2 79:2
+ds4: dspark route overlap path=hybrid block=11 layer=31 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 48:3 129:3 223:3 194:2
+ds4: dspark route overlap path=hybrid block=11 layer=32 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 14:3 72:3 221:3 255:2
+ds4: dspark route overlap path=hybrid block=11 layer=33 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 214:3 95:2 117:2 212:2
+ds4: dspark route overlap path=hybrid block=11 layer=34 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 147:3 214:3 224:3 97:2
+ds4: dspark route overlap path=hybrid block=11 layer=35 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 11:3 35:3 143:3 194:2
+ds4: dspark route overlap path=hybrid block=11 layer=36 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 136:3 143:3 24:2 5:1
+ds4: dspark route overlap path=hybrid block=11 layer=37 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 6:3 108:3 169:3 197:3
+ds4: dspark route overlap path=hybrid block=11 layer=38 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 107:3 139:3 25:2 51:2
+ds4: dspark route overlap path=hybrid block=11 layer=39 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 93:2 11:1 14:1 40:1
+ds4: dspark route overlap path=hybrid block=11 layer=40 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 136:3 187:3 243:3 105:2
+ds4: dspark route overlap path=hybrid block=11 layer=41 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 159:3 217:3 149:2 247:2
+ds4: dspark route overlap path=hybrid block=11 layer=42 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 15:3 96:2 75:1 90:1
+ds4: dspark verify dispatch path=hybrid block=11 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=11 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=11 n=3 layers=43 slots=774 unique=481 reuse=1.61x dup=37.9% pair_overlap=3.08/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=38 reuse>=1.50=33 avg_reuse=1.53x avg_pair_overlap=2.71/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.204 ms snapshot=0.366 ms verify=66.296 ms dspark_kv=1.216 ms total=80.153 ms
+ds4: dspark route overlap path=hybrid block=12 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 20:1 43:1 50:1 52:1
+ds4: dspark route overlap path=hybrid block=12 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 10:1 24:1 50:1 58:1
+ds4: dspark route overlap path=hybrid block=12 layer=2 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 205:2 13:1 23:1 37:1
+ds4: dspark route overlap path=hybrid block=12 layer=3 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 72:3 187:3 189:3 64:2
+ds4: dspark route overlap path=hybrid block=12 layer=4 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 67:3 118:3 7:2 74:2
+ds4: dspark route overlap path=hybrid block=12 layer=5 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 73:3 211:3 103:2 225:2
+ds4: dspark route overlap path=hybrid block=12 layer=6 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 187:3 202:3 64:2 94:2
+ds4: dspark route overlap path=hybrid block=12 layer=7 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 93:3 78:2 170:2 9:1
+ds4: dspark route overlap path=hybrid block=12 layer=8 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 60:3 71:2 98:2 231:2
+ds4: dspark route overlap path=hybrid block=12 layer=9 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 203:3 222:3 21:1 34:1
+ds4: dspark route overlap path=hybrid block=12 layer=10 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 11:3 57:3 102:2 198:2
+ds4: dspark route overlap path=hybrid block=12 layer=11 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 131:3 202:2 0:1 3:1
+ds4: dspark route overlap path=hybrid block=12 layer=12 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 99:3 24:2 155:2 210:2
+ds4: dspark route overlap path=hybrid block=12 layer=13 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 146:3 192:3 23:2 148:2
+ds4: dspark route overlap path=hybrid block=12 layer=14 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 246:3 199:2 235:2 240:2
+ds4: dspark route overlap path=hybrid block=12 layer=15 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 116:3 40:2 66:2 46:1
+ds4: dspark route overlap path=hybrid block=12 layer=16 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 94:3 179:3 82:2 65:1
+ds4: dspark route overlap path=hybrid block=12 layer=17 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 80:3 29:2 68:2 88:2
+ds4: dspark route overlap path=hybrid block=12 layer=18 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 133:3 179:2 230:2 4:1
+ds4: dspark route overlap path=hybrid block=12 layer=19 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 119:3 142:3 19:2 151:2
+ds4: dspark route overlap path=hybrid block=12 layer=20 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 19:2 111:2 143:2
+ds4: dspark route overlap path=hybrid block=12 layer=21 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 68:3 192:2 204:2 212:2
+ds4: dspark route overlap path=hybrid block=12 layer=22 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 71:3 148:2 170:2 56:1
+ds4: dspark route overlap path=hybrid block=12 layer=23 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 151:3 82:2 244:2 248:2
+ds4: dspark route overlap path=hybrid block=12 layer=24 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 39:3 116:3 99:2 186:2
+ds4: dspark route overlap path=hybrid block=12 layer=25 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 19:3 171:3 176:3 253:3
+ds4: dspark route overlap path=hybrid block=12 layer=26 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 63:3 202:3 210:3 226:3
+ds4: dspark route overlap path=hybrid block=12 layer=27 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 7:3 137:3 150:3 57:2
+ds4: dspark route overlap path=hybrid block=12 layer=28 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 40:3 160:3 229:3
+ds4: dspark route overlap path=hybrid block=12 layer=29 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 58:2 70:2 82:2 211:2
+ds4: dspark route overlap path=hybrid block=12 layer=30 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 13:3 88:2 192:2 229:2
+ds4: dspark route overlap path=hybrid block=12 layer=31 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 48:3 215:2 223:2 232:2
+ds4: dspark route overlap path=hybrid block=12 layer=32 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 72:3 46:2 47:2 214:2
+ds4: dspark route overlap path=hybrid block=12 layer=33 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 212:3 214:3 53:2 141:2
+ds4: dspark route overlap path=hybrid block=12 layer=34 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 175:3 224:3 147:2 0:1
+ds4: dspark route overlap path=hybrid block=12 layer=35 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=3 pair_overlap=1.00/6 top_experts: 35:3 38:1 60:1 69:1
+ds4: dspark route overlap path=hybrid block=12 layer=36 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 136:3 143:3 59:2 69:2
+ds4: dspark route overlap path=hybrid block=12 layer=37 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 29:2 67:2 100:2 169:2
+ds4: dspark route overlap path=hybrid block=12 layer=38 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 127:3 19:2 62:2 139:2
+ds4: dspark route overlap path=hybrid block=12 layer=39 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 25:2 8:1 16:1 36:1
+ds4: dspark route overlap path=hybrid block=12 layer=40 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 187:3 136:2 186:2 26:1
+ds4: dspark route overlap path=hybrid block=12 layer=41 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 159:3 41:2 194:2 227:2
+ds4: dspark route overlap path=hybrid block=12 layer=42 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 55:2 156:2 228:2 8:1
+ds4: dspark verify dispatch path=hybrid block=12 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=12 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=12 n=3 layers=43 slots=774 unique=561 reuse=1.38x dup=27.5% pair_overlap=2.12/6 max_multiplicity=3 unique_min=9 unique_max=18 reuse>=1.25=36 reuse>=1.50=17 avg_reuse=1.51x avg_pair_overlap=2.66/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.450 ms snapshot=0.370 ms verify=67.343 ms dspark_kv=1.172 ms total=81.421 ms
+ds4: dspark route overlap path=hybrid block=13 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 25:1 44:1 48:1 58:1
+ds4: dspark route overlap path=hybrid block=13 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 12:1 27:1 35:1 41:1
+ds4: dspark route overlap path=hybrid block=13 layer=2 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 8:2 75:2 10:1 42:1
+ds4: dspark route overlap path=hybrid block=13 layer=3 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 101:3 187:3 189:3 72:2
+ds4: dspark route overlap path=hybrid block=13 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 67:2 97:2 242:2
+ds4: dspark route overlap path=hybrid block=13 layer=5 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 211:3 225:3 73:2 133:2
+ds4: dspark route overlap path=hybrid block=13 layer=6 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 51:2 111:2 138:2 146:2
+ds4: dspark route overlap path=hybrid block=13 layer=7 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 5:3 122:2 125:2 153:2
+ds4: dspark route overlap path=hybrid block=13 layer=8 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 60:3 76:2 115:2 200:2
+ds4: dspark route overlap path=hybrid block=13 layer=9 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 10:3 100:2 155:2 203:2
+ds4: dspark route overlap path=hybrid block=13 layer=10 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 11:2 30:2 57:2 87:2
+ds4: dspark route overlap path=hybrid block=13 layer=11 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 48:3 131:3 89:2 204:2
+ds4: dspark route overlap path=hybrid block=13 layer=12 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 0:3 99:3 17:2 153:2
+ds4: dspark route overlap path=hybrid block=13 layer=13 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 43:3 148:3 192:3 224:3
+ds4: dspark route overlap path=hybrid block=13 layer=14 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 110:3 146:3 242:3 153:2
+ds4: dspark route overlap path=hybrid block=13 layer=15 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 18:3 39:3 116:3 179:3
+ds4: dspark route overlap path=hybrid block=13 layer=16 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 31:3 82:3 176:3 179:3
+ds4: dspark route overlap path=hybrid block=13 layer=17 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 172:3 201:3 28:2 195:2
+ds4: dspark route overlap path=hybrid block=13 layer=18 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 166:3 4:2 5:2 59:2
+ds4: dspark route overlap path=hybrid block=13 layer=19 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 181:2 27:1 29:1 30:1
+ds4: dspark route overlap path=hybrid block=13 layer=20 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 39:3 233:3 111:2 137:2
+ds4: dspark route overlap path=hybrid block=13 layer=21 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 68:3 89:3 250:3 98:2
+ds4: dspark route overlap path=hybrid block=13 layer=22 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 71:3 56:2 157:2 210:2
+ds4: dspark route overlap path=hybrid block=13 layer=23 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 151:3 244:3 56:2 118:2
+ds4: dspark route overlap path=hybrid block=13 layer=24 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 39:3 99:3 186:3 23:2
+ds4: dspark route overlap path=hybrid block=13 layer=25 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 19:3 144:3 176:3 253:3
+ds4: dspark route overlap path=hybrid block=13 layer=26 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 63:3 177:3 202:3 210:3
+ds4: dspark route overlap path=hybrid block=13 layer=27 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 7:3 66:3 34:2 106:2
+ds4: dspark route overlap path=hybrid block=13 layer=28 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 23:3 40:3 229:3 69:2
+ds4: dspark route overlap path=hybrid block=13 layer=29 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 216:3 55:2 82:2 238:2
+ds4: dspark route overlap path=hybrid block=13 layer=30 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 13:3 192:3 229:3 27:2
+ds4: dspark route overlap path=hybrid block=13 layer=31 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 48:3 223:3 232:3 43:2
+ds4: dspark route overlap path=hybrid block=13 layer=32 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 46:3 47:3 72:3 15:2
+ds4: dspark route overlap path=hybrid block=13 layer=33 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 53:3 141:3 212:3 214:3
+ds4: dspark route overlap path=hybrid block=13 layer=34 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 158:3 175:3 224:3 77:2
+ds4: dspark route overlap path=hybrid block=13 layer=35 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 35:2 239:2 0:1 1:1
+ds4: dspark route overlap path=hybrid block=13 layer=36 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 136:3 143:3 49:2 59:2
+ds4: dspark route overlap path=hybrid block=13 layer=37 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 0:2 67:2 197:2 221:2
+ds4: dspark route overlap path=hybrid block=13 layer=38 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 10:3 139:3 18:2 62:2
+ds4: dspark route overlap path=hybrid block=13 layer=39 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 25:3 19:2 54:2 175:2
+ds4: dspark route overlap path=hybrid block=13 layer=40 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 136:3 97:2 105:2 165:2
+ds4: dspark route overlap path=hybrid block=13 layer=41 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 25:3 194:3 123:2 159:2
+ds4: dspark route overlap path=hybrid block=13 layer=42 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 15:2 28:2 44:2 212:2
+ds4: dspark verify dispatch path=hybrid block=13 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=13 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=13 n=3 layers=43 slots=774 unique=506 reuse=1.53x dup=34.6% pair_overlap=2.70/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=38 reuse>=1.50=29 avg_reuse=1.52x avg_pair_overlap=2.66/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.253 ms snapshot=0.376 ms verify=68.238 ms dspark_kv=1.232 ms total=82.190 ms
+ds4: dspark route overlap path=hybrid block=14 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 139:2 23:1 42:1 46:1
+ds4: dspark route overlap path=hybrid block=14 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 16:1 20:1 29:1 30:1
+ds4: dspark route overlap path=hybrid block=14 layer=2 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 245:2 19:1 30:1 31:1
+ds4: dspark route overlap path=hybrid block=14 layer=3 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 187:3 189:3 64:2 25:1
+ds4: dspark route overlap path=hybrid block=14 layer=4 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 67:3 118:3 3:2 233:2
+ds4: dspark route overlap path=hybrid block=14 layer=5 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 103:3 225:3 229:3 115:2
+ds4: dspark route overlap path=hybrid block=14 layer=6 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 202:3 38:2 146:2 187:2
+ds4: dspark route overlap path=hybrid block=14 layer=7 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 153:3 170:3 45:2 9:1
+ds4: dspark route overlap path=hybrid block=14 layer=8 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 60:3 55:2 65:2 98:2
+ds4: dspark route overlap path=hybrid block=14 layer=9 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 73:3 82:3 203:3 222:3
+ds4: dspark route overlap path=hybrid block=14 layer=10 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 87:3 156:2 3:1 18:1
+ds4: dspark route overlap path=hybrid block=14 layer=11 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 48:3 125:3 131:3 207:2
+ds4: dspark route overlap path=hybrid block=14 layer=12 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 0:3 52:3 83:3 221:3
+ds4: dspark route overlap path=hybrid block=14 layer=13 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 43:3 146:3 192:3 224:2
+ds4: dspark route overlap path=hybrid block=14 layer=14 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 91:3 153:3 171:3 110:2
+ds4: dspark route overlap path=hybrid block=14 layer=15 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 72:3 179:3 77:2 96:2
+ds4: dspark route overlap path=hybrid block=14 layer=16 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 163:3 179:3 94:2 172:2
+ds4: dspark route overlap path=hybrid block=14 layer=17 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 28:3 36:3 44:2 72:2
+ds4: dspark route overlap path=hybrid block=14 layer=18 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 11:3 85:3 254:3 133:2
+ds4: dspark route overlap path=hybrid block=14 layer=19 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 141:2 173:2 5:1 14:1
+ds4: dspark route overlap path=hybrid block=14 layer=20 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 111:3 233:3 26:2 153:2
+ds4: dspark route overlap path=hybrid block=14 layer=21 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 89:3 189:3 229:3 5:2
+ds4: dspark route overlap path=hybrid block=14 layer=22 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 71:3 25:2 39:2 148:2
+ds4: dspark route overlap path=hybrid block=14 layer=23 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 10:3 16:3 56:3 244:3
+ds4: dspark route overlap path=hybrid block=14 layer=24 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 39:3 99:3 195:3 79:2
+ds4: dspark route overlap path=hybrid block=14 layer=25 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 19:3 144:3 253:3 95:2
+ds4: dspark route overlap path=hybrid block=14 layer=26 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 158:3 169:2 202:2 210:2
+ds4: dspark route overlap path=hybrid block=14 layer=27 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 34:3 66:3 7:2 227:2
+ds4: dspark route overlap path=hybrid block=14 layer=28 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 23:3 40:3 229:3 12:2
+ds4: dspark route overlap path=hybrid block=14 layer=29 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 216:3 217:3 58:2 61:2
+ds4: dspark route overlap path=hybrid block=14 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 13:3 192:3 229:3 48:2
+ds4: dspark route overlap path=hybrid block=14 layer=31 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 43:3 232:3 14:2 188:2
+ds4: dspark route overlap path=hybrid block=14 layer=32 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 72:3 35:2 46:2 118:2
+ds4: dspark route overlap path=hybrid block=14 layer=33 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 11:3 53:3 141:3 214:3
+ds4: dspark route overlap path=hybrid block=14 layer=34 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 175:3 0:2 58:2 102:2
+ds4: dspark route overlap path=hybrid block=14 layer=35 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 32:2 76:2 185:2 215:2
+ds4: dspark route overlap path=hybrid block=14 layer=36 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 69:3 143:3 50:2 104:2
+ds4: dspark route overlap path=hybrid block=14 layer=37 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 65:2 191:2 0:1 7:1
+ds4: dspark route overlap path=hybrid block=14 layer=38 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 115:2 133:2 139:2 175:2
+ds4: dspark route overlap path=hybrid block=14 layer=39 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=2 pair_overlap=1.33/6 top_experts: 25:2 65:2 99:2 117:2
+ds4: dspark route overlap path=hybrid block=14 layer=40 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 136:3 187:3 97:2 105:2
+ds4: dspark route overlap path=hybrid block=14 layer=41 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 123:3 189:2 190:2 194:2
+ds4: dspark route overlap path=hybrid block=14 layer=42 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 8:2 35:2 105:2 106:2
+ds4: dspark verify dispatch path=hybrid block=14 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=14 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=14 n=3 layers=43 slots=774 unique=508 reuse=1.52x dup=34.4% pair_overlap=2.67/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=37 reuse>=1.50=29 avg_reuse=1.52x avg_pair_overlap=2.66/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.331 ms snapshot=0.373 ms verify=67.691 ms dspark_kv=1.532 ms total=82.021 ms
+ds4: dspark route overlap path=hybrid block=15 layer=0 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 25:1 48:1 50:1 54:1
+ds4: dspark route overlap path=hybrid block=15 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 7:1 12:1 19:1 27:1
+ds4: dspark route overlap path=hybrid block=15 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 8:1 9:1 72:1 75:1
+ds4: dspark route overlap path=hybrid block=15 layer=3 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 187:3 189:3 101:2 5:1
+ds4: dspark route overlap path=hybrid block=15 layer=4 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 67:3 63:2 140:2 233:2
+ds4: dspark route overlap path=hybrid block=15 layer=5 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 73:3 225:3 103:2 211:2
+ds4: dspark route overlap path=hybrid block=15 layer=6 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 146:2 187:2 202:2 38:1
+ds4: dspark route overlap path=hybrid block=15 layer=7 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 153:3 88:2 170:2 45:1
+ds4: dspark route overlap path=hybrid block=15 layer=8 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=3 pair_overlap=1.00/6 top_experts: 60:3 65:1 77:1 80:1
+ds4: dspark route overlap path=hybrid block=15 layer=9 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 73:3 109:3 45:2 203:2
+ds4: dspark route overlap path=hybrid block=15 layer=10 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 39:2 87:2 156:2 3:1
+ds4: dspark route overlap path=hybrid block=15 layer=11 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 131:3 48:2 114:2 125:2
+ds4: dspark route overlap path=hybrid block=15 layer=12 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 0:3 52:2 7:1 32:1
+ds4: dspark route overlap path=hybrid block=15 layer=13 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 43:3 146:3 192:3 225:2
+ds4: dspark route overlap path=hybrid block=15 layer=14 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 91:2 110:2 113:2 169:2
+ds4: dspark route overlap path=hybrid block=15 layer=15 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 89:3 179:3 72:2 96:2
+ds4: dspark route overlap path=hybrid block=15 layer=16 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 94:3 179:3 82:2 176:2
+ds4: dspark route overlap path=hybrid block=15 layer=17 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 28:3 80:3 36:2 2:1
+ds4: dspark route overlap path=hybrid block=15 layer=18 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=2 pair_overlap=2.00/6 top_experts: 11:2 85:2 166:2 179:2
+ds4: dspark route overlap path=hybrid block=15 layer=19 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 90:2 9:1 52:1 54:1
+ds4: dspark route overlap path=hybrid block=15 layer=20 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 233:3 26:2 111:2 240:2
+ds4: dspark route overlap path=hybrid block=15 layer=21 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 89:3 6:2 8:2 136:2
+ds4: dspark route overlap path=hybrid block=15 layer=22 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 71:3 68:2 90:2 202:2
+ds4: dspark route overlap path=hybrid block=15 layer=23 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 16:3 56:3 244:3 10:2
+ds4: dspark route overlap path=hybrid block=15 layer=24 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 39:3 99:3 40:2 195:2
+ds4: dspark route overlap path=hybrid block=15 layer=25 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 19:3 144:3 176:3 253:3
+ds4: dspark route overlap path=hybrid block=15 layer=26 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 210:3 64:2 158:2 226:2
+ds4: dspark route overlap path=hybrid block=15 layer=27 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 34:3 66:3 7:2 235:2
+ds4: dspark route overlap path=hybrid block=15 layer=28 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 23:3 69:3 229:3 40:2
+ds4: dspark route overlap path=hybrid block=15 layer=29 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 216:3 105:2 177:2 217:2
+ds4: dspark route overlap path=hybrid block=15 layer=30 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.33/6 top_experts: 13:3 142:3 192:3 229:3
+ds4: dspark route overlap path=hybrid block=15 layer=31 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 232:3 48:2 49:2 43:1
+ds4: dspark route overlap path=hybrid block=15 layer=32 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 57:3 46:2 47:2 72:2
+ds4: dspark route overlap path=hybrid block=15 layer=33 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.67/6 top_experts: 53:3 141:3 214:3 11:2
+ds4: dspark route overlap path=hybrid block=15 layer=34 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 175:3 224:3 92:2 150:2
+ds4: dspark route overlap path=hybrid block=15 layer=35 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 239:2 22:1 32:1 35:1
+ds4: dspark route overlap path=hybrid block=15 layer=36 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 49:3 59:3 69:3 89:1
+ds4: dspark route overlap path=hybrid block=15 layer=37 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 29:3 0:2 4:2 99:1
+ds4: dspark route overlap path=hybrid block=15 layer=38 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 139:3 18:2 42:2 240:2
+ds4: dspark route overlap path=hybrid block=15 layer=39 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 25:2 134:2 171:2 3:1
+ds4: dspark route overlap path=hybrid block=15 layer=40 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 97:3 83:2 165:2 5:1
+ds4: dspark route overlap path=hybrid block=15 layer=41 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 123:3 134:2 189:2 9:1
+ds4: dspark route overlap path=hybrid block=15 layer=42 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 132:3 143:2 28:1 35:1
+ds4: dspark verify dispatch path=hybrid block=15 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=15 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=15 n=3 layers=43 slots=774 unique=567 reuse=1.37x dup=26.7% pair_overlap=2.05/6 max_multiplicity=3 unique_min=9 unique_max=18 reuse>=1.25=32 reuse>=1.50=16 avg_reuse=1.50x avg_pair_overlap=2.62/6
+ds4: dspark timing decodeN drafted=3 committed=3 draft=12.258 ms snapshot=0.368 ms verify=67.788 ms dspark_kv=1.277 ms total=81.788 ms
+ds4: dspark route overlap path=hybrid block=16 layer=0 active=3 slots=18 unique=17 duplicate_slots=1 reuse=1.06x max_multiplicity=2 pair_overlap=0.33/6 top_experts: 63:2 0:1 41:1 61:1
+ds4: dspark route overlap path=hybrid block=16 layer=1 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 12:1 19:1 35:1 66:1
+ds4: dspark route overlap path=hybrid block=16 layer=2 active=3 slots=18 unique=18 duplicate_slots=0 reuse=1.00x max_multiplicity=1 pair_overlap=0.00/6 top_experts: 6:1 34:1 48:1 53:1
+ds4: dspark route overlap path=hybrid block=16 layer=3 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 187:3 189:3 120:2 1:1
+ds4: dspark route overlap path=hybrid block=16 layer=4 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 67:3 140:2 193:2 3:1
+ds4: dspark route overlap path=hybrid block=16 layer=5 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 225:3 229:3 73:2 32:1
+ds4: dspark route overlap path=hybrid block=16 layer=6 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 202:2 228:2 3:1 14:1
+ds4: dspark route overlap path=hybrid block=16 layer=7 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 45:2 80:2 153:2 157:2
+ds4: dspark route overlap path=hybrid block=16 layer=8 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 60:2 65:2 175:2 7:1
+ds4: dspark route overlap path=hybrid block=16 layer=9 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 222:3 73:2 109:2 203:2
+ds4: dspark route overlap path=hybrid block=16 layer=10 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 156:3 87:2 166:2 252:2
+ds4: dspark route overlap path=hybrid block=16 layer=11 active=3 slots=18 unique=8 duplicate_slots=10 reuse=2.25x max_multiplicity=3 pair_overlap=4.67/6 top_experts: 48:3 125:3 131:3 172:3
+ds4: dspark route overlap path=hybrid block=16 layer=12 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 0:3 52:3 58:2 230:2
+ds4: dspark route overlap path=hybrid block=16 layer=13 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 43:3 146:3 192:2 25:1
+ds4: dspark route overlap path=hybrid block=16 layer=14 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 91:2 113:2 231:2 38:1
+ds4: dspark route overlap path=hybrid block=16 layer=15 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=3 pair_overlap=1.33/6 top_experts: 179:3 88:2 24:1 45:1
+ds4: dspark route overlap path=hybrid block=16 layer=16 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 179:3 163:2 176:2 182:2
+ds4: dspark route overlap path=hybrid block=16 layer=17 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 28:2 36:2 80:2 21:1
+ds4: dspark route overlap path=hybrid block=16 layer=18 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 11:3 85:2 254:2 3:1
+ds4: dspark route overlap path=hybrid block=16 layer=19 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 62:2 100:2 138:2 33:1
+ds4: dspark route overlap path=hybrid block=16 layer=20 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 111:3 26:2 108:2 153:2
+ds4: dspark route overlap path=hybrid block=16 layer=21 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 8:3 189:3 16:2 89:2
+ds4: dspark route overlap path=hybrid block=16 layer=22 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 25:2 71:2 148:2 174:2
+ds4: dspark route overlap path=hybrid block=16 layer=23 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 16:3 244:3 10:2 13:2
+ds4: dspark route overlap path=hybrid block=16 layer=24 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 39:3 79:2 99:2 173:2
+ds4: dspark route overlap path=hybrid block=16 layer=25 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=3.00/6 top_experts: 19:3 144:3 93:2 100:2
+ds4: dspark route overlap path=hybrid block=16 layer=26 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 19:3 64:2 169:2 202:2
+ds4: dspark route overlap path=hybrid block=16 layer=27 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 34:3 7:2 66:2 194:2
+ds4: dspark route overlap path=hybrid block=16 layer=28 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 23:3 20:2 69:2 229:2
+ds4: dspark route overlap path=hybrid block=16 layer=29 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 217:3 34:2 64:2 117:2
+ds4: dspark route overlap path=hybrid block=16 layer=30 active=3 slots=18 unique=11 duplicate_slots=7 reuse=1.64x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 229:3 13:2 31:2 132:2
+ds4: dspark route overlap path=hybrid block=16 layer=31 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 232:3 14:2 118:2 223:2
+ds4: dspark route overlap path=hybrid block=16 layer=32 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 72:3 35:2 51:2 118:2
+ds4: dspark route overlap path=hybrid block=16 layer=33 active=3 slots=18 unique=9 duplicate_slots=9 reuse=2.00x max_multiplicity=3 pair_overlap=4.00/6 top_experts: 11:3 141:3 253:3 53:2
+ds4: dspark route overlap path=hybrid block=16 layer=34 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.67/6 top_experts: 102:3 175:3 0:2 58:2
+ds4: dspark route overlap path=hybrid block=16 layer=35 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 225:3 32:2 35:2 185:2
+ds4: dspark route overlap path=hybrid block=16 layer=36 active=3 slots=18 unique=10 duplicate_slots=8 reuse=1.80x max_multiplicity=3 pair_overlap=3.33/6 top_experts: 69:3 143:3 27:2 50:2
+ds4: dspark route overlap path=hybrid block=16 layer=37 active=3 slots=18 unique=12 duplicate_slots=6 reuse=1.50x max_multiplicity=3 pair_overlap=2.33/6 top_experts: 65:3 40:2 158:2 191:2
+ds4: dspark route overlap path=hybrid block=16 layer=38 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=2 pair_overlap=1.67/6 top_experts: 139:2 184:2 206:2 228:2
+ds4: dspark route overlap path=hybrid block=16 layer=39 active=3 slots=18 unique=15 duplicate_slots=3 reuse=1.20x max_multiplicity=2 pair_overlap=1.00/6 top_experts: 98:2 204:2 233:2 18:1
+ds4: dspark route overlap path=hybrid block=16 layer=40 active=3 slots=18 unique=14 duplicate_slots=4 reuse=1.29x max_multiplicity=3 pair_overlap=1.67/6 top_experts: 187:3 49:2 205:2 8:1
+ds4: dspark route overlap path=hybrid block=16 layer=41 active=3 slots=18 unique=13 duplicate_slots=5 reuse=1.38x max_multiplicity=3 pair_overlap=2.00/6 top_experts: 194:3 93:2 123:2 190:2
+ds4: dspark route overlap path=hybrid block=16 layer=42 active=3 slots=18 unique=16 duplicate_slots=2 reuse=1.12x max_multiplicity=2 pair_overlap=0.67/6 top_experts: 105:2 237:2 11:1 20:1
+ds4: dspark verify dispatch path=hybrid block=16 n=3 layers=43 total=718 attn_pre=43 mutate=229 heads=129 attn_out=43 ffn_pre=43 router=43 routed=86 shared=43 tail=56 avg_total=718.0
+ds4: dspark verify dispatch-est path=hybrid block=16 n=3 layers=43 embed=3 attn=43 kv=43 comp=123 index=63 heads=129 output_hc=43 ffn_pre=43 router=43 routed_moe=43 ordered_sum=43 shared=43 post_hc=43 target_hidden=9 head=1 topk=1 read=2 total=718 avg_total=718.0
+ds4: dspark routed overlap path=hybrid block=16 n=3 layers=43 slots=774 unique=560 reuse=1.38x dup=27.6% pair_overlap=2.00/6 max_multiplicity=3 unique_min=8 unique_max=18 reuse>=1.25=32 reuse>=1.50=18 avg_reuse=1.50x avg_pair_overlap=2.58/6
+ds4: dspark timing decodeN-prefix drafted=3 committed=2 draft=12.253 ms snapshot=0.538 ms verify=66.743 ms prefix=1.576 ms total=81.199 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.033 ms verify=27.624 ms total=33.732 ms
+ds4: ----------------------------------------
+ds4: prefill: 6.10 t/s, generation: 32.88 t/s (64 tokens in 1.946s)
+ds4: dspark perf: draft=241.2 tok/s, verify=52.2 proposed tok/s, verify-accepted=39.6 tok/s, block=69.01 ms (draft=12.02 verify=55.53 overhead=1.46 commit=1.05, tau=3.20, blocks=20)
+ds4: dspark decode-eq: draft=0.43 verify=1.99 overhead=0.05 block=2.47 baseline_decode=27.96 ms tau=3.20
+ds4: vm pressure: app=86.93 GiB resident=47.94 GiB wired=99.32 GiB compressed=2.15 GiB logical=4.07 GiB swap=2.03/3.00 GiB pressure=88% free=0.17 GiB gpu=86.86 GiB gpu-compressed=0.00 GiB task-compressed=43.82 GiB decompressions=5050611
+ds4: dspark acceptance: 75.9% (44/58 draft tokens)
+ds4: dspark acceptance by position: 1=17/20 2=14/19 3=13/19
+ds4: dspark avg scheduled: 2.90 draft tokens/block (20 blocks)

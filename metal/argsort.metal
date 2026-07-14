@@ -55,6 +55,18 @@ struct ds4_metal_args_add_argmax {
     uint64_t selected_token_stride;
 };
 
+/* DSpark Markov W2 + base-logit selection.  The ordinary path materializes
+ * the complete vocab-sized Markov vector and then launches add+argmax.  This
+ * two-stage reduction keeps only one (value,index) pair per 256-vocab tile.
+ * It is intentionally DSpark-specific: W2 is row-major F16 [vocab, rank],
+ * while the Markov embedding and base logits are F32. */
+struct ds4_metal_args_markov_argmax {
+    uint32_t n_vocab;
+    uint32_t rank;
+    uint32_t n_blocks;
+    uint32_t pad;
+};
+
 kernel void kernel_argmax_f32_i32(
         constant ds4_metal_args_argmax &args [[buffer(0)]],
         device const char    *scores   [[buffer(1)]],
@@ -147,6 +159,100 @@ kernel void kernel_add_argmax_f32_i32(
     if (tid == 0) {
         selected[(uint64_t)row * args.selected_token_stride] = idxs[0];
     }
+}
+
+kernel void kernel_markov_f16_argmax_blocks(
+        constant ds4_metal_args_markov_argmax &args [[buffer(0)]],
+        device const half    *weights          [[buffer(1)]],
+        device const float   *embedding        [[buffer(2)]],
+        device const float   *base_logits      [[buffer(3)]],
+        device       char    *scratch          [[buffer(4)]],
+        threadgroup  float   *vals             [[threadgroup(0)]],
+        threadgroup  int32_t *idxs             [[threadgroup(1)]],
+        uint block [[threadgroup_position_in_grid]],
+        uint tid   [[thread_index_in_threadgroup]],
+        uint nt    [[threads_per_threadgroup]]) {
+    const uint vocab_i = block * nt + tid;
+    float score = -INFINITY;
+    int32_t score_i = INT_MAX;
+    if (vocab_i < args.n_vocab) {
+        device const half *row = weights + (uint64_t)vocab_i * args.rank;
+        float sum = 0.0f;
+        const uint rank4 = args.rank >> 2;
+        device const half4 *row4 = (device const half4 *)row;
+        device const float4 *emb4 = (device const float4 *)embedding;
+        for (uint r4 = 0; r4 < rank4; r4++) {
+            sum += dot(float4(row4[r4]), emb4[r4]);
+        }
+        for (uint r = rank4 << 2; r < args.rank; r++) {
+            sum += float(row[r]) * embedding[r];
+        }
+        score = base_logits[vocab_i] + sum;
+        score_i = (int32_t)vocab_i;
+    }
+
+    vals[tid] = score;
+    idxs[tid] = score_i;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint stride = nt >> 1; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            const float other = vals[tid + stride];
+            const int32_t other_i = idxs[tid + stride];
+            if (other > vals[tid] ||
+                (other == vals[tid] && other_i < idxs[tid])) {
+                vals[tid] = other;
+                idxs[tid] = other_i;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    if (tid == 0 && block < args.n_blocks) {
+        device float *block_vals = (device float *)scratch;
+        device int32_t *block_idxs =
+            (device int32_t *)(scratch + (uint64_t)args.n_blocks * sizeof(float));
+        block_vals[block] = vals[0];
+        block_idxs[block] = idxs[0];
+    }
+}
+
+kernel void kernel_markov_argmax_reduce(
+        constant ds4_metal_args_markov_argmax &args [[buffer(0)]],
+        device const char    *scratch          [[buffer(1)]],
+        device       int32_t *selected         [[buffer(2)]],
+        threadgroup  float   *vals             [[threadgroup(0)]],
+        threadgroup  int32_t *idxs             [[threadgroup(1)]],
+        uint tid [[thread_index_in_threadgroup]],
+        uint nt  [[threads_per_threadgroup]]) {
+    device const float *block_vals = (device const float *)scratch;
+    device const int32_t *block_idxs =
+        (device const int32_t *)(scratch + (uint64_t)args.n_blocks * sizeof(float));
+    float best = -INFINITY;
+    int32_t best_i = INT_MAX;
+    for (uint block = tid; block < args.n_blocks; block += nt) {
+        const float v = block_vals[block];
+        const int32_t i = block_idxs[block];
+        if (v > best || (v == best && i < best_i)) {
+            best = v;
+            best_i = i;
+        }
+    }
+    vals[tid] = best;
+    idxs[tid] = best_i;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for (uint stride = nt >> 1; stride > 0; stride >>= 1) {
+        if (tid < stride) {
+            const float other = vals[tid + stride];
+            const int32_t other_i = idxs[tid + stride];
+            if (other > vals[tid] ||
+                (other == vals[tid] && other_i < idxs[tid])) {
+                vals[tid] = other;
+                idxs[tid] = other_i;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    if (tid == 0) selected[0] = idxs[0];
 }
 
 typedef void (argsort_t)(

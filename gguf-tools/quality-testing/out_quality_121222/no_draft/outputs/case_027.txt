@@ -1,0 +1,3 @@
+This is an excellent question that gets at a core challenge in making neural networks smaller and faster.
+
+The term **importance matrix

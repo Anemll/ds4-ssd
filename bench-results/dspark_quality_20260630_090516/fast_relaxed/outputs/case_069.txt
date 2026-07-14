@@ -1,0 +1,9 @@
+Here's a short checklist for reviewing a pull request that touches memory lifetimes:
+
+## Memory Lifetime Review Checklist
+
+- [ ] **Ownership clarity**: Is the ownership of each allocation clear? Who frees it, and when?
+- [ ] **Dangling pointers**: Are there any raw pointers or references that could become dangling (e.g., after a move, reallocation, or destruction)?
+- [ ] **Use-after-free**: Could a resource be accessed after it's been freed or destroyed?
+- [ ] **Double-free**: Is there any path where the same resource could be freed twice?
+- [ ] **Lifetime annotations**:

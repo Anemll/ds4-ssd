@@ -1,0 +1,100 @@
+generate_samples: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (50 env defaults set, 1 kept from environment)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence-soft conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.266 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill full: 17 tokens in 2442.3 ms (7.0 t/s)
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=5 rows=5 in 209.4 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+case_000 1/20 generated=128 tps=32.61 acc=55.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_000.txt
+ds4: prefill full: 18 tokens in 950.3 ms (18.9 t/s)
+case_001 2/20 generated=128 tps=31.31 acc=48.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_001.txt
+ds4: prefill full: 19 tokens in 1129.1 ms (16.8 t/s)
+case_002 3/20 generated=128 tps=27.08 acc=51.1% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_002.txt
+ds4: prefill full: 19 tokens in 933.0 ms (20.4 t/s)
+case_003 4/20 generated=128 tps=27.07 acc=32.8% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_003.txt
+ds4: prefill full: 15 tokens in 855.3 ms (17.5 t/s)
+case_004 5/20 generated=128 tps=32.53 acc=51.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_004.txt
+ds4: prefill full: 14 tokens in 773.9 ms (18.1 t/s)
+case_005 6/20 generated=128 tps=34.40 acc=56.6% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_005.txt
+ds4: prefill full: 18 tokens in 958.1 ms (18.8 t/s)
+case_006 7/20 generated=128 tps=31.86 acc=52.3% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_006.txt
+ds4: prefill full: 14 tokens in 810.8 ms (17.3 t/s)
+case_007 8/20 generated=128 tps=28.17 acc=35.1% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_007.txt
+ds4: prefill full: 20 tokens in 969.2 ms (20.6 t/s)
+case_008 9/20 generated=128 tps=29.45 acc=36.8% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_008.txt
+ds4: prefill full: 17 tokens in 874.4 ms (19.4 t/s)
+case_009 10/20 generated=128 tps=30.53 acc=46.8% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_009.txt
+ds4: prefill full: 26 tokens in 1019.5 ms (25.5 t/s)
+case_010 11/20 generated=128 tps=30.73 acc=43.5% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_010.txt
+ds4: prefill full: 21 tokens in 879.0 ms (23.9 t/s)
+case_011 12/20 generated=128 tps=33.22 acc=53.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_011.txt
+ds4: prefill full: 22 tokens in 979.4 ms (22.5 t/s)
+case_012 13/20 generated=128 tps=32.21 acc=54.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_012.txt
+ds4: prefill full: 22 tokens in 947.0 ms (23.2 t/s)
+case_013 14/20 generated=128 tps=30.84 acc=41.5% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_013.txt
+ds4: prefill full: 21 tokens in 931.7 ms (22.5 t/s)
+case_014 15/20 generated=128 tps=28.64 acc=35.8% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_014.txt
+ds4: prefill full: 22 tokens in 896.6 ms (24.5 t/s)
+case_015 16/20 generated=128 tps=31.57 acc=47.3% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_015.txt
+ds4: prefill full: 19 tokens in 937.5 ms (20.3 t/s)
+case_016 17/20 generated=128 tps=29.13 acc=36.3% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_016.txt
+ds4: prefill full: 26 tokens in 1029.0 ms (25.3 t/s)
+case_017 18/20 generated=128 tps=32.03 acc=43.5% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_017.txt
+ds4: prefill full: 25 tokens in 1026.7 ms (24.3 t/s)
+case_018 19/20 generated=128 tps=31.13 acc=36.4% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_018.txt
+ds4: prefill full: 19 tokens in 929.1 ms (20.5 t/s)
+case_019 20/20 generated=128 tps=25.99 acc=27.5% out=bench-results/dspark_quality_softmax20_20260630_200407/softmax/outputs/case_019.txt
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB
+wrote bench-results/dspark_quality_softmax20_20260630_200407/softmax/summary.tsv

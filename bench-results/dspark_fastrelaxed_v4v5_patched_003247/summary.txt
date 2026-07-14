@@ -1,0 +1,20 @@
+=== v4 verify=4 ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+105:ds4: prefill: 7.17 t/s, generation: 49.66 t/s (1000 tokens in 20.139s)
+106:ds4: dspark perf: draft=411.1 tok/s, verify=71.1 proposed tok/s, verify-accepted=61.2 tok/s, block=67.69 ms (draft=9.72 verify=56.21 overhead=1.77 commit=1.36, tau=3.44, blocks=283)
+109:ds4: dspark acceptance: 92.9% (961/1035 draft tokens)
+110:ds4: dspark acceptance by position: 1=254/259 2=249/259 3=236/259 4=222/258
+112:ds4: dspark full-accept: 86.1% (223/259 blocks), first-miss: 1.9% (5/259 blocks)
+113:ds4: dspark avg scheduled: 4.00 draft tokens/block (259 blocks)
+bench-results/dspark_fastrelaxed_v4v5_patched_003247/v4.out	3774	116	100	1	2	game:2	0		0	0	0	4	3	0
+=== v5 verify=5 ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+105:ds4: prefill: 7.59 t/s, generation: 51.40 t/s (1000 tokens in 19.457s)
+106:ds4: dspark perf: draft=443.6 tok/s, verify=72.9 proposed tok/s, verify-accepted=63.2 tok/s, block=81.81 ms (draft=11.24 verify=68.43 overhead=2.14 commit=1.70, tau=4.32, blocks=227)
+109:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+110:ds4: dspark acceptance by position: 1=208/212 2=204/212 3=197/211 4=187/211 5=173/211
+112:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+bench-results/dspark_fastrelaxed_v4v5_patched_003247/v5.out	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0

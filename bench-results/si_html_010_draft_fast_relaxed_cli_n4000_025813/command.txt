@@ -1,0 +1,5 @@
+cwd=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd
+BASE=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
+DRAFT=/Users/anemll/Models/DSv4-Flash-DSpark-draft
+RUN_DIR=bench-results/si_html_010_draft_fast_relaxed_cli_n4000_025813
+cmd=DS4_CTX_GROW_BLOCK=2048 DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 ./ds4 -m "/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major" --draft dspark --draft-path "/Users/anemll/Models/DSv4-Flash-DSpark-draft" --draft-verify 5 --draft-fast-relaxed --temp 0 --nothink -n 4000 -p <prompt> --resident -c 4096

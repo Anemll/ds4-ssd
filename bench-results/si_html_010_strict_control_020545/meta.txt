@@ -1,0 +1,5 @@
+run=bench-results/si_html_010_strict_control_020545
+mode=strict
+started=2026-07-01T09:05:45Z
+status=0
+finished=2026-07-01T09:07:57Z

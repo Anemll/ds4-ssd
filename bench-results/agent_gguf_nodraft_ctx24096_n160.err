@@ -1,0 +1,225 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4-agent: context buffers 2467.12 MiB (ctx=24096, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=6026)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 2.699 ms, residency requested in 486.302 ms, warmup 3.026 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.3 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+prefill 1/13 (7.7%) batch=14.9 t/s avg=14.9 t/s
+prefill 2/13 (15.4%) batch=31.6 t/s avg=20.2 t/s
+prefill 3/13 (23.1%) batch=30.4 t/s avg=22.8 t/s
+prefill 4/13 (30.8%) batch=27.8 t/s avg=23.8 t/s
+prefill 5/13 (38.5%) batch=30.0 t/s avg=24.8 t/s
+prefill 6/13 (46.2%) batch=30.3 t/s avg=25.6 t/s
+prefill 7/13 (53.8%) batch=30.3 t/s avg=26.2 t/s
+prefill 8/13 (61.5%) batch=29.5 t/s avg=26.6 t/s
+prefill 9/13 (69.2%) batch=30.4 t/s avg=26.9 t/s
+prefill 10/13 (76.9%) batch=30.3 t/s avg=27.2 t/s
+prefill 11/13 (84.6%) batch=31.0 t/s avg=27.6 t/s
+prefill 12/13 (92.3%) batch=28.4 t/s avg=27.6 t/s
+prefill 13/13 (100.0%) batch=30.2 t/s avg=27.8 t/s
+ds4: prefill chunk cap EFFECTIVE=16384 tokens (DS4_METAL_PREFILL_CHUNK=16384) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+ds4: resident routed MoE using standard MPP/NAX grouped prefill
+ds4: resident-NAX tile n_tokens=789 -> sync-bridge=ON (sync_max_tokens=7168, src=auto(tile<=max)) -> slow count-readback (map_wait)
+sync tool result 18/789 (2.3%) batch=36.5 t/s avg=36.5 t/s
+sync tool result 36/789 (4.6%) batch=89.3 t/s avg=51.8 t/s
+sync tool result 55/789 (7.0%) batch=74.8 t/s avg=58.0 t/s
+sync tool result 73/789 (9.3%) batch=108.3 t/s avg=65.5 t/s
+sync tool result 91/789 (11.5%) batch=112.1 t/s avg=71.4 t/s
+sync tool result 110/789 (13.9%) batch=131.0 t/s avg=77.4 t/s
+sync tool result 128/789 (16.2%) batch=115.8 t/s avg=81.2 t/s
+sync tool result 146/789 (18.5%) batch=126.3 t/s avg=85.0 t/s
+sync tool result 165/789 (20.9%) batch=115.8 t/s avg=87.7 t/s
+sync tool result 183/789 (23.2%) batch=123.2 t/s avg=90.2 t/s
+sync tool result 201/789 (25.5%) batch=108.6 t/s avg=91.6 t/s
+sync tool result 220/789 (27.9%) batch=139.2 t/s avg=94.4 t/s
+sync tool result 238/789 (30.2%) batch=111.2 t/s avg=95.5 t/s
+sync tool result 256/789 (32.4%) batch=127.6 t/s avg=97.2 t/s
+sync tool result 275/789 (34.9%) batch=116.9 t/s avg=98.4 t/s
+sync tool result 293/789 (37.1%) batch=133.7 t/s avg=100.0 t/s
+sync tool result 311/789 (39.4%) batch=110.1 t/s avg=100.5 t/s
+sync tool result 330/789 (41.8%) batch=131.4 t/s avg=101.9 t/s
+sync tool result 348/789 (44.1%) batch=111.1 t/s avg=102.3 t/s
+sync tool result 366/789 (46.4%) batch=116.5 t/s avg=102.9 t/s
+sync tool result 385/789 (48.8%) batch=111.5 t/s avg=103.3 t/s
+sync tool result 403/789 (51.1%) batch=122.4 t/s avg=104.1 t/s
+sync tool result 422/789 (53.5%) batch=106.5 t/s avg=104.2 t/s
+sync tool result 440/789 (55.8%) batch=109.0 t/s avg=104.4 t/s
+sync tool result 458/789 (58.0%) batch=94.1 t/s avg=103.9 t/s
+sync tool result 477/789 (60.5%) batch=119.4 t/s avg=104.5 t/s
+sync tool result 495/789 (62.7%) batch=98.3 t/s avg=104.2 t/s
+sync tool result 513/789 (65.0%) batch=112.0 t/s avg=104.5 t/s
+sync tool result 532/789 (67.4%) batch=102.2 t/s avg=104.4 t/s
+sync tool result 550/789 (69.7%) batch=108.6 t/s avg=104.5 t/s
+sync tool result 568/789 (72.0%) batch=98.2 t/s avg=104.3 t/s
+sync tool result 587/789 (74.4%) batch=118.0 t/s avg=104.7 t/s
+sync tool result 605/789 (76.7%) batch=93.5 t/s avg=104.3 t/s
+sync tool result 623/789 (79.0%) batch=119.9 t/s avg=104.7 t/s
+sync tool result 642/789 (81.4%) batch=101.0 t/s avg=104.6 t/s
+sync tool result 660/789 (83.7%) batch=114.3 t/s avg=104.9 t/s
+sync tool result 678/789 (85.9%) batch=94.8 t/s avg=104.6 t/s
+sync tool result 697/789 (88.3%) batch=127.0 t/s avg=105.1 t/s
+sync tool result 715/789 (90.6%) batch=100.8 t/s avg=105.0 t/s
+sync tool result 733/789 (92.9%) batch=122.2 t/s avg=105.3 t/s
+sync tool result 752/789 (95.3%) batch=109.7 t/s avg=105.4 t/s
+sync tool result 770/789 (97.6%) batch=128.7 t/s avg=105.9 t/s
+sync tool result 789/789 (100.0%) batch=110.3 t/s avg=106.0 t/s
+ds4: prefill resume: 789 tokens in 7454.7 ms (105.8 t/s)
+sync tool result 1/56 (1.8%) batch=25.1 t/s avg=25.1 t/s
+sync tool result 2/56 (3.6%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 3/56 (5.4%) batch=26.0 t/s avg=25.6 t/s
+sync tool result 4/56 (7.1%) batch=24.4 t/s avg=25.3 t/s
+sync tool result 5/56 (8.9%) batch=25.5 t/s avg=25.3 t/s
+sync tool result 6/56 (10.7%) batch=25.4 t/s avg=25.3 t/s
+sync tool result 7/56 (12.5%) batch=26.1 t/s avg=25.4 t/s
+sync tool result 8/56 (14.3%) batch=24.5 t/s avg=25.3 t/s
+sync tool result 9/56 (16.1%) batch=25.9 t/s avg=25.4 t/s
+sync tool result 10/56 (17.9%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 11/56 (19.6%) batch=25.5 t/s avg=25.5 t/s
+sync tool result 12/56 (21.4%) batch=24.5 t/s avg=25.4 t/s
+sync tool result 13/56 (23.2%) batch=25.5 t/s avg=25.4 t/s
+sync tool result 14/56 (25.0%) batch=26.4 t/s avg=25.5 t/s
+sync tool result 15/56 (26.8%) batch=25.9 t/s avg=25.5 t/s
+sync tool result 16/56 (28.6%) batch=24.4 t/s avg=25.4 t/s
+sync tool result 17/56 (30.4%) batch=25.8 t/s avg=25.4 t/s
+sync tool result 18/56 (32.1%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 19/56 (33.9%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 20/56 (35.7%) batch=24.4 t/s avg=25.4 t/s
+sync tool result 21/56 (37.5%) batch=26.2 t/s avg=25.5 t/s
+sync tool result 22/56 (39.3%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 23/56 (41.1%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 24/56 (42.9%) batch=25.2 t/s avg=25.5 t/s
+sync tool result 25/56 (44.6%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 26/56 (46.4%) batch=26.9 t/s avg=25.5 t/s
+sync tool result 27/56 (48.2%) batch=25.9 t/s avg=25.6 t/s
+sync tool result 28/56 (50.0%) batch=24.2 t/s avg=25.5 t/s
+sync tool result 29/56 (51.8%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 30/56 (53.6%) batch=26.0 t/s avg=25.5 t/s
+sync tool result 31/56 (55.4%) batch=25.8 t/s avg=25.5 t/s
+sync tool result 32/56 (57.1%) batch=24.5 t/s avg=25.5 t/s
+sync tool result 33/56 (58.9%) batch=25.9 t/s avg=25.5 t/s
+sync tool result 34/56 (60.7%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 35/56 (62.5%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 36/56 (64.3%) batch=24.1 t/s avg=25.5 t/s
+sync tool result 37/56 (66.1%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 38/56 (67.9%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 39/56 (69.6%) batch=25.8 t/s avg=25.5 t/s
+sync tool result 40/56 (71.4%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 41/56 (73.2%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 42/56 (75.0%) batch=25.5 t/s avg=25.5 t/s
+sync tool result 43/56 (76.8%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 44/56 (78.6%) batch=24.7 t/s avg=25.5 t/s
+sync tool result 45/56 (80.4%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 46/56 (82.1%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 47/56 (83.9%) batch=26.3 t/s avg=25.5 t/s
+sync tool result 48/56 (85.7%) batch=24.7 t/s avg=25.5 t/s
+sync tool result 49/56 (87.5%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 50/56 (89.3%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 51/56 (91.1%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 52/56 (92.9%) batch=24.7 t/s avg=25.5 t/s
+sync tool result 53/56 (94.6%) batch=25.3 t/s avg=25.5 t/s
+sync tool result 54/56 (96.4%) batch=25.9 t/s avg=25.5 t/s
+sync tool result 55/56 (98.2%) batch=25.5 t/s avg=25.5 t/s
+sync tool result 56/56 (100.0%) batch=24.3 t/s avg=25.5 t/s
+sync tool result 1/96 (1.0%) batch=24.9 t/s avg=24.9 t/s
+sync tool result 2/96 (2.1%) batch=25.3 t/s avg=25.1 t/s
+sync tool result 3/96 (3.1%) batch=25.6 t/s avg=25.3 t/s
+sync tool result 4/96 (4.2%) batch=26.0 t/s avg=25.5 t/s
+sync tool result 5/96 (5.2%) batch=24.5 t/s avg=25.3 t/s
+sync tool result 6/96 (6.2%) batch=25.4 t/s avg=25.3 t/s
+sync tool result 7/96 (7.3%) batch=25.6 t/s avg=25.3 t/s
+sync tool result 8/96 (8.3%) batch=26.1 t/s avg=25.4 t/s
+sync tool result 9/96 (9.4%) batch=24.5 t/s avg=25.3 t/s
+sync tool result 10/96 (10.4%) batch=25.4 t/s avg=25.3 t/s
+sync tool result 11/96 (11.5%) batch=25.4 t/s avg=25.3 t/s
+sync tool result 12/96 (12.5%) batch=25.9 t/s avg=25.4 t/s
+sync tool result 13/96 (13.5%) batch=24.5 t/s avg=25.3 t/s
+sync tool result 14/96 (14.6%) batch=25.4 t/s avg=25.3 t/s
+sync tool result 15/96 (15.6%) batch=25.3 t/s avg=25.3 t/s
+sync tool result 16/96 (16.7%) batch=26.0 t/s avg=25.4 t/s
+sync tool result 17/96 (17.7%) batch=24.4 t/s avg=25.3 t/s
+sync tool result 18/96 (18.8%) batch=25.7 t/s avg=25.3 t/s
+sync tool result 19/96 (19.8%) batch=25.2 t/s avg=25.3 t/s
+sync tool result 20/96 (20.8%) batch=26.0 t/s avg=25.3 t/s
+sync tool result 21/96 (21.9%) batch=24.1 t/s avg=25.3 t/s
+sync tool result 22/96 (22.9%) batch=25.2 t/s avg=25.3 t/s
+sync tool result 23/96 (24.0%) batch=25.6 t/s avg=25.3 t/s
+sync tool result 24/96 (25.0%) batch=26.2 t/s avg=25.3 t/s
+sync tool result 25/96 (26.0%) batch=25.3 t/s avg=25.3 t/s
+sync tool result 26/96 (27.1%) batch=27.0 t/s avg=25.4 t/s
+sync tool result 27/96 (28.1%) batch=25.7 t/s avg=25.4 t/s
+sync tool result 28/96 (29.2%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 29/96 (30.2%) batch=24.6 t/s avg=25.4 t/s
+sync tool result 30/96 (31.2%) batch=26.1 t/s avg=25.4 t/s
+sync tool result 31/96 (32.3%) batch=25.4 t/s avg=25.4 t/s
+sync tool result 32/96 (33.3%) batch=25.5 t/s avg=25.4 t/s
+sync tool result 33/96 (34.4%) batch=24.5 t/s avg=25.4 t/s
+sync tool result 34/96 (35.4%) batch=25.8 t/s avg=25.4 t/s
+sync tool result 35/96 (36.5%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 36/96 (37.5%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 37/96 (38.5%) batch=25.1 t/s avg=25.4 t/s
+sync tool result 38/96 (39.6%) batch=25.9 t/s avg=25.4 t/s
+sync tool result 39/96 (40.6%) batch=25.5 t/s avg=25.4 t/s
+sync tool result 40/96 (41.7%) batch=26.6 t/s avg=25.4 t/s
+sync tool result 41/96 (42.7%) batch=24.8 t/s avg=25.4 t/s
+sync tool result 42/96 (43.8%) batch=26.0 t/s avg=25.4 t/s
+sync tool result 43/96 (44.8%) batch=25.9 t/s avg=25.4 t/s
+sync tool result 44/96 (45.8%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 45/96 (46.9%) batch=24.5 t/s avg=25.4 t/s
+sync tool result 46/96 (47.9%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 47/96 (49.0%) batch=25.8 t/s avg=25.4 t/s
+sync tool result 48/96 (50.0%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 49/96 (51.0%) batch=24.7 t/s avg=25.4 t/s
+sync tool result 50/96 (52.1%) batch=25.8 t/s avg=25.4 t/s
+sync tool result 51/96 (53.1%) batch=25.9 t/s avg=25.4 t/s
+sync tool result 52/96 (54.2%) batch=25.6 t/s avg=25.4 t/s
+sync tool result 53/96 (55.2%) batch=24.9 t/s avg=25.4 t/s
+sync tool result 54/96 (56.2%) batch=26.1 t/s avg=25.4 t/s
+sync tool result 55/96 (57.3%) batch=25.5 t/s avg=25.4 t/s
+sync tool result 56/96 (58.3%) batch=26.5 t/s avg=25.5 t/s
+sync tool result 57/96 (59.4%) batch=24.8 t/s avg=25.4 t/s
+sync tool result 58/96 (60.4%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 59/96 (61.5%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 60/96 (62.5%) batch=26.4 t/s avg=25.5 t/s
+sync tool result 61/96 (63.5%) batch=24.6 t/s avg=25.5 t/s
+sync tool result 62/96 (64.6%) batch=25.8 t/s avg=25.5 t/s
+sync tool result 63/96 (65.6%) batch=25.8 t/s avg=25.5 t/s
+sync tool result 64/96 (66.7%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 65/96 (67.7%) batch=24.7 t/s avg=25.5 t/s
+sync tool result 66/96 (68.8%) batch=25.3 t/s avg=25.5 t/s
+sync tool result 67/96 (69.8%) batch=26.2 t/s avg=25.5 t/s
+sync tool result 68/96 (70.8%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 69/96 (71.9%) batch=24.2 t/s avg=25.4 t/s
+sync tool result 70/96 (72.9%) batch=25.5 t/s avg=25.4 t/s
+sync tool result 71/96 (74.0%) batch=26.0 t/s avg=25.5 t/s
+sync tool result 72/96 (75.0%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 73/96 (76.0%) batch=24.8 t/s avg=25.4 t/s
+sync tool result 74/96 (77.1%) batch=26.0 t/s avg=25.5 t/s
+sync tool result 75/96 (78.1%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 76/96 (79.2%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 77/96 (80.2%) batch=24.7 t/s avg=25.4 t/s
+sync tool result 78/96 (81.2%) batch=27.0 t/s avg=25.5 t/s
+sync tool result 79/96 (82.3%) batch=25.5 t/s avg=25.5 t/s
+sync tool result 80/96 (83.3%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 81/96 (84.4%) batch=24.3 t/s avg=25.5 t/s
+sync tool result 82/96 (85.4%) batch=25.5 t/s avg=25.5 t/s
+sync tool result 83/96 (86.5%) batch=25.3 t/s avg=25.5 t/s
+sync tool result 84/96 (87.5%) batch=26.4 t/s avg=25.5 t/s
+sync tool result 85/96 (88.5%) batch=24.8 t/s avg=25.5 t/s
+sync tool result 86/96 (89.6%) batch=25.9 t/s avg=25.5 t/s
+sync tool result 87/96 (90.6%) batch=25.4 t/s avg=25.5 t/s
+sync tool result 88/96 (91.7%) batch=26.1 t/s avg=25.5 t/s
+sync tool result 89/96 (92.7%) batch=24.6 t/s avg=25.5 t/s
+sync tool result 90/96 (93.8%) batch=25.8 t/s avg=25.5 t/s
+sync tool result 91/96 (94.8%) batch=26.2 t/s avg=25.5 t/s
+sync tool result 92/96 (95.8%) batch=25.6 t/s avg=25.5 t/s
+sync tool result 93/96 (96.9%) batch=24.7 t/s avg=25.5 t/s
+sync tool result 94/96 (97.9%) batch=26.3 t/s avg=25.5 t/s
+sync tool result 95/96 (99.0%) batch=25.7 t/s avg=25.5 t/s
+sync tool result 96/96 (100.0%) batch=25.7 t/s avg=25.5 t/s

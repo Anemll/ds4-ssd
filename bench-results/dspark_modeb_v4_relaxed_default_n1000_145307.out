@@ -1,0 +1,120 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, screen_width, screen_height):
+        self.width = 50
+        self.height = 40
+        self.x = screen_width // 2 - self.width // 2
+        self.y = screen_height - 100
+        self.speed = 5
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        self.bullets = []
+        self.last_shot = 0
+        self.shoot_delay = 250  # milliseconds
+        self.lives = 3
+        self.score = 0
+        
+    def update(self, keys_pressed, dt):
+        # Movement
+        if keys_pressed[pygame.K_LEFT] and self.x > 0:
+            self.x -= self.speed
+        if keys_pressed[pygame.K_RIGHT] and self.x < SCREEN_WIDTH - self.width:
+            self.x += self.speed
+        if keys_pressed[pygame.K_SPACE]:
+            self.shoot()
+            
+        self.rect.x = self.x
+        
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+                
+    def shoot(self):
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_shot > self.shoot_delay:
+            self.bullets.append(Bullet(self.x + self.width // 2, self.y))
+            self.last_shot = current_time
+            
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+        # Draw gun
+        pygame.draw.rect(screen, GREEN, (self.x + self.width//2 - 3, self.y - 10, 6, 10))
+        
+        for bullet in self.bullets:
+            bullet.draw(screen)
+
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 10
+        self.radius = 3
+        
+    def update(self):
+        self.y -= self.speed
+        
+    def draw(self, screen):
+        pygame.draw.circle(screen, YELLOW, (int(self.x), int(self.y)), self.radius)
+
+class Enemy:
+    def __init__(self, x, y, speed):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = speed
+        self.direction = 1
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+        self.last_shot = 0
+        self.shoot_delay = random.randint(1000, 3000)
+        
+    def update(self, dt, player_x):
+        self.x += self.speed * self.direction * dt * 60
+        
+        # Randomly change direction
+        if random.random() < 0.01:
+            self.direction *= -1
+            
+        # Keep in bounds
+        if self.x <= 0:
+            self.direction = 1
+        elif self.x >= SCREEN_WIDTH - self.width:
+            self.direction = -1
+            
+        self.rect.x = self.x
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, self.rect)
+        # Draw alien features
+        pygame.draw.circle(screen, WHITE, (self.x + 10, self.y + 10), 5)
+        pygame.draw.circle(screen, WHITE, (self.x + 30, self.y + 10), 5)
+        pygame.draw.rect(screen, WHITE, (self.x + 15, self.y + 20, 10, 5))
+
+class EnemyBullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 5

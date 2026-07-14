@@ -1,0 +1,31 @@
+Ecco uno schema JSON minimo per una tool call:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "nome_tool",
+    "arguments": {
+      "parametro1": "valore1",
+      "parametro2": "valore2"
+    }
+  }
+}
+```
+
+**Schema minimo:**
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "string",
+    "arguments": {
+      // parametri come coppie chiave-valore
+    }
+  }
+}
+```
+
+**Esempio pratico:**
+

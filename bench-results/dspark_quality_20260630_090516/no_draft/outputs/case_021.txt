@@ -1,0 +1,19 @@
+Here's a short C function that clamps an integer to a range:
+
+```c
+int clamp(int value, int min, int max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+```
+
+This function:
+- Takes an integer `value` and a range defined by `min` and `max`
+- Returns `min` if the value is below the minimum
+- Returns `max` if the value is above the maximum
+- Returns the original value if it's within the range
+
+**Example usage:**
+```c
+int clamped = clamp

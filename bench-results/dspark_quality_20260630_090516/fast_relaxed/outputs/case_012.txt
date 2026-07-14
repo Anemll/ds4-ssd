@@ -1,0 +1,12 @@
+Ecco una comparativa dettagliata tra `mmap` (memory mapping) e la copia completa dei pesi su macOS, con particolare attenzione ai casi di carico di modelli di machine learning.
+
+## Confronto: mmap vs Copia completa
+
+### 1. **mmap (Memory Mapping)**
+
+**Come funziona:**
+- Il sistema operativo mappa direttamente il file su disco in memoria
+- I dati vengono caricati a richiesta (lazy loading) quando vengono effettivamente acceduti
+- Il sistema gestisce automaticamente la memoria virtuale
+
+**V

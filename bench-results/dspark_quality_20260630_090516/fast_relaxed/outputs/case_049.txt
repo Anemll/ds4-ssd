@@ -1,0 +1,5 @@
+Evaluating 50 prompts is more informative than evaluating just one because it provides a broader, more reliable, and more nuanced understanding of the system's capabilities. Here’s why:
+
+1.  **Reduces Statistical Noise & Variance:** A single prompt can be an outlier. The model might get it right by chance (e.g., guessing a simple fact) or get it wrong due to a specific phrasing quirk. With 50 prompts, you get a much more accurate picture. The average performance across diverse queries is far more stable than a single result.
+
+2.  **Covers Diverse Capabilities:** One prompt tests one narrow skill

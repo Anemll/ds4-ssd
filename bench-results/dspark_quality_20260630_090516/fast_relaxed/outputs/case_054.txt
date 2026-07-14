@@ -1,0 +1,13 @@
+Questa è un'ottima domanda che riguarda un problema comune nelle applicazioni che usano `mmap` per file di dimensioni variabili.
+
+Ecco come testerei che un `mmap` non venga rimappato ripetutamente, con diverse strategie:
+
+## 1. **Test con traccia di sistema (strace)**
+
+Il modo più diretto è tracciare le chiamate di sistema:
+
+```bash
+strace -e mmap,mmunmap,brk -o /tmp/mmap_trace.log ./tuo_programma
+```
+
+Poi analizza il file

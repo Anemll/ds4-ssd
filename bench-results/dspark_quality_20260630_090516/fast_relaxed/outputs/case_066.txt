@@ -1,0 +1,23 @@
+Testing a command-line parser with edge cases requires a systematic approach to ensure robustness and correct behavior under unusual or extreme inputs. Here's a comprehensive guide:
+
+## Core Edge Cases to Test
+
+### 1. **Empty/Null Arguments**
+```bash
+# Empty string
+./parser "" --flag
+
+# No arguments
+./parser
+
+# Only whitespace
+./parser "   "
+```
+
+### 2. **Special Characters**
+```bash
+# Shell metacharacters
+./parser --flag "value|pipeline"
+# Quotes within strings
+./parser --name "John \"Doe\""
+# Unicode/UTF-8 characters

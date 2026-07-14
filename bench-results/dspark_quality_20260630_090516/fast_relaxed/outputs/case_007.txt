@@ -1,0 +1,9 @@
+This is a great question that gets to the heart of how speculative decoding works.
+
+The core challenge is: **How do you use a fast, approximate model to generate text, but guarantee the final output is exactly what the slower, more accurate model would produce?**
+
+Here’s a step-by-step summary of how speculative decoding preserves exact output, focusing on the key mechanism: **the rejection sampling step**.
+
+### The Core Idea: A "Draft" with a "Verification"
+
+1.  **The Draft:** The fast, approximate model (the "draft" or "speculative" model) generates a sequence of tokens *aut

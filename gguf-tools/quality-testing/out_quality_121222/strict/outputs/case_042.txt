@@ -1,0 +1,5 @@
+Let me explain online softmax in attention using simple variables.
+
+## The Standard Softmax Problem
+
+In standard attention, we

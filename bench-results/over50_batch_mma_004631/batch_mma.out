@@ -1,0 +1,71 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.vel = 5
+        self.bullets = []
+        self.health = 3
+        self.score = 0
+        
+    def draw(self, screen):
+        # Draw player ship (triangle)
+        points = [
+            (self.x, self.y - 15),  # Top
+            (self.x - 20, self.y + 15),  # Bottom left
+            (self.x + 20, self.y + 15)   # Bottom right
+        ]
+        pygame.draw.polygon(screen, (0, 255, 0), points)
+        
+        # Draw bullets
+        for bullet in self.bullets:
+            bullet.draw(screen)
+            
+    def move(self, keys, left, right):
+        if keys[left]:
+            self.x -= self.vel
+        if keys[right]:
+            self.x += self.vel
+            
+        # Keep player on screen
+        if self.x < 20:
+            self.x = 20
+        if self.x > SCREEN_WIDTH - 20:
+            self.x = SCREEN_WIDTH - 20
+            
+    def shoot(self):
+        bullet = Bullet(self.x, self.y - 20)
+        self.bullets.append(bullet)
+        
+    def update_bullets(self):
+        for bullet in self.bullets[:]:
+            bullet.move()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+                
+    def draw_bullets(self, screen):
+        for bullet in

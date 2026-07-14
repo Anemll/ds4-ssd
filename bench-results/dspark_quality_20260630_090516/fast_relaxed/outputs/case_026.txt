@@ -1,0 +1,8 @@
+Here is a brief, structured testing plan for evaluating long-context chunking, focusing on the critical trade-offs between context preservation and model performance.
+
+### Goal
+Validate that chunking a long document (e.g., 50k tokens) into smaller segments (e.g., 4k-8k tokens) does not degrade the quality, accuracy, or coherence of the model's output, while improving latency and cost.
+
+### Key Metrics to Track
+- **Recall/Accuracy:** Does the model still find the "needle" in the haystack?
+- **Coherence:** Does the model correctly link information across chunks (e.g

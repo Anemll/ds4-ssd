@@ -1,0 +1,9 @@
+Questa spiegazione descrive la ricerca binaria per trovare il punto di inserimento in una lista ordinata.
+
+## Cos'è la ricerca binaria del punto di inserimento?
+
+La ricerca binaria del punto di inserimento è una variante della classica ricerca binaria che, dato un valore target e una lista ordinata, trova la posizione **in cui inserire** il target mantenendo l'ordinamento della lista.
+
+## Differenza rispetto alla ricerca binaria classica
+
+- **Ricerca binaria classica**: restituisce l'indice se l'elemento esiste, altrimenti un indic

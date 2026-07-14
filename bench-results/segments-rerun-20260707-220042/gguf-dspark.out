@@ -1,0 +1,553 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade experience of Space Invaders, with inline CSS and JS.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 16px;
+        }
+        .cabinet {
+            background: #111;
+            border: 4px solid #444;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0,200,255,0.2);
+            padding: 20px 20px 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 780px;
+            width: 100%;
+        }
+        .bezel {
+            background: #000;
+            border: 2px solid #222;
+            border-radius: 12px;
+            padding: 12px 10px 10px;
+            width: 100%;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            background: #000;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 640 / 720;
+            border: 2px solid #333;
+            image-rendering: pixelated;
+            cursor: none;
+            margin: 0 auto;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-top: 18px;
+            gap: 20px;
+            padding: 0 8px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 20px;
+        }
+        .arcade-btn {
+            background: #222;
+            border: 3px solid #555;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ddd;
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 0 10px #00aaff33, inset 0 0 8px #fff3;
+            transition: 0.05s;
+            cursor: pointer;
+            user-select: none;
+        }
+        .arcade-btn:active {
+            background: #2a2a2a;
+            box-shadow: 0 0 20px #00aaff;
+            transform: scale(0.95);
+        }
+        .arcade-btn.fire {
+            background: #2a1a1a;
+            border-color: #aa3333;
+            color: #ff6666;
+        }
+        .info-panel {
+            display: flex;
+            gap: 30px;
+            color: #7fc9ff;
+            font-size: 1.2rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            background: #0a0a0a;
+            padding: 6px 20px;
+            border-radius: 20px;
+            border: 1px solid #333;
+        }
+        .info-panel span {
+            min-width: 70px;
+            text-align: center;
+        }
+        .footer-note {
+            color: #555;
+            font-size: 0.7rem;
+            margin-top: 12px;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        @media (max-width: 600px) {
+            .controls { flex-direction: column; align-items: stretch; gap: 12px; }
+            .btn-group { justify-content: center; }
+            .info-panel { font-size: 0.9rem; padding: 4px 12px; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="bezel">
+        <canvas id="gameCanvas" width="640" height="720"></canvas>
+    </div>
+    <div class="controls">
+        <div class="btn-group">
+            <div class="arcade-btn" id="leftBtn">←</div>
+            <div class="arcade-btn fire" id="fireBtn">⨁</div>
+            <div class="arcade-btn" id="rightBtn">→</div>
+        </div>
+        <div class="info-panel">
+            <span id="scoreDisplay">0000</span>
+            <span id="livesDisplay">❤️❤️❤️</span>
+        </div>
+    </div>
+    <div class="footer-note">1978 TAIRO · SPACE INVADERS</div>
+</div>
+
+<script>
+    (function() {
+        // ---------- CANVAS ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const w = 640, h = 720;
+        // ---------- GAME STATE ----------
+        // 1:1 original rules: 5 rows of 11 invaders, 2 bunkers, player 1, score, lives
+        const ROWS = 5;
+        const COLS = 11;
+        const INVADER_WIDTH = 28;
+        const INVADER_HEIGHT = 24;
+        const PLAYER_WIDTH = 32;
+        const PLAYER_HEIGHT = 20;
+        const BUNKER_COUNT = 2; // original had 2 bunkers (left/right) but we keep 2 classic
+        // positions: left bunker x=80, right bunker x=480 (center of bunker)
+        // bunker size
+        const BUNKER_W = 60;
+        const BUNKER_H = 40;
+
+        // game objects
+        let player = { x: 304, y: 680, width: PLAYER_WIDTH, height: PLAYER_HEIGHT, speed: 4 };
+        let invaders = [];
+        let bunkers = [];
+        let bullets = []; // player bullets
+        let invaderBullets = [];
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let winFlag = false;
+        let frame = 0;
+        let invaderDirection = 1; // 1 right, -1 left
+        let invaderStep = 12; // pixels per move
+        let invaderMoveCounter = 0;
+        const INVADER_MOVE_DELAY = 10; // frames between moves
+        let invaderShootTimer = 0;
+        const INVADER_SHOOT_DELAY = 30; // frames between shots
+        let playerBulletActive = false;
+        let playerBulletY = -10;
+        let playerBulletX = 0;
+        const BULLET_SPEED = 8;
+        const INVADER_BULLET_SPEED = 5;
+
+        // input
+        let leftPressed = false;
+        let rightPressed = false;
+        let firePressed = false;
+        let fireCooldown = 0;
+
+        // ---------- INIT ----------
+        function resetGame() {
+            // invaders
+            invaders = [];
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    invaders.push({
+                        x: 80 + col * 40,
+                        y: 40 + row * 32,
+                        width: INVADER_WIDTH,
+                        height: INVADER_HEIGHT,
+                        alive: true,
+                        row: row,
+                        col: col,
+                        frameOffset: (row * 2 + col) % 4
+                    });
+                }
+            }
+            // bunkers (2 classic)
+            bunkers = [
+                { x: 80, y: 580, width: BUNKER_W, height: BUNKER_H, health: 4 },
+                { x: 480, y: 580, width: BUNKER_W, height: BUNKER_H, health: 4 }
+            ];
+            // player
+            player.x = 304;
+            player.y = 680;
+            playerBulletActive = false;
+            invaderBullets = [];
+            bullets = [];
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            winFlag = false;
+            invaderDirection = 1;
+            invaderMoveCounter = 0;
+            invaderShootTimer = 0;
+            fireCooldown = 0;
+            updateUI();
+        }
+
+        // ---------- DRAWING (pixel perfect 1978 style) ----------
+        function drawInvader(x, y, frame, row) {
+            // classic 2-frame animation based on row parity
+            const alt = (row % 2 === 0) ? (frame % 2) : (1 - (frame % 2));
+            ctx.fillStyle = '#39ff14'; // neon green
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            // body
+            ctx.fillRect(x + 4, y + 4, 20, 16);
+            // legs (alternate)
+            if (alt === 0) {
+                ctx.fillRect(x + 4, y + 20, 6, 6);
+                ctx.fillRect(x + 18, y + 20, 6, 6);
+            } else {
+                ctx.fillRect(x + 8, y + 20, 6, 6);
+                ctx.fillRect(x + 14, y + 20, 6, 6);
+            }
+            // eyes
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x + 8, y + 8, 4, 4);
+            ctx.fillRect(x + 16, y + 8, 4, 4);
+            // antenna
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(x + 12, y, 4, 4);
+        }
+
+        function drawPlayer(x, y) {
+            ctx.fillStyle = '#00cc00';
+            ctx.fillRect(x, y, PLAYER_WIDTH, PLAYER_HEIGHT);
+            // cannon
+            ctx.fillStyle = '#7f7f00';
+            ctx.fillRect(x + 10, y - 6, 12, 6);
+            // details
+            ctx.fillStyle = '#000';
+            ctx.fillRect(x + 4, y + 4, 6, 4);
+            ctx.fillRect(x + 22, y + 4, 6, 4);
+        }
+
+        function drawBunker(bunker) {
+            if (bunker.health <= 0) return;
+            ctx.fillStyle = '#2a5a2a';
+            ctx.fillRect(bunker.x, bunker.y, bunker.width, bunker.height);
+            ctx.fillStyle = '#1e3a1e';
+            ctx.fillRect(bunker.x + 4, bunker.y + 4, bunker.width - 8, bunker.height - 8);
+            // damage
+            if (bunker.health < 4) {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(bunker.x + 20, bunker.y + 10, 20, 20);
+            }
+        }
+
+        function drawBullet(x, y, isPlayer) {
+            if (isPlayer) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x, y, 4, 12);
+            } else {
+                ctx.fillStyle = '#ff4444';
+                ctx.fillRect(x, y, 4, 10);
+            }
+        }
+
+        // ---------- UPDATE ----------
+        function update() {
+            if (gameOver || winFlag) return;
+
+            // move player
+            if (leftPressed && player.x > 20) player.x -= player.speed;
+            if (rightPressed && player.x < 640 - 20 - PLAYER_WIDTH) player.x += player.speed;
+
+            // fire
+            if (firePressed && !playerBulletActive && fireCooldown === 0) {
+                playerBulletActive = true;
+                playerBulletX = player.x + PLAYER_WIDTH/2 - 2;
+                playerBulletY = player.y - 10;
+                fireCooldown = 20;
+            }
+            if (fireCooldown > 0) fireCooldown--;
+
+            // move player bullet
+            if (playerBulletActive) {
+                playerBulletY -= BULLET_SPEED;
+                // check collision with invaders
+                for (let i = 0; i < invaders.length; i++) {
+                    const inv = invaders[i];
+                    if (!inv.alive) continue;
+                    if (playerBulletX + 4 > inv.x && playerBulletX < inv.x + INVADER_WIDTH &&
+                        playerBulletY + 12 > inv.y && playerBulletY < inv.y + INVADER_HEIGHT) {
+                        inv.alive = false;
+                        playerBulletActive = false;
+                        score += 10;
+                        updateUI();
+                        // check win
+                        if (invaders.every(inv => !inv.alive)) {
+                            winFlag = true;
+                        }
+                        break;
+                    }
+                }
+                // check bunker collision
+                for (let b of bunkers) {
+                    if (b.health > 0 && playerBulletX + 4 > b.x && playerBulletX < b.x + b.width &&
+                        playerBulletY + 12 > b.y && playerBulletY < b.y + b.height) {
+                        b.health--;
+                        playerBulletActive = false;
+                        break;
+                    }
+                }
+                // out of screen
+                if (playerBulletY < 0) playerBulletActive = false;
+            }
+
+            // move invaders (step every INVADER_MOVE_DELAY frames)
+            invaderMoveCounter++;
+            if (invaderMoveCounter >= INVADER_MOVE_DELAY) {
+                invaderMoveCounter = 0;
+                // check edge collision
+                let edgeReach = false;
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    if (invaderDirection === 1 && inv.x + INVADER_WIDTH >= 640 - 20) edgeReach = true;
+                    if (invaderDirection === -1 && inv.x <= 20) edgeReach = true;
+                }
+                if (edgeReach) {
+                    // move down and reverse
+                    for (let inv of invaders) {
+                        if (!inv.alive) continue;
+                        inv.y += 8;
+                    }
+                    invaderDirection *= -1;
+                } else {
+                    for (let inv of invaders) {
+                        if (!inv.alive) continue;
+                        inv.x += invaderDirection * invaderStep;
+                    }
+                }
+            }
+
+            // invader shooting
+            invaderShootTimer++;
+            if (invaderShootTimer >= INVADER_SHOOT_DELAY) {
+                invaderShootTimer = 0;
+                // pick random alive invader
+                const aliveInvaders = invaders.filter(i => i.alive);
+                if (aliveInvaders.length > 0) {
+                    const randomInv = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
+                    invaderBullets.push({
+                        x: randomInv.x + INVADER_WIDTH/2 - 2,
+                        y: randomInv.y + INVADER_HEIGHT,
+                        speed: INVADER_BULLET_SPEED
+                    });
+                }
+            }
+
+            // move invader bullets
+            for (let i = 0; i < invaderBullets.length; i++) {
+                const b = invaderBullets[i];
+                b.y += b.speed;
+                // collision with player
+                if (b.x + 4 > player.x && b.x < player.x + PLAYER_WIDTH &&
+                    b.y + 10 > player.y && b.y < player.y + PLAYER_HEIGHT) {
+                    lives--;
+                    updateUI();
+                    if (lives <= 0) {
+                        gameOver = true;
+                    } else {
+                        // remove bullet
+                        invaderBullets.splice(i, 1);
+                        i--;
+                        continue;
+                    }
+                }
+                // collision with bunker
+                for (let j = 0; j < bunkers.length; j++) {
+                    const bunk = bunkers[j];
+                    if (bunk.health > 0 && b.x + 4 > bunk.x && b.x < bunk.x + bunk.width &&
+                        b.y + 10 > bunk.y && b.y < bunk.y + bunk.height) {
+                        bunk.health--;
+                        invaderBullets.splice(i, 1);
+                        i--;
+                        break;
+                    }
+                }
+                // remove if off screen
+                if (i >= 0 && b.y > 720) {
+                    invaderBullets.splice(i, 1);
+                    i--;
+                }
+            }
+
+            // check if invaders reach player (game over)
+            for (let inv of invaders) {
+                if (inv.alive && inv.y + INVADER_HEIGHT >= player.y) {
+                    gameOver = true;
+                    break;
+                }
+            }
+        }
+
+        // ---------- DRAW ----------
+        function draw() {
+            ctx.clearRect(0, 0, w, h);
+            // background stars
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = '#333';
+                const sx = (i * 97) % w, sy = (i * 41) % h;
+                ctx.fillRect(sx, sy, 2, 2);
+            }
+
+            // bunkers
+            for (let b of bunkers) drawBunker(b);
+
+            // invaders
+            for (let inv of invaders) {
+                if (inv.alive) drawInvader(inv.x, inv.y, frame, inv.row);
+            }
+
+            // player
+            if (!gameOver && !winFlag) drawPlayer(player.x, player.y);
+
+            // bullets
+            if (playerBulletActive) drawBullet(playerBulletX, playerBulletY, true);
+            for (let b of invaderBullets) drawBullet(b.x, b.y, false);
+
+            // game over / win overlay
+            if (gameOver) {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 300, w, 80);
+                ctx.fillStyle = '#ff3333';
+                ctx.font = 'bold 44px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', w/2, 360);
+            } else if (winFlag) {
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 300, w, 80);
+                ctx.fillStyle = '#33ff33';
+                ctx.font = 'bold 44px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('YOU WIN!', w/2, 360);
+            }
+        }
+
+        // ---------- UI UPDATE ----------
+        function updateUI() {
+            document.getElementById('scoreDisplay').textContent = String(score).padStart(4, '0');
+            let hearts = '';
+            for (let i = 0; i < lives; i++) hearts += '❤️';
+            document.getElementById('livesDisplay').textContent = hearts || '💀';
+        }
+
+        // ---------- GAME LOOP ----------
+        function gameLoop() {
+            if (!gameOver && !winFlag) {
+                update();
+                frame++;
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ---------- INPUT ----------
+        document.addEventListener('keydown', (e) => {
+            const key = e.key;
+            if (key === 'ArrowLeft' || key === 'a') leftPressed = true;
+            if (key === 'ArrowRight' || key === 'd') rightPressed = true;
+            if (key === ' ' || key === 'z' || key === 'x') {
+                firePressed = true;
+                e.preventDefault();
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            const key = e.key;
+            if (key === 'ArrowLeft' || key === 'a') leftPressed = false;
+            if (key === 'ArrowRight' || key === 'd') rightPressed = false;
+            if (key === ' ' || key === 'z' || key === 'x') firePressed = false;
+        });
+
+        // Buttons
+        document.getElementById('leftBtn').addEventListener('mousedown', () => leftPressed = true);
+        document.getElementById('leftBtn').addEventListener('mouseup', () => leftPressed = false);
+        document.getElementById('leftBtn').addEventListener('mouseleave', () => leftPressed = false);
+        document.getElementById('rightBtn').addEventListener('mousedown', () => rightPressed = true);
+        document.getElementById('rightBtn').addEventListener('mouseup', () => rightPressed = false);
+        document.getElementById('rightBtn').addEventListener('mouseleave', () => rightPressed = false);
+        document.getElementById('fireBtn').addEventListener('mousedown', () => firePressed = true);
+        document.getElementById('fireBtn').addEventListener('mouseup', () => firePressed = false);
+        document.getElementById('fireBtn').addEventListener('mouseleave', () => firePressed = false);
+
+        // restart on game over / win (press R or click restart)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                resetGame();
+                updateUI();
+            }
+        });
+        // add restart hint
+        const restartNote = document.createElement('div');
+        restartNote.style.color = '#555';
+        restartNote.style.fontSize = '0.7rem';
+        restartNote.style.marginTop = '6px';
+        restartNote.textContent = 'press R to restart';
+        document.querySelector('.cabinet').appendChild(restartNote);
+
+        // ---------- START ----------
+        resetGame();
+        updateUI();
+        gameLoop();
+    })();
+</script>
+</body>
+</html>
+```
+### Gameplay & Design
+This page captures the look and feel of the original arcade cabinet. Here's how it works:
+
+- **Core Mechanics**: You control a laser base to defend against five rows of alien invaders. The invaders move side to side and descend, while you fire bolts to destroy them. The game ends when your lives are lost or the invaders reach your base.
+- **Controls & Feedback**: Use the on-screen buttons or keyboard keys (←/→ to move, space/Z/X to fire). Your score and remaining lives are displayed in a classic panel. The game includes a two-frame animation for invaders and a simple bunker defense system.
+- **Visual & Audio Style**: The design uses a pixelated green-on-black aesthetic with neon accents, mimicking the arcade's vector-like display. The game loop runs smoothly, and the interface provides clear feedback for hits, game over, and victory.

@@ -1,0 +1,170 @@
+I'll create a faithful reproduction of the classic 1978 Taito arcade game "Aster" as a single self-contained HTML file with inline CSS and JavaScript.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade - Aster</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1a1a2a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #000;
+            border: 4px solid #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+        }
+        .gameOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0.15) 0px,
+                rgba(0,0,0,0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+        }
+        .bezel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 20px solid #222;
+            border-radius: 12px;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+        }
+        .title {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            text-shadow: 0 0 10px #ff;
+            letter-spacing: 4px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+        .controls span {
+            background: #111;
+            padding: 2px 8px;
+            border: 1px solid #555;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="scanlines"></div>
+        <div class="bezel"></div>
+        <div class="title">ASTER</div>
+        <div class="controls">
+            <span>← →</span>
+            <span>↑ ↓</span>
+            <span>SPACE</span>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = 800, H = 600;
+
+            // Game state
+            const STATE = 'PLAY';
+            // Original 1978 Taito Aster
+            // Player, asteroids, bullets, score, level
+
+            // Player
+            let player = {
+                x: 400, y: 300, angle: 0, radius: 4,
+                speed: 0, lives: 3, maxLives: 5,
+                invincible: 0, // frames
+                thrust: false
+            };
+
+            // Bullets
+            let bullets = [];
+            const MAX_BULLETS = 4;
+            const BULLET_SPEED = 5;
+
+            // Asteroids
+            let asteroids = [];
+            let score = 0;
+            let level = 1;
+            const ASTEROIDS_PER_LEVEL = 3;
+            const MAX_ASTER_SIZE = 20;
+            const MIN_ASTER_SIZE = 6;
+
+            // Input
+            let keys = {
+                left: false, right: false, up: false, down: false, space: false
+            };
+
+            // Initialize
+            function init() {
+                player.x = 400;
+                player.y = 300;
+                player.angle = 0;
+                player.speed = 0;
+                player.lives = 3;
+                player.invincible = 0;
+                bullets = [];
+                score = 0;
+                level = 1;
+                spawnAster();
+            }
+
+            function spawnAster() {
+                const count = ASTEROIDS_PER_LEVEL + level * 2;
+                for (let i = 0; i < count; i++) {
+                    let x, y, size, angle;
+                    do {
+                        x = Math.random()

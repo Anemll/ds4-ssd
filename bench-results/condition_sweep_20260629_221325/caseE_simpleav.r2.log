@@ -1,0 +1,753 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.297 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 42 input tokens: 0/42 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 42 input tokens: 0/42 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 42 input tokens: 1/42 (2.4%) batch=13.57 t/s avg=0.62 t/s
+processing 42 input tokens: 2/42 (4.8%) batch=19.21 t/s avg=1.21 t/s
+processing 42 input tokens: 3/42 (7.1%) batch=33.41 t/s avg=1.78 t/s
+processing 42 input tokens: 4/42 (9.5%) batch=38.25 t/s avg=2.33 t/s
+processing 42 input tokens: 5/42 (11.9%) batch=36.70 t/s avg=2.87 t/s
+processing 42 input tokens: 6/42 (14.3%) batch=37.20 t/s avg=3.39 t/s
+processing 42 input tokens: 7/42 (16.7%) batch=36.32 t/s avg=3.90 t/s
+processing 42 input tokens: 8/42 (19.0%) batch=36.55 t/s avg=4.39 t/s
+processing 42 input tokens: 9/42 (21.4%) batch=31.89 t/s avg=4.85 t/s
+processing 42 input tokens: 10/42 (23.8%) batch=32.66 t/s avg=5.30 t/s
+processing 42 input tokens: 11/42 (26.2%) batch=37.79 t/s avg=5.75 t/s
+processing 42 input tokens: 12/42 (28.6%) batch=34.46 t/s avg=6.18 t/s
+processing 42 input tokens: 13/42 (31.0%) batch=36.95 t/s avg=6.61 t/s
+processing 42 input tokens: 14/42 (33.3%) batch=40.12 t/s avg=7.03 t/s
+processing 42 input tokens: 15/42 (35.7%) batch=39.84 t/s avg=7.43 t/s
+processing 42 input tokens: 16/42 (38.1%) batch=39.22 t/s avg=7.83 t/s
+processing 42 input tokens: 17/42 (40.5%) batch=43.13 t/s avg=8.23 t/s
+processing 42 input tokens: 18/42 (42.9%) batch=41.74 t/s avg=8.61 t/s
+processing 42 input tokens: 19/42 (45.2%) batch=29.30 t/s avg=8.94 t/s
+processing 42 input tokens: 20/42 (47.6%) batch=37.64 t/s avg=9.30 t/s
+processing 42 input tokens: 21/42 (50.0%) batch=34.88 t/s avg=9.63 t/s
+processing 42 input tokens: 22/42 (52.4%) batch=36.28 t/s avg=9.97 t/s
+processing 42 input tokens: 23/42 (54.8%) batch=34.62 t/s avg=10.28 t/s
+processing 42 input tokens: 24/42 (57.1%) batch=36.52 t/s avg=10.60 t/s
+processing 42 input tokens: 25/42 (59.5%) batch=35.58 t/s avg=10.91 t/s
+processing 42 input tokens: 26/42 (61.9%) batch=40.00 t/s avg=11.22 t/s
+processing 42 input tokens: 27/42 (64.3%) batch=35.18 t/s avg=11.51 t/s
+processing 42 input tokens: 28/42 (66.7%) batch=36.60 t/s avg=11.80 t/s
+processing 42 input tokens: 29/42 (69.0%) batch=40.42 t/s avg=12.10 t/s
+processing 42 input tokens: 30/42 (71.4%) batch=36.62 t/s avg=12.37 t/s
+processing 42 input tokens: 31/42 (73.8%) batch=34.92 t/s avg=12.64 t/s
+processing 42 input tokens: 32/42 (76.2%) batch=35.86 t/s avg=12.90 t/s
+processing 42 input tokens: 33/42 (78.6%) batch=34.95 t/s avg=13.15 t/s
+processing 42 input tokens: 34/42 (81.0%) batch=33.89 t/s avg=13.39 t/s
+processing 42 input tokens: 35/42 (83.3%) batch=31.71 t/s avg=13.61 t/s
+processing 42 input tokens: 36/42 (85.7%) batch=32.63 t/s avg=13.84 t/s
+processing 42 input tokens: 37/42 (88.1%) batch=33.10 t/s avg=14.06 t/s
+processing 42 input tokens: 38/42 (90.5%) batch=37.58 t/s avg=14.30 t/s
+processing 42 input tokens: 39/42 (92.9%) batch=33.46 t/s avg=14.51 t/s
+processing 42 input tokens: 40/42 (95.2%) batch=37.63 t/s avg=14.73 t/s
+processing 42 input tokens: 41/42 (97.6%) batch=37.25 t/s avg=14.96 t/s
+processing 42 input tokens: 42/42 (100.0%) batch=37.27 t/s avg=15.17 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=5 rows=5 in 175.7 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark timing decodeN drafted=5 committed=5 draft=16.673 ms snapshot=0.875 ms verify=86.826 ms dspark_kv=1.618 ms total=106.137 ms
+# Speculative Decoding:ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.776 ms snapshot=0.364 ms verify=76.171 ms prefix=1.595 ms total=93.992 ms
+ Accelerating Large Languageds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.738 ms snapshot=0.445 ms verify=76.438 ms prefix=1.849 ms total=94.549 ms
+ Model Inference Through Parallelds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.660 ms snapshot=0.360 ms verify=76.681 ms prefix=1.643 ms total=94.422 ms
+ Verification
+
+##ds4: dspark timing decodeN drafted=5 committed=5 draft=15.804 ms snapshot=0.403 ms verify=76.378 ms dspark_kv=2.402 ms total=95.068 ms
+ Introduction
+
+Large language models (ds4: dspark timing decodeN drafted=5 committed=5 draft=15.616 ms snapshot=0.381 ms verify=77.833 ms dspark_kv=1.606 ms total=95.515 ms
+LLMs) have demonstrated remarkable capabilities acrossds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.748 ms snapshot=0.364 ms verify=77.998 ms prefix=1.847 ms total=96.048 ms
+ diverse tasks, but theirds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.473 ms snapshot=0.403 ms verify=79.427 ms prefix=1.363 ms total=96.756 ms
+ autoregressive nature introducesds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.543 ms snapshot=0.811 ms verify=79.969 ms prefix=1.269 ms total=97.672 ms
+ a fundamental latencyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.105 ms snapshot=0.384 ms verify=79.078 ms prefix=1.363 ms total=97.015 ms
+ bottleneck: generating tokensds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.286 ms snapshot=0.385 ms verify=78.235 ms prefix=2.109 ms total=97.102 ms
+ one at a timeds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.668 ms snapshot=0.396 ms verify=78.627 ms prefix=1.943 ms total=96.710 ms
+, with each step requiringds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.124 ms snapshot=0.419 ms verify=80.642 ms prefix=1.994 ms total=99.267 ms
+ a full forward passds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.241 ms snapshot=0.372 ms verify=78.962 ms prefix=1.598 ms total=97.250 ms
+ through the model.ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.845 ms snapshot=0.402 ms verify=80.886 ms prefix=1.832 ms total=99.043 ms
+ Speculativeds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.187 ms snapshot=0.404 ms verify=79.756 ms prefix=1.611 ms total=98.035 ms
+ decoding offers a compelling solution to this problemds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.932 ms snapshot=0.467 ms verify=81.540 ms prefix=1.377 ms total=99.406 ms
+ by leveraging a simpleds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.712 ms snapshot=0.382 ms verify=80.386 ms prefix=1.558 ms total=98.118 ms
+ yet powerful insight—cheaper, approximateds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.888 ms snapshot=0.801 ms verify=80.556 ms prefix=1.547 ms total=98.872 ms
+ predictions can be verifiedds4: dspark timing decodeN drafted=5 committed=5 draft=16.346 ms snapshot=0.406 ms verify=81.408 ms dspark_kv=1.668 ms total=99.913 ms
+ in parallel, dramatically reducing theds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.977 ms snapshot=0.402 ms verify=80.122 ms prefix=1.582 ms total=98.162 ms
+ number of expensiveds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.795 ms snapshot=0.446 ms verify=80.054 ms prefix=1.591 ms total=97.963 ms
+ model calls.
+
+Thisds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.101 ms snapshot=0.828 ms verify=80.018 ms prefix=1.542 ms total=98.572 ms
+ essay provides a comprehensive technicalds4: dspark timing decodeN drafted=5 committed=5 draft=15.805 ms snapshot=0.421 ms verify=82.822 ms dspark_kv=1.629 ms total=100.786 ms
+ exploration of speculative decoding, covering itsds4: dspark timing decodeN drafted=5 committed=5 draft=15.928 ms snapshot=0.405 ms verify=79.537 ms dspark_kv=1.645 ms total=97.593 ms
+ theoretical foundations, practical implementation detailsds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.257 ms snapshot=0.393 ms verify=80.688 ms prefix=1.248 ms total=98.711 ms
+, andds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.066 ms snapshot=0.396 ms verify=79.599 ms prefix=1.834 ms total=97.973 ms
+ the engineering trade-offs that determineds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.629 ms snapshot=0.357 ms verify=81.483 ms prefix=1.333 ms total=98.880 ms
+ its effectiveness inds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.231 ms snapshot=0.475 ms verify=83.490 ms prefix=2.041 ms total=102.319 ms
+ production systems.
+
+## Theds4: dspark timing decodeN drafted=5 committed=5 draft=16.057 ms snapshot=0.709 ms verify=80.981 ms dspark_kv=1.646 ms total=99.471 ms
+ Autoregressive Bottleneck
+
+Beforeds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.329 ms snapshot=0.414 ms verify=82.431 ms prefix=1.477 ms total=100.729 ms
+ understanding speculative decoding,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.049 ms snapshot=0.382 ms verify=80.806 ms prefix=1.359 ms total=98.674 ms
+ we mustds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.133 ms snapshot=0.393 ms verify=81.056 ms prefix=1.891 ms total=99.549 ms
+ appreciate the problemds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.199 ms snapshot=0.384 ms verify=80.187 ms prefix=1.529 ms total=98.376 ms
+ it solves. Standardds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=17.189 ms snapshot=1.051 ms verify=81.964 ms prefix=1.974 ms total=102.255 ms
+ LLM inference followsds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.967 ms snapshot=0.525 ms verify=79.678 ms prefix=1.372 ms total=97.672 ms
+ an autoregressiveds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.769 ms snapshot=0.361 ms verify=79.640 ms prefix=1.337 ms total=97.184 ms
+ pattern:
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.970 ms snapshot=0.393 ms verify=79.120 ms prefix=1.311 ms total=96.869 ms
+$$P(xds4: dspark timing decodeN drafted=5 committed=5 draft=16.369 ms snapshot=0.385 ms verify=79.254 ms dspark_kv=1.677 ms total=97.771 ms
+_{t+1} |ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.877 ms snapshot=0.380 ms verify=82.067 ms prefix=1.713 ms total=100.112 ms
+ x_1, xds4: dspark timing decodeN drafted=5 committed=5 draft=16.332 ms snapshot=0.376 ms verify=80.833 ms dspark_kv=2.086 ms total=99.705 ms
+_2, ..., x_tds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.941 ms snapshot=0.334 ms verify=80.197 ms prefix=1.958 ms total=98.516 ms
+) = \text{ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.863 ms snapshot=0.453 ms verify=79.155 ms prefix=1.367 ms total=96.916 ms
+Model}(xds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.607 ms snapshot=0.411 ms verify=80.098 ms prefix=1.487 ms total=98.680 ms
+_1,ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.854 ms snapshot=0.523 ms verify=80.669 ms prefix=1.652 ms total=98.773 ms
+ ..., x_t)$$
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.078 ms snapshot=0.390 ms verify=80.976 ms prefix=1.394 ms total=98.915 ms
+Each token requiresds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.101 ms snapshot=0.441 ms verify=80.860 ms prefix=1.546 ms total=99.046 ms
+ a complete forward pass through the transformer, withds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.014 ms snapshot=0.412 ms verify=80.603 ms prefix=1.251 ms total=98.358 ms
+ the key-valueds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.119 ms snapshot=0.430 ms verify=78.971 ms prefix=1.593 ms total=97.193 ms
+ (KV) cache growingds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.907 ms snapshot=0.808 ms verify=81.386 ms prefix=2.092 ms total=100.278 ms
+ linearly with sequence length. For ads4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.412 ms snapshot=0.422 ms verify=80.566 ms prefix=1.440 ms total=98.917 ms
+ model with $Lds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.454 ms snapshot=0.391 ms verify=79.018 ms prefix=1.418 ms total=97.358 ms
+$ layers andds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.366 ms snapshot=0.389 ms verify=80.544 ms prefix=1.625 ms total=99.005 ms
+ hidden dimension $d$,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.609 ms snapshot=0.377 ms verify=80.695 ms prefix=1.306 ms total=99.064 ms
+ a singleds4: dspark timing decodeN drafted=5 committed=5 draft=15.884 ms snapshot=0.391 ms verify=80.371 ms dspark_kv=1.626 ms total=98.350 ms
+ generation step costs approximately $Ods4: dspark timing decodeN drafted=5 committed=5 draft=15.846 ms snapshot=0.667 ms verify=80.410 ms dspark_kv=1.640 ms total=98.645 ms
+(L \cdot d^2)$ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.071 ms snapshot=0.405 ms verify=81.847 ms prefix=1.594 ms total=99.994 ms
+ operations. With generation lengths often reaching hundredsds4: dspark timing decodeN drafted=5 committed=5 draft=15.850 ms snapshot=0.574 ms verify=82.614 ms dspark_kv=1.765 ms total=100.882 ms
+ or thousands of tokens, this creates ads4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.722 ms snapshot=0.391 ms verify=81.281 ms prefix=1.379 ms total=98.851 ms
+ severe latencyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.700 ms snapshot=0.403 ms verify=80.556 ms prefix=1.332 ms total=98.068 ms
+ wall.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.886 ms snapshot=0.452 ms verify=81.168 ms prefix=1.698 ms total=99.308 ms
+Speculative decoding breaks thisds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.820 ms snapshot=0.800 ms verify=81.706 ms prefix=1.665 ms total=100.070 ms
+ sequential dependency by introducing ads4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.570 ms snapshot=0.385 ms verify=81.045 ms prefix=1.613 ms total=98.685 ms
+ two-stage process: cheapds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.774 ms snapshot=0.389 ms verify=82.046 ms prefix=1.527 ms total=99.814 ms
+ draft generation followed byds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.378 ms snapshot=0.390 ms verify=81.036 ms prefix=1.671 ms total=99.552 ms
+ parallel verification.
+
+##ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.119 ms snapshot=0.409 ms verify=80.526 ms prefix=1.346 ms total=98.486 ms
+ Core Mechanismds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.768 ms snapshot=0.459 ms verify=81.696 ms prefix=1.869 ms total=99.881 ms
+: Draft Modelsds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.898 ms snapshot=0.385 ms verify=81.647 ms prefix=1.751 ms total=99.761 ms
+ and Verification
+
+### Theds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.448 ms snapshot=0.435 ms verify=80.865 ms prefix=1.824 ms total=99.653 ms
+ Draft Model
+
+Theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.065 ms snapshot=0.397 ms verify=79.342 ms prefix=1.582 ms total=97.467 ms
+ draft model is a smallerds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=17.071 ms snapshot=0.396 ms verify=80.354 ms prefix=1.845 ms total=99.744 ms
+, faster surrogateds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.434 ms snapshot=0.515 ms verify=81.794 ms prefix=1.716 ms total=100.542 ms
+ that approximates the targetds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.982 ms snapshot=0.405 ms verify=83.902 ms prefix=1.776 ms total=102.142 ms
+ LLM's distribution. Commonds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.835 ms snapshot=0.368 ms verify=82.337 ms prefix=1.730 ms total=100.346 ms
+ choices include:
+
+- **Subsampledds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.006 ms snapshot=0.392 ms verify=83.525 ms prefix=1.924 ms total=101.927 ms
+ transformers**: Ads4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.837 ms snapshot=0.684 ms verify=81.185 ms prefix=2.296 ms total=100.082 ms
+ smaller version of the targetds4: dspark timing decodeN drafted=5 committed=5 draft=15.791 ms snapshot=0.402 ms verify=85.096 ms dspark_kv=1.878 ms total=103.245 ms
+ model (e.g., 1ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.540 ms snapshot=0.375 ms verify=82.880 ms prefix=1.588 ms total=101.464 ms
+/10th theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.685 ms snapshot=0.596 ms verify=81.935 ms prefix=1.484 ms total=99.786 ms
+ parameters)
+- **Languageds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.900 ms snapshot=0.376 ms verify=81.448 ms prefix=1.436 ms total=99.240 ms
+-model heads**:ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.910 ms snapshot=0.388 ms verify=81.620 ms prefix=1.536 ms total=99.545 ms
+ Shallow networks trainedds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.885 ms snapshot=0.374 ms verify=80.440 ms prefix=1.682 ms total=98.457 ms
+ to predict the target's nextds4: dspark timing decodeN drafted=5 committed=5 draft=15.760 ms snapshot=0.429 ms verify=82.729 ms dspark_kv=1.703 ms total=100.705 ms
+-token distribution
+- **External smallds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.552 ms snapshot=0.378 ms verify=81.348 ms prefix=1.407 ms total=98.758 ms
+ LMs**:ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.579 ms snapshot=0.362 ms verify=83.064 ms prefix=1.775 ms total=100.862 ms
+ Completely separate, lightweightds4: dspark timing decodeN drafted=5 committed=5 draft=15.708 ms snapshot=0.370 ms verify=80.556 ms dspark_kv=1.697 ms total=98.420 ms
+ language models
+
+The draft model generates ads4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.903 ms snapshot=0.379 ms verify=81.338 ms prefix=2.075 ms total=99.786 ms
+ sequence of $K$ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.145 ms snapshot=0.371 ms verify=80.247 ms prefix=1.362 ms total=98.204 ms
+ candidate tokensds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.825 ms snapshot=0.386 ms verify=81.866 ms prefix=1.649 ms total=99.803 ms
+ autoregressively, but atds4: dspark timing decodeN drafted=5 committed=5 draft=16.045 ms snapshot=0.540 ms verify=81.329 ms dspark_kv=1.707 ms total=99.701 ms
+ significantly lower cost per token.ds4: dspark timing decodeN drafted=5 committed=5 draft=15.698 ms snapshot=0.365 ms verify=82.493 ms dspark_kv=2.253 ms total=100.894 ms
+ If the draft model has $Lds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.652 ms snapshot=0.449 ms verify=83.683 ms prefix=2.044 ms total=101.937 ms
+_d$ layers versusds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.830 ms snapshot=0.365 ms verify=82.235 ms prefix=1.698 ms total=100.208 ms
+ the target's $L_tds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.425 ms snapshot=0.402 ms verify=83.610 ms prefix=1.458 ms total=101.975 ms
+$ layers,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.834 ms snapshot=0.402 ms verify=82.683 ms prefix=1.280 ms total=100.276 ms
+ each draftds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.870 ms snapshot=0.427 ms verify=80.174 ms prefix=1.765 ms total=98.350 ms
+ step costs roughly $L_d/Lds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.808 ms snapshot=0.376 ms verify=80.106 ms prefix=1.485 ms total=97.853 ms
+_t$ of theds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.214 ms snapshot=0.353 ms verify=81.597 ms prefix=1.764 ms total=100.010 ms
+ target's cost.
+
+### Verificationds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.605 ms snapshot=0.396 ms verify=81.189 ms prefix=1.802 ms total=99.074 ms
+: The Parallelds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.383 ms snapshot=0.393 ms verify=80.458 ms prefix=1.787 ms total=99.099 ms
+ Miracle
+
+Theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.646 ms snapshot=0.404 ms verify=82.042 ms prefix=1.259 ms total=99.428 ms
+ key insightds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.533 ms snapshot=0.381 ms verify=81.089 ms prefix=2.055 ms total=99.145 ms
+ enabling parallelism is that verification ofds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.174 ms snapshot=0.408 ms verify=80.427 ms prefix=1.484 ms total=98.572 ms
+ multiple tokens can beds4: dspark timing decodeN drafted=5 committed=5 draft=15.719 ms snapshot=0.421 ms verify=81.896 ms dspark_kv=1.574 ms total=99.690 ms
+ performed in a single forward passds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.661 ms snapshot=0.388 ms verify=81.358 ms prefix=1.440 ms total=98.927 ms
+. Given ads4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.908 ms snapshot=0.411 ms verify=80.958 ms prefix=1.368 ms total=98.721 ms
+ draft sequence $\ds4: dspark timing decodeN drafted=5 committed=5 draft=15.928 ms snapshot=0.411 ms verify=80.799 ms dspark_kv=1.590 ms total=98.805 ms
+hat{x}_1, \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.654 ms snapshot=0.414 ms verify=81.810 ms dspark_kv=1.711 ms total=99.665 ms
+hat{x}_2, ...,ds4: dspark timing decodeN drafted=5 committed=5 draft=16.047 ms snapshot=0.394 ms verify=82.443 ms dspark_kv=1.738 ms total=100.708 ms
+ \hat{x}_K$,ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.838 ms snapshot=0.418 ms verify=81.411 ms prefix=1.451 ms total=99.204 ms
+ the target modelds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.974 ms snapshot=0.440 ms verify=82.747 ms prefix=1.536 ms total=100.789 ms
+ computes:
+
+$$P(xds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.993 ms snapshot=0.430 ms verify=81.402 ms prefix=1.917 ms total=99.819 ms
+_{t+1}ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.901 ms snapshot=0.387 ms verify=81.998 ms prefix=1.789 ms total=100.154 ms
+ = \hat{x}_1 |ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.065 ms snapshot=0.390 ms verify=82.128 ms prefix=1.543 ms total=100.210 ms
+ \text{contextds4: dspark timing decodeN drafted=5 committed=5 draft=15.586 ms snapshot=0.397 ms verify=82.887 ms dspark_kv=1.589 ms total=100.540 ms
+})$$
+$$P(x_{ds4: dspark timing decodeN drafted=5 committed=5 draft=16.058 ms snapshot=0.413 ms verify=82.091 ms dspark_kv=1.538 ms total=100.183 ms
+t+2} = \ds4: dspark timing decodeN drafted=5 committed=5 draft=16.171 ms snapshot=0.406 ms verify=81.393 ms dspark_kv=1.606 ms total=99.655 ms
+hat{x}_2 | \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.507 ms snapshot=0.393 ms verify=82.675 ms dspark_kv=1.636 ms total=100.296 ms
+text{context}, \hatds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.316 ms snapshot=0.373 ms verify=82.134 ms prefix=1.725 ms total=100.624 ms
+{x}_1)$$
+ds4: dspark timing decodeN drafted=5 committed=5 draft=15.918 ms snapshot=0.378 ms verify=82.767 ms dspark_kv=1.567 ms total=100.709 ms
+$$\vdots$$
+$$P(xds4: dspark timing decodeN drafted=5 committed=5 draft=15.653 ms snapshot=0.383 ms verify=81.148 ms dspark_kv=1.686 ms total=98.948 ms
+_{t+K} = \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.846 ms snapshot=0.355 ms verify=83.220 ms dspark_kv=1.699 ms total=101.204 ms
+hat{x}_K | \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.768 ms snapshot=0.466 ms verify=81.637 ms dspark_kv=1.625 ms total=99.579 ms
+text{context}, \hat{xds4: dspark timing decodeN drafted=5 committed=5 draft=15.882 ms snapshot=0.359 ms verify=81.984 ms dspark_kv=1.665 ms total=99.968 ms
+}_1, ..., \hatds4: dspark timing decodeN drafted=5 committed=5 draft=15.628 ms snapshot=0.434 ms verify=81.747 ms dspark_kv=1.653 ms total=99.548 ms
+{x}_{K-1})ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.750 ms snapshot=0.372 ms verify=81.952 ms prefix=1.750 ms total=99.895 ms
+$$
+
+Crucially,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.002 ms snapshot=0.384 ms verify=81.525 ms prefix=1.253 ms total=99.244 ms
+ all theseds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.689 ms snapshot=0.371 ms verify=83.838 ms prefix=1.881 ms total=101.863 ms
+ conditional probabilities can be computed simultaneouslyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.544 ms snapshot=0.397 ms verify=80.531 ms prefix=1.536 ms total=98.084 ms
+ because the targetds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.559 ms snapshot=0.366 ms verify=82.139 ms prefix=1.579 ms total=99.757 ms
+ model processes the entireds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.748 ms snapshot=0.417 ms verify=81.808 ms prefix=2.127 ms total=100.193 ms
+ draft sequenceds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.546 ms snapshot=0.413 ms verify=80.744 ms prefix=1.494 ms total=98.276 ms
+ as a singleds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.154 ms snapshot=0.382 ms verify=81.089 ms prefix=1.434 ms total=99.135 ms
+ batch. Theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.581 ms snapshot=0.409 ms verify=81.309 ms prefix=1.560 ms total=98.950 ms
+ transformer's attention mechanismds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.188 ms snapshot=0.393 ms verify=83.094 ms prefix=1.819 ms total=101.571 ms
+ naturally handles thisds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.680 ms snapshot=0.391 ms verify=82.043 ms prefix=1.412 ms total=99.605 ms
+: theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.673 ms snapshot=0.360 ms verify=80.803 ms prefix=1.548 ms total=98.464 ms
+ KV cache for theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.624 ms snapshot=0.358 ms verify=82.530 ms prefix=1.285 ms total=99.881 ms
+ context isds4: dspark timing decodeN drafted=5 committed=5 draft=15.596 ms snapshot=0.353 ms verify=84.574 ms dspark_kv=2.250 ms total=102.845 ms
+ extended with the draft tokens,ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.776 ms snapshot=0.411 ms verify=82.910 ms prefix=1.732 ms total=100.911 ms
+ and a single forward passds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.721 ms snapshot=0.378 ms verify=83.513 ms prefix=2.129 ms total=101.852 ms
+ produces logits fords4: dspark timing decodeN drafted=5 committed=5 draft=15.762 ms snapshot=0.452 ms verify=82.840 ms dspark_kv=1.679 ms total=100.821 ms
+ each position.
+
+This is the fundamental efficiencyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.064 ms snapshot=0.370 ms verify=83.645 ms prefix=1.804 ms total=101.963 ms
+ gain:ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.882 ms snapshot=0.388 ms verify=83.068 ms prefix=1.353 ms total=100.768 ms
+ **oneds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.246 ms snapshot=0.376 ms verify=80.780 ms prefix=1.402 ms total=98.919 ms
+ expensive forward passds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.664 ms snapshot=0.332 ms verify=81.849 ms prefix=1.709 ms total=99.638 ms
+ verifiesds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.829 ms snapshot=0.364 ms verify=83.003 ms prefix=1.630 ms total=100.905 ms
+ K tokens instead ofds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.542 ms snapshot=0.355 ms verify=85.425 ms prefix=1.879 ms total=103.279 ms
+ generating them oneds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.830 ms snapshot=0.397 ms verify=82.565 ms prefix=1.346 ms total=100.214 ms
+-by-one**.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.835 ms snapshot=0.367 ms verify=83.197 ms prefix=1.400 ms total=100.878 ms
+### Acceptance Criteriads4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.627 ms snapshot=0.371 ms verify=83.455 ms prefix=1.460 ms total=100.998 ms
+: Theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.833 ms snapshot=0.372 ms verify=82.555 ms prefix=1.331 ms total=100.166 ms
+ Speculativeds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.619 ms snapshot=0.394 ms verify=81.918 ms prefix=1.252 ms total=99.263 ms
+ Decision
+
+ds4: dspark timing decodeN drafted=5 committed=5 draft=16.036 ms snapshot=0.353 ms verify=83.097 ms dspark_kv=1.538 ms total=101.099 ms
+Not all draft tokens are acceptedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.752 ms snapshot=0.486 ms verify=83.982 ms prefix=1.322 ms total=101.629 ms
+. The verificationds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.085 ms snapshot=0.381 ms verify=83.415 ms prefix=1.394 ms total=101.370 ms
+ step determines which tokensds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.716 ms snapshot=0.356 ms verify=84.158 ms prefix=1.367 ms total=101.687 ms
+ to keep based on ads4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.731 ms snapshot=0.361 ms verify=83.234 ms prefix=1.271 ms total=100.668 ms
+ rejection samplingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.462 ms snapshot=0.649 ms verify=82.126 ms prefix=1.571 ms total=99.889 ms
+ scheme:
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.853 ms snapshot=0.361 ms verify=80.855 ms prefix=1.361 ms total=98.520 ms
+For eachds4: dspark timing decodeN drafted=5 committed=5 draft=15.703 ms snapshot=0.407 ms verify=83.378 ms dspark_kv=1.695 ms total=101.266 ms
+ position $i$ in the draft sequence, weds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.601 ms snapshot=0.391 ms verify=83.074 ms prefix=1.849 ms total=100.992 ms
+ compare:
+-ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.763 ms snapshot=0.332 ms verify=84.500 ms prefix=1.342 ms total=102.024 ms
+ $q_ids4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.575 ms snapshot=0.353 ms verify=81.969 ms prefix=1.554 ms total=99.533 ms
+ = P_{\textds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.620 ms snapshot=0.364 ms verify=82.897 ms prefix=1.359 ms total=100.327 ms
+{draftds4: dspark timing decodeN drafted=5 committed=5 draft=15.783 ms snapshot=0.362 ms verify=81.893 ms dspark_kv=1.667 ms total=99.782 ms
+}}(\hat{x}_i |ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.777 ms snapshot=0.353 ms verify=83.142 ms prefix=1.570 ms total=100.930 ms
+ \text{contextds4: dspark timing decodeN drafted=5 committed=5 draft=15.783 ms snapshot=0.378 ms verify=81.937 ms dspark_kv=1.640 ms total=99.818 ms
+}, \hat{x}_1ds4: dspark timing decodeN drafted=5 committed=5 draft=15.839 ms snapshot=0.421 ms verify=82.150 ms dspark_kv=1.684 ms total=100.179 ms
+, ..., \hat{x}_{ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.809 ms snapshot=0.385 ms verify=83.965 ms prefix=1.391 ms total=101.629 ms
+i-1})ds4: dspark timing decodeN drafted=5 committed=5 draft=15.801 ms snapshot=0.366 ms verify=81.597 ms dspark_kv=1.592 ms total=99.444 ms
+$
+- $p_i =ds4: dspark timing decodeN drafted=5 committed=5 draft=15.569 ms snapshot=0.408 ms verify=81.235 ms dspark_kv=1.642 ms total=98.941 ms
+ P_{\text{target}}(\ds4: dspark timing decodeN drafted=5 committed=5 draft=15.654 ms snapshot=0.419 ms verify=83.846 ms dspark_kv=1.627 ms total=101.621 ms
+hat{x}_i | \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.673 ms snapshot=0.402 ms verify=82.751 ms dspark_kv=1.671 ms total=100.573 ms
+text{context}, \hatds4: dspark timing decodeN drafted=5 committed=5 draft=15.624 ms snapshot=0.382 ms verify=83.336 ms dspark_kv=2.047 ms total=101.475 ms
+{x}_1, ..., \ds4: dspark timing decodeN drafted=5 committed=5 draft=15.529 ms snapshot=0.436 ms verify=81.888 ms dspark_kv=1.575 ms total=99.499 ms
+hat{x}_{i-1ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.727 ms snapshot=0.388 ms verify=84.551 ms prefix=1.616 ms total=102.360 ms
+})$
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.261 ms snapshot=0.386 ms verify=81.422 ms prefix=1.813 ms total=99.957 ms
+The token is acceptedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.645 ms snapshot=0.358 ms verify=82.082 ms prefix=1.399 ms total=99.573 ms
+ with probabilityds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.860 ms snapshot=0.527 ms verify=82.665 ms prefix=1.316 ms total=100.474 ms
+:
+
+$$\ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.644 ms snapshot=0.389 ms verify=81.831 ms prefix=1.316 ms total=99.263 ms
+min\leftds4: dspark timing decodeN drafted=5 committed=5 draft=16.387 ms snapshot=0.384 ms verify=82.566 ms dspark_kv=1.729 ms total=101.152 ms
+(1, \frac{pds4: dspark timing decodeN drafted=5 committed=5 draft=15.840 ms snapshot=0.436 ms verify=83.796 ms dspark_kv=1.593 ms total=101.756 ms
+_i}{q_i}\rightds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.146 ms snapshot=0.408 ms verify=83.276 ms prefix=1.413 ms total=101.337 ms
+)$$
+
+Thisds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.867 ms snapshot=0.438 ms verify=84.544 ms prefix=1.699 ms total=102.625 ms
+ acceptance criterion ensures that the final distributionds4: dspark timing decodeN drafted=5 committed=5 draft=15.928 ms snapshot=0.388 ms verify=81.759 ms dspark_kv=2.064 ms total=100.217 ms
+ exactly matches the target model'sds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.222 ms snapshot=0.375 ms verify=81.717 ms prefix=1.259 ms total=99.664 ms
+ distribution,ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.855 ms snapshot=0.528 ms verify=84.340 ms prefix=1.550 ms total=102.350 ms
+ making speculative decodingds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.463 ms snapshot=0.381 ms verify=85.969 ms prefix=1.490 ms total=103.392 ms
+ a **losslessds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.796 ms snapshot=0.407 ms verify=85.968 ms prefix=1.396 ms total=103.648 ms
+** accelerationds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.770 ms snapshot=0.374 ms verify=84.317 ms prefix=1.581 ms total=102.125 ms
+ technique. Theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.815 ms snapshot=0.354 ms verify=83.150 ms prefix=1.472 ms total=100.874 ms
+ proof relies on theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.778 ms snapshot=0.394 ms verify=82.452 ms prefix=1.303 ms total=101.006 ms
+ fact thatds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.648 ms snapshot=0.376 ms verify=83.332 ms prefix=1.360 ms total=100.818 ms
+ rejected tokens areds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.868 ms snapshot=0.368 ms verify=84.870 ms prefix=1.561 ms total=102.760 ms
+ resampled fromds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.795 ms snapshot=0.373 ms verify=83.757 ms prefix=1.396 ms total=101.406 ms
+ a corrected distributionds4: dspark timing decodeN drafted=5 committed=5 draft=15.804 ms snapshot=0.370 ms verify=82.931 ms dspark_kv=1.776 ms total=100.980 ms
+:
+
+$$P_{\text{correctds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.674 ms snapshot=0.439 ms verify=85.089 ms prefix=1.540 ms total=102.827 ms
+ed}}(x)ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.878 ms snapshot=0.382 ms verify=84.982 ms prefix=1.751 ms total=103.081 ms
+ \propto \maxds4: dspark timing decodeN drafted=5 committed=5 draft=15.717 ms snapshot=0.529 ms verify=83.775 ms dspark_kv=1.785 ms total=101.889 ms
+(0, p(x)ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.852 ms snapshot=0.360 ms verify=82.654 ms prefix=1.757 ms total=100.694 ms
+ - q(x))$$
+
+ds4: dspark timing decodeN drafted=5 committed=5 draft=15.638 ms snapshot=0.382 ms verify=84.369 ms dspark_kv=1.657 ms total=102.153 ms
+When a token is rejected, theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.211 ms snapshot=0.421 ms verify=83.116 ms prefix=1.311 ms total=101.144 ms
+ target modelds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.766 ms snapshot=0.424 ms verify=82.089 ms prefix=2.026 ms total=100.398 ms
+ samples fromds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.865 ms snapshot=0.396 ms verify=82.641 ms prefix=1.802 ms total=100.777 ms
+ this corrected distribution, andds4: dspark timing decodeN drafted=5 committed=5 draft=15.991 ms snapshot=0.443 ms verify=85.039 ms dspark_kv=1.625 ms total=103.189 ms
+ all subsequent draft tokens are discarded.ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.736 ms snapshot=0.364 ms verify=82.672 ms prefix=1.473 ms total=100.334 ms
+ The process thends4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.481 ms snapshot=0.399 ms verify=83.856 ms prefix=1.690 ms total=101.535 ms
+ restarts from the newlyds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.171 ms snapshot=0.399 ms verify=84.018 ms prefix=1.339 ms total=102.016 ms
+ accepted token.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.027 ms snapshot=0.942 ms verify=83.644 ms prefix=1.544 ms total=102.249 ms
+## Tree Attention: Parallelds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.262 ms snapshot=0.473 ms verify=84.063 ms prefix=1.528 ms total=102.404 ms
+ Speculation
+
+A significant enhancementds4: dspark timing decodeN drafted=5 committed=5 draft=15.636 ms snapshot=0.374 ms verify=84.418 ms dspark_kv=1.672 ms total=102.177 ms
+ to speculative decoding is **treeds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.011 ms snapshot=0.357 ms verify=83.797 ms prefix=1.901 ms total=102.145 ms
+ attention**, which allowsds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.783 ms snapshot=0.384 ms verify=83.656 ms prefix=1.570 ms total=101.465 ms
+ the draft model tods4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.734 ms snapshot=0.367 ms verify=82.964 ms prefix=1.398 ms total=100.559 ms
+ generate multiple candidate sequencesds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.610 ms snapshot=0.372 ms verify=85.124 ms prefix=1.506 ms total=102.724 ms
+ (a "treeds4: dspark timing decodeN drafted=5 committed=5 draft=16.256 ms snapshot=0.371 ms verify=83.927 ms dspark_kv=1.670 ms total=102.299 ms
+" of possibilities) rather thands4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.873 ms snapshot=0.387 ms verify=82.799 ms prefix=1.421 ms total=100.554 ms
+ a single lineards4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.699 ms snapshot=0.549 ms verify=84.255 ms prefix=2.177 ms total=102.775 ms
+ sequence.
+
+### The Treeds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.824 ms snapshot=0.351 ms verify=83.505 ms prefix=1.470 ms total=101.241 ms
+ Structure
+
+Instead of generatingds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.059 ms snapshot=0.369 ms verify=83.565 ms prefix=1.562 ms total=101.639 ms
+ a single chain ofds4: dspark timing decodeN drafted=5 committed=5 draft=15.635 ms snapshot=0.371 ms verify=82.636 ms dspark_kv=1.652 ms total=100.366 ms
+ K tokens, the draft modelds4: dspark timing decodeN drafted=5 committed=5 draft=15.490 ms snapshot=0.342 ms verify=84.384 ms dspark_kv=1.601 ms total=101.892 ms
+ generates a tree:
+
+- **ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.505 ms snapshot=0.416 ms verify=83.111 ms prefix=1.623 ms total=100.735 ms
+Root**: The current contextds4: dspark timing decodeN drafted=5 committed=5 draft=15.771 ms snapshot=0.389 ms verify=83.271 ms dspark_kv=1.620 ms total=101.137 ms
+
+- **Level 1ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.604 ms snapshot=0.348 ms verify=82.658 ms prefix=1.420 ms total=100.123 ms
+**: Multiple candidateds4: dspark timing decodeN drafted=5 committed=5 draft=15.794 ms snapshot=0.387 ms verify=85.000 ms dspark_kv=1.781 ms total=103.049 ms
+ first tokens (e.g.,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.582 ms snapshot=0.441 ms verify=85.299 ms prefix=1.518 ms total=102.916 ms
+ top-ds4: dspark timing decodeN drafted=5 committed=5 draft=15.704 ms snapshot=0.302 ms verify=85.890 ms dspark_kv=1.534 ms total=103.502 ms
+4 predictions)
+- **Levelds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.694 ms snapshot=0.337 ms verify=85.705 ms prefix=1.785 ms total=103.613 ms
+ 2**: For eachds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.825 ms snapshot=0.442 ms verify=83.516 ms prefix=1.582 ms total=101.493 ms
+ first token, multipleds4: dspark timing decodeN drafted=5 committed=5 draft=15.620 ms snapshot=0.374 ms verify=83.684 ms dspark_kv=1.711 ms total=101.476 ms
+ candidate second tokens
+- **Levelds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.064 ms snapshot=0.379 ms verify=82.398 ms prefix=1.840 ms total=100.768 ms
+ 3**: Furtherds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.888 ms snapshot=0.399 ms verify=83.622 ms prefix=1.442 ms total=101.443 ms
+ branching
+
+Thisds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.977 ms snapshot=0.358 ms verify=83.053 ms prefix=1.425 ms total=100.888 ms
+ creates a treeds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.760 ms snapshot=0.454 ms verify=86.240 ms prefix=1.822 ms total=104.360 ms
+ with $N$ leafds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.915 ms snapshot=0.652 ms verify=86.895 ms prefix=1.748 ms total=105.330 ms
+ nodes, each representing a completeds4: dspark timing decodeN drafted=5 committed=5 draft=15.774 ms snapshot=0.368 ms verify=86.911 ms dspark_kv=1.665 ms total=104.792 ms
+ K-token sequence.
+
+###ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.990 ms snapshot=0.368 ms verify=85.039 ms prefix=1.317 ms total=102.797 ms
+ Parallel Verification ofds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.001 ms snapshot=0.494 ms verify=86.641 ms prefix=2.026 ms total=105.240 ms
+ Branches
+
+Theds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.670 ms snapshot=0.380 ms verify=85.772 ms prefix=1.726 ms total=103.620 ms
+ target model verifies allds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.278 ms snapshot=0.425 ms verify=84.505 ms prefix=1.318 ms total=102.604 ms
+ branches simultaneously by processingds4: dspark timing decodeN drafted=5 committed=5 draft=16.355 ms snapshot=0.381 ms verify=85.925 ms dspark_kv=2.171 ms total=104.918 ms
+ the entire tree as a singleds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.868 ms snapshot=0.360 ms verify=83.473 ms prefix=1.502 ms total=101.293 ms
+ batch. The keyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.639 ms snapshot=0.360 ms verify=83.946 ms prefix=1.543 ms total=101.606 ms
+ challenge isds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.604 ms snapshot=0.368 ms verify=83.931 ms prefix=1.401 ms total=101.382 ms
+ attention masking: tokens inds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.595 ms snapshot=0.458 ms verify=84.735 ms prefix=1.343 ms total=102.206 ms
+ different branchesds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.718 ms snapshot=0.360 ms verify=86.381 ms prefix=1.635 ms total=104.169 ms
+ should only attend tods4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.729 ms snapshot=0.364 ms verify=86.886 ms prefix=1.750 ms total=104.806 ms
+ their own ancestorsds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.536 ms snapshot=0.424 ms verify=84.050 ms prefix=2.189 ms total=102.275 ms
+, not to tokensds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.629 ms snapshot=0.358 ms verify=83.775 ms prefix=1.606 ms total=101.445 ms
+ from other branches.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.809 ms snapshot=0.395 ms verify=84.456 ms prefix=1.705 ms total=102.477 ms
+This is achieved through ads4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.560 ms snapshot=0.400 ms verify=85.427 ms prefix=1.699 ms total=103.165 ms
+ custom attention maskds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.611 ms snapshot=0.376 ms verify=85.350 ms prefix=1.275 ms total=102.701 ms
+ $Mds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.963 ms snapshot=0.413 ms verify=84.213 ms prefix=1.259 ms total=101.966 ms
+$ whereds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.865 ms snapshot=0.372 ms verify=85.351 ms prefix=1.579 ms total=103.250 ms
+:
+
+$$M_{ids4: dspark timing decodeN drafted=5 committed=5 draft=15.687 ms snapshot=0.374 ms verify=85.781 ms dspark_kv=1.565 ms total=103.487 ms
+,j} = \begin{casesds4: dspark timing decodeN drafted=5 committed=5 draft=15.724 ms snapshot=0.436 ms verify=85.232 ms dspark_kv=1.644 ms total=103.108 ms
+} 1 & \text{ifds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.976 ms snapshot=0.407 ms verify=85.158 ms prefix=1.256 ms total=102.874 ms
+ token }ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.571 ms snapshot=0.363 ms verify=84.799 ms prefix=1.866 ms total=102.675 ms
+ j \text{ isds4: dspark timing decodeN drafted=5 committed=5 draft=15.639 ms snapshot=0.389 ms verify=86.106 ms dspark_kv=1.528 ms total=103.746 ms
+ an ancestor of token } i \\ds4: dspark timing decodeN drafted=5 committed=5 draft=15.887 ms snapshot=0.419 ms verify=84.569 ms dspark_kv=1.541 ms total=102.514 ms
+ 0 & \text{ds4: dspark timing decodeN drafted=5 committed=5 draft=15.742 ms snapshot=0.381 ms verify=84.731 ms dspark_kv=1.652 ms total=102.579 ms
+otherwise} \end{cases}$$
+
+The mask is appliedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.659 ms snapshot=0.351 ms verify=84.484 ms prefix=1.794 ms total=102.390 ms
+ during theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.628 ms snapshot=0.367 ms verify=84.670 ms prefix=1.325 ms total=102.065 ms
+ attention computationds4: dspark timing decodeN drafted=5 committed=5 draft=15.762 ms snapshot=0.386 ms verify=86.797 ms dspark_kv=1.524 ms total=104.541 ms
+:
+
+$$\text{Attention}(ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.198 ms snapshot=0.728 ms verify=85.058 ms prefix=1.379 ms total=103.458 ms
+Q, Kds4: dspark timing decodeN drafted=5 committed=5 draft=15.608 ms snapshot=0.378 ms verify=86.294 ms dspark_kv=1.649 ms total=104.004 ms
+, V) = \textds4: dspark timing decodeN drafted=5 committed=5 draft=15.553 ms snapshot=0.400 ms verify=85.993 ms dspark_kv=1.927 ms total=103.954 ms
+{softmax}\left(\ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.980 ms snapshot=0.366 ms verify=86.034 ms prefix=1.426 ms total=103.882 ms
+frac{QKds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.021 ms snapshot=0.432 ms verify=84.184 ms prefix=1.725 ms total=102.470 ms
+^T}{\sqrt{dds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.587 ms snapshot=0.353 ms verify=85.264 ms prefix=2.054 ms total=103.341 ms
+}} \odotds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.637 ms snapshot=0.415 ms verify=85.720 ms prefix=1.606 ms total=103.472 ms
+ M\right) V$$
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.608 ms snapshot=0.377 ms verify=86.432 ms prefix=1.705 ms total=104.199 ms
+Where $\odot$ denotesds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.983 ms snapshot=0.366 ms verify=85.336 ms prefix=1.681 ms total=103.443 ms
+ element-wise multiplication.
+
+### Acceptanceds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.875 ms snapshot=0.375 ms verify=85.034 ms prefix=1.687 ms total=103.069 ms
+ with Trees
+
+ds4: dspark timing decodeN drafted=5 committed=5 draft=15.857 ms snapshot=0.388 ms verify=85.158 ms dspark_kv=2.739 ms total=104.234 ms
+When verifying a tree, theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.543 ms snapshot=0.367 ms verify=87.963 ms prefix=1.303 ms total=105.253 ms
+ acceptance criterion extendsds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.630 ms snapshot=0.399 ms verify=85.339 ms prefix=1.507 ms total=102.950 ms
+ naturally. Theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.578 ms snapshot=0.366 ms verify=85.101 ms prefix=1.260 ms total=102.380 ms
+ target model computesds4: dspark timing decodeN drafted=5 committed=5 draft=16.061 ms snapshot=0.375 ms verify=84.859 ms dspark_kv=1.611 ms total=103.032 ms
+ $p_i$ for eachds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.614 ms snapshot=0.370 ms verify=85.880 ms prefix=1.299 ms total=103.240 ms
+ token inds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.911 ms snapshot=0.372 ms verify=85.701 ms prefix=1.553 ms total=103.611 ms
+ each branch. The highestds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.075 ms snapshot=0.408 ms verify=85.661 ms prefix=1.473 ms total=103.703 ms
+-acceptance branch isds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.561 ms snapshot=0.600 ms verify=86.430 ms prefix=1.471 ms total=104.165 ms
+ selected, and tokensds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.763 ms snapshot=0.405 ms verify=84.676 ms prefix=1.297 ms total=102.250 ms
+ are acceptedds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.799 ms snapshot=0.372 ms verify=87.584 ms prefix=1.532 ms total=105.385 ms
+ sequentially within that branchds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.839 ms snapshot=0.437 ms verify=86.137 ms prefix=1.666 ms total=104.168 ms
+ until a rejection occurs.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.846 ms snapshot=0.363 ms verify=85.982 ms prefix=1.505 ms total=103.775 ms
+Tree attention dramatically improves theds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.848 ms snapshot=0.351 ms verify=85.602 ms prefix=1.453 ms total=103.329 ms
+ probability of acceptingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.752 ms snapshot=0.371 ms verify=84.513 ms prefix=1.859 ms total=102.587 ms
+ long sequences becauseds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.607 ms snapshot=0.367 ms verify=87.665 ms prefix=1.370 ms total=105.089 ms
+ it explores multipleds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.812 ms snapshot=0.365 ms verify=85.549 ms prefix=1.805 ms total=103.625 ms
+ plausible continuationsds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.757 ms snapshot=0.393 ms verify=84.572 ms prefix=1.394 ms total=102.202 ms
+ in parallel.ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.700 ms snapshot=0.372 ms verify=85.959 ms prefix=1.802 ms total=103.922 ms
+ A singleds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.913 ms snapshot=0.358 ms verify=86.765 ms prefix=1.363 ms total=104.477 ms
+ linear draft mightds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.611 ms snapshot=0.443 ms verify=87.706 ms prefix=1.687 ms total=105.526 ms
+ fail earlyds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.587 ms snapshot=0.408 ms verify=84.585 ms prefix=1.346 ms total=102.016 ms
+ due to ads4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.216 ms snapshot=0.413 ms verify=85.842 ms prefix=1.460 ms total=104.011 ms
+ low-probds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.713 ms snapshot=0.361 ms verify=83.884 ms prefix=1.546 ms total=101.581 ms
+ability token, but ads4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.654 ms snapshot=0.400 ms verify=86.123 ms prefix=1.334 ms total=103.602 ms
+ tree cands4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.705 ms snapshot=0.381 ms verify=86.903 ms prefix=1.345 ms total=104.414 ms
+ route aroundds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.056 ms snapshot=0.401 ms verify=86.818 ms prefix=1.476 ms total=104.829 ms
+ such failures.
+
+## Practical Engineeringds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.846 ms snapshot=0.427 ms verify=84.333 ms prefix=1.578 ms total=102.262 ms
+ Trade-offs
+
+### Draft Model Size andds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.791 ms snapshot=0.391 ms verify=85.543 ms prefix=1.386 ms total=103.188 ms
+ Quality
+
+Theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.408 ms snapshot=0.798 ms verify=86.751 ms prefix=1.336 ms total=104.377 ms
+ draft model'sds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.009 ms snapshot=0.546 ms verify=87.403 ms prefix=1.766 ms total=105.800 ms
+ quality determines the acceptance rateds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.831 ms snapshot=0.360 ms verify=85.160 ms prefix=1.444 ms total=102.870 ms
+. Ads4: dspark timing decodeN drafted=5 committed=5 draft=15.564 ms snapshot=0.362 ms verify=85.385 ms dspark_kv=1.959 ms total=103.343 ms
+ very small draft model (eds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.500 ms snapshot=0.388 ms verify=85.000 ms prefix=1.511 ms total=102.475 ms
+.g., 10ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.539 ms snapshot=0.410 ms verify=85.254 ms prefix=1.299 ms total=102.640 ms
+% of targetds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.963 ms snapshot=0.425 ms verify=88.432 ms prefix=1.793 ms total=106.707 ms
+ parameters) generates tokensds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.596 ms snapshot=0.447 ms verify=86.518 ms prefix=1.492 ms total=104.130 ms
+ cheaply butds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.875 ms snapshot=0.433 ms verify=85.809 ms prefix=1.404 ms total=104.617 ms
+ with low acceptanceds4: dspark timing decodeN drafted=5 committed=5 draft=15.782 ms snapshot=0.435 ms verify=85.954 ms dspark_kv=1.662 ms total=103.924 ms
+ probability. A larger draft modelds4: dspark timing decodeN drafted=5 committed=5 draft=15.701 ms snapshot=0.365 ms verify=89.496 ms dspark_kv=1.543 ms total=107.191 ms
+ (e.g., 50ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.132 ms snapshot=0.365 ms verify=86.984 ms prefix=1.523 ms total=105.097 ms
+% of targetds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.639 ms snapshot=0.368 ms verify=88.188 ms prefix=1.376 ms total=105.647 ms
+ parameters)ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.925 ms snapshot=0.358 ms verify=87.001 ms prefix=1.671 ms total=105.034 ms
+ achieves higher acceptance rates butds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.832 ms snapshot=0.373 ms verify=87.013 ms prefix=1.415 ms total=104.709 ms
+ costs more per draftds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.549 ms snapshot=0.370 ms verify=87.628 ms prefix=1.550 ms total=105.197 ms
+ step.
+
+The optimalds4: dspark timing decodeN drafted=5 committed=5 draft=15.728 ms snapshot=0.357 ms verify=89.184 ms dspark_kv=1.736 ms total=107.097 ms
+ draft model size depends on the target model'sds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.585 ms snapshot=0.389 ms verify=87.341 ms prefix=1.357 ms total=104.772 ms
+ inference costds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.730 ms snapshot=0.482 ms verify=86.528 ms prefix=1.422 ms total=104.241 ms
+ and theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.698 ms snapshot=0.390 ms verify=86.232 ms prefix=1.340 ms total=103.733 ms
+ acceptance rateds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.774 ms snapshot=0.382 ms verify=86.806 ms prefix=1.334 ms total=104.371 ms
+ curve.ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.394 ms snapshot=0.433 ms verify=85.934 ms prefix=1.939 ms total=104.787 ms
+ Empirically, theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.895 ms snapshot=0.397 ms verify=84.841 ms prefix=1.375 ms total=102.599 ms
+ acceptance rateds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.615 ms snapshot=0.369 ms verify=88.354 ms prefix=1.278 ms total=105.704 ms
+ follows:
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.084 ms snapshot=0.384 ms verify=87.654 ms prefix=1.745 ms total=105.968 ms
+$$\text{Acceptanceds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.677 ms snapshot=0.373 ms verify=86.691 ms prefix=1.691 ms total=104.517 ms
+Rate} \ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.617 ms snapshot=0.389 ms verify=87.873 ms prefix=1.978 ms total=105.946 ms
+approx \ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.319 ms snapshot=0.387 ms verify=87.390 ms prefix=1.296 ms total=105.474 ms
+exp(-\ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.746 ms snapshot=0.363 ms verify=86.258 ms prefix=2.076 ms total=104.521 ms
+text{KL}(ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.758 ms snapshot=0.396 ms verify=85.162 ms prefix=1.564 ms total=102.973 ms
+p_{\text{ds4: dspark timing decodeN drafted=5 committed=5 draft=15.571 ms snapshot=0.363 ms verify=85.695 ms dspark_kv=1.520 ms total=103.224 ms
+target}} || p_{\textds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.612 ms snapshot=0.381 ms verify=87.581 ms prefix=1.666 ms total=105.317 ms
+{draft}}))$$
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.896 ms snapshot=0.353 ms verify=86.199 ms prefix=1.603 ms total=104.142 ms
+Where KL divergence measures howds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.813 ms snapshot=0.363 ms verify=87.234 ms prefix=1.459 ms total=104.946 ms
+ well the draftds4: dspark timing decodeN drafted=5 committed=5 draft=16.005 ms snapshot=0.379 ms verify=86.719 ms dspark_kv=1.615 ms total=104.809 ms
+ approximates the target.
+
+###ds4: dspark timing decodeN drafted=5 committed=5 draft=15.583 ms snapshot=0.364 ms verify=84.745 ms dspark_kv=1.621 ms total=102.390 ms
+ Speculation Length (K)
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.559 ms snapshot=0.372 ms verify=85.572 ms prefix=1.419 ms total=103.003 ms
+The number ofds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.513 ms snapshot=0.354 ms verify=90.173 ms prefix=1.959 ms total=108.082 ms
+ draft tokens Kds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.780 ms snapshot=0.377 ms verify=85.988 ms prefix=1.381 ms total=103.613 ms
+ is a criticalds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.623 ms snapshot=0.348 ms verify=87.010 ms prefix=1.615 ms total=104.691 ms
+ hyperparameter. Longerds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.186 ms snapshot=0.370 ms verify=86.218 ms prefix=1.540 ms total=104.397 ms
+ drafts increase theds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.617 ms snapshot=0.360 ms verify=85.771 ms prefix=1.416 ms total=103.241 ms
+ chance of acceptingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.914 ms snapshot=0.382 ms verify=88.149 ms prefix=1.573 ms total=106.110 ms
+ many tokensds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.936 ms snapshot=0.400 ms verify=86.407 ms prefix=1.664 ms total=104.485 ms
+ but also increaseds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.492 ms snapshot=0.397 ms verify=85.986 ms prefix=1.281 ms total=103.234 ms
+ verification costds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.069 ms snapshot=0.370 ms verify=85.840 ms prefix=1.493 ms total=103.854 ms
+ (the target model processesds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.563 ms snapshot=0.357 ms verify=89.348 ms prefix=1.538 ms total=106.882 ms
+ more tokens in one passds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.769 ms snapshot=0.429 ms verify=87.520 ms prefix=1.876 ms total=105.671 ms
+) and the cost of generatingds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.917 ms snapshot=0.371 ms verify=87.475 ms prefix=2.143 ms total=105.985 ms
+ the draft.
+
+The optimal Kds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.484 ms snapshot=0.735 ms verify=86.226 ms prefix=1.348 ms total=103.870 ms
+ balances:
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.834 ms snapshot=0.818 ms verify=86.778 ms prefix=1.385 ms total=104.893 ms
+$$\textds4: dspark timing decodeN drafted=5 committed=5 draft=15.800 ms snapshot=0.364 ms verify=86.428 ms dspark_kv=1.708 ms total=104.389 ms
+{Speedup} = \fracds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.960 ms snapshot=0.367 ms verify=87.726 ms prefix=1.342 ms total=105.485 ms
+{\textds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.824 ms snapshot=0.824 ms verify=86.844 ms prefix=1.724 ms total=105.338 ms
+{Cost}_{\text{one-byds4: dspark timing decodeN drafted=5 committed=5 draft=15.625 ms snapshot=0.416 ms verify=87.063 ms dspark_kv=1.637 ms total=104.862 ms
+-one}}}{\text{Costds4: dspark timing decodeN drafted=5 committed=5 draft=15.585 ms snapshot=0.421 ms verify=85.434 ms dspark_kv=1.647 ms total=103.168 ms
+}_{\text{draft}} +ds4: dspark timing decodeN drafted=5 committed=5 draft=15.731 ms snapshot=0.360 ms verify=85.739 ms dspark_kv=1.578 ms total=103.490 ms
+ \text{Cost}_{\textds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.747 ms snapshot=0.388 ms verify=87.764 ms prefix=1.446 ms total=105.433 ms
+{verify}}ds4: dspark timing decodeN drafted=5 committed=5 draft=15.708 ms snapshot=0.364 ms verify=87.101 ms dspark_kv=1.542 ms total=104.792 ms
+ + \text{Cost}_{\ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.477 ms snapshot=0.387 ms verify=87.710 ms prefix=1.417 ms total=106.069 ms
+text{ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.780 ms snapshot=0.368 ms verify=86.416 ms prefix=2.226 ms total=104.879 ms
+resample}}}$$
+
+Whereds4: dspark timing decodeN drafted=5 committed=5 draft=15.805 ms snapshot=0.370 ms verify=85.834 ms dspark_kv=1.586 ms total=103.671 ms
+:
+- $\text{Costds4: dspark timing decodeN drafted=5 committed=5 draft=15.950 ms snapshot=0.421 ms verify=87.116 ms dspark_kv=1.584 ms total=105.149 ms
+}_{\text{one-by-oneds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.353 ms snapshot=0.362 ms verify=85.734 ms prefix=1.772 ms total=104.311 ms
+}} = K \cdotds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.727 ms snapshot=0.366 ms verify=87.384 ms prefix=1.774 ms total=105.342 ms
+ C_{\text{targetds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.408 ms snapshot=0.404 ms verify=87.950 ms prefix=1.256 ms total=106.104 ms
+}}$ (ifds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.663 ms snapshot=0.389 ms verify=88.275 ms prefix=1.882 ms total=106.285 ms
+ generating K tokens oneds4: dspark timing decodeN drafted=5 committed=5 draft=15.784 ms snapshot=0.384 ms verify=88.046 ms dspark_kv=1.603 ms total=105.906 ms
+-by-one)
+- $\textds4: dspark timing decodeN drafted=5 committed=5 draft=15.652 ms snapshot=0.376 ms verify=87.943 ms dspark_kv=2.580 ms total=106.628 ms
+{Cost}_{\text{draftds4: dspark timing decodeN drafted=5 committed=5 draft=15.847 ms snapshot=0.361 ms verify=88.196 ms dspark_kv=1.645 ms total=106.129 ms
+}} = K \cdot Cds4: dspark timing decodeN drafted=5 committed=5 draft=15.576 ms snapshot=0.366 ms verify=88.715 ms dspark_kv=1.572 ms total=106.311 ms
+_{\text{draft}}$ (ds4: dspark timing decodeN drafted=5 committed=5 draft=15.658 ms snapshot=0.357 ms verify=89.631 ms dspark_kv=1.622 ms total=107.353 ms
+draft generation)
+- $\ds4: dspark timing decodeN drafted=5 committed=5 draft=16.017 ms snapshot=0.374 ms verify=86.503 ms dspark_kv=1.620 ms total=104.602 ms
+text{Cost}_{\text{ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.046 ms snapshot=0.405 ms verify=89.828 ms prefix=1.921 ms total=108.290 ms
+verify}} =ds4: dspark timing decodeN drafted=5 committed=5 draft=15.590 ms snapshot=0.398 ms verify=87.305 ms dspark_kv=1.741 ms total=105.107 ms
+ C_{\text{target}}$ (single verificationds4: dspark timing decodeN drafted=5 committed=5 draft=15.620 ms snapshot=0.386 ms verify=90.514 ms dspark_kv=1.644 ms total=108.287 ms
+ pass)
+- $\text{Cds4: dspark timing decodeN drafted=5 committed=5 draft=16.173 ms snapshot=0.397 ms verify=86.650 ms dspark_kv=1.593 ms total=104.896 ms
+ost}_{\text{resample}}$ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.931 ms snapshot=0.377 ms verify=87.272 ms prefix=2.050 ms total=105.708 ms
+ accounts for rejected tokens
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.754 ms snapshot=0.387 ms verify=87.009 ms prefix=1.311 ms total=104.544 ms
+### KV Cacheds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.822 ms snapshot=0.411 ms verify=86.788 ms prefix=2.132 ms total=105.231 ms
+ Management
+
+Speculative decoding introducesds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.138 ms snapshot=0.421 ms verify=86.954 ms prefix=1.886 ms total=105.474 ms
+ KV cache complexity. Duringds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.281 ms snapshot=0.372 ms verify=88.437 ms prefix=1.478 ms total=106.644 ms
+ draft generation, the draftds4: dspark timing decodeN drafted=5 committed=5 draft=15.628 ms snapshot=0.363 ms verify=86.923 ms dspark_kv=1.695 ms total=104.688 ms
+ model maintains its own KV cacheds4: dspark timing decodeN drafted=5 committed=5 draft=15.842 ms snapshot=0.449 ms verify=87.236 ms dspark_kv=1.712 ms total=105.317 ms
+. During verification, the target modelds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.523 ms snapshot=0.357 ms verify=88.151 ms prefix=1.471 ms total=105.594 ms
+ must extend itsds4: dspark timing decodeN drafted=5 committed=5 draft=16.163 ms snapshot=0.690 ms verify=87.332 ms dspark_kv=1.827 ms total=106.091 ms
+ KV cache with the draft tokensds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.657 ms snapshot=0.383 ms verify=87.239 ms prefix=1.446 ms total=105.806 ms
+. Ifds4: dspark timing decodeN drafted=5 committed=5 draft=15.673 ms snapshot=0.361 ms verify=88.262 ms dspark_kv=1.587 ms total=105.963 ms
+ tokens are rejected, the cacheds4: dspark timing decodeN drafted=5 committed=5 draft=16.027 ms snapshot=0.402 ms verify=87.492 ms dspark_kv=1.773 ms total=105.772 ms
+ must be rolled back to theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.890 ms snapshot=0.430 ms verify=89.380 ms prefix=2.085 ms total=107.876 ms
+ last acceptedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.694 ms snapshot=0.374 ms verify=87.831 ms prefix=2.115 ms total=106.102 ms
+ token.
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.985 ms snapshot=0.376 ms verify=87.467 ms prefix=1.379 ms total=105.280 ms
+Efficientds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.655 ms snapshot=0.377 ms verify=86.104 ms prefix=1.297 ms total=103.526 ms
+ implementations useds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.730 ms snapshot=0.358 ms verify=86.283 ms prefix=1.497 ms total=103.951 ms
+:
+- **Cacheds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.941 ms snapshot=0.394 ms verify=87.686 ms prefix=1.538 ms total=105.635 ms
+ freezing**: The context portionds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.666 ms snapshot=0.796 ms verify=88.700 ms prefix=1.676 ms total=106.915 ms
+ of theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.880 ms snapshot=0.370 ms verify=90.041 ms prefix=1.591 ms total=107.973 ms
+ cache isds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.588 ms snapshot=0.441 ms verify=86.577 ms prefix=1.788 ms total=104.494 ms
+ immutable
+- **Cacheds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.659 ms snapshot=0.379 ms verify=87.703 ms prefix=1.824 ms total=105.649 ms
+ slicing**: Only theds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.099 ms snapshot=0.354 ms verify=86.110 ms prefix=1.715 ms total=104.356 ms
+ draft portion isds4: dspark timing decodeN drafted=5 committed=5 draft=15.732 ms snapshot=0.367 ms verify=88.489 ms dspark_kv=1.707 ms total=106.383 ms
+ discarded on rejection
+- **Memoryds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.574 ms snapshot=0.361 ms verify=87.916 ms prefix=1.784 ms total=105.721 ms
+ pooling**: Pre-allocds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.739 ms snapshot=0.402 ms verify=86.951 ms prefix=1.313 ms total=104.498 ms
+ated buffersds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.853 ms snapshot=0.357 ms verify=89.680 ms prefix=1.496 ms total=107.480 ms
+ avoid fragmentation
+
+###ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.629 ms snapshot=0.442 ms verify=89.608 ms prefix=1.393 ms total=107.152 ms
+ Batch Processing andds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.702 ms snapshot=0.434 ms verify=89.194 ms prefix=1.398 ms total=106.808 ms
+ Memory
+
+Inds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.685 ms snapshot=0.345 ms verify=88.518 ms prefix=1.641 ms total=106.276 ms
+ production systems, speculative decodingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.594 ms snapshot=0.372 ms verify=86.972 ms prefix=1.791 ms total=104.803 ms
+ interacts withds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.571 ms snapshot=0.541 ms verify=88.379 ms prefix=1.726 ms total=106.302 ms
+ batching. Multiple requestsds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.894 ms snapshot=0.380 ms verify=86.274 ms prefix=2.032 ms total=104.656 ms
+ can be processed simultaneously, with eachds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.674 ms snapshot=0.375 ms verify=88.172 ms prefix=1.639 ms total=105.946 ms
+ request having its own draftds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.289 ms snapshot=0.458 ms verify=89.486 ms prefix=1.353 ms total=107.678 ms
+ and verificationds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.742 ms snapshot=0.454 ms verify=88.364 ms prefix=1.685 ms total=106.319 ms
+ steps.ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.860 ms snapshot=0.360 ms verify=86.490 ms prefix=1.633 ms total=104.442 ms
+ The verification stepds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.599 ms snapshot=0.420 ms verify=87.688 ms prefix=1.710 ms total=105.496 ms
+ can batchds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.671 ms snapshot=0.372 ms verify=87.327 ms prefix=1.649 ms total=105.134 ms
+ across requests, but the draft generation isds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.916 ms snapshot=0.390 ms verify=87.444 ms prefix=1.314 ms total=105.161 ms
+ inherently sequential withinds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.971 ms snapshot=0.403 ms verify=88.891 ms prefix=1.517 ms total=106.901 ms
+ each request.
+
+Memory constraintsds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.857 ms snapshot=0.368 ms verify=90.154 ms prefix=1.356 ms total=107.812 ms
+ become significantds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.753 ms snapshot=0.399 ms verify=87.248 ms prefix=1.441 ms total=104.922 ms
+ with tree attentionds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.112 ms snapshot=0.368 ms verify=89.686 ms prefix=2.081 ms total=108.326 ms
+: a tree withds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.584 ms snapshot=0.373 ms verify=89.490 ms prefix=1.755 ms total=107.304 ms
+ branching factor B andds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.652 ms snapshot=0.544 ms verify=89.563 ms prefix=1.473 ms total=107.311 ms
+ depth K generatesds4: dspark timing decodeN drafted=5 committed=5 draft=15.745 ms snapshot=0.370 ms verify=89.679 ms dspark_kv=1.571 ms total=107.451 ms
+ $B^K$ tokensds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.387 ms snapshot=0.384 ms verify=88.400 ms prefix=1.309 ms total=106.564 ms
+, which can quickly exhaustds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.764 ms snapshot=0.390 ms verify=88.526 ms prefix=1.414 ms total=106.173 ms
+ GPU memory.ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.800 ms snapshot=0.376 ms verify=89.595 ms prefix=1.563 ms total=107.422 ms
+ Practical systems limit treeds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.766 ms snapshot=0.374 ms verify=89.772 ms prefix=1.372 ms total=107.364 ms
+ width and depth,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.616 ms snapshot=0.375 ms verify=90.352 ms prefix=1.770 ms total=108.192 ms
+ often using dynamicds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.730 ms snapshot=0.369 ms verify=88.522 ms prefix=1.433 ms total=106.148 ms
+ programming tods4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.749 ms snapshot=0.447 ms verify=88.626 ms prefix=1.596 ms total=106.539 ms
+ prune low-probabilityds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.062 ms snapshot=0.435 ms verify=90.946 ms prefix=1.469 ms total=109.014 ms
+ branches.
+
+## Empiricalds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.572 ms snapshot=0.407 ms verify=86.541 ms prefix=1.916 ms total=104.530 ms
+ Performance
+
+Specds4: dspark timing decodeN drafted=5 committed=5 draft=15.683 ms snapshot=0.368 ms verify=89.290 ms dspark_kv=1.635 ms total=107.056 ms
+ulative decoding typically achieves 2ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.545 ms snapshot=0.422 ms verify=89.177 ms prefix=1.634 ms total=106.858 ms
+-4x speedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.650 ms snapshot=0.835 ms verify=91.664 ms prefix=1.425 ms total=109.660 ms
+up inds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.749 ms snapshot=0.426 ms verify=87.783 ms prefix=1.641 ms total=105.677 ms
+ latency for large modelsds4: dspark timing decodeN drafted=5 committed=5 draft=16.550 ms snapshot=0.355 ms verify=87.708 ms dspark_kv=1.944 ms total=106.636 ms
+ (70B+ parameters) with wellds4: dspark timing decodeN drafted=5 committed=5 draft=15.675 ms snapshot=0.370 ms verify=88.139 ms dspark_kv=1.606 ms total=105.867 ms
+-tuned draft models. The speedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.791 ms snapshot=0.387 ms verify=88.973 ms prefix=1.776 ms total=107.017 ms
+up isds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.600 ms snapshot=0.434 ms verify=89.445 ms prefix=1.339 ms total=106.899 ms
+ most pronouncedds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.828 ms snapshot=0.350 ms verify=90.593 ms prefix=1.939 ms total=108.799 ms
+ when:
+
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.333 ms snapshot=0.365 ms verify=88.125 ms prefix=1.336 ms total=106.257 ms
+1. **Theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.720 ms snapshot=0.371 ms verify=88.119 ms prefix=1.704 ms total=106.000 ms
+ target model is largeds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.833 ms snapshot=0.457 ms verify=87.855 ms prefix=1.375 ms total=105.658 ms
+**: Theds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.842 ms snapshot=0.389 ms verify=88.055 ms prefix=1.312 ms total=105.680 ms
+ ratio of targetds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.566 ms snapshot=0.427 ms verify=89.286 ms prefix=1.705 ms total=107.061 ms
+-to-draft cost isds4: dspark timing decodeN drafted=5 committed=5 draft=15.494 ms snapshot=0.377 ms verify=89.819 ms dspark_kv=1.610 ms total=107.396 ms
+ high
+2. **Theds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.913 ms snapshot=0.438 ms verify=87.717 ms prefix=1.777 ms total=105.927 ms
+ task is predictable**: Draft models cands4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.763 ms snapshot=0.373 ms verify=88.907 ms prefix=1.349 ms total=106.472 ms
+ accurately predictds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=16.240 ms snapshot=0.427 ms verify=90.301 ms prefix=1.375 ms total=108.428 ms
+ continuationsds4: dspark timing decodeN drafted=5 committed=5 draft=15.750 ms snapshot=0.402 ms verify=88.018 ms dspark_kv=1.681 ms total=105.931 ms
+ (e.g., code generationds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.835 ms snapshot=0.366 ms verify=90.334 ms prefix=1.343 ms total=107.959 ms
+, structuredds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.664 ms snapshot=0.372 ms verify=88.714 ms prefix=1.760 ms total=106.623 ms
+ text)
+3. **ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.271 ms snapshot=0.378 ms verify=88.693 ms prefix=1.289 ms total=106.710 ms
+Hardware isds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.965 ms snapshot=0.764 ms verify=91.050 ms prefix=1.754 ms total=109.616 ms
+ memory-bound**: The verificationds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.696 ms snapshot=0.339 ms verify=89.886 ms prefix=1.730 ms total=107.740 ms
+ pass amortizes memory bandwidthds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.549 ms snapshot=0.425 ms verify=86.060 ms prefix=1.405 ms total=103.526 ms
+ costs
+
+Fords4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.702 ms snapshot=0.378 ms verify=82.252 ms prefix=1.374 ms total=99.821 ms
+ smaller models ords4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.687 ms snapshot=0.355 ms verify=81.926 ms prefix=1.479 ms total=99.525 ms
+ highly creative tasks (where draftds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=16.016 ms snapshot=0.385 ms verify=89.803 ms prefix=2.203 ms total=108.487 ms
+ predictions are poor),ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.816 ms snapshot=0.388 ms verify=111.063 ms prefix=1.716 ms total=129.072 ms
+ the overhead of speculative decoding cands4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.052 ms snapshot=0.347 ms verify=108.305 ms prefix=1.675 ms total=126.465 ms
+ actually increase latency.
+
+##ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.913 ms snapshot=0.397 ms verify=108.803 ms prefix=1.662 ms total=126.872 ms
+ Conclusion
+
+Speculative decodingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.843 ms snapshot=0.405 ms verify=112.320 ms prefix=1.359 ms total=130.024 ms
+ represents a fundamentalds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.709 ms snapshot=0.358 ms verify=110.133 ms prefix=1.669 ms total=127.970 ms
+ advance in LLM inference efficiency, transformingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.982 ms snapshot=0.389 ms verify=109.297 ms prefix=1.288 ms total=127.029 ms
+ the sequential bottleneckds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=16.071 ms snapshot=0.378 ms verify=108.758 ms prefix=1.762 ms total=127.066 ms
+ of autoregressive generation intods4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.984 ms snapshot=0.426 ms verify=110.795 ms prefix=1.385 ms total=128.669 ms
+ a parallel verificationds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=16.188 ms snapshot=0.389 ms verify=108.777 ms prefix=1.381 ms total=126.831 ms
+ opportunity. By carefully engineeringds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.815 ms snapshot=0.356 ms verify=109.330 ms prefix=1.300 ms total=126.879 ms
+ draft models,ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.477 ms snapshot=0.842 ms verify=108.847 ms prefix=1.806 ms total=127.056 ms
+ acceptance criteria, and tree attentionds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.892 ms snapshot=0.416 ms verify=111.163 ms prefix=1.700 ms total=129.254 ms
+ structures, practitioners can achieve substantialds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.783 ms snapshot=0.374 ms verify=109.254 ms prefix=1.242 ms total=126.730 ms
+ latency reductions withoutds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.575 ms snapshot=0.445 ms verify=108.833 ms prefix=1.369 ms total=126.305 ms
+ any loss inds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.657 ms snapshot=0.354 ms verify=111.102 ms prefix=1.568 ms total=128.768 ms
+ output quality.
+
+The technique'sds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.636 ms snapshot=0.364 ms verify=108.256 ms prefix=1.631 ms total=125.968 ms
+ elegance lies in itsds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.600 ms snapshot=0.370 ms verify=109.709 ms prefix=1.955 ms total=127.712 ms
+ mathematical guarantee of losslessness—the targetds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.885 ms snapshot=0.430 ms verify=107.910 ms prefix=1.756 ms total=126.065 ms
+ model's distribution is preserved exactlyds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.824 ms snapshot=0.374 ms verify=110.739 ms prefix=1.397 ms total=128.430 ms
+, makingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.665 ms snapshot=0.417 ms verify=107.895 ms prefix=1.403 ms total=125.475 ms
+ it ads4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.626 ms snapshot=0.358 ms verify=111.011 ms prefix=1.738 ms total=128.828 ms
+ safe optimization for anyds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=15.623 ms snapshot=0.365 ms verify=111.641 ms prefix=1.419 ms total=129.141 ms
+ application. Asds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.904 ms snapshot=0.382 ms verify=109.499 ms prefix=1.539 ms total=127.433 ms
+ LLMs continue tods4: dspark timing decodeN-prefix drafted=5 committed=3 draft=15.676 ms snapshot=0.406 ms verify=107.740 ms prefix=1.536 ms total=125.434 ms
+ scale, speculative decodingds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.867 ms snapshot=0.376 ms verify=109.135 ms prefix=1.260 ms total=126.764 ms
+ will remain ads4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.789 ms snapshot=0.386 ms verify=109.104 ms prefix=1.500 ms total=126.872 ms
+ critical tool in the inferenceds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=15.617 ms snapshot=0.370 ms verify=110.737 ms prefix=1.745 ms total=128.543 ms
+ engineer's arsenal, enabling faster,ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=15.588 ms snapshot=0.374 ms verify=109.522 ms prefix=1.453 ms total=127.033 ms
+ more responsiveds4: dspark timing decodeN drafted=3 committed=3 draft=15.550 ms snapshot=0.909 ms verify=74.678 ms dspark_kv=1.810 ms total=93.039 ms
+ AI systems.
+ds4: ----------------------------------------
+ds4: prefill: 14.09 t/s, generation: 28.35 t/s (2135 tokens in 75.297s)
+ds4: dspark perf: draft=315.5 tok/s, verify=84.8 proposed tok/s, verify-accepted=33.3 tok/s, block=76.18 ms (draft=15.84 verify=58.90 overhead=1.44 commit=1.10, tau=2.96, blocks=722)
+ds4: dspark verify GPU-busy: 54.54 ms/block of 58.90 ms verify (92.6% active, 7.4% idle)
+ds4: vm pressure: app=83.47 GiB resident=26.22 GiB wired=96.14 GiB compressed=1.71 GiB logical=3.64 GiB swap=1.11/2.00 GiB pressure=85% free=3.04 GiB gpu=83.34 GiB gpu-compressed=0.00 GiB task-compressed=65.60 GiB decompressions=6497014
+ds4: dspark acceptance: 39.2% (1414/3608 draft tokens)
+ds4: dspark acceptance by position: 1=495/722 2=367/722 3=266/722 4=180/721 5=106/721
+ds4: dspark avg scheduled: 5.00 draft tokens/block (722 blocks)

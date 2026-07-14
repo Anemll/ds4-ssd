@@ -1,0 +1,8 @@
+Questa è un'ottima domanda che tocca un punto cruciale nell'ottimizzazione delle performance di rendering su Metal (e in generale su GPU).
+
+La risposta breve è: **un grande buffer può causare una "dipendenza di scrittura dopo lettura" (Write-After-Read hazard) che costringe la GPU a serializzare il lavoro, annullando il parallelismo che le "viste sovrapposte" (overlapping views) permetterebbero di sfruttare.**
+
+Analizziamo il problema nel dettaglio.
+
+### Il problema del grande buffer condiviso
+

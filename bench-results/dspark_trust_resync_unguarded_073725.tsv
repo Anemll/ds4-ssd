@@ -1,0 +1,4 @@
+resync_every	tps	block	tau	acc	suspect	out	err
+0	54.58	73.29	4.08	93.5	1	bench-results/trust_resync_unguarded_r0_073725.out	bench-results/trust_resync_unguarded_r0_073725.err
+8	54.43	73.49	4.08	93.5	1	bench-results/trust_resync_unguarded_r8_073725.out	bench-results/trust_resync_unguarded_r8_073725.err
+4	38.84	106.65	4.16	95.4	1	bench-results/trust_resync_unguarded_r4_073725.out	bench-results/trust_resync_unguarded_r4_073725.err

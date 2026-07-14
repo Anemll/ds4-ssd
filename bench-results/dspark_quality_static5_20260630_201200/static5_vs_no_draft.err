@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/gguf-tools/quality-testing/compare_samples.py", line 178, in <module>
+    raise SystemExit(main())
+  File "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/gguf-tools/quality-testing/compare_samples.py", line 72, in main
+    cand = load_summary(run_dir / "summary.tsv")
+  File "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/gguf-tools/quality-testing/compare_samples.py", line 13, in load_summary
+    with path.open(newline="", encoding="utf-8") as fp:
+  File "/Applications/Xcode-beta.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/pathlib.py", line 1242, in open
+    return io.open(self, mode, buffering, encoding, errors, newline,
+  File "/Applications/Xcode-beta.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/pathlib.py", line 1110, in _opener
+    return self._accessor.open(self, flags, mode)
+FileNotFoundError: [Errno 2] No such file or directory: 'bench-results/dspark_quality_static5_20260630_201200/static5/summary.tsv'

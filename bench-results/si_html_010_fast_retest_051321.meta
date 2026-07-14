@@ -1,0 +1,5 @@
+out=bench-results/si_html_010_fast_retest_051321.out
+err=bench-results/si_html_010_fast_retest_051321.err
+prompt=Build a pixel-perfect Space Invaders arcade game in a single self-contained HTML file with inline CSS and JS. Replicate the original 1978 Taito arcade cabinet experience with full fidelity to the original rules, sprite designs, and mechanics.save file in /tmp/si-html-010/
+mode=--draft-fast-relaxed
+date=Wed Jul  1 05:13:21 PDT 2026

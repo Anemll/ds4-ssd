@@ -1,0 +1,289 @@
+```json
+[
+  {
+    "title": "The Echo of Forgotten Stars",
+    "author": "Elara Voss",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 342,
+    "summary": "A lone astronaut discovers that the stars are singing a message from a long-vanished civilization."
+  },
+  {
+    "title": "Whispers in the Marble Hall",
+    "author": "Julian Croft",
+    "year": 2019,
+    "genre": "Mystery",
+    "pages": 288,
+    "summary": "A detective uncovers a series of secrets hidden within an ancient mansion's walls."
+  },
+  {
+    "title": "The Last Garden of Summer",
+    "author": "Mira Chen",
+    "year": 2020,
+    "genre": "Literary Fiction",
+    "pages": 310,
+    "summary": "A woman returns to her childhood home to find the garden that held her family's memories has been transformed."
+  },
+  {
+    "title": "Dragons of the Silent Peak",
+    "author": "Orion Blackwood",
+    "year": 2018,
+    "genre": "Fantasy",
+    "pages": 415,
+    "summary": "A young mage must tame a wild dragon to prevent an ancient volcano from erupting."
+  },
+  {
+    "title": "The Clockwork Heart",
+    "author": "Isabelle Reed",
+    "year": 2022,
+    "genre": "Steampunk",
+    "pages": 367,
+    "summary": "In a world of gears and steam, a mechanic discovers that her own heart is a delicate machine."
+  },
+  {
+    "title": "Beneath the Neon Sky",
+    "author": "Dexter Hale",
+    "year": 2023,
+    "genre": "Cyberpunk",
+    "pages": 401,
+    "summary": "A hacker navigates a dystopian city to expose a corporation's dark secrets."
+  },
+  {
+    "title": "The Keeper of Lost Letters",
+    "author": "Sophia Winters",
+    "year": 2017,
+    "genre": "Historical Fiction",
+    "pages": 295,
+    "summary": "A librarian discovers a cache of letters that reveals a forbidden love during wartime."
+  },
+  {
+    "title": "Starlight and Shadow",
+    "author": "Luna Nightshade",
+    "year": 2020,
+    "genre": "Romance",
+    "pages": 276,
+    "summary": "Two rival astronomers find themselves falling in love under the same night sky."
+  },
+  {
+    "title": "The Iron Tide",
+    "author": "Cormac Steel",
+    "year": 2019,
+    "genre": "Adventure",
+    "pages": 388,
+    "summary": "A crew of sailors battles a monstrous iron ship that rises from the depths of the ocean."
+  },
+  {
+    "title": "Ghosts of the Ashen City",
+    "author": "Raven Ashford",
+    "year": 2021,
+    "genre": "Horror",
+    "pages": 333,
+    "summary": "A journalist investigates a city consumed by ash and discovers it is haunted by its own past."
+  },
+  {
+    "title": "The Alchemist's Apprentice",
+    "author": "Felix Goldwyn",
+    "year": 2016,
+    "genre": "Fantasy",
+    "pages": 421,
+    "summary": "A young apprentice must master the art of alchemy to save his master from a cursed formula."
+  },
+  {
+    "title": "Echoes of the Forgotten",
+    "author": "Nadia Petrova",
+    "year": 2022,
+    "genre": "Thriller",
+    "pages": 359,
+    "summary": "A woman with a rare memory condition becomes the target of a conspiracy she can't remember."
+  },
+  {
+    "title": "The Silk Road's Last Secret",
+    "author": "Aria Nakamura",
+    "year": 2020,
+    "genre": "Historical Fiction",
+    "pages": 404,
+    "summary": "An explorer follows an ancient map to uncover a lost city along the Silk Road."
+  },
+  {
+    "title": "Circuit Breaker",
+    "author": "Zane Watts",
+    "year": 2023,
+    "genre": "Science Fiction",
+    "pages": 298,
+    "summary": "In a world run by AI, a programmer discovers a glitch that could reset humanity."
+  },
+  {
+    "title": "The Painted Veil",
+    "author": "Lydia Hawthorne",
+    "year": 2018,
+    "genre": "Literary Fiction",
+    "pages": 287,
+    "summary": "A painter's obsession with capturing the perfect sunset leads her to a mysterious island."
+  },
+  {
+    "title": "Fangs of the Frost",
+    "author": "Bjorn Ulfsson",
+    "year": 2021,
+    "genre": "Fantasy",
+    "pages": 456,
+    "summary": "A warrior must unite the northern clans to defeat an ice dragon that threatens their world."
+  },
+  {
+    "title": "The Detective's Dilemma",
+    "author": "Philip Marlowe Jr.",
+    "year": 2019,
+    "genre": "Mystery",
+    "pages": 312,
+    "summary": "A detective must solve a locked-room murder where all suspects have perfect alibis."
+  },
+  {
+    "title": "Solar Flare",
+    "author": "Nova Starling",
+    "year": 2022,
+    "genre": "Science Fiction",
+    "pages": 375,
+    "summary": "A solar flare grants a group of astronauts strange powers, but they must use them to save Earth."
+  },
+  {
+    "title": "The Baker's Secret",
+    "author": "Hannah Sweet",
+    "year": 2020,
+    "genre": "Romance",
+    "pages": 264,
+    "summary": "A baker and a food critic discover that the secret ingredient to love is honesty."
+  },
+  {
+    "title": "Rust and Ruin",
+    "author": "Wren Hammer",
+    "year": 2023,
+    "genre": "Post-Apocalyptic",
+    "pages": 419,
+    "summary": "In a world overgrown by rust, a scavenger searches for a mythical city of clean metal."
+  },
+  {
+    "title": "The Phantom Orchestra",
+    "author": "Harmony Keyes",
+    "year": 2017,
+    "genre": "Horror",
+    "pages": 301,
+    "summary": "A musician discovers that an abandoned theater is haunted by the ghost of a symphony."
+  },
+  {
+    "title": "Jungle of Jade",
+    "author": "Tara Singh",
+    "year": 2021,
+    "genre": "Adventure",
+    "pages": 390,
+    "summary": "A botanist ventures into a forbidden jungle to find a plant that can heal any disease."
+  },
+  {
+    "title": "The Neon Testament",
+    "author": "Cypher Null",
+    "year": 2022,
+    "genre": "Cyberpunk",
+    "pages": 348,
+    "summary": "A data courier uncovers a digital gospel that could topple the world's largest tech empire."
+  },
+  {
+    "title": "Whispers of the Willow",
+    "author": "Willow Green",
+    "year": 2019,
+    "genre": "Literary Fiction",
+    "pages": 283,
+    "summary": "A woman finds solace and secrets in the branches of an ancient willow tree."
+  },
+  {
+    "title": "The Cartographer's Compass",
+    "author": "Maple Hart",
+    "year": 2020,
+    "genre": "Historical Fiction",
+    "pages": 367,
+    "summary": "A cartographer's compass leads a young explorer to a land that doesn't exist on any map."
+  },
+  {
+    "title": "Blood and Bone",
+    "author": "Silas Graves",
+    "year": 2023,
+    "genre": "Thriller",
+    "pages": 402,
+    "summary": "A forensic expert must track a serial killer who leaves no trace but a single bone."
+  },
+  {
+    "title": "The Starlight Express",
+    "author": "Vega Orion",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 335,
+    "summary": "Passengers on a space train must work together when an asteroid threatens their journey."
+  },
+  {
+    "title": "The Enchanted Grove",
+    "author": "Fern Moss",
+    "year": 2018,
+    "genre": "Fantasy",
+    "pages": 299,
+    "summary": "A young girl discovers a hidden grove where trees can speak and grant wishes."
+  },
+  {
+    "title": "The Silent Witness",
+    "author": "Justice Stone",
+    "year": 2022,
+    "genre": "Mystery",
+    "pages": 314,
+    "summary": "A mute woman becomes the only witness to a crime and must find a way to communicate the truth."
+  },
+  {
+    "title": "Tides of the Moon",
+    "author": "Luna Waters",
+    "year": 2020,
+    "genre": "Romance",
+    "pages": 271,
+    "summary": "Two lovers separated by the sea must rely on the moon's tides to reunite."
+  },
+  {
+    "title": "The Gilded Cage",
+    "author": "Goldie Sterling",
+    "year": 2019,
+    "genre": "Historical Fiction",
+    "pages": 396,
+    "summary": "A socialite trapped in a gilded cage of wealth and expectation plots her escape."
+  },
+  {
+    "title": "Circuit of the Ancients",
+    "author": "Atlas Volt",
+    "year": 2023,
+    "genre": "Science Fiction",
+    "pages": 410,
+    "summary": "An archaeologist discovers an ancient circuit that could power the entire world."
+  },
+  {
+    "title": "The Shadow's Embrace",
+    "author": "Umbra Noir",
+    "year": 2021,
+    "genre": "Horror",
+    "pages": 347,
+    "summary": "A family moves into a house where the shadows have a life of their own."
+  },
+  {
+    "title": "The Pirate's Code",
+    "author": "Morgan Drake",
+    "year": 2017,
+    "genre": "Adventure",
+    "pages": 378,
+    "summary": "A young pirate must decipher an ancient code to find the greatest treasure ever hidden."
+  },
+  {
+    "title": "The Art of Falling",
+    "author": "Skye Walker",
+    "year": 2022,
+    "genre": "Literary Fiction",
+    "pages": 292,
+    "summary": "A tightrope walker must confront her fear of falling both physically and emotionally."
+  },
+  {
+    "title": "The Iron Will",
+    "author": "Bianca Strong",
+    "year": 2020,
+    "genre": "Thriller",
+    "pages": 384,
+    "summary":

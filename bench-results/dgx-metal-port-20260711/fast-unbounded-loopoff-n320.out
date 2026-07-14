@@ -1,0 +1,50 @@
+Here is a complete HTML file that recreates the classic 1978 arcade experience as a single-page document. It includes the original sprite, and core gameplay.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title> 1978ade Taito –  </title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    #0 {
+      width: 100%;
+      height: 100%;
+      max-width: 700px;
+      max-height: 700px;
+      display: #000;
+    }
+    .canvas {
+      background: #000;
+      display: block;
+      border: 4px solid #f0;
+      box-shadow: 0 0 20px #f0f0;
+    }
+    .canvas {
+      background: #000;
+      }
+    .canvas {
+      background: #000;
+    .canvas {
+      background: #000;
+    .canvas {
+      background: #000;
+    .canvas {
+      background: #000;
+    .canvas {
+      background: #000;
+    .canvas {
+      background

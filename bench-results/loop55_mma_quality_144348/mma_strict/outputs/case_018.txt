@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca un aspetto fondamentale dell'architettura dei transformer e dell'ottimizzazione dell'inferenza.
+
+La differenza di velocità tra il "prefill" (o processing) e il "decode" (o generazione autoregressiva) è dovuta principalmente a **due fattori chiave**: l'**efficienza computazionale** e la **parallelizzazione**.
+
+Ecco la spiegazione dettagliata:
+
+### 1. Il Problema Fondamentale: La Parallelizzazione
+
+La GPU è una macchina progettata per il **parallel

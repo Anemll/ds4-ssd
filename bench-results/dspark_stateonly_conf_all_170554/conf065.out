@@ -1,0 +1,70 @@
+Here's's a a complete Space Invadersaders game implemented in Py Pygame:
+
+```python
+importimport pygame
+import random random
+
+# Initialize Initialize Pygame
+pygamegame.init()
+
+()
+
+# Constants
+
+SCREEN_WIDTH = = 800
+SCSCREEN_HEIGHT = 800800
+FPS =  6060
+
+# Colors Colors
+BLACKACK = = (0, 00, 00)
+WHWHITE = = (255, 255255, 255)
+)
+RED = = ( (255255, 0,, 00)
+)
+GREEN = ( (0,  255255, 00)
+)
+
+## Set up the display
+
+screen = = pygame.display.display.set_mode((SCREEN_WIDTH, SC SCREEN_HE_HEIGHT))
+pygame.display.set_captionaption("Space Invadersaders")
+
+## Clock for controlling frame rate
+clockclock = = pygame.time..ClockClock()
+
+## Font for score
+
+font = = = pygame.font.font.Font(Noneone, 3636)
+
+classclass Player:
+:
+    def __initinit__(__(selfself, x x, y y y):
+               self.x = x x
+        self self.y = y y
+        self self.width = = 5050
+        self self.height =  = = 4040
+        self self.speed =   = = 5
+        self self.bullets = = []
+        self self.cooldoldown = 00
+        self self.score =  0
+
+
+
+       def updateupdate(self):
+):
+        keys = = pygame.key.p.pressed()
+()
+               if keys[[pygame.K.K_LEFT]] and self.x > x x > 00:
+            self self.x -= -= self.s.speed
+        if if keys keys[pygame.K.K.K_R_RIGHT]] and self.x.x < SCREEN_WIDTH_WIDTH - self self.width:
+            self self.x.x += += self.s.speed
+
+
+
+        # # Shooting
+
+               if keys[[pygame.K.K_SPACEACE]]]] and self.cooldownown == 00:
+            self self.bullets.append.append(Bulullet(self(self.x.x + self.width.width //  22, self.y.y))
+            self.cooldoldownown = = 1010
+
+              

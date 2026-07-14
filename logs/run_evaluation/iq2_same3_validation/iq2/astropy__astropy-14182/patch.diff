@@ -1,0 +1,27 @@
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8ef..36ffeae25 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,19 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
+-        super().__init__(delimiter_pad=None, bookend=False)
++    def __init__(self, header_rows=None):
++        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+ 
+     def write(self, lines):
+         lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
++        # Find the position line (the line with position_char characters like ====)
++        # This is the line that was added by FixedWidthData.write based on
++        # self.header.position_line
++        position_line = None
++        for i, line in enumerate(lines):
++            if line.startswith(self.header.position_char):
++                position_line = i
++                break
++        if position_line is not None:
++            lines = [lines[position_line]] + lines + [lines[position_line]]
+         return lines

@@ -1,0 +1,97 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=8000, raw_kv_rows=8000, raw_window=128, effective_chunk=7872; target raw cap for one chunk is 8192, also requires ctx >= that value)
+ds4: context buffers 730.30 MiB (ctx=8000, backend=metal, prefill_chunk=8000, raw_kv_rows=8000, compressed_kv_rows=514/2002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Metal model views created in 2.396 ms, residency requested in 539.478 ms, warmup 3.074 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 2.8 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.611s profile=0.000s model=0.005s sidecar=0.000s weights=0.000s dspark=1.058s backend=0.545s prewarm=0.003s
+ds4: session startup timing: total=0.004s raw-graph=0.004s flash-moe=0.000s steering=0.000s draft-scratch=yes
+ds4: WARNING: prefill chunk 8000 clamped to 7872 by raw-KV cap (raw_cap=8000, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 8128 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 42 input tokens: 0/42 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 42 input tokens: 0/42 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 42 input tokens: 1/42 (2.4%) batch=10.18 t/s avg=8.84 t/s
+processing 42 input tokens: 2/42 (4.8%) batch=11.15 t/s avg=9.86 t/s
+processing 42 input tokens: 3/42 (7.1%) batch=11.27 t/s avg=10.29 t/s
+processing 42 input tokens: 4/42 (9.5%) batch=16.98 t/s avg=11.41 t/s
+processing 42 input tokens: 5/42 (11.9%) batch=20.82 t/s avg=12.55 t/s
+processing 42 input tokens: 6/42 (14.3%) batch=20.46 t/s avg=13.41 t/s
+processing 42 input tokens: 7/42 (16.7%) batch=21.90 t/s avg=14.20 t/s
+processing 42 input tokens: 8/42 (19.0%) batch=17.89 t/s avg=14.58 t/s
+processing 42 input tokens: 9/42 (21.4%) batch=18.16 t/s avg=14.90 t/s
+processing 42 input tokens: 10/42 (23.8%) batch=17.93 t/s avg=15.16 t/s
+processing 42 input tokens: 11/42 (26.2%) batch=17.56 t/s avg=15.35 t/s
+processing 42 input tokens: 12/42 (28.6%) batch=20.11 t/s avg=15.66 t/s
+processing 42 input tokens: 13/42 (31.0%) batch=21.16 t/s avg=15.98 t/s
+processing 42 input tokens: 14/42 (33.3%) batch=20.61 t/s avg=16.24 t/s
+processing 42 input tokens: 15/42 (35.7%) batch=20.77 t/s avg=16.48 t/s
+processing 42 input tokens: 16/42 (38.1%) batch=22.26 t/s avg=16.75 t/s
+processing 42 input tokens: 17/42 (40.5%) batch=24.35 t/s avg=17.06 t/s
+processing 42 input tokens: 18/42 (42.9%) batch=26.35 t/s avg=17.40 t/s
+processing 42 input tokens: 19/42 (45.2%) batch=23.57 t/s avg=17.65 t/s
+processing 42 input tokens: 20/42 (47.6%) batch=15.25 t/s avg=17.51 t/s
+processing 42 input tokens: 21/42 (50.0%) batch=22.18 t/s avg=17.69 t/s
+processing 42 input tokens: 22/42 (52.4%) batch=18.41 t/s avg=17.72 t/s
+processing 42 input tokens: 23/42 (54.8%) batch=22.19 t/s avg=17.87 t/s
+processing 42 input tokens: 24/42 (57.1%) batch=20.90 t/s avg=17.98 t/s
+processing 42 input tokens: 25/42 (59.5%) batch=25.95 t/s avg=18.21 t/s
+processing 42 input tokens: 26/42 (61.9%) batch=22.21 t/s avg=18.33 t/s
+processing 42 input tokens: 27/42 (64.3%) batch=32.66 t/s avg=18.64 t/s
+processing 42 input tokens: 28/42 (66.7%) batch=21.92 t/s avg=18.74 t/s
+processing 42 input tokens: 29/42 (69.0%) batch=26.20 t/s avg=18.92 t/s
+processing 42 input tokens: 30/42 (71.4%) batch=28.37 t/s avg=19.14 t/s
+processing 42 input tokens: 31/42 (73.8%) batch=18.97 t/s avg=19.13 t/s
+processing 42 input tokens: 32/42 (76.2%) batch=19.16 t/s avg=19.13 t/s
+processing 42 input tokens: 33/42 (78.6%) batch=19.92 t/s avg=19.15 t/s
+processing 42 input tokens: 34/42 (81.0%) batch=19.42 t/s avg=19.16 t/s
+processing 42 input tokens: 35/42 (83.3%) batch=21.28 t/s avg=19.22 t/s
+processing 42 input tokens: 36/42 (85.7%) batch=16.49 t/s avg=19.13 t/s
+processing 42 input tokens: 37/42 (88.1%) batch=22.67 t/s avg=19.21 t/s
+processing 42 input tokens: 38/42 (90.5%) batch=19.25 t/s avg=19.21 t/s
+processing 42 input tokens: 39/42 (92.9%) batch=21.28 t/s avg=19.26 t/s
+processing 42 input tokens: 40/42 (95.2%) batch=16.67 t/s avg=19.18 t/s
+processing 42 input tokens: 41/42 (97.6%) batch=20.42 t/s avg=19.21 t/s
+processing 42 input tokens: 42/42 (100.0%) batch=17.73 t/s avg=19.17 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: routed MoE exact ordered expert-sum kernel enabled
+ds4: dspark hybrid row-routed verifier using monolithic row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: ----------------------------------------
+ds4: prefill: 18.07 t/s, generation: 39.02 t/s (500 tokens in 12.814s)
+ds4: ttf: first-output=4.220s total=16.918s (engine=1.611s session=0.004s prompt=0.000s prefill=2.324s decode=12.814s)
+ds4: dspark perf: draft=293.5 tok/s, verify=77.8 proposed tok/s, verify-accepted=51.2 tok/s, block=51.75 ms (draft=10.62 verify=40.03 overhead=1.10 commit=0.83, tau=2.05, blocks=164)
+ds4: dspark verify GPU-busy: 37.77 ms/block of 40.03 ms verify (94.3% active, 5.7% idle)
+ds4: dspark draft-overlap upper-bound: 49.8 tok/s (1.26x block decode, hides 10.62 ms/block)
+ds4: vm pressure: app=10.60 GiB resident=19.22 GiB wired=96.71 GiB compressed=0.83 GiB logical=1.88 GiB swap=3.47/5.00 GiB pressure=86% free=1.10 GiB gpu=10.56 GiB gpu-compressed=0.00 GiB task-compressed=0.00 GiB decompressions=0
+ds4: dspark acceptance: 65.8% (336/511 draft tokens)
+ds4: dspark acceptance by position: 1=101/144 2=78/119 3=56/92 4=55/81 5=46/75
+ds4: dspark conditional acceptance: 1=70.1% (101/144) 2|1=85.7% (78/91) 3|1-2=90.3% (56/62) 4|1-3=100.0% (55/55) 5|1-4=88.5% (46/52)
+ds4: dspark full-accept: 52.8% (76/144 blocks), first-miss: 29.9% (43/144 blocks)
+ds4: dspark avg scheduled: 3.55 draft tokens/block (144 blocks)

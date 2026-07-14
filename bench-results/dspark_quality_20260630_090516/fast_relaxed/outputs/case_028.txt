@@ -1,0 +1,9 @@
+This is a great question that gets at the heart of how large-scale Mixture-of-Experts (MoE) models are optimized for inference.
+
+The core idea of **Grouped Expert Execution** is a **hardware-aware optimization**. It doesn't change the mathematical output of the MoE layer, but it changes the *order* and *packing* of the computation to maximize throughput and minimize latency, especially during the **prefill** phase.
+
+Let’s break down why this is so effective.
+
+### The Problem: The "Expert" Bottleneck in Prefill
+
+In a standard MoE layer during **prefill** (

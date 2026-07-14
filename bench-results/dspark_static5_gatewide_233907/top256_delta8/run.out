@@ -1,0 +1,151 @@
+Here's a complete Space Invaders game in Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Player
+        self.player = Player()
+        self.player_group = pygame.sprite.Group()
+        self.player_group.add(self.player)
+        
+        # Enemies
+        self.enemies = pygame.sprite.Group()
+        self.bullets = pygame.sprite.Group()
+        self.enemy_bullets = pygame.sprite.Group()
+        self.create_enemies()
+        
+        # Bullet
+        self.bullet_group = pygame.sprite.Group()
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.winner = False
+        
+    def create_enemies(self):
+        """Create enemy formation"""
+        for row in range(5):
+            for col in range(10):
+                x = 100 + col * 60
+                y = 50 + row * 40
+                enemy = Enemy(x, y)
+                self.enemies.add(enemy)
+    
+    def handle_events(self):
+        """Handle game events"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.player.shoot(self.bullet_group)
+                if event.key == pygame.K_r and self.game_over:
+                    self.restart()
+    
+    def update(self):
+        """Update game state"""
+        if self.game_over:
+            # Update player keys for game over
+            keys = pygame.key.get_pressed()
+            for event in self.keys():
+                if event.key == pygame.K_r:
+                    self.restart()
+                    break
+            return
+        
+        # Update player
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move(LEFT)
+        elif keys[pygame.K_RIGHT]:
+            self.player.move(RIGHT)
+        
+        # Update enemies
+        if self.enemies:
+            # Check if enemy needs to move
+            for enemy in self.enemies:
+                if enemy.update(self.enemies):
+                    # Update enemy movement
+                    for enemy in self.enemies:
+                        enemy.update()
+                    break
+        
+        # Update bullets
+        self.bullets.update()
+        
+        # Enemy shooting
+        if random.random() < 0.02 and self.enemies:
+            enemy = random.choice(self.enemies.sprites())
+            enemy.shoot(self.enemy_bullets)
+        
+        # Update enemy bullets
+        self.enemy_bullets.update()
+        
+        # Check collisions
+        self.check_collisions()
+        
+        # Check for game over
+        if self.lives <= 0:
+            self.game_over = True
+        elif not self.enemies:
+            self.winner = True
+            self.game_over = True
+    
+    def check_collisions(self):
+        """Check collisions"""
+        # Bullet vs enemy
+        for bullet in self.bullets:
+            hit = pygame.sprite.spritecollide(bullet, self.enemies, True)
+            if hit:
+                self.score += 10
+                bullet.kill()
+        
+        # Enemy bullet vs player
+        for bullet in self.enemy_bullets:
+            if pygame.sprite.collide_rect(bullet, self.player):
+                self.lives -= 1
+                bullet.kill()
+                if self.player:
+                    self.player.reset()
+        
+        # Player vs enemy
+        for enemy in self.enemies:
+            if pygame.sprite.collide_rect(enemy, self.player):
+                self.lives -= 1
+                if self.player:
+                    self.player.reset()
+    
+    def draw(self):
+        """Draw everything"""
+        self.screen.fill(BLACK)
+        
+        # Draw player
+       

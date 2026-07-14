@@ -1,0 +1,6 @@
+Comparing two model quantizations without relying on a single answer requires a multi-faceted evaluation framework. A single metric (like accuracy on one test set) can be misleading because it might hide trade-offs in latency, memory, robustness, or behavior on specific data slices.
+
+Here is a structured, multi-dimensional approach to compare two quantizations (e.g., INT8 vs. FP16, or different quantization schemes like per-tensor vs. per-channel).
+
+### 1. Define the "Golden" Baseline
+Before comparing two quantized models, you need a reference point. This is usually the **unquantized (FP32/FP16

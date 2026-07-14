@@ -1,0 +1,9 @@
+Ti spiego il meccanismo di **softmax nell'attenzione** in modo semplice e intuitivo.
+
+## Cos'è l'attenzione?
+
+Immagina di leggere una frase e di voler capire quali parole sono più importanti per capire il significato di una parola specifica. L'attenzione fa proprio questo: assegna un "peso" a ogni elemento, dicendo quanto è importante.
+
+## Il ruolo del softmax
+
+Il softmax trasforma i punteggi di attenzione (che possono essere numeri qualsiasi) in **probabilità** (numeri tra 0

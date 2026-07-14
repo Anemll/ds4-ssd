@@ -1,0 +1,560 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade game "Astrans" (a fictional name for this replication) as a single-page web experience. It includes inline CSS and JS, with pixel-perfect sprite designs and authentic arcade mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade: Astrans</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #222;
+            border: 6px solid #5a3e1b;
+            border-radius: 20px 20px 10px 10px;
+            padding: 20px 30px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 20px #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .marquee {
+            background: #000;
+            color: #f0f0ff;
+            font-size: 1.8rem;
+            font-weight: bold;
+            letter-spacing: 6px;
+            text-shadow: 0 0 10px #7af, 0 0 20px #3af;
+            padding: 10px 30px;
+            border: 2px solid #f0d060;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            text-align: center;
+            width: 100%;
+        }
+        .screen-wrapper {
+            background: #000;
+            border: 4px solid #333;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            width: 640px;
+            height: 480px;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 20px #1a1a1a;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 15px;
+            gap: 20px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 20px;
+        }
+        .arcade-btn {
+            background: #d32f2f;
+            border: 3px solid #b71c1c;
+            border-radius: 50%;
+            width: 55px;
+            height: 55px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 0 #7f0000, 0 6px 10px rgba(0,0,0,0.6);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.05s;
+        }
+        .arcade-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #7f0000;
+        }
+        .arcade-btn.start {
+            background: #2e7d32;
+            border-color: #1b5e20;
+            box-shadow: 0 4px 0 #1b5e20;
+        }
+        .arcade-btn.start:active { box-shadow: 0 2px 0 #1b5e20; }
+        .info-panel {
+            color: #ddd;
+            font-size: 0.9rem;
+            background: #1a1a1a;
+            padding: 6px 12px;
+            border-radius: 12px;
+            border: 2px solid #444;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .info-panel span {
+            background: #000;
+            padding: 2px 10px;
+            border-radius: 6px;
+            color: #f0f060;
+        }
+        .footer {
+            color: #666;
+            font-size: 0.7rem;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="marquee">★ ASTRANS ★</div>
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="640" height="480"></canvas>
+    </div>
+    <div class="controls">
+        <div class="btn-group">
+            <button class="arcade-btn" id="btnLeft">←</button>
+            <button class="arcade-btn" id="btnRight">→</button>
+            <button class="arcade-btn" id="btnFire">⚡</button>
+        </div>
+        <div class="info-panel">
+            <span id="scoreDisplay">0000</span>
+            <span id="livesDisplay">♥♥♥</span>
+        </div>
+        <button class="arcade-btn start" id="btnStart">▶</button>
+    </div>
+    <div class="footer">1978 Taito · 1 or 2 players · insert coin</div>
+</div>
+<script>
+    (function() {
+        // ---------- ARCADE KERNEL ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const livesSpan = document.getElementById('livesDisplay');
+
+        // buttons
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+        const btnFire = document.getElementById('btnFire');
+        const btnStart = document.getElementById('btnStart');
+
+        // ---------- GAME STATE ----------
+        const PLAYER_W = 28, PLAYER_H = 20;   // hitbox slightly smaller than sprite
+        const INVADER_W = 28, INVADER_H = 20;
+        const INVADER_ROWS = 5;
+        const INVADERS_PER_ROW = 10;
+        const BOMB_W = 8, BOMB_H = 12;
+        const PLAYER_BULLET_W = 4, PLAYER_BULLET_H = 12;
+
+        let gameRunning = false;
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+
+        // player
+        let playerX = 320 - PLAYER_W/2;
+        const playerY = 440;
+        let playerSpeed = 5;
+
+        // invaders
+        let invaders = [];
+        let invaderDirection = 1; // 1 right, -1 left
+        let invaderStep = 0;
+        const INVADER_BASE_SPEED = 20;
+        let invaderMoveCounter = 0;
+        let invaderMoveDelay = 12; // frames per step
+        let invaderMoveFrame = 0;
+
+        // bullets
+        let playerBullets = [];
+        let enemyBullets = [];
+        const BULLET_SPEED = 7;
+        const ENEMY_BULLET_SPEED = 4;
+
+        // sprites (pixel art)
+        const PLAYER_SPRITE = [
+            "·8888·",
+            "888888",
+            "8·88·8",
+            "8·88·8",
+            "888888",
+            "·8··8·",
+            "·8··8·"
+        ];
+        const INVADER_SPRITE_1 = [
+            "··888·",
+            "·8888·",
+            "888888",
+            "8·88·8",
+            "888888",
+            "·8··8·",
+            "··88··"
+        ];
+        const INVADER_SPRITE_2 = [
+            "·888··",
+            "·8888·",
+            "888888",
+            "8·88·8",
+            "888888",
+            "·8··8·",
+            "··88··"
+        ];
+        // bomb sprite
+        const BOMB_SPRITE = [
+            "··88··",
+            "·8888·",
+            "888888",
+            "·8888·",
+            "··88··"
+        ];
+
+        // ---------- HELPERS ----------
+        function drawSprite(sprite, x, y, w, h, color1='#7df', color2='#fff') {
+            const rows = sprite.length;
+            const cols = sprite[0].length;
+            const cellW = w / cols;
+            const cellH = h / rows;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const ch = sprite[r][c];
+                    if (ch === '8') {
+                        ctx.fillStyle = (r%2===0 && c%2===0) ? color1 : color2;
+                        ctx.fillRect(x + c*cellW, y + r*cellH, cellW, cellH);
+                    } else if (ch === '·') {
+                        // empty
+                    }
+                }
+            }
+        }
+
+        // ---------- INIT / RESET ----------
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            gameRunning = true;
+            initLevel();
+            updateUI();
+        }
+
+        function initLevel() {
+            invaders = [];
+            const startX = 30;
+            const startY = 40;
+            for (let row = 0; row < INVADER_ROWS; row++) {
+                for (let col = 0; col < INVADERS_PER_ROW; col++) {
+                    invaders.push({
+                        x: startX + col * 55,
+                        y: startY + row * 45,
+                        alive: true,
+                        frame: 0
+                    });
+                }
+            }
+            invaderDirection = 1;
+            invaderMoveFrame = 0;
+            invaderMoveDelay = Math.max(6, 12 - level * 1);
+            playerBullets = [];
+            enemyBullets = [];
+            playerX = 320 - PLAYER_W/2;
+        }
+
+        // ---------- UPDATE ----------
+        function update() {
+            if (!gameRunning) return;
+
+            // move invaders
+            invaderMoveFrame++;
+            if (invaderMoveFrame >= invaderMoveDelay) {
+                invaderMoveFrame = 0;
+                let shift = invaderDirection * 12;
+                let edgeReach = false;
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    if (inv.x + shift <= 0 || inv.x + INVADER_W + shift >= 640) {
+                        edgeReach = true;
+                        break;
+                    }
+                }
+                if (edgeReach) {
+                    invaderDirection *= -1;
+                    for (let inv of invaders) {
+                        if (!inv.alive) continue;
+                        inv.y += 10;
+                    }
+                } else {
+                    for (let inv of invaders) {
+                        if (!inv.alive) continue;
+                        inv.x += shift;
+                    }
+                }
+                // toggle frame
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    inv.frame = (inv.frame + 1) % 2;
+                }
+            }
+
+            // enemy fire
+            if (Math.random() < 0.02 * (level * 0.5 + 0.5)) {
+                let aliveInvaders = invaders.filter(i => i.alive);
+                if (aliveInvaders.length > 0) {
+                    let idx = Math.floor(Math.random() * aliveInvaders.length);
+                    let src = aliveInvaders[idx];
+                    enemyBullets.push({
+                        x: src.x + INVADER_W/2 - BOMB_W/2,
+                        y: src.y + INVADER_H,
+                        w: BOMB_W, h: BOMB_H
+                    });
+                }
+            }
+
+            // move enemy bullets
+            for (let i = 0; i < enemyBullets.length; i++) {
+                let b = enemyBullets[i];
+                b.y += ENEMY_BULLET_SPEED;
+                if (b.y > 480) { enemyBullets.splice(i, 1); i--; continue; }
+                // collision with player
+                if (b.x < playerX + PLAYER_W && b.x + BOMB_W > playerX &&
+                    b.y < playerY + PLAYER_H && b.y + BOMB_H > playerY) {
+                    // hit player
+                    lives--;
+                    enemyBullets.splice(i, 1);
+                    i--;
+                    if (lives <= 0) {
+                        gameRunning = false;
+                        updateUI();
+                        break;
+                    }
+                    updateUI();
+                    continue;
+                }
+            }
+
+            // move player bullets
+            for (let i = 0; i < playerBullets.length; i++) {
+                let b = playerBullets[i];
+                b.y -= BULLET_SPEED;
+                if (b.y < 0) { playerBullets.splice(i, 1); i--; continue; }
+                // collision with invaders
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    if (b.x < inv.x + INVADER_W && b.x + PLAYER_BULLET_W > inv.x &&
+                        b.y < inv.y + INVADER_H && b.y + PLAYER_BULLET_H > inv.y) {
+                        inv.alive = false;
+                        playerBullets.splice(i, 1);
+                        i--;
+                        score += 10 * level;
+                        updateUI();
+                        break;
+                    }
+                }
+            }
+
+            // check win
+            if (invaders.every(inv => !inv.alive)) {
+                level++;
+                initLevel();
+                updateUI();
+            }
+
+            // player movement (keyboard / buttons handled via events)
+        }
+
+        // ---------- DRAW ----------
+        function draw() {
+            ctx.clearRect(0, 0, 640, 480);
+
+            // background grid
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0,0,640,480);
+            for (let i=0; i<640; i+=40) {
+                ctx.strokeStyle = '#1a1a1a';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(i,0);
+                ctx.lineTo(i,480);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0,i);
+                ctx.lineTo(640,i);
+                ctx.stroke();
+            }
+
+            // draw invaders
+            for (let inv of invaders) {
+                if (!inv.alive) continue;
+                let sprite = (inv.frame === 0) ? INVADER_SPRITE_1 : INVADER_SPRITE_2;
+                drawSprite(sprite, inv.x, inv.y, INVADER_W, INVADER_H, '#e04040', '#ff6060');
+            }
+
+            // draw enemy bullets (bombs)
+            for (let b of enemyBullets) {
+                drawSprite(BOMB_SPRITE, b.x, b.y, BOMB_W, BOMB_H, '#ff4', '#fa0');
+            }
+
+            // draw player
+            drawSprite(PLAYER_SPRITE, playerX, playerY, PLAYER_W, PLAYER_H, '#4af', '#8cf');
+
+            // draw player bullets
+            for (let b of playerBullets) {
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = '#7af';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(b.x, b.y, PLAYER_BULLET_W, PLAYER_BULLET_H);
+                ctx.shadowBlur = 0;
+            }
+
+            // game over overlay
+            if (!gameRunning && lives <= 0) {
+                ctx.fillStyle = '#000';
+                ctx.globalAlpha = 0.7;
+                ctx.fillRect(0, 200, 640, 80);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#f22';
+                ctx.font = 'bold 36px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', 320, 260);
+                ctx.font = '18px monospace';
+                ctx.fillStyle = '#ffa';
+                ctx.fillText('PRESS START', 320, 300);
+            } else if (!gameRunning && lives > 0) {
+                ctx.fillStyle = '#000';
+                ctx.globalAlpha = 0.5;
+                ctx.fillRect(0, 200, 640, 60);
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#0af';
+                ctx.font = 'bold 28px "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText('INSERT COIN', 320, 250);
+            }
+        }
+
+        // ---------- UI UPDATE ----------
+        function updateUI() {
+            scoreSpan.textContent = String(score).padStart(4, '0');
+            let hearts = '';
+            for (let i=0; i<lives; i++) hearts += '♥';
+            livesSpan.textContent = hearts || '💀';
+        }
+
+        // ---------- INPUT ----------
+        let keys = { left: false, right: false, fire: false };
+
+        function handleKeyDown(e) {
+            if (!gameRunning) return;
+            const key = e.key;
+            if (key === 'ArrowLeft' || key === 'a') keys.left = true;
+            if (key === 'ArrowRight' || key === 'd') keys.right = true;
+            if (key === ' ' || key === 'z' || key === 'x') {
+                if (!keys.fire) {
+                    keys.fire = true;
+                    fireBullet();
+                }
+            }
+            e.preventDefault();
+        }
+
+        function handleKeyUp(e) {
+            const key = e.key;
+            if (key === 'ArrowLeft' || key === 'a') keys.left = false;
+            if (key === 'ArrowRight' || key === 'd') keys.right = false;
+            if (key === ' ' || key === 'z' || key === 'x') keys.fire = false;
+            e.preventDefault();
+        }
+
+        function fireBullet() {
+            if (!gameRunning) return;
+            if (playerBullets.length >= 2) return; // max 2 on screen
+            playerBullets.push({
+                x: playerX + PLAYER_W/2 - PLAYER_BULLET_W/2,
+                y: playerY - 10,
+                w: PLAYER_BULLET_W, h: PLAYER_BULLET_H
+            });
+        }
+
+        // button events
+        btnLeft.addEventListener('mousedown', (e) => { e.preventDefault(); keys.left = true; });
+        btnLeft.addEventListener('mouseup', (e) => { e.preventDefault(); keys.left = false; });
+        btnLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left = true; });
+        btnLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys.left = false; });
+
+        btnRight.addEventListener('mousedown', (e) => { e.preventDefault(); keys.right = true; });
+        btnRight.addEventListener('mouseup', (e) => { e.preventDefault(); keys.right = false; });
+        btnRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right = true; });
+        btnRight.addEventListener('touchend', (e) => { e.preventDefault(); keys.right = false; });
+
+        btnFire.addEventListener('mousedown', (e) => { e.preventDefault(); if (!keys.fire) { keys.fire = true; fireBullet(); } });
+        btnFire.addEventListener('mouseup', (e) => { e.preventDefault(); keys.fire = false; });
+        btnFire.addEventListener('touchstart', (e) => { e.preventDefault(); if (!keys.fire) { keys.fire = true; fireBullet(); } });
+        btnFire.addEventListener('touchend', (e) => { e.preventDefault(); keys.fire = false; });
+
+        btnStart.addEventListener('click', (e) => {
+            e.preventDefault();
+            resetGame();
+        });
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+
+        // ---------- GAME LOOP ----------
+        function gameLoop() {
+            if (gameRunning) {
+                // move player
+                if (keys.left) playerX -= playerSpeed;
+                if (keys.right) playerX += playerSpeed;
+                playerX = Math.max(0, Math.min(640 - PLAYER_W, playerX));
+
+                update();
+                // enemy fire can also happen in update
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // start loop
+        gameLoop();
+
+        // initial state (waiting)
+        gameRunning = false;
+        lives = 3;
+        score = 0;
+        initLevel();
+        updateUI();
+        // draw demo invaders
+        // but we need to show something
+        // force draw
+        setTimeout(() => { draw(); }, 50);
+
+        // additional cleanup for mobile
+        console.log('Astrans 1978 Taito Arcade');
+    })();
+</script>
+</body>
+</html>
+```
+### Gameplay & Design Overview
+This page captures the look and feel of a classic 1978 arcade cabinet. Here's how it works:
+
+- **Core Mechanics**: You control a player ship at the bottom, moving left and right to avoid enemy bombs and shoot at the invading aliens. The invaders move in a wave pattern, dropping bombs at random intervals.
+- **Controls & Feedback**: Use the on-screen buttons or your keyboard (arrow keys to move, space/Z/X to fire). The score and lives display update in real-time, and the game ends when you lose all lives.
+- **Visual & Audio Cues**: The pixel-art sprites and grid background recreate the original's aesthetic. The marquee and button styles mimic the arcade cabinet's physical interface.
+
+The code is structured to be self-contained, with all styling and logic inline for a single-file arcade experience.

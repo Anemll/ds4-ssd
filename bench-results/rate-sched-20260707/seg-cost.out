@@ -1,0 +1,290 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade experience of Space Invaders, with inline CSS and JS.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 16px;
+        }
+        .cabinet {
+            background: #111;
+            border: 4px solid #444;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 200, 0, 0.2), inset 0 0 30px #000;
+            padding: 20px 20px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 780px;
+            width: 100%;
+        }
+        .screen-wrapper {
+            background: #000;
+            border: 6px solid #222;
+            border-radius: 12px;
+            padding: 8px;
+            width: 100%;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            background: #000;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 640 / 720;
+            image-rendering: pixelated;
+            border: 2px solid #0f0f0f;
+            cursor: none;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-top: 20px;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .btn-group {
+            display: flex;
+            gap: 20px;
+        }
+        .arcade-btn {
+            background: #222;
+            border: 3px solid #555;
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cfcfcf;
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 6px #0f0;
+            box-shadow: 0 4px 0 #000, inset 0 2px 0 #666;
+            transition: 0.05s;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .arcade-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #000, inset 0 2px 0 #444;
+        }
+        .arcade-btn.start {
+            background: #1a1a1a;
+            border-color: #e80;
+            color: #ffb;
+            font-size: 22px;
+            width: 90px;
+            height: 60px;
+            border-radius: 20px;
+        }
+        .info-panel {
+            display: flex;
+            gap: 30px;
+            color: #7f7;
+            font-size: 1.2rem;
+            background: #0a0a0a;
+            padding: 8px 20px;
+            border: 2px solid #2a2a2a;
+            border-radius: 20px;
+            letter-spacing: 2px;
+        }
+        .info-panel span {
+            min-width: 70px;
+        }
+        .footer-note {
+            color: #3a3a3a;
+            font-size: 0.7rem;
+            margin-top: 12px;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            .arcade-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 20px;
+            }
+            .info-panel {
+                font-size: 0.9rem;
+                padding: 4px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="640" height="720"></canvas>
+    </div>
+    <div class="controls">
+        <div class="btn-group">
+            <button class="arcade-btn" id="leftBtn">◄</button>
+            <button class="arcade-btn" id="rightBtn">►</button>
+        </div>
+        <div class="info-panel">
+            <span id="scoreDisplay">0000</span>
+            <span id="livesDisplay">❤️❤️❤️</span>
+        </div>
+        <button class="arcade-btn start" id="startBtn">START</button>
+    </div>
+    <div class="footer-note">← 1978 Taito · Space Invaders →</div>
+</div>
+<script>
+    (function() {
+        // ---------- ORIGINAL 1978 FIDELITY ----------
+        // Dimensions: 640x720 (vertical monitor)
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // ---------- GAME CONFIG (original rules) ----------
+        const ROWS = 5;          // 5 rows of invaders
+        const COLS = 11;         // 11 columns (original)
+        const INVADER_WIDTH = 28;
+        const INVADER_HEIGHT = 20;
+        const PLAYER_WIDTH = 26;
+        const PLAYER_HEIGHT = 16;
+        const PLAYER_Y = 680;     // near bottom
+        const INVADER_Y_START = 40;
+        const INVADER_OFFSET = 40; // vertical spacing
+
+        // timing (original: 1 invader moves every 2 frames at start)
+        let frameCounter = 0;
+        const INITIAL_INVADER_SPEED = 10; // frames per step
+        let invaderSpeed = INITIAL_INVADER_SPEED;
+        let invaderMoveCounter = 0;
+
+        // game state
+        let playerX = 300;        // center
+        let playerLives = 3;
+        let score = 0;
+        let gameActive = false;
+        let gameOverFlag = false;
+        let winFlag = false;
+
+        // invaders array
+        let invaders = [];
+        let invaderDirection = 1; // 1 = right, -1 = left
+        let invaderStep = 0;      // 0 or 1 for animation frame
+
+        // bullets
+        let playerBullet = null;   // { x, y, active }
+        let invaderBullets = [];
+        const BULLET_SPEED = 6;
+        const INVADER_BULLET_SPEED = 5;
+        const PLAYER_BULLET_MAX = 1; // only one at a time
+
+        // bunkers (original: 4 bunkers, but we use 3 for balance)
+        let bunkers = [];
+        const BUNKER_COUNT = 3;
+        const BUNKER_WIDTH = 40;
+        const BUNKER_HEIGHT = 24;
+        const BUNKER_Y = 640;
+
+        // animation
+        let invaderFrame = 0;      // 0/1 for sprite
+
+        // input
+        let leftPressed = false;
+        let rightPressed = false;
+        let firePressed = false;
+
+        // UI elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const livesDisplay = document.getElementById('livesDisplay');
+
+        // ---------- INIT ----------
+        function resetGame() {
+            // invaders
+            invaders = [];
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    let x = 80 + col * 45;   // spacing
+                    let y = INVADER_Y_START + row * INVADER_OFFSET;
+                    let type = (row === 0) ? 'crab' : (row === 1 ? 'crab' : 'squid'); // original: top 2 rows crab, rest squid
+                    if (row === 0 || row === 1) type = 'crab';
+                    else type = 'squid';
+                    invaders.push({
+                        x, y, row, col,
+                        type: type,
+                        alive: true
+                    });
+                }
+            }
+            // bunkers
+            bunkers = [];
+            const startX = 120;
+            const spacing = 160;
+            for (let i = 0; i < BUNKER_COUNT; i++) {
+                bunkers.push({
+                    x: startX + i * spacing,
+                    y: BUNKER_Y,
+                    width: BUNKER_WIDTH,
+                    height: BUNKER_HEIGHT,
+                    health: 4   // 4 hits to destroy
+                });
+            }
+            // player
+            playerX = 300;
+            playerLives = 3;
+            score = 0;
+            gameOverFlag = false;
+            winFlag = false;
+            gameActive = true;
+            playerBullet = null;
+            invaderBullets = [];
+            invaderDirection = 1;
+            invaderSpeed = INITIAL_INVADER_SPEED;
+            invaderMoveCounter = 0;
+            frameCounter = 0;
+            updateUI();
+        }
+
+        // ---------- HELPER: draw pixel art (original sprites) ----------
+        function drawInvader(ctx, x, y, type, frame, isAlive) {
+            if (!isAlive) return;
+            const scale = 1;
+            // crab sprite (top rows)
+            if (type === 'crab') {
+                ctx.fillStyle = '#5f0';
+                // body
+                ctx.fillRect(x+4, y+2, 20, 6);
+                ctx.fillRect(x+2, y+6, 24, 8);
+                // legs (frame based)
+                if (frame === 0) {
+                    ctx.fillRect(x+2, y+14, 6, 6);
+                    ctx.fillRect(x+20, y+14, 6, 6);
+                } else {
+                    ctx.fillRect(x+6, y+14, 6, 6);
+                    ctx.fillRect(x+16, y+14, 6, 6);
+                }
+                // eyes
+                ctx.fillStyle = '#ff0';
+                ctx.fillRect(x+8, y+4, 4, 4);
+                ctx.fillRect(x+16, y+4, 4, 4);
+                // gun
+                ctx.fillStyle = '#5f0';
+                ctx.fillRect(x+12, y-2, 4, 6);
+            } else { // squid (bottom rows)
+                ctx.fillStyle = '#f0f';
+                ctx.fillRect(x+6, y+2, 16, 6);
+                ctx.fillRect(x+4, y+6, 20, 8);
+                if (frame === 0) {
+                    ctx

@@ -1,0 +1,130 @@
+ds4-agent: detected DS4 sidecar package: -m /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)
+ds4-agent: context buffers 1051.74 MiB (ctx=32768, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=8194)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 117.19 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash (slot-bank=134, expert-record 12.75 MiB)
+ds4: Flash-MoE MXFP4 storage layout: mxfp4_plane_split_v1 (native plane sidecar, no runtime repack on direct native paths)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.280 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 4096, graph_raw_cap=auto
+ds4: Flash-MoE slot banks allocated: layers=43 slots=134 gpu-bank=71.7GB Dense: 8.2GB Context: 1.0GB Total <<<< 81.0GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=134, gpu-bank=71.74 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = MPP 4.1 native MXFP4 (plane-sidecar/no-repack) | dense proj = fp16-NAX (half x half)
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=67
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off resident=slot-bank slots=134
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (slotwise, experts=6)
+prefill 1/71 (1.4%) batch=0.5 t/s avg=0.5 t/s
+prefill 2/71 (2.8%) batch=0.9 t/s avg=0.7 t/s
+prefill 3/71 (4.2%) batch=5.4 t/s avg=0.9 t/s
+prefill 4/71 (5.6%) batch=3.6 t/s avg=1.1 t/s
+prefill 5/71 (7.0%) batch=5.1 t/s avg=1.3 t/s
+prefill 6/71 (8.5%) batch=8.0 t/s avg=1.6 t/s
+prefill 7/71 (9.9%) batch=5.4 t/s avg=1.7 t/s
+prefill 8/71 (11.3%) batch=3.2 t/s avg=1.8 t/s
+prefill 9/71 (12.7%) batch=6.4 t/s avg=2.0 t/s
+prefill 10/71 (14.1%) batch=5.8 t/s avg=2.1 t/s
+prefill 11/71 (15.5%) batch=11.6 t/s avg=2.3 t/s
+prefill 12/71 (16.9%) batch=8.6 t/s avg=2.5 t/s
+prefill 13/71 (18.3%) batch=7.5 t/s avg=2.6 t/s
+prefill 14/71 (19.7%) batch=11.9 t/s avg=2.8 t/s
+prefill 15/71 (21.1%) batch=8.0 t/s avg=2.9 t/s
+prefill 16/71 (22.5%) batch=8.0 t/s avg=3.0 t/s
+prefill 17/71 (23.9%) batch=10.5 t/s avg=3.1 t/s
+prefill 18/71 (25.4%) batch=8.4 t/s avg=3.3 t/s
+prefill 19/71 (26.8%) batch=8.9 t/s avg=3.4 t/s
+prefill 20/71 (28.2%) batch=8.2 t/s avg=3.5 t/s
+prefill 21/71 (29.6%) batch=8.8 t/s avg=3.6 t/s
+prefill 22/71 (31.0%) batch=8.7 t/s avg=3.7 t/s
+prefill 23/71 (32.4%) batch=8.1 t/s avg=3.8 t/s
+prefill 24/71 (33.8%) batch=9.5 t/s avg=3.9 t/s
+prefill 25/71 (35.2%) batch=6.5 t/s avg=3.9 t/s
+prefill 26/71 (36.6%) batch=6.2 t/s avg=4.0 t/s
+prefill 27/71 (38.0%) batch=7.5 t/s avg=4.0 t/s
+prefill 28/71 (39.4%) batch=7.3 t/s avg=4.1 t/s
+prefill 29/71 (40.8%) batch=9.9 t/s avg=4.2 t/s
+prefill 30/71 (42.3%) batch=5.5 t/s avg=4.2 t/s
+prefill 31/71 (43.7%) batch=7.3 t/s avg=4.3 t/s
+prefill 32/71 (45.1%) batch=11.3 t/s avg=4.4 t/s
+prefill 33/71 (46.5%) batch=6.9 t/s avg=4.4 t/s
+prefill 34/71 (47.9%) batch=8.8 t/s avg=4.5 t/s
+prefill 35/71 (49.3%) batch=13.0 t/s avg=4.6 t/s
+prefill 36/71 (50.7%) batch=7.9 t/s avg=4.6 t/s
+prefill 37/71 (52.1%) batch=9.9 t/s avg=4.7 t/s
+prefill 38/71 (53.5%) batch=7.9 t/s avg=4.7 t/s
+prefill 39/71 (54.9%) batch=14.8 t/s avg=4.8 t/s
+prefill 40/71 (56.3%) batch=12.1 t/s avg=4.9 t/s
+prefill 41/71 (57.7%) batch=9.9 t/s avg=5.0 t/s
+prefill 42/71 (59.2%) batch=9.8 t/s avg=5.0 t/s
+prefill 43/71 (60.6%) batch=16.6 t/s avg=5.1 t/s
+prefill 44/71 (62.0%) batch=16.8 t/s avg=5.2 t/s
+prefill 45/71 (63.4%) batch=9.4 t/s avg=5.2 t/s
+prefill 46/71 (64.8%) batch=9.9 t/s avg=5.3 t/s
+prefill 47/71 (66.2%) batch=10.8 t/s avg=5.4 t/s
+prefill 48/71 (67.6%) batch=12.2 t/s avg=5.4 t/s
+prefill 49/71 (69.0%) batch=12.1 t/s avg=5.5 t/s
+prefill 50/71 (70.4%) batch=12.6 t/s avg=5.5 t/s
+prefill 51/71 (71.8%) batch=10.2 t/s avg=5.6 t/s
+prefill 52/71 (73.2%) batch=12.5 t/s avg=5.6 t/s
+prefill 53/71 (74.6%) batch=8.3 t/s avg=5.7 t/s
+prefill 54/71 (76.1%) batch=14.9 t/s avg=5.7 t/s
+prefill 55/71 (77.5%) batch=15.1 t/s avg=5.8 t/s
+prefill 56/71 (78.9%) batch=15.0 t/s avg=5.9 t/s
+prefill 57/71 (80.3%) batch=14.4 t/s avg=5.9 t/s
+prefill 58/71 (81.7%) batch=12.5 t/s avg=6.0 t/s
+prefill 59/71 (83.1%) batch=8.6 t/s avg=6.0 t/s
+prefill 60/71 (84.5%) batch=10.5 t/s avg=6.1 t/s
+prefill 61/71 (85.9%) batch=7.0 t/s avg=6.1 t/s
+prefill 62/71 (87.3%) batch=10.0 t/s avg=6.1 t/s
+prefill 63/71 (88.7%) batch=11.4 t/s avg=6.2 t/s
+ds4: Flash-MoE residency @tok 64: slots=134 resident=3644/5762 (63.2%) per-layer min/avg/max 54/84.7/134 bank-resident=45.37 GiB window hits=12442 misses=3812 (hit 76.5%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.51 GiB decompressions=242167
+prefill 64/71 (90.1%) batch=11.3 t/s avg=6.2 t/s
+prefill 65/71 (91.5%) batch=15.1 t/s avg=6.3 t/s
+prefill 66/71 (93.0%) batch=14.1 t/s avg=6.3 t/s
+prefill 67/71 (94.4%) batch=11.9 t/s avg=6.4 t/s
+prefill 68/71 (95.8%) batch=11.0 t/s avg=6.4 t/s
+prefill 69/71 (97.2%) batch=13.8 t/s avg=6.5 t/s
+prefill 70/71 (98.6%) batch=7.7 t/s avg=6.5 t/s
+prefill 71/71 (100.0%) batch=9.9 t/s avg=6.5 t/s
+I'll build a pixel-perfect Space Invaders arcade game in a single HTML file. This will replicate the original 1978 Taito experience with authentic sprites, mechanics, and rules.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charsetds4: Flash-MoE residency @tok 128: slots=134 resident=5016/5762 (87.1%) per-layer min/avg/max 88/116.7/134 bank-resident=62.46 GiB window hits=14633 misses=1879 (hit 88.6%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242174
+="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPACE INVADERS - 1978</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;display:flexds4: Flash-MoE residency @tok 192: slots=134 resident=5653/5762 (98.1%) per-layer min/avg/max 110/131.5/134 bank-resident=70.39 GiB window hits=14896 misses=1616 (hit 90.2%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242177
+;justify-content:center;align-items:center;min-height:100vh;font-family:'Courier New',monospace;overflow:hidden}
+#game-container{position:relative;background:#000;border:4px solid #333;box-shadow:0 0 40px rgba(0ds4: Flash-MoE residency @tok 256: slots=134 resident=5755/5762 (99.9%) per-layer min/avg/max 127/133.8/134 bank-resident=71.66 GiB window hits=15271 misses=1241 (hit 92.5%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242182
+,255,0,.15),inset 0 0 60px rgba(0,255,0,.05)}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+#ui-overlay{position:absolute;top:0;leftds4: Flash-MoE residency @tok 320: slots=134 resident=5762/5762 (100.0%) per-layer min/avg/max 134/134.0/134 bank-resident=71.74 GiB window hits=15487 misses=1025 (hit 93.8%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242183
+:0;width:100%;height:100%;pointer-events:none}
+#ui-overlay>*{pointer-events:auto}
+#start-screen,#game-over-screen{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:ds4: Flash-MoE residency @tok 384: slots=134 resident=5762/5762 (100.0%) per-layer min/avg/max 134/134.0/134 bank-resident=71.74 GiB window hits=15707 misses=805 (hit 95.1%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242184
+column;justify-content:center;align-items:center;background:rgba(0,0,0,.85);color:#0f0;text-align:center}
+#start-screen h1{font-size:28px;letter-spacing:8px;margin-bottom:10px;text-shadowds4: Flash-MoE residency @tok 448: slots=134 resident=5762/5762 (100.0%) per-layer min/avg/max 134/134.0/134 bank-resident=71.74 GiB window hits=15594 misses=918 (hit 94.4%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242184
+:0 0 20px #0f0}
+#start-screen .sub{font-size:12px;color:#0a0;margin-bottom:30px;letter-spacing:4px}
+#start-screen .blink{animation:blink 1s step-end infinite;font-size:ds4: Flash-MoE residency @tok 512: slots=134 resident=5762/5762 (100.0%) per-layer min/avg/max 134/134.0/134 bank-resident=71.74 GiB window hits=15799 misses=713 (hit 95.7%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242187
+14px;margin-top:20px}
+#game-over-screen h2{font-size:24px;letter-spacing:6px;margin-bottom:10px;text-shadow:0 0 20px #f00;color:#f00}
+#game-over-screen .score{font-size:16ds4: Flash-MoE residency @tok 576: slots=134 resident=5762/5762 (100.0%) per-layer min/avg/max 134/134.0/134 bank-resident=71.74 GiB window hits=15741 misses=771 (hit 95.3%) gpu-footprint=72.46 GiB gpu-compressed=0.00 GiB task-compressed=0.03 GiB phys=72.52 GiB decompressions=242187
+px;color:#0f0ds4-agent: turn-stats round=0 generated=512 max=512 decode_s=34.430617 gen_tps=14.870 ctx=1857 stop=max_tokens
+;
+

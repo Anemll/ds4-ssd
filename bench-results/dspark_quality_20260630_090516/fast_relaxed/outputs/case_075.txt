@@ -1,0 +1,11 @@
+Un trie (albero di prefisso) rappresenta un insieme di stringhe organizzando le loro sequenze di caratteri in una struttura ad albero. Ecco come funziona:
+
+## Struttura base
+
+- **Nodo radice**: rappresenta la stringa vuota
+- **Nodi figli**: ogni carattere della stringa è un nodo figlio
+- **Percorso**: ogni stringa è un percorso dalla radice a un nodo terminale
+
+## Caratteristiche principali
+
+1. **Prefissi condivisi**: stringhe con lo stesso prefisso condivid

@@ -1,0 +1,7 @@
+Questa è un'ottima domanda. La cache KV (Key-Value) su disco è un componente fondamentale per rendere le sessioni degli agenti AI efficienti, scalabili e affidabili, specialmente quando si gestiscono conversazioni lunghe o complesse.
+
+Ecco una spiegazione dettagliata del perché è così utile, partendo dal problema che risolve.
+
+### Il Problema: Il "Collo di Bottiglia" della Memoria Context
+
+In un modello linguistico di grandi dimensioni (LLM), la "memoria" della conversazione è limitata da un parametro chiamato **

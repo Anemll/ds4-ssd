@@ -1,0 +1,5 @@
+Ecco cinque misure iniziali per affrontare un problema di decoding lento in un modello di linguaggio con contesto lungo:
+
+1. **Verificare la dimensione del contesto e il limite di memoria**: Controllare se il modello sta effettivamente utilizzando la dimensione massima del contesto supportata (es. 4k, 8k, 16k token) e se la memoria GPU/CPU è sufficiente per gestire il carico di lavoro. Aumentare la memoria o ridurre la dimensione del contesto se necessario.
+
+2. **Ottimizzare l'

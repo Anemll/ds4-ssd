@@ -1,0 +1,37 @@
+{
+  "argv": [
+    "./ds4",
+    "-m",
+    "/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major",
+    "--draft",
+    "dspark",
+    "--draft-path",
+    "/Users/anemll/Models/DSv4-Flash-DSpark-draft",
+    "--nothink",
+    "--temp",
+    "0",
+    "--resident",
+    "-c",
+    "20000",
+    "-p",
+    "Create an Asteroids arcade game in a single self-contained HTML file with inline CSS and JavaScript. Replicate the original arcade experience with screen wrapping, friction-based movement, asteroid splitting, green vector-style graphics, particle explosions, score, and lives. Save the result to /tmp/si-cv5.html, test it by opening it in a web browser, and skip web search."
+  ],
+  "benchmark": "b",
+  "code_sandbox_marker_removed": true,
+  "cwd": "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd",
+  "description": "Asteroids / adaptive Mode-B rows6 confidence",
+  "env": {
+    "DS4_DSPARK_CONF_SCALE": "0.85",
+    "DS4_DSPARK_CONF_THRESHOLD": "0.50",
+    "DS4_DSPARK_FORCE_TARGET_FIRST": "1",
+    "DS4_DSPARK_FRONTIER_DRAFT": "1",
+    "DS4_DSPARK_HYBRID_BATCH_ATTN_DECODE_ORDER": "0",
+    "DS4_DSPARK_MODEB_ADAPTIVE": "1",
+    "DS4_DSPARK_ROWS6_CONFIDENCE": "1",
+    "DS4_DSPARK_ROWS6_COST_AWARE": "1",
+    "DS4_DSPARK_THREE_WAY_LOG": "1",
+    "DS4_DSPARK_VERIFY_ROWS6": "1"
+  },
+  "job_id": "20260710_160612_06a72fc3d8",
+  "pty": true
+}

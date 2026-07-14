@@ -1,0 +1,79 @@
+Here is a complete HTML file that builds a pixel-perfect Space Invaders arcade game, recreating the original 1978 Taito cabinet experience.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders - 1978 Taito Arcade</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet-wrapper {
+      background: #111;
+      border-radius: 20px;
+      padding: 20px 30px;
+      box-shadow: 0 0 0 2px #333, 0 0 20px #0000aa;
+      border: 2px solid #444;
+    }
+    .game-container {
+      position: relative;
+      background: #000;
+      width: 800px;
+      height: 600px;
+      border: 4px solid #222;
+      box-shadow: inset 0 0 0 2px #0a0a0a, 0 0 0 2px #000;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      background: #000;
+    }
+    .info-panel {
+      display: flex;
+      justify-content: space-between;
+      color: #ff0;
+      font-size: 18px;
+      padding: 8px 12px;
+      background: #000;
+      border-bottom: 2px solid #333;
+      text-shadow: 0 0 4px #0f0;
+      letter-spacing: 2px;
+    }
+    .score, .lives, .high {
+      background: #000;
+      padding: 2px 8px;
+      border: 1px solid #0f0;
+    }
+    .controls {
+      display: flex;
+      justify-content: center;
+      color: #0f0;
+      font-size: 12px;
+      padding: 6px 0;
+      background: #111;
+      border-top: 2px solid #333;
+      gap: 20px;
+    }
+    .controls span {
+      background: #000;
+      padding: 0 6px;
+      border: 1px solid #555;
+    }
+    /* pixel art style */
+    .game-overlay {
+      position: absolute;
+      top: 0;

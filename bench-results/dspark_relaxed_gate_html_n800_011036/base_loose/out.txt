@@ -1,0 +1,91 @@
+I'll create a pixel-perfect Space Invaders arcade game in a single HTML file, replicating the original 1978 Taito experience with authentic sprites, mechanics, and rules.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 TAITO ARCADE</title>
+    <style>
+        /* CRT scanline overlay + retro palette */
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #111;
+            border-radius: 24px 24px 12px 12px;
+            padding: 20px 20px 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 0 20px #2a1f1f;
+            border: 2px solid #3e2b2b;
+        }
+        .screen-wrapper {
+            position: relative;
+            background: #0f0f0f;
+            border: 6px solid #2b1a1a;
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: inset 0 0 20px #000, 0 0 0 2px #3f2a2a;
+        }
+        canvas {
+            display: block;
+            margin: 0 auto;
+            width: 600px;
+            height: 600px;
+            image-rendering: pixelated;
+            background: #0f0b0b;
+            box-shadow: 0 0 0 2px #2e1e1e;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            color: #b8a88a;
+            font-size: 1.1rem;
+            text-shadow: 0 0 4px #b87a3a;
+            background: #1e1414;
+            padding: 10px 20px;
+            border-radius: 40px;
+            border: 2px solid #3f2a2a;
+        }
+        .btn {
+            background: #2f1e1e;
+            border: 2px solid #b87a3a;
+            color: #e0c9a0;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 6px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            box-shadow: 0 0 6px #b87a3a;
+            transition: 0.1s;
+        }
+        .btn:active {
+            background: #4a2a2a;
+            transform: scale(0.95);
+        }
+        .info {
+            display: flex;
+            gap: 30px;
+        }
+        .info span {
+            background: #0f0a0a;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #b87a3a;
+        }
+        /* scanline overlay */
+        .screen-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 8px; left

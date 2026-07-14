@@ -1,0 +1,70 @@
+I'll create a complete Space Invaders game using Pygame. This will include the player ship, enemies, bullets, and all the classic gameplay mechanics.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 40
+ENEMY_SIZE = 30
+BULLET_SIZE = 5
+PLAYER_SPEED = 5
+ENEMY_SPEED = 1
+BULL_SPEED = 7
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+CYAN = (0, 255, 255)
+
+class Player:
+        def __init__(self):
+                self.rect = pygame.Rect(SCREEN_WIDTH//2 - PLAYER_SIZE//2, 
+                                        SCREEN_HEIGHT - 100, 
+                                        PLAYER_SIZE, PLAYER_SIZE)
+                self.speed = PLAYER_SPE
+                self.lives = 3
+                self.score = 0
+        
+        def move(self, keys):
+                if keys[pygame.K_LEFT] and self.rect.left > 0:
+                        self.rect.x -= self.speed
+                if keys[pygame.K_RIGHT] and self.rect.right < SCREEN_WIDTH:
+                        self.rect.x += self.speed
+        
+        draw(self, screen):
+                pygame.draw.rect(screen, GREEN, self.rect)
+                # Draw a simple ship shape
+                pygame.draw.polygon(screen, WHITE, [
+                        (self.rect.centerx, self.rect.top),
+                        (self.rect.left, self.rect.bottom),
+                        (self.rect.right, self.rect.bottom)
+                ], 2)
+
+class Enemy:
+        def __init__(self, x, y):
+                self.rect = pygame.Rect(x, y, ENEMY_SIZE, ENEMY_SIZE)
+                self.direction = 1
+                self.speed = ENEMY_SPEED
+                self.shoot_timer = random.randint(60, 180)
+        
+        def update(self):
+                self.rect.x += self.speed * self.direction
+        
+        def draw(self, screen):
+                pygame.draw.rect(screen, self.color, self.rect)
+                # Draw alien features
+                pygame.draw.circle(screen, BLACK, 
+                                 (self.rect.centerx, self.centery -5), 5)
+                pygame.draw.circle(screen, BLACK, 
+                                 (self.rect.centerx

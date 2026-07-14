@@ -1,0 +1,8 @@
+Here is a comprehensive checklist for validating that a quantized model still follows instructions effectively.
+
+This checklist is designed to be model-agnostic and focuses on **behavioral consistency** rather than just numerical accuracy.
+
+### Phase 1: Pre-Validation (Sanity & Baseline)
+
+- [ ] **Define "Ground Truth":** Before quantizing, run the original model on a set of 10-20 diverse, complex instructions. Save the exact outputs (text, code, JSON, etc.) as the "gold standard" baseline.
+- [ ] **Check Quantization Type:** Confirm the quantization method (e.g., INT8, INT

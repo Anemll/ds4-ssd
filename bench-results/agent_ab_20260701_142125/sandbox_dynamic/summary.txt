@@ -1,0 +1,1 @@
+The project notes describe a decode pipeline with three stages: loading weights, drafting tokens, and verifying them. Two tasks remain open: profiling the draft wall and automating the agent benchmark. The verifier must remain exact for correctness.

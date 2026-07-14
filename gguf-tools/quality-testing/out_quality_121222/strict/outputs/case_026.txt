@@ -1,0 +1,3 @@
+Here is a brief plan for testing long-context prompt chunking, focusing on a practical, iterative approach.
+
+**Goal

@@ -1,0 +1,1 @@
+Ecco un breve esempio di **race condition** in C, tipico di un programma multi-thread che condivide

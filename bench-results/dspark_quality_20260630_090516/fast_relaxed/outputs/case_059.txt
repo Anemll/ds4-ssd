@@ -1,0 +1,7 @@
+Questa domanda tocca un punto cruciale nel lavoro con l'AI: la differenza tra **"ottenere una risposta"** e **"ottenere la migliore risposta"**.
+
+Valutare 50 prompt (o più) è più utile di un singolo prompt preferito per diversi motivi, che possiamo raggruppare in tre categorie principali:
+
+### 1. Esplorazione dello spazio delle soluzioni
+
+Un singolo prompt, anche se ben scritto, è solo un **punto** in un vasto spazio di possibili risposte. L'AI

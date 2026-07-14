@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/html_stress_temp_gated_223921/html_stress.out	11169	296	236	13	2	p:2	0		1	0	3	43	21	1

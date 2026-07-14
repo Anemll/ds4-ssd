@@ -1,0 +1,9 @@
+Questa è un'ottima domanda, perché tocca un concetto fondamentale nei sistemi distribuiti.
+
+**Consistenza eventuale** (o *Eventual Consistency* in inglese) è un modello di consistenza per database distribuiti, ed è una delle caratteristiche principali dei database **NoSQL** (come Cassandra, DynamoDB, CouchDB).
+
+Ecco il significato e come funziona, spiegato in modo semplice.
+
+### L'idea principale
+
+In un database distribuito, i tuoi dati vengono replicati su più server (nodi) in diverse parti del mondo per garant

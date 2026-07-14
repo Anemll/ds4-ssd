@@ -1,0 +1,12 @@
+Ecco tre invarianti per una tabella di token speciali (come gettoni, crediti, o punti in un sistema):
+
+---
+
+### 1. **Invariante di unicità**
+> Ogni token speciale deve essere associato a un solo utente o entità in un dato momento.
+
+**Formulazione:**  
+`∀ token t ∈ TabellaToken, ∃! utente u ∈ Utenti : t.assegnatoA = u`
+
+**Spiegazione:**  
+Un token non può essere condiviso tra più utenti contemporaneamente. Se un token viene assegnato a

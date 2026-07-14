@@ -1,0 +1,66 @@
+Here is a complete HTML file that recreates a pixel-perfect Space Invaders game, based on the original 1978 Taito arcade cabinet.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders · 1978 Taito Cabinet</title>
+  <style>
+    /* === RESET & BASE === */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* === CABINET WRAPPER === */
+    .cabinet {
+      background: #1a1a2e;
+      border: 6px solid #000;
+      border-radius: 20px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 0 2px #333, 0 0 20px #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* MARQUEE / TITLE */
+    .marquee {
+      background: #000;
+      color: #f0f0f0;
+      text-shadow: 0 0 6px #f0f0f0, 0 0 12px #f0f0f0;
+      font-size: 1.6rem;
+      letter-spacing: 6px;
+      font-weight: bold;
+      padding: 8px 20px;
+      border: 2px solid #555;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      text-align: center;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    .marquee span {
+      display: inline-block;
+      background: #000;
+      padding: 0 6px;
+    }
+
+    /* === SCREEN (canvas) === */
+    .screen {
+      background: #000;
+      border: 4px solid #222;
+      border-radius: 6px;
+      box-shadow:

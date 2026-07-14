@@ -1,0 +1,7 @@
+This is a great question that gets to the heart of why RMSNorm is designed the way it is. Let's derive the necessity of the sum of squares and the scaling pass.
+
+First, let's state the goal: **We want to normalize the output of a layer to have a specific, consistent magnitude (usually a root mean square of 1) to improve training stability.**
+
+### The Core Problem: Why Simple Normalization Fails
+
+Imagine a layer's output vector `x = [x₁, x₂, ..., xₙ]`. A simple, naive normalization might be to divide by the maximum absolute value, or subtract the

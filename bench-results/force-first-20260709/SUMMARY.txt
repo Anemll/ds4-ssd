@@ -1,0 +1,88 @@
+DSpark draft first-principles analysis + force-target-first (2026-07-09)
+========================================================================
+
+## First principles (byte-exact / strict verify)
+
+Tokens per speculative cycle:
+  N = 1 (target first_token) + A (accepted draft tokens)
+Wall:
+  T = T_eval + T_draft + T_verify   (or T_eval only if skip draft)
+
+Break-even vs plain decode (1/T_eval):
+  (1+A) / (T_eval + T_draft + T_verify)  >  1/T_eval
+
+Measured structure (arcade HTML, resident, M5 Max):
+  T_draft  ≈ 10.5–10.6 ms/block  (3 draft layers ~9 ms + Markov ~1.6 ms)
+  T_verify ≈ 55–75 ms/block      (ctx-dependent, GPU-busy ~90%+)
+  T_eval   ≈ ~26 ms/token plain
+  A (tau)  ≈ 2.7–3.7 draft accepts/block depending on gates
+
+Levers that preserve strict verify (committed = target argmax stream):
+  1) Raise A without raising T_verify more than A gains  → draft quality / scheduling
+  2) Cut T_draft (ANE / overlap / fewer rows)            → mostly parked (ANE out of scope)
+  3) Skip hopeless blocks (pre-draft margin)             → THRESHOLD=4.5
+  4) Do not waste T_draft+T_verify on first-miss blocks  → FORCE_TARGET_FIRST (this change)
+
+## Key insight: free first draft token
+
+After eval(first_token), the NEXT target token is already known:
+  target_top = argmax(committed logits)
+
+The draft model then proposes drafts[0..] for that next position.
+Strict path first-checks drafts[0] == target_top; on miss it discards the
+entire draft (first-miss ~15–25% of blocks) after paying T_draft.
+
+Teacher-force drafts[0] = target_top and re-chain Markov from there:
+  - first-miss → 0% by construction
+  - suffix re-conditioned on the correct prefix → higher full-accept
+  - still verified; quality contract = strict verify (same as default)
+
+Env (default OFF):
+  DS4_DSPARK_FORCE_TARGET_FIRST=1
+  alias DS4_DSPARK_DRAFT_FORCE_FIRST=1
+
+## Measured n=1000 (arcade HTML, -c 20000, resident IQ2XXS)
+
+| config              | gen t/s | tau  | first-miss | blocks | notes |
+|---------------------|--------:|-----:|-----------:|-------:|-------|
+| ungated control     | 39.76   | 2.91 | 22.3%      | 256    | baseline DSpark |
+| margin THRESHOLD=4.5| 40.02   | 3.25 | 13.6%      | 213    | best prior safe gate |
+| FORCE_TARGET_FIRST  | 41.01   | 3.67 | 0.0%       | 214    | +1.25 t/s vs control |
+| force + margin 4.5  | 39.72   | 3.66 | 0.0%       | 195    | margin over-skips after force |
+
+n=300 smoke: first-miss 23.1%→0%, tau 2.85→3.53, gen ~41.7 t/s both.
+
+## Byte-exact notes
+
+- Force-first is correct under strict verify: every committed draft token is
+  still a target argmax at its position.
+- cmp(control, force) and cmp(no-draft, *) can still diverge at temp 0 due to
+  known multi-row verify ULP / near-tie noise (also present without force).
+  Score by t/s + tau + first-miss, not byte-match, for promotion decisions.
+  Prefer tests/dspark_parity_smoke.sh style small-prefill canaries when needed.
+
+## What was rejected / parked for draft-side
+
+- Combined margin+rate post-draft k=0: near-neutral / worse (prior session)
+- Force k>=1 rate after margin: collapsed to avg sched 1.17, 31.8 t/s
+- ANE draft: top structural lever for T_draft but out of scope tonight
+- A4 GPU overlap: M5 queue serialization, nearly neutral
+- Expanding 128-token draft window: needs package/kernel work; model trained at 128
+- Retrain draft for higher tau: external
+
+## Recommendation
+
+Best opt-in stack for byte-exact speed right now:
+  DS4_DSPARK_FORCE_TARGET_FIRST=1
+
+Optional still useful alone:
+  DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=4.5
+
+Do NOT stack force+margin by default (force alone won here).
+
+User -n 4000 confirmation:
+  env DS4_DSPARK_PERF=1 DS4_DSPARK_FORCE_TARGET_FIRST=1 \
+    ./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+    --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+    --draft-verify 5 --nothink --temp 0 --resident -c 20000 -n 4000 \
+    -p "$PROMPT"

@@ -1,0 +1,38 @@
+{
+  "argv": [
+    "./ds4",
+    "-m",
+    "/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major",
+    "--draft",
+    "dspark",
+    "--draft-path",
+    "/Users/anemll/Models/DSv4-Flash-DSpark-draft",
+    "--draft-verify",
+    "5",
+    "--draft-scheduler",
+    "confidence",
+    "--nothink",
+    "--temp",
+    "0",
+    "--resident",
+    "-c",
+    "20000",
+    "-p",
+    "Make a game of Space Invader in Pygame"
+  ],
+  "benchmark": "a",
+  "code_sandbox_marker_removed": true,
+  "cwd": "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd",
+  "description": "Space Invaders / rows6 confidence",
+  "env": {
+    "DS4_DSPARK_CONF_SCALE": "0.85",
+    "DS4_DSPARK_CONF_THRESHOLD": "0.50",
+    "DS4_DSPARK_PERF": "1",
+    "DS4_DSPARK_ROWS6_CONFIDENCE": "1",
+    "DS4_DSPARK_THREE_WAY_LOG": "1",
+    "DS4_DSPARK_TRUE_PLAIN_SKIP": "1",
+    "DS4_DSPARK_VERIFY_ROWS6": "1"
+  },
+  "job_id": "20260710_151909_5dcb0be951",
+  "pty": true
+}

@@ -1,0 +1,8 @@
+Here is a comprehensive checklist for validating that a quantized model still follows instructions. This checklist is designed to be model-agnostic and focuses on functional correctness rather than just numerical similarity.
+
+### Phase 1: Sanity Checks (Pre-Validation)
+
+**Objective:** Ensure the quantization process itself did not break the model's basic functionality.
+
+- [ ] **1. Load & Inference Check:** Can the quantized model be loaded without errors? Does a single forward pass (inference) complete without crashing?
+- [ ] **2. Output Type Check:** Does the model output the expected data type (e.g., `torch.float32

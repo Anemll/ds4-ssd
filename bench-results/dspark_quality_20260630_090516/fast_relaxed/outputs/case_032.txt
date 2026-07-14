@@ -1,0 +1,9 @@
+Ecco una spiegazione chiara e strutturata della differenza tra **mutex** (mutex) e **contatore atomico** (o variabile atomica), due meccanismi di sincronizzazione utilizzati in programmazione concorrente.
+
+---
+
+## 1. Mutex (Mutual Exclusion)
+
+### Cos'è
+Un **mutex** è un meccanismo di **esclusione mutua** che garantisce che solo un **thread** (o processo) possa accedere a un blocco critico (sezione di codice, risorsa) in un dato momento.
+

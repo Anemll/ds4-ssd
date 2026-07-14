@@ -1,0 +1,9 @@
+This is an excellent question because it gets at the fundamental design choice behind RMSNorm (Root Mean Square Normalization) versus the more traditional LayerNorm (Layer Normalization).
+
+The core reason RMSNorm needs both a **sum of squares** and a **scaling pass** is that it performs **statistical normalization** (specifically, scaling by the Root Mean Square) rather than **geometric normalization** (scaling to a unit vector).
+
+Let's derive this step-by-step.
+
+### The Goal of Normalization
+
+In deep learning, normalization layers (like BatchNorm, LayerNorm, RMSNorm) aim to stabilize training by controlling the

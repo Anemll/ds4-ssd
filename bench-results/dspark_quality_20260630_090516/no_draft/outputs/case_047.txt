@@ -1,0 +1,12 @@
+This is an excellent question that gets to the heart of how modern key-value (KV) stores (like RocksDB, LevelDB, or WiredTiger) manage data to balance performance and storage efficiency.
+
+The core difference is that **raw KV rows** prioritize simplicity and speed of access, while **compressed KV rows** prioritize storage efficiency and reduced I/O bandwidth, at the cost of additional CPU overhead.
+
+Here is a detailed breakdown of the differences.
+
+### Raw KV Rows
+
+A raw KV row stores the key and value in their original, uncompressed form, exactly as provided by the application.
+
+**Structure:**
+- **

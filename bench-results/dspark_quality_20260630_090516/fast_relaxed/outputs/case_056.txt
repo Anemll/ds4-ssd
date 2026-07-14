@@ -1,0 +1,5 @@
+Questa è una domanda molto tecnica e interessante! Il router è un componente cruciale nei modelli Mixture-of-Experts (MoE), e il suo ruolo è particolarmente sofisticato quando si tratta di un "layer" (strato) di MoE.
+
+In un layer Mixture-of-Experts, il router ha un ruolo di **coordinatore** e **selettore**. La sua funzione principale è **determinare quale sotto-rete (esperto) è più adatta per elaborare un dato input**.
+
+Ecco una spiegazione dettagliata del suo ruolo e del suo funzion

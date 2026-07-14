@@ -1,0 +1,11 @@
+This is a great question that gets to the heart of how memory mapping works in operating systems.
+
+The short answer is: **mmap allocates virtual address space (addresses), but physical memory (pages) is only allocated on-demand when you actually access that address.**
+
+The difference between the virtual address space size and the actual page residency (number of physical pages in use) is a fundamental feature of virtual memory management, not a bug.
+
+Here’s a detailed breakdown of why this happens.
+
+### The Core Concept: Virtual Memory vs. Physical Memory
+
+When you call `mmap`, you are primarily reserving a range in the **

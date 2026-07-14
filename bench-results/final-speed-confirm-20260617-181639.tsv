@@ -1,0 +1,4 @@
+case	gen_tps	decode_s	ctx	max_gpu_compressed_gib	max_task_compressed_gib	log
+b134_res0_1024	14.539	70.430081	2369	0.00	0.00	bench-results/20260617-181639-b134_res0_1024.log
+b134_slotwise0_1024	14.456	70.833844	2369	0.00	0.00	bench-results/20260617-181639-b134_slotwise0_1024.log
+b134_res0_stats512	14.870	34.430617	1857	0.00	0.03	bench-results/20260617-181639-b134_res0_stats512.log

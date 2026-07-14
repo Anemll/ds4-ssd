@@ -1,0 +1,3 @@
+Here is the translation to English:
+
+**"Quantization reduces memory but can alter the logits."**

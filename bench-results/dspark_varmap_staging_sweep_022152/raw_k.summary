@@ -1,0 +1,9 @@
+== raw_k ==
+105:ds4: prefill: 7.35 t/s, generation: 52.66 t/s (400 tokens in 7.596s)
+106:ds4: dspark perf: draft=450.6 tok/s, verify=72.6 proposed tok/s, verify-accepted=64.0 tok/s, block=81.55 ms (draft=11.02 verify=68.42 overhead=2.11 commit=1.68, tau=4.38, blocks=90)
+109:ds4: dspark acceptance: 92.9% (392/422 draft tokens)
+110:ds4: dspark acceptance by position: 1=84/85 2=82/85 3=80/84 4=76/84 5=70/84
+112:ds4: dspark full-accept: 83.5% (71/85 blocks), first-miss: 1.2% (1/85 blocks)
+113:ds4: dspark avg scheduled: 4.96 draft tokens/block (85 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_varmap_staging_sweep_022152/raw_k.out	1278	46	46	1	0		0		0	0	0	1	1	0

@@ -1,0 +1,5 @@
+resync_every	tps	acc	suspect	trust_blocks	out	err
+0	35.23	62.4	1		bench-results/trust_resync_r0_073431.out	bench-results/trust_resync_r0_073431.err
+16	35.22	62.4	1		bench-results/trust_resync_r16_073431.out	bench-results/trust_resync_r16_073431.err
+8	35.30	62.4	1		bench-results/trust_resync_r8_073431.out	bench-results/trust_resync_r8_073431.err
+4	35.26	62.4	1		bench-results/trust_resync_r4_073431.out	bench-results/trust_resync_r4_073431.err

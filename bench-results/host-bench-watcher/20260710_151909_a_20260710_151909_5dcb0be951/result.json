@@ -1,0 +1,58 @@
+{
+  "benchmark": "a",
+  "exit_code": 0,
+  "final_ds4_statistics": [
+    "ds4: ----------------------------------------",
+    "ds4: prefill: 3.68 t/s, generation: 39.98 t/s (2528 tokens in 63.235s)",
+    "ds4: ttf: first-output=25.165s total=88.302s (engine=4.370s session=15.529s prompt=0.000s prefill=5.158s decode=63.235s)",
+    "ds4: dspark perf: draft=457.2 tok/s, verify=49.7 proposed tok/s, verify-accepted=45.6 tok/s, block=117.29 ms (draft=11.21 verify=103.18 overhead=2.90 commit=2.45, tau=4.70, blocks=538, skip-pre=0, skip-verify=0)",
+    "ds4: dspark verify GPU-busy: 102.33 ms/block of 103.18 ms verify (99.2% active, 0.8% idle)",
+    "ds4: dspark draft-overlap upper-bound: 44.3 tok/s (1.11x block decode, hides 11.21 ms/block)",
+    "ds4: vm pressure: app=84.97 GiB resident=63.21 GiB wired=97.87 GiB compressed=2.03 GiB logical=4.14 GiB swap=2.25/3.00 GiB pressure=87% free=0.28 GiB gpu=84.73 GiB gpu-compressed=0.13 GiB task-compressed=27.78 GiB decompressions=3521198",
+    "ds4: dspark acceptance: 91.7% (2529/2758 draft tokens)",
+    "ds4: dspark acceptance by position: 1=538/538 2=503/538 3=443/481 4=400/445 5=356/406 6=289/350",
+    "ds4: dspark conditional acceptance: 1=100.0% (538/538) 2|1=93.5% (503/538) 3|1-2=96.1% (443/461) 4|1-3=96.9% (400/413) 5|1-4=95.4% (356/373) 6|1-5=92.9% (289/311)",
+    "ds4: dspark full-accept: 80.5% (433/538 blocks), first-miss: 0.0% (0/538 blocks)",
+    "ds4: dspark avg scheduled: 5.13 draft tokens/block (538 blocks)"
+  ],
+  "finished_at": "2026-07-10T22:20:40.007006+00:00",
+  "health": {
+    "eligible_for_comparison": false,
+    "measured": {
+      "block_ms": 117.29,
+      "verify_ms": 103.18
+    },
+    "state": "thermally-degraded",
+    "thresholds": {
+      "max_block_ms": 110.0,
+      "max_verify_ms": 96.0
+    }
+  },
+  "job_id": "20260710_151909_5dcb0be951",
+  "log": "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/host-bench-watcher/20260710_151909_a_20260710_151909_5dcb0be951/combined.log",
+  "metal_marker": "ds4: Metal device Apple M5 Max",
+  "native_metal": true,
+  "started_at": "2026-07-10T22:19:09.848234+00:00",
+  "stats": {
+    "acceptance": "91.7",
+    "avg_scheduled": "5.13",
+    "block_ms": "117.29",
+    "commit_ms": "2.45",
+    "decode_s": "63.235",
+    "draft_ms": "11.21",
+    "draft_tps": "457.2",
+    "first_output": "25.165",
+    "full_accept": "80.5",
+    "generation": "39.98",
+    "overhead_ms": "2.90",
+    "prefill": "3.68",
+    "tau": "4.70",
+    "tokens": "2528",
+    "total_s": "88.302",
+    "verify_accepted_tps": "45.6",
+    "verify_ms": "103.18",
+    "verify_tps": "49.7"
+  },
+  "status": "completed-thermally-degraded",
+  "wall_seconds": 90.158
+}

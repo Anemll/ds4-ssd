@@ -1,0 +1,20 @@
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:ds4: startup timing: engine=0.510s profile=0.000s model=0.005s sidecar=0.000s weights=0.000s dspark=0.000s backend=0.498s prewarm=0.002s
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:ds4: using GPU graph generation with layer-major graph prefill
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:ds4: prefill: 20.48 t/s, generation: 33.84 t/s (4725 tokens in 139.636s)
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:real 143.02
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:user 6.97
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:sys 1.78
+bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.err:            83443712  maximum resident set size
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:ds4: using GPU graph generation with graph prefill
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:ds4: prefill: 79.40 t/s, generation: 36.80 t/s (4781 tokens in 129.922s)
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:real 131.26
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:user 5.49
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:sys 3.85
+bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.err:            73351168  maximum resident set size
+   15580 bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.out
+   16603 bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.out
+   32183 total
+d6a7c1d5304eb56b7edcc490cbf13f98df92530b8f4a6c4750f86bcaa3bf6613  bench-results/nodraft-tree-compare-20260707-140723/ds4-ssd.out
+f95ea7819b9eb04006397bd40dfad61f01c1c72f29b4272fcc1e1300c35eb293  bench-results/nodraft-tree-compare-20260707-140723/upstream-ds4.out

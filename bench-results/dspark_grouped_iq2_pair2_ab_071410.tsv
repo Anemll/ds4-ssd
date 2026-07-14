@@ -1,0 +1,4 @@
+variant	tps	tau	acc	suspect	gate5_avg	down5_avg	total5_avg	grouped_iq2_seen	out	err
+control	43.14	4.32	92.6	0	1.529	0.384	1.914		bench-results/grouped_pair2_control_071410.out	bench-results/grouped_pair2_control_071410.err
+grouped_generic	42.63	4.32	92.6	0	1.562	0.381	1.943		bench-results/grouped_pair2_grouped_generic_071410.out	bench-results/grouped_pair2_grouped_generic_071410.err
+grouped_pair2	42.48	4.32	92.6	0	1.567	0.385	1.953		bench-results/grouped_pair2_grouped_pair2_071410.out	bench-results/grouped_pair2_grouped_pair2_071410.err

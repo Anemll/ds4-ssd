@@ -1,0 +1,8 @@
+I'll create a faithful reproduction of the classic 1978 Taito arcade game "Asteroids" as a single self-contained HTML file with inline CSS and JS.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport

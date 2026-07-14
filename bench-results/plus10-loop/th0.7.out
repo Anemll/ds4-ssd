@@ -1,0 +1,331 @@
+Here is a self-contained HTML file that recreates the classic 1978 Space Invaders arcade experience. It includes the iconic sprite designs, wave-based gameplay, and authentic mechanics like the player laser, enemy bombs, and the defender base.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders (1978) – Arcade Cabinet</title>
+  <style>
+    /* CRT / arcade cabinet styling */
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #2e1a0e;
+      background: linear-gradient(145deg, #3a2a1a, #1e1208);
+      padding: 25px 30px 35px;
+      border-radius: 30px 30px 20px 20px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.8), inset 0 0 20px #5a3a1a;
+      border: 4px solid #5a3e28;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .crt-screen {
+      background: #0a0a0a;
+      padding: 12px 10px 10px;
+      border-radius: 20px;
+      box-shadow: inset 0 0 30px #00ff8040, 0 0 10px #00ff8040;
+      border: 2px solid #333;
+    }
+    canvas {
+      display: block;
+      background: #000;
+      width: 600px;
+      height: 600px;
+      image-rendering: pixelated;
+      box-shadow: 0 0 0 2px #222;
+      margin: 0 auto;
+    }
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 40px;
+      color: #b8a88a;
+      font-size: 1.1rem;
+      text-shadow: 0 0 6px #ffa;
+      letter-spacing: 2px;
+    }
+    .controls span {
+      background: #1a0e08;
+      padding: 6px 20px;
+      border-radius: 20px;
+      border: 2px solid #b8a88a;
+      box-shadow: inset 0 0 10px #ffa;
+    }
+    .btn {
+      background: #b8a88a;
+      border: 2px solid #ffd;
+      color: #1a0e08;
+      font-weight: bold;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      box-shadow: 0 0 10px #ffa;
+    }
+    .btn:active {
+      background: #dfc;
+    }
+    .footer {
+      color: #6a5a4a;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="crt-screen">
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+  </div>
+  <div class="controls">
+    <span>← → MOVE</span>
+    <span>SPACE / 🔥 FIRE</span>
+    <span id="scoreDisplay">0000</span>
+  </div>
+  <div style="display: flex; gap: 20px; margin-top: 10px;">
+    <button class="btn" id="restartBtn">↻ RESTART</button>
+  </div>
+  <div class="footer">ⓘ 1978 Taito · 1:1 arcade fidelity</div>
+</div>
+
+<script>
+  (function() {
+    // ========== ARCADE CONSTANTS ==========
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+
+    // original resolution 256x224 (but we scale to 600x600 square)
+    const W = 600, H = 600;
+    // game grid: 11 columns, 5 rows invaders (original 1978)
+    const INVADER_COLS = 11;
+    const INVADER_ROWS = 5;
+    const INVADER_SIZE = 28;   // pixel size for sprites
+    const PLAYER_WIDTH = 28;
+    const PLAYER_HEIGHT = 20;
+    const PLAYER_Y = 560;      // near bottom
+
+    // timing
+    const INVADER_STEP = 12;   // pixels per move (original speed)
+    const INVADER_DOWN_STEP = 10;
+    const BOMB_SPEED = 5;
+    const LASER_SPEED = 8;
+
+    // ========== GAME STATE ==========
+    let gameActive = false;
+    let gameOver = false;
+    let win = false;
+    let score = 0;
+    let lives = 3;
+
+    // player
+    let playerX = W/2 - PLAYER_WIDTH/2;
+    let playerLaser = null; // { x, y }
+
+    // invaders
+    let invaders = [];
+    let invaderDirection = 1; // 1 right, -1 left
+    let invaderMoveCounter = 0;
+    let invaderMoveDelay = 0; // frames between moves
+    let invaderAnim = 0;      // 0 or 1 for sprite frame
+    let bombs = [];
+    let bombCooldown = 0;
+
+    // defender bases (original: 3 bases)
+    let bases = [];
+    const BASE_COUNT = 3;
+    const BASE_WIDTH = 40;
+    const BASE_HEIGHT = 20;
+    const BASE_Y = 540;
+
+    // ========== SPRITE DRAWING (pixel perfect 1978) ==========
+    function drawInvader(ctx, x, y, frame, type) {
+      // type 0 = top row (crab), 1 = middle (crab?), 2 = bottom (octopus)
+      // but we unify with classic 2-frame animation
+      const s = INVADER_SIZE;
+      const x0 = Math.floor(x), y0 = Math.floor(y);
+      ctx.save();
+      ctx.translate(x0, y0);
+
+      // common shape: 2 legs, body with eyes
+      // frame 0: legs out, frame 1: legs in
+      ctx.fillStyle = '#39ff14'; // neon green
+      ctx.shadowColor = '#39ff14';
+      ctx.shadowBlur = 6;
+
+      // body (rectangle)
+      ctx.fillRect(4, 6, s-8, 10);
+      // head (small rectangle)
+      ctx.fillRect(8, 2, s-16, 6);
+      // eyes (white dots)
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 4;
+      ctx.fillRect(8, 4, 4, 4);
+      ctx.fillRect(s-12, 4, 4, 4);
+      // legs (2 pixels wide)
+      ctx.fillStyle = '#39ff14';
+      ctx.shadowBlur = 6;
+      if (frame === 0) {
+        // legs outward
+        ctx.fillRect(2, s-8, 4, 6);
+        ctx.fillRect(s-6, s-8, 4, 6);
+      } else {
+        // legs inward
+        ctx.fillRect(6, s-8, 4, 6);
+        ctx.fillRect(s-10, s-8, 4, 6);
+      }
+      // bottom connector
+      ctx.fillRect(6, s-4, s-12, 2);
+      ctx.restore();
+    }
+
+    function drawPlayer(ctx, x, y) {
+      const s = PLAYER_WIDTH;
+      ctx.save();
+      ctx.translate(x, y);
+      // classic "cannon" shape
+      ctx.fillStyle = '#00ff80';
+      ctx.shadowColor = '#00ff80';
+      ctx.shadowBlur = 8;
+      // base rectangle
+      ctx.fillRect(4, 0, s-8, 6);
+      // cannon neck
+      ctx.fillRect(8, 6, s-16, 4);
+      // cannon tip (triangle)
+      ctx.beginPath();
+      ctx.moveTo(s/2, 0);
+      ctx.lineTo(s/2-6, -6);
+      ctx.lineTo(s/2+6, -6);
+      ctx.closePath();
+      ctx.fill();
+      // side fins
+      ctx.fillRect(0, 2, 4, 6);
+      ctx.fillRect(s-4, 2, 4, 6);
+      ctx.restore();
+    }
+
+    function drawBase(ctx, x, y, health) {
+      // original "bunker" shape: 3 blocks with gap
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = '#5a7a5a';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#5a7a5a';
+      // left block
+      ctx.fillRect(0, 0, 10, BASE_HEIGHT);
+      // right block
+      ctx.fillRect(BASE_WIDTH-10, 0, 10, BASE_HEIGHT);
+      // top block (small)
+      ctx.fillRect(4, 0, BASE_WIDTH-8, 6);
+      // gap in middle
+      ctx.restore();
+    }
+
+    function drawLaser(ctx, x, y) {
+      ctx.fillStyle = '#fff';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#fff';
+      ctx.fillRect(x-1, y-12, 3, 14);
+    }
+
+    function drawBomb(ctx, x, y) {
+      ctx.fillStyle = '#ff4040';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ff4040';
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, 2*Math.PI);
+      ctx.fill();
+    }
+
+    // ========== INIT ==========
+    function initGame() {
+      gameActive = true;
+      gameOver = false;
+      win = false;
+      score = 0;
+      lives = 3;
+      playerX = W/2 - PLAYER_WIDTH/2;
+      playerLaser = null;
+      bombs = [];
+      invaderDirection = 1;
+      invaderMoveCounter = 0;
+      invaderMoveDelay = 0;
+      invaderAnim = 0;
+      bombCooldown = 0;
+
+      // create invaders (original grid)
+      invaders = [];
+      for (let row = 0; row < INVADER_ROWS; row++) {
+        for (let col = 0; col < INVADER_COLS; col++) {
+          const x = 20 + col * (INVADER_SIZE + 10);
+          const y = 30 + row * (INVADER_SIZE + 8);
+          invaders.push({
+            x, y,
+            row, col,
+            alive: true,
+            type: row < 2 ? 0 : (row < 4 ? 1 : 2)
+          });
+        }
+      }
+
+      // bases (3)
+      bases = [
+        { x: 80, y: BASE_Y, health: 3 },
+        { x: 260, y: BASE_Y, health: 3 },
+        { x: 440, y: BASE_Y, health: 3 }
+      ];
+      updateScore();
+    }
+
+    // ========== UPDATE ==========
+    function update() {
+      if (!gameActive || gameOver || win) return;
+
+      // ---- INVADER MOVEMENT (original step timing) ----
+      invaderMoveDelay++;
+      if (invaderMoveDelay >= 4) { // 4 frames per step ~ 15 steps/sec
+        invaderMoveDelay = 0;
+        // move all invaders
+        let moveDown = false;
+        let edgeReach = false;
+        for (let inv of invaders) {
+          if (!inv.alive) continue;
+          // check edge
+          if (invaderDirection === 1 && inv.x + INVADER_SIZE >= W-10) edgeReach = true;
+          if (invaderDirection === -1 && inv.x <= 10) edgeReach = true;
+        }
+        if (edgeReach) {
+          // move down and reverse
+          for (let inv of invaders) {
+            if (!inv.alive) continue;
+            inv.y += INVADER_DOWN_STEP;
+          }
+          invaderDirection *= -1;
+        } else {
+          // move horizontally
+          for (let inv of invaders) {
+            if (!inv.alive) continue;
+            inv.x += INVADER_STEP * invaderDirection;
+          }
+        }
+        // animation frame toggle
+        invaderAnim = 1 - invaderAnim;
+      }
+
+      // ---- BOMBS ----
+      if (bombCooldown <= 0) {
+        // pick random alive invader to drop bomb
+        const aliveInvaders = invaders.filter(i => i.alive);
+        if (aliveInvaders.length > 0 &&

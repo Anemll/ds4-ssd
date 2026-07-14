@@ -1,0 +1,11 @@
+Questa è un'ottima domanda che tocca il cuore della sincronizzazione in programmazione concorrente.
+
+La differenza fondamentale sta nel **ruolo** che svolgono e in **come** gestiscono l'accesso alle risorse condivise.
+
+Ecco la spiegazione dettagliata:
+
+### Mutex (Mutual Exclusion)
+
+Un mutex è un **meccanismo di blocco**. Il suo scopo principale è garantire che solo un thread alla volta possa accedere a una sezione critica di codice o a una risorsa condivisa.
+
+- **Ruolo

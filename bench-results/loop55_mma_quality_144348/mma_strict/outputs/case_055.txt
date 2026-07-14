@@ -1,0 +1,6 @@
+Questa è una domanda molto interessante che tocca aspetti fondamentali dell'architettura GPU e della gestione della memoria in Metal.
+
+Partiamo dal presupposto che stiamo confrontando due strategie per gestire grandi quantità di dati (es. vertici, texture, dati di compute):
+
+1.  **Grande Buffer Unico (Single Large Buffer):** Un unico buffer `MTLBuffer` enorme che contiene tutti i dati necessari per l'intero frame o scena.
+2.  **Viste Sovrapposte (Overlapping Views / Small Buffers):** Dividere i dati in buffer

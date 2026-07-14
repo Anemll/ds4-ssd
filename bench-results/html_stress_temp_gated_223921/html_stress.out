@@ -1,0 +1,318 @@
+I'll create a complete Space Invaders arcade game in a single HTML file, replicating the original 1978 Taito experience with pixel-perfect fidelity.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders (1978) – Pixel Perfect</title>
+    <style>
+        /* Reset & pixel-perfect canvas */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+        }
+
+        /* Arcade cabinet frame */
+        .cabinet {
+            background: #1a1a1a;
+            border: 6px solid #2a2a2a;
+            border-radius: 20px;
+            padding: 20px 20px 10px;
+            box-shadow: 0 0 0 2px #0a0a0a, 0 0 20px #0000aa;
+            display: inline-block;
+            position: relative;
+        }
+
+        /* Canvas – perfect crisp pixels */
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            width: 800px;
+            height: 800px;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            border: 2px solid #333;
+            box-shadow: inset 0 0 10px #000;
+            margin: 0 auto;
+        }
+
+        /* Overlay scanlines (subtle) */
+        .scanlines {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 800px;
+            height: 800px;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.08) 0px,
+                rgba(0, 0, 0, 0.08) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+            border-radius: 4px;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0 4px;
+            color: #7f7f7f;
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: #1a1a1a;
+            border-top: 2px solid #333;
+        }
+
+        .controls span {
+            background: #0a0a0a;
+            padding: 4px 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #aaa;
+        }
+
+        .btn {
+            background: #222;
+            border: 2px solid #444;
+            color: #ddd;
+            padding: 6px 16px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .btn:hover {
+            background: #333;
+            border-color: #888;
+        }
+        .btn:active {
+            background: #000;
+            border-color: #aaa;
+            transform: scale(0.95);
+        }
+
+        /* Score display */
+        .scoreboard {
+            display: flex;
+            justify-content: space-between;
+            color: #eee;
+            background: #0a0a0a;
+            padding: 6px 20px;
+            border-bottom: 2px solid #333;
+            font-size: 22px;
+            letter-spacing: 4px;
+        }
+        .scoreboard span {
+            color: #f0f0f0;
+            text-shadow: 0 0 6px #fff;
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="scoreboard">
+        <span>SCORE</span>
+        <span id="scoreDisplay">0000</span>
+        <span>HI-SCORE</span>
+        <span id="hiScoreDisplay">0000</span>
+    </div>
+    <div style="position: relative; display: inline-block;">
+        <canvas id="gameCanvas" width="800" height="800"></canvas>
+        <div class="scanlines"></div>
+    </div>
+    <div class="controls">
+        <span>← → MOVE</span>
+        <span>SPACE / FIRE</span>
+        <span>R RESTART</span>
+        <button class="btn" id="restartBtn">⟳ RESTART</button>
+    </div>
+</div>
+<script>
+    (function() {
+        // ---------- PIXEL PERFECT SPACE INVADERS (1978) ----------
+        // Replicates original Taito rules, sprite sizes, and mechanics.
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+
+        // Display elements
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const hiScoreDisplay = document.getElementById('hiScoreDisplay');
+
+        // ---------- GAME CONFIG ----------
+        const INVADER_WIDTH = 32;      // original sprite width
+        const INVADER_HEIGHT = 24;     // original sprite height
+        const PLAYER_WIDTH = 32;
+        const PLAYER_HEIGHT = 28;
+        const PLAYER_Y = 740;          // bottom row
+        const INVADER_ROWS = 5;
+        const INVADER_COLS = 11;       // 55 invaders
+        const INVADER_SPACING_X = 48;
+        const INVADER_SPACING_Y = 40;
+        const INVADER_START_Y = 80;
+
+        // Timing (original 60fps, but we use 60fps via requestAnimationFrame)
+        const FPS = 60;
+        const FRAME_TIME = 1000 / FPS;
+
+        // Game state
+        let gameRunning = false;
+        let gameOver = false;
+        let score = 0;
+        let hiScore = 0;
+        let lives = 3;
+        let level = 1;
+
+        // Player
+        let player = {
+            x: 384,          // centered
+            y: PLAYER_Y,
+            width: PLAYER_WIDTH,
+            height: PLAYER_HEIGHT,
+            alive: true,
+            canFire: true
+        };
+
+        // Invaders
+        let invaders = [];
+        let invaderDirection = 1; // 1 = right, -1 = left
+        let invaderSpeed = 1;     // pixels per frame (original starts at 1)
+        let invaderMoveCounter = 0;
+        let invaderMoveThreshold = 2; // frames between moves (original: 2 frames per step)
+        let invaderStep = 0;
+
+        // Bombs
+        let bombs = [];
+        const BOMB_SPEED = 6; // original ~6 pixels per frame
+
+        // Player bullets
+        let bullets = [];
+        const BULLET_SPEED = 12;
+        const MAX_BULLETS = 2; // original allows 2 bullets
+
+        // Explosions
+        let explosions = [];
+
+        // Sprite data (pixel-perfect 1978)
+        // We'll draw using simple shapes but exact pixel counts.
+
+        // ---------- UTILITY ----------
+        function drawPixel(x, y, size, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, size, size);
+        }
+
+        // ---------- SPRITES ----------
+        // Invader sprite (2x2 pixel blocks, 32x24)
+        function drawInvader(x, y, frame, color = '#00ff00') {
+            // Original invader: 2x2 pixel blocks, 32x24
+            // frame alternates between two poses
+            const base = [
+                // 0 = legs out, 1 = legs in
+                // rows 0..11 (each row 2 pixels tall)
+                // columns 0..15 (each col 2 pixels wide)
+                // We'll draw with 2x2 blocks
+                // Simplified: 16x12 blocks, but we'll use exact pattern
+                // Using 2x2 pixel cells: 16 cols x 12 rows
+                // Pattern (1 = green, 0 = black)
+                // Row 0: 0 0 1 1 1 1 0 0 0 0 1 1 1 1 0 0
+                // Row 1: 0 1 0 0 1 1 1 1 1 1 1 1 0 0 1 0
+                // Row 2: 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+                // Row 3: 1 0 1 1 1 1 1 1 1 1 1 1 1 1 0 1
+                // Row 4: 1 0 1 1 1 1 1 1 1 1 1 1 1 1 0 1
+                // Row 5: 0 1 0 0 1 1 1 1 1 1 1 1 0 0 1 0
+                // Row 6: 0 0 1 1 1 0 0 0 0 0 0 1 1 1 0 0
+                // Row 7: 0 0 0 1 1 0 0 0 0 0 0 1 1 0 0 0
+                // Row 8: 0 0 0 1 1 0 0 0 0 0 0 1 1 0 0 0
+                // Row 9: 0 0 0 1 1 0 0 0 0 0 0 1 1 0 0 0
+                // Row10: 0 0 0 1 1 0 0 0 0 0 0 1 1 0 0 0
+                // Row11: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+            ];
+            // Use a compact pattern (16x12)
+            const pattern = [
+                [0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0],
+                [0,1,0,0,1,1,1,1,1,1,1,1,0,0,1,0],
+                [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                [1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [1,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1],
+                [0,1,0,0,1,1,1,1,1,1,1,1,0,0,1,0],
+                [0,0,1,1,1,0,0,0,0,0,0,1,1,1,0,0],
+                [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+                [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+                [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+                [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            ];
+            // alternate frame: legs shift
+            const pattern2 = JSON.parse(JSON.stringify(pattern));
+            // modify legs: rows 6-10 shift
+            if (frame === 1) {
+                // legs in: row 6 becomes 0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0
+                pattern2[6] = [0,0,1,1,0,0,0,0,0,0,0,1,1,0,0,0];
+                pattern2[7] = [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0];
+                pattern2[8] = [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0];
+                pattern2[9] = [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0];
+                pattern2[10]= [0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0];
+            }
+            const p = frame === 0 ? pattern : pattern2;
+            for (let row = 0; row < 12; row++) {
+                for (let col = 0; col < 16; col++) {
+                    if (p[row][col] === 1) {
+                        drawPixel(x + col * 2, y + row * 2, 2, color);
+                    }
+                }
+            }
+        }
+
+        // Player sprite (32x28) – original cannon
+        function drawPlayer(x, y) {
+            // 16x14 blocks (2x2 pixels)
+            const p = [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            ];
+            // Simplified: draw a classic cannon shape
+            // Use a 14x14 pattern
+            const cannon = [
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0,0,0,0,

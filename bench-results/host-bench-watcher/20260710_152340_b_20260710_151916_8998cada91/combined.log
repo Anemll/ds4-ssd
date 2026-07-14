@@ -1,0 +1,649 @@
+# started_at=2026-07-10T22:23:40.013861+00:00
+# cwd=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd
+# command=./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft --nothink --temp 0 --resident -c 20000 -p 'Create an Asteroids arcade game in a single self-contained HTML file with inline CSS and JavaScript. Replicate the original arcade experience with screen wrapping, friction-based movement, asteroid splitting, green vector-style graphics, particle explosions, score, and lives. Save the result to /tmp/si-cv5.html, test it by opening it in a web browser, and skip web search.'
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=20000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/5002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.500 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.265 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.520s profile=0.001s model=0.007s sidecar=0.006s weights=0.001s dspark=1.505s backend=0.000s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 2.2GB Total <<<< 83.0GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=off pread-threads=4 readahead=12 bank-prefetch=0 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=25.615s raw-graph=0.004s flash-moe=25.611s steering=0.000s draft-scratch=yes
+[36mprocessing 88 input tokens: 0/88 (0.0%) batch=0.00 t/s avg=0.00 t/s[0m[K[36mprocessing 88 input tokens: 2/88 (2.3%) batch=0.87 t/s avg=0.86 t/s[0m[K[36mprocessing 88 input tokens: 4/88 (4.5%) batch=8.11 t/s avg=1.56 t/s[0m[K[36mprocessing 88 input tokens: 6/88 (6.8%) batch=7.90 t/s avg=2.13 t/s[0m[K[36mprocessing 88 input tokens: 8/88 (9.1%) batch=13.81 t/s avg=2.71 t/s[0m[K[36mprocessing 88 input tokens: 10/88 (11.4%) batch=16.43 t/s avg=3.25 t/s[0m[K[36mprocessing 88 input tokens: 12/88 (13.6%) batch=15.05 t/s avg=3.74 t/s[0m[K[36mprocessing 88 input tokens: 14/88 (15.9%) batch=14.33 t/s avg=4.18 t/s[0m[K[36mprocessing 88 input tokens: 16/88 (18.2%) batch=15.12 t/s avg=4.59 t/s[0m[K[36mprocessing 88 input tokens: 18/88 (20.5%) batch=15.55 t/s avg=4.98 t/s[0m[K[36mprocessing 88 input tokens: 20/88 (22.7%) batch=12.82 t/s avg=5.31 t/s[0m[K[36mprocessing 88 input tokens: 22/88 (25.0%) batch=12.88 t/s avg=5.61 t/s[0m[K[36mprocessing 88 input tokens: 24/88 (27.3%) batch=13.92 t/s avg=5.90 t/s[0m[K[36mprocessing 88 input tokens: 26/88 (29.5%) batch=14.92 t/s avg=6.19 t/s[0m[K[36mprocessing 88 input tokens: 28/88 (31.8%) batch=14.15 t/s avg=6.45 t/s[0m[K[36mprocessing 88 input tokens: 30/88 (34.1%) batch=14.59 t/s avg=6.70 t/s[0m[K[36mprocessing 88 input tokens: 32/88 (36.4%) batch=14.73 t/s avg=6.93 t/s[0m[K[36mprocessing 88 input tokens: 34/88 (38.6%) batch=15.05 t/s avg=7.16 t/s[0m[K[36mprocessing 88 input tokens: 36/88 (40.9%) batch=16.31 t/s avg=7.39 t/s[0m[K[36mprocessing 88 input tokens: 38/88 (43.2%) batch=15.96 t/s avg=7.61 t/s[0m[K[36mprocessing 88 input tokens: 40/88 (45.5%) batch=12.48 t/s avg=7.76 t/s[0m[K[36mprocessing 88 input tokens: 42/88 (47.7%) batch=16.15 t/s avg=7.95 t/s[0m[K[36mprocessing 88 input tokens: 45/88 (51.1%) batch=21.31 t/s avg=8.30 t/s[0m[K[36mprocessing 88 input tokens: 47/88 (53.4%) batch=15.45 t/s avg=8.47 t/s[0m[K[36mprocessing 88 input tokens: 49/88 (55.7%) batch=16.68 t/s avg=8.64 t/s[0m[K[36mprocessing 88 input tokens: 51/88 (58.0%) batch=16.56 t/s avg=8.81 t/s[0m[K[36mprocessing 88 input tokens: 53/88 (60.2%) batch=16.43 t/s avg=8.96 t/s[0m[K[36mprocessing 88 input tokens: 55/88 (62.5%) batch=17.64 t/s avg=9.13 t/s[0m[K[36mprocessing 88 input tokens: 57/88 (64.8%) batch=15.11 t/s avg=9.26 t/s[0m[K[36mprocessing 88 input tokens: 59/88 (67.0%) batch=15.97 t/s avg=9.39 t/s[0m[K[36mprocessing 88 input tokens: 61/88 (69.3%) batch=15.12 t/s avg=9.51 t/s[0m[K[36mprocessing 88 input tokens: 63/88 (71.6%) batch=13.64 t/s avg=9.60 t/s[0m[K[36mprocessing 88 input tokens: 65/88 (73.9%) batch=15.06 t/s avg=9.71 t/s[0m[K[36mprocessing 88 input tokens: 67/88 (76.1%) batch=16.55 t/s avg=9.83 t/s[0m[K[36mprocessing 88 input tokens: 69/88 (78.4%) batch=14.83 t/s avg=9.93 t/s[0m[K[36mprocessing 88 input tokens: 71/88 (80.7%) batch=15.10 t/s avg=10.02 t/s[0m[K[36mprocessing 88 input tokens: 73/88 (83.0%) batch=12.74 t/s avg=10.08 t/s[0m[K[36mprocessing 88 input tokens: 75/88 (85.2%) batch=14.70 t/s avg=10.17 t/s[0m[K[36mprocessing 88 input tokens: 77/88 (87.5%) batch=13.23 t/s avg=10.23 t/s[0m[K[36mprocessing 88 input tokens: 79/88 (89.8%) batch=15.33 t/s avg=10.32 t/s[0m[K[36mprocessing 88 input tokens: 81/88 (92.0%) batch=13.24 t/s avg=10.37 t/s[0m[K[36mprocessing 88 input tokens: 83/88 (94.3%) batch=19.39 t/s avg=10.49 t/s[0m[K[36mprocessing 88 input tokens: 85/88 (96.6%) batch=14.46 t/s avg=10.56 t/s[0m[K[36mprocessing 88 input tokens: 88/88 (100.0%) batch=21.62 t/s avg=10.75 t/s[0m[K
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: mode-b adaptive router enabled (plain warmup=8, probe=4 blocks)
+ds4: mode-b adaptive plain path enabled (DSpark prep/main-KV mirror deferred until warm probe)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+Here is a self-contained HTML file thatds4: dspark frontier rows-6 verify enabled (first token + up to 5 drafts, confidence-aware)
+ds4: dspark verifier single-drain enabled (embed + layers + head share one terminal wait)
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (banked-generic-row-loop-exact, experts=6)
+ds4: dspark hybrid row-routed verifier using exact row-loop path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ recreates the classic Asteroidsds4: dspark draft single-drain enabled (trunk + Markov share one wait)
+ arcade experience with vector-style graphics, screen wrapping, and all the core gameplay mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asteroids · Arcade</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .game-wrapper {
+      background: #111;
+      border: 2px solid #33ff33;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 0 30px #1f1f1f;
+    }
+    canvas {
+      display: block;
+      background: #0a0a0a;
+      width: 800px;
+      height: 600px;
+      border: 1px solid #33ff33;
+      cursor: none;
+    }
+    .info-panel {
+      display: flex;
+      justify-content: space-between;
+      color: #33ff33;
+      font-size: 1.2rem;
+      font-weight: bold;
+      padding: 8px 12px;
+      background: #0c0c0c;
+      border-bottom: 1px solid #33ff33;
+      letter-spacing: 2px;
+    }
+    .info-panel span {
+      text-shadow: 0 0 6px #33ff33;
+    }
+    .controls {
+      display: flex;
+      gap: 20px;
+      color: #33ff33;
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      background: #0c0c0c;
+      border-top: 1px solid #33ff33;
+      justify-content: center;
+    }
+    .controls kbd {
+      background: #222;
+      border: 1px solid #33ff33;
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: #afffaf;
+    }
+  </style>
+</head>
+<body>
+<div class="game-wrapper">
+  <div class="info-panel">
+    <span>�� SCORE: <span id="scoreDisplay">0</span></span>
+    <span>❤️ LIVES: <span id="livesDisplay">3</span></span>
+  </div>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div class="controls">
+    <span><kbd>←</kbd> <kbd>→</kbd> rotate</span>
+    <span><kbd>↑</kbd> thrust</span>
+    <span><kbd>���</kbd> fire</span>
+    <span><kbd>R</kbd> restart</span>
+  </div>
+</div>
+<script>
+  (function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+    const livesSpan = document.getElementById('livesDisplay');
+
+    // ---------- CONSTANTS ----------
+    const W = 800, H = 600;
+    const MAX_ROCK_SPEED = 3.5;
+    const MAX_ROCK_SIZE = 40;
+    const MIN_ROCK_SIZE = 12;
+    const PLAYER_RADIUS = 14;
+    const PARTICLE_COUNT = 18;
+
+    // ---------- GAME STATE ----------
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+    let restartFlag = false;
+
+    // ---------- ENTITIES ----------
+    let player = {
+      x: W/2, y: H/2,
+      angle: -Math.PI/2,   // up
+      vx: 0, vy: 0,
+      radius: PLAYER_RADIUS,
+      active: true,
+      invincible: false,   // brief immunity after respawn
+      invTimer: 0
+    };
+
+    let bullets = [];
+    let rocks = [];
+    let particles = [];
+
+    // ---------- INPUT ----------
+    const keys = {
+      left: false, right: false, up: false, space: false
+    };
+    let spacePressed = false;
+    let fireCooldown = 0;
+
+    // ---------- HELPERS ----------
+    function wrap(entity) {
+      if (entity.x < 0) entity.x = W;
+      else if (entity.x > W) entity.x = 0;
+      if (entity.y < 0) entity.y = H;
+      else if (entity.y > H) entity.y = 0;
+    }
+
+    function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+    function randomAngle() { return Math.random() * 2 * Math.PI; }
+
+    // ---------- INIT / RESET ----------
+    function resetGame() {
+      score = 0;
+      lives = 3;
+      gameOver = false;
+      restartFlag = false;
+      updateUI();
+
+      // reset player
+      player.x = W/2;
+      player.y = H/2;
+      player.angle = -Math.PI/2;
+      player.vx = 0;
+      player.vy = 0;
+      player.active = true;
+      player.invincible = true;
+      player.invTimer = 60;  // 1 second at 60fps
+
+      bullets = [];
+      particles = [];
+
+      // spawn initial rocks
+      rocks = [];
+      for (let i = 0; i < 4; i++) {
+        spawnRock(true);
+      }
+    }
+
+    // ---------- ROCK SPAWNING ----------
+    function spawnRock(initial = false) {
+      let x, y, angle, speed, size;
+      const safeDist = 80;
+      let attempts = 0;
+      do {
+        if (initial) {
+          // spawn from edges
+          const side = Math.floor(Math.random() * 4);
+          if (side === 0) { x = 0; y = Math.random() * H; }
+          else if (side === 1) { x = W; y = Math.random() * H; }
+          else if (side === 2) { x = Math.random() * W; y = 0; }
+          else { x = Math.random() * W; y = H; }
+        } else {
+          // spawn from random position, but not near player
+          x = Math.random() * W;
+          y = Math.random() * H;
+        }
+        attempts++;
+      } while (initial && dist({x, y}, player) < safeDist && attempts < 50);
+
+      angle = randomAngle();
+      speed = 0.5 + Math.random() * 2.5;
+      size = MAX_ROCK_SIZE;
+
+      rocks.push({
+        x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+        size: size,
+        radius: size/2,
+        rotation: Math.random() * 2 * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 0.04
+      });
+    }
+
+    // ---------- SPLIT ROCK ----------
+    function splitRock(rock, bullet) {
+      // reduce score for small rocks? Actually classic: small rock = more points
+      const size = rock.size;
+      let points = 0;
+      if (size > 30) points = 20;
+      else if (size > 20) points = 50;
+      else points = 100;
+      score += points;
+      updateUI();
+
+      // create two smaller rocks if size > MIN_ROCK_SIZE
+      if (size > MIN_ROCK_SIZE) {
+        const newSize = size * 0.6;
+        const speed = Math.hypot(rock.vx, rock.vy) * 1.2;
+        for (let i = 0; i < 2; i++) {
+          const angle = randomAngle();
+          const vx = Math.cos(angle) * speed * 0.8;
+          const vy = Math.sin(angle) * speed * 0.8;
+          rocks.push({
+            x: rock.x + (Math.random() - 0.5) * 10,
+            y: rock.y + (Math.random() - 0.5) * 10,
+            vx: rock.vx * 0.5 + vx,
+            vy: rock.vy * 0.5 + vy,
+            size: newSize,
+            radius: newSize/2,
+            rotation: Math.random() * 2 * Math.PI,
+            rotSpeed: (Math.random() - 0.5) * 0.06
+          });
+        }
+      }
+      // remove rock
+      const idx = rocks.indexOf(rock);
+      if (idx > -1) rocks.splice(idx, 1);
+
+      // particle explosion
+      createExplosion(rock.x, rock.y, rock.size);
+    }
+
+    // ---------- PARTICLES ----------
+    function createExplosion(x, y, size) {
+      const count = Math.floor(size * 0.6) + 6;
+      for (let i = 0; i < count; i++) {
+        const angle = randomAngle();
+        const speed = 0.5 + Math.random() * 3.5;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 30 + Math.random() * 20,
+          maxLife: 50,
+          size: 2 + Math.random() * 4,
+          color: Math.random() > 0.5 ? '#33ff33' : '#88ff88'
+        });
+      }
+    }
+
+    // ---------- COLLISION DETECTION ----------
+    function handleCollisions() {
+      // bullets vs rocks
+      for (let b = bullets.length - 1; b >= 0; b--) {
+        const bullet = bullets[b];
+        for (let r = rocks.length - 1; r >= 0; r--) {
+          const rock = rocks[r];
+          if (dist(bullet, rock) < rock.radius + 3) {
+            // split rock
+            splitRock(rock, bullet);
+            // remove bullet
+            bullets.splice(b, 1);
+            break;
+          }
+        }
+      }
+
+      // player vs rocks (if active and not invincible)
+      if (player.active && !player.invincible) {
+        for (let r = rocks.length - 1; r >= 0; r--) {
+          const rock = rocks[r];
+          if (dist(player, rock) < player.radius + rock.radius) {
+            // player hit
+            lives--;
+            updateUI();
+            createExplosion(player.x, player.y, 30);
+            if (lives <= 0) {
+              gameOver = true;
+              player.active = false;
+              return;
+            }
+            // respawn
+            player.x = W/2;
+            player.y = H/2;
+            player.vx = 0;
+            player.vy = 0;
+            player.angle = -Math.PI/2;
+            player.invincible = true;
+            player.invTimer = 60;
+            // remove rock that hit? (classic: rock disappears)
+            rocks.splice(r, 1);
+            break;
+          }
+        }
+      }
+    }
+
+    // ---------- UPDATE ----------
+    function update() {
+      if (gameOver) return;
+
+      // ----- player movement -----
+      if (player.active) {
+        // rotation
+        if (keys.left) player.angle -= 0.06;
+        if (keys.right) player.angle += 0.06;
+
+        // thrust
+        if (keys.up) {
+          const thrust = 0.15;
+          player.vx += Math.cos(player.angle) * thrust;
+          player.vy += Math.sin(player.angle) * thrust;
+          // thrust particles
+          if (Math.random() > 0.5) {
+            particles.push({
+              x: player.x - Math.cos(player.angle) * 16,
+              y: player.y - Math.sin(player.angle) * 16,
+              vx: player.vx * 0.5 + (Math.random() - 0.5) * 0.5,
+              vy: player.vy * 0.5 + (Math.random() - 0.5) * 0.5,
+              life: 12, maxLife: 20, size: 2,
+              color: '#88ff88'
+            });
+          }
+        }
+
+        // friction
+        player.vx *= 0.98;
+        player.vy *= 0.98;
+        // speed cap
+        const maxSpeed = 6;
+        let sp = Math.hypot(player.vx, player.vy);
+        if (sp > maxSpeed) {
+          player.vx = (player.vx / sp) * maxSpeed;
+          player.vy = (player.vy / sp) * maxSpeed;
+        }
+
+        player.x += player.vx;
+        player.y += player.vy;
+        wrap(player);
+
+        // invincibility timer
+        if (player.invincible) {
+          player.invTimer--;
+          if (player.invTimer <= 0) player.invincible = false;
+        }
+      }
+
+      // ----- fire bullet -----
+      if (keys.space && fireCooldown <= 0 && player.active && !gameOver) {
+        const bx = player.x + Math.cos(player.angle) * 20;
+        const by = player.y + Math.sin(player.angle) * 20;
+        bullets.push({
+          x: bx, y: by,
+          vx: player.vx + Math.cos(player.angle) * 7,
+          vy: player.vy + Math.sin(player.angle) * 7,
+          life: 40
+        });
+        fireCooldown = 10;
+      }
+      if (fireCooldown > 0) fireCooldown--;
+
+      // ----- update bullets -----
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+        wrap(b);
+        if (b.life <= 0) {
+          bullets.splice(i, 1);
+        }
+      }
+
+      // ----- update rocks -----
+      for (let r of rocks) {
+        r.x += r.vx;
+        r.y += r.vy;
+        r.rotation += r.rotSpeed;
+        wrap(r);
+        // speed limit
+        let sp = Math.hypot(r.vx, r.vy);
+        if (sp > MAX_ROCK_SPEED) {
+          r.vx = (r.vx / sp) * MAX_ROCK_SPEED;
+          r.vy = (r.vy / sp) * MAX_ROCK_SPEED;
+        }
+      }
+
+      // ----- update particles -----
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.96;
+        p.vy *= 0.96;
+        p.life--;
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+
+      // ----- collisions -----
+      handleCollisions();
+
+      // ----- ensure at least 3 rocks -----
+      if (rocks.length < 3 && !gameOver) {
+        spawnRock(false);
+      }
+    }
+
+    // ---------- DRAW ----------
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // background grid (vector vibe)
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < W; i += 40) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, H);
+        ctx.stroke();
+      }
+      for (let i = 0; i < H; i += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(W, i);
+        ctx.stroke();
+      }
+
+      // ----- draw rocks (vector style) -----
+      for (let r of rocks) {
+        const s = r.size;
+        const points = 8 + Math.floor(s / 8);
+        const step = 2 * Math.PI / points;
+        const offset = r.rotation;
+        ctx.strokeStyle = '#33ff33';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < points; i++) {
+          const ang = i * step + offset;
+          const rad = s * 0.5 * (0.7 + 0.3 * Math.sin(i * 3.7));
+          const x = r.x + Math.cos(ang) * rad;
+          const y = r.y + Math.sin(ang) * rad;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // inner glow
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fill();
+      }
+
+      // ----- draw bullets (bright green dots) -----
+      for (let b of bullets) {
+        ctx.fillStyle = '#afffaf';
+        ctx.shadowColor = '#33ff33';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // ----- draw player (vector ship) -----
+      if (player.active) {
+        const px = player.x, py = player.y, ang = player.angle;
+        const len = 20;
+        // invincibility blink
+        if (player.invincible && (player.invTimer % 10 < 5)) {
+          ctx.strokeStyle = '#88ff88';
+        } else {
+          ctx.strokeStyle = '#33ff33';
+        }
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        // nose
+        ctx.moveTo(px + Math.cos(ang) * len, py + Math.sin(ang) * len);
+        // left wing
+        ctx.lineTo(px + Math.cos(ang + 2.2) * len * 0.7, py + Math.sin(ang + 2.2) * len * 0.7);
+        // rear left
+        ctx.lineTo(px + Math.cos(ang + 2.8) * len * 0.5, py + Math.sin(ang + 2.8) * len * 0.5);
+        // rear right
+        ctx.lineTo(px + Math.cos(ang - 2.8) * len * 0.5, py + Math.sin(ang - 2.8) * len * 0.5);
+        // right wing
+        ctx.lineTo(px + Math.cos(ang - 2.2) * len * 0.7, py + Math.sin(ang - 2.2) * len * 0.7);
+        ctx.closePath();
+        ctx.stroke();
+        // cockpit dot
+        ctx.fillStyle = '#afffaf';
+        ctx.beginPath();
+        ctx.arc(px + Math.cos(ang) * 6, py + Math.sin(ang) * 6, 2, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      // ----- draw particles (green sparks) -----
+      for (let p of particles) {
+        const alpha = p.life / p.maxLife;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+
+      // ----- game over overlay -----
+      if (gameOver) {
+        ctx.fillStyle = '#33ff33';
+        ctx.font = 'bold 42px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#33ff33';
+        ctx.shadowBlur = 20;
+        ctx.fillText('GAME OVER', W/2, H/2 - 20);
+        ctx.font = '20px "Courier New", monospace';
+        ctx.fillText('press R to restart', W/2, H/2 + 40);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // ---------- UI UPDATE ----------
+    function updateUI() {
+      scoreSpan.textContent = score;
+      livesSpan.textContent = lives;
+    }
+
+    // ---------- KEYBOARD ----------
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') keys.left = true;
+      else if (key === 'ArrowRight') keys.right = true;
+      else if (key === 'ArrowUp') keys.up = true;
+      else if (key === ' ') { keys.space = true; e.preventDefault(); }
+      else if (key === 'r' || key === 'R') {
+        resetGame();
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      const key = e.key;
+      if (key === 'ArrowLeft') keys.left = false;
+      else if (key === 'ArrowRight') keys.right = false;
+      else if (key === 'ArrowUp') keys.up = false;
+      else if (key === ' ') { keys.space = false; e.preventDefault(); }
+    });
+
+    // ---------- GAME LOOP ----------
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // ---------- START ----------
+    resetGame();
+    gameLoop();
+  })();
+</script>
+</body>
+</html>
+```
+```
+### Gameplay & Mechanics
+This page recreates the classic arcade feel with a focus on smooth physics and responsive controls.
+
+- **Core Mechanics**: The game features friction-based movement, screen wrapping, and asteroid splitting. You control a green vector-style ship, firing bullets to destroy asteroids. Each asteroid splits into smaller pieces until it's destroyed, with points awarded based on size.
+- **Controls & Feedback**: Use the arrow keys to rotate and thrust, the spacebar to fire, and 'R' to restart. The UI displays your score and remaining lives. Particle explosions and a blinking invincibility effect provide clear visual feedback for hits and respawns.
+- **Visual Style**: The game uses a green vector-style aesthetic with a dark background grid, glowing bullets, and particle effects. The ship and asteroids are drawn with clean lines, and explosions create a burst of green sparks.
+
+---
+
+**Instructions:**  
+1. Open the file in a web browser. The game starts immediately with 3 lives and 4 initial asteroids.  
+2. Use **←/→** to rotate, **↑** to thrust, and **Space** to fire. Press **R** to reset the game at any time.  
+3. Avoid asteroids and shoot them down to score points. Each life lost resets your position with temporary invincibility.
+ds4: ----------------------------------------
+ds4: prefill: 10.48 t/s, generation: 31.89 t/s (5205 tokens in 163.237s)
+ds4: ttf: first-output=35.633s total=198.815s (engine=1.520s session=25.615s prompt=0.000s prefill=8.394s decode=163.237s)
+ds4: dspark acceptance: 92.8% (1104/1190 draft tokens)
+ds4: dspark acceptance by position: 1=241/241 2=223/241 3=193/208 4=169/187 5=149/165 6=129/148
+ds4: dspark conditional acceptance: 1=100.0% (241/241) 2|1=92.5% (223/241) 3|1-2=95.5% (193/202) 4|1-3=97.1% (169/174) 5|1-4=98.0% (149/152) 6|1-5=97.0% (129/133)
+ds4: dspark full-accept: 83.8% (202/241 blocks), first-miss: 0.0% (0/241 blocks)
+ds4: dspark avg scheduled: 4.94 draft tokens/block (241 blocks)

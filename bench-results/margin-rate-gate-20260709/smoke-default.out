@@ -1,0 +1,5 @@
+This HTML code creates a faithful, self-contained reproduction of the classic 1978 Taito arcade game "Astroneous" (often known as "Asteroids" in style). It includes the original sprite designs, scoring, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head

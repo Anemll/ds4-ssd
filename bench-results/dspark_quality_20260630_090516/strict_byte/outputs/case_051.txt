@@ -1,0 +1,9 @@
+Questa è un'ottima domanda, che tocca il cuore di come funzionano i modelli linguistici (LLM).
+
+La risposta breve è: perché la **scelta greedy** (o *argmax*) è una funzione di soglia "dura" (hard threshold), e i logit definiscono la "pendenza" della competizione tra token.
+
+Vediamolo nel dettaglio.
+
+### 1. Cosa sono i Logit?
+
+Prima della funzione Softmax che produce le probabilità, il modello calcola un punteggio grezzo per ogni possibile token successivo. Quest

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run ds4 outside any inherited Codex filesystem-sandbox marker so Metal stays visible.
+unset CODEX_SANDBOX
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 

@@ -1,0 +1,31 @@
+===== markov aggressive runner start Thu Jul  9 01:32:34 PDT 2026 =====
+waiting for free slot for scale=1.0 ...
+===== START MARKOV_SCALE=1.0 @ Thu Jul  9 01:35:46 PDT 2026 =====
+===== DONE MARKOV_SCALE=1.0 rc=0 @ Thu Jul  9 01:36:30 PDT 2026 =====
+103:ds4: prefill: 9.19 t/s, generation: 40.45 t/s (800 tokens in 19.776s)
+105:ds4: dspark perf: draft=425.2 tok/s, verify=60.3 proposed tok/s, verify-accepted=48.3 tok/s, block=86.32 ms (draft=10.48 verify=73.91 overhead=1.93 commit=1.46, tau=3.57, blocks=175, skip-pre=0, skip-verify=0)
+112:ds4: dspark full-accept: 64.6% (113/175 blocks), first-miss: 0.0% (0/175 blocks)
+113:ds4: dspark avg scheduled: 4.46 draft tokens/block (175 blocks)
+waiting for free slot for scale=1.25 ...
+===== START MARKOV_SCALE=1.25 @ Thu Jul  9 01:36:30 PDT 2026 =====
+===== DONE MARKOV_SCALE=1.25 rc=0 @ Thu Jul  9 01:37:17 PDT 2026 =====
+103:ds4: prefill: 8.47 t/s, generation: 38.82 t/s (800 tokens in 20.610s)
+105:ds4: dspark perf: draft=428.7 tok/s, verify=60.3 proposed tok/s, verify-accepted=46.0 tok/s, block=87.39 ms (draft=10.54 verify=74.91 overhead=1.94 commit=1.46, tau=3.44, blocks=180, skip-pre=0, skip-verify=0)
+112:ds4: dspark full-accept: 59.4% (107/180 blocks), first-miss: 0.0% (0/180 blocks)
+113:ds4: dspark avg scheduled: 4.52 draft tokens/block (180 blocks)
+waiting for free slot for scale=1.5 ...
+===== START MARKOV_SCALE=1.5 @ Thu Jul  9 01:37:17 PDT 2026 =====
+===== DONE MARKOV_SCALE=1.5 rc=0 @ Thu Jul  9 01:38:02 PDT 2026 =====
+103:ds4: prefill: 8.46 t/s, generation: 38.46 t/s (800 tokens in 20.802s)
+105:ds4: dspark perf: draft=425.1 tok/s, verify=60.2 proposed tok/s, verify-accepted=45.2 tok/s, block=86.38 ms (draft=10.48 verify=74.00 overhead=1.90 commit=1.43, tau=3.35, blocks=184, skip-pre=0, skip-verify=0)
+112:ds4: dspark full-accept: 59.2% (109/184 blocks), first-miss: 0.0% (0/184 blocks)
+113:ds4: dspark avg scheduled: 4.46 draft tokens/block (184 blocks)
+ALL MARKOV SCALES DONE @ Thu Jul  9 01:38:02 PDT 2026
+-rw-r--r--  1 anemll  staff  10210 Jul  9 01:22 bench-results/yolo-20260709/markov-scale-0.75.err
+-rw-r--r--  1 anemll  staff   2440 Jul  9 01:22 bench-results/yolo-20260709/markov-scale-0.75.out
+-rw-r--r--  1 anemll  staff  10215 Jul  9 01:36 bench-results/yolo-20260709/markov-scale-1.0.err
+-rw-r--r--  1 anemll  staff   2440 Jul  9 01:36 bench-results/yolo-20260709/markov-scale-1.0.out
+-rw-r--r--  1 anemll  staff  10210 Jul  9 01:37 bench-results/yolo-20260709/markov-scale-1.25.err
+-rw-r--r--  1 anemll  staff   2440 Jul  9 01:37 bench-results/yolo-20260709/markov-scale-1.25.out
+-rw-r--r--  1 anemll  staff  10208 Jul  9 01:38 bench-results/yolo-20260709/markov-scale-1.5.err
+-rw-r--r--  1 anemll  staff   2440 Jul  9 01:38 bench-results/yolo-20260709/markov-scale-1.5.out

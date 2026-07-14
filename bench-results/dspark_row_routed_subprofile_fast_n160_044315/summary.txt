@@ -1,0 +1,9 @@
+subprofile_rows=1548
+n=1 calls=129 sum_gate=94.152 sum_down=35.128 sum_ordered=0.077 sum_total=129.357 mean_gate=0.730 mean_down=0.272 mean_ordered=0.001 mean_total=1.003
+n=5 calls=1419 sum_gate=2195.820 sum_down=549.699 sum_ordered=1.002 sum_total=2746.521 mean_gate=1.547 mean_down=0.387 mean_ordered=0.001 mean_total=1.936
+perf:
+ds4: prefill: 7.14 t/s, generation: 44.17 t/s (160 tokens in 3.622s)
+ds4: dspark perf: draft=468.0 tok/s, verify=57.8 proposed tok/s, verify-accepted=51.9 tok/s, block=99.25 ms (draft=10.68 verify=86.43 overhead=2.13 commit=1.69, tau=4.49, blocks=35)
+ds4: dspark acceptance: 95.2% (157/165 draft tokens)
+ds4: dspark full-accept: 87.9% (29/33 blocks), first-miss: 0.0% (0/33 blocks)
+ds4: dspark avg scheduled: 5.00 draft tokens/block (33 blocks)

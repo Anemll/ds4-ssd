@@ -1,0 +1,7 @@
+generate_samples: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: Metal source metal/flash_attn.metal not found (set DS4_METAL_FLASH_ATTN_SOURCE to override)
+ds4: DSpark draft inference requires fused native MXFP4 routed-MoE kernels (batch-strided pair-SwiGLU + down-sum6)
+failed to open model

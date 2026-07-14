@@ -1,0 +1,131 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.295 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=24.14 t/s avg=0.97 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.95 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=50.54 t/s avg=1.87 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.84 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=50.77 t/s avg=2.71 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=2.66 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=2.60 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=45.95 t/s avg=3.41 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=3.35 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=43.41 t/s avg=4.10 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=4.04 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=51.23 t/s avg=4.77 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=4.70 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=56.18 t/s avg=5.41 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=5.33 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=5.26 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=47.17 t/s avg=5.92 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=5.80 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=50.03 t/s avg=6.44 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=6.34 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=48.49 t/s avg=6.95 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=6.84 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=55.86 t/s avg=7.43 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=7.34 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=7.26 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=47.81 t/s avg=7.81 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=7.71 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=44.56 t/s avg=8.24 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=8.14 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=49.86 t/s avg=8.65 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=8.56 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=52.66 t/s avg=9.06 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=8.95 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=8.83 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=47.89 t/s avg=9.30 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=9.19 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=49.46 t/s avg=9.65 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=9.53 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=48.84 t/s avg=9.98 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=9.86 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=43.01 t/s avg=10.28 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: dspark attn rows shape block=1 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=4995 shared_est=1343 reuse=3.72x raw_intersection=913 raw_lane_aligned=913 raw_lane=100.0% comp_keys row=600 shared_est=156 reuse=3.85x comp_common=111 comp_lane_aligned=107 comp_lane=96.4% zero_comp_rows=105 pad_rows=214 ring_rows=0 raw_minmax=21/30 comp_minmax=0/7
+ds4: dspark attn rows shape block=2 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=6140 shared_est=1572 reuse=3.91x raw_intersection=1142 raw_lane_aligned=1142 raw_lane=100.0% comp_keys row=742 shared_est=198 reuse=3.75x comp_common=136 comp_lane_aligned=56 comp_lane=41.2% zero_comp_rows=105 pad_rows=193 ring_rows=0 raw_minmax=26/36 comp_minmax=0/9
+ds4: dspark attn rows shape block=3 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=7460 shared_est=1836 reuse=4.06x raw_intersection=1406 raw_lane_aligned=1406 raw_lane=100.0% comp_keys row=920 shared_est=204 reuse=4.51x comp_common=179 comp_lane_aligned=179 comp_lane=100.0% zero_comp_rows=105 pad_rows=197 ring_rows=0 raw_minmax=32/41 comp_minmax=0/10
+ds4: dspark attn rows shape block=4 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=8465 shared_est=2037 reuse=4.16x raw_intersection=1607 raw_lane_aligned=1607 raw_lane=100.0% comp_keys row=1042 shared_est=250 reuse=4.17x comp_common=198 comp_lane_aligned=198 comp_lane=100.0% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=37/43 comp_minmax=0/10
+ds4: dspark attn rows shape block=5 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=9015 shared_est=2147 reuse=4.20x raw_intersection=1717 raw_lane_aligned=1717 raw_lane=100.0% comp_keys row=1103 shared_est=291 reuse=3.79x comp_common=203 comp_lane_aligned=203 comp_lane=100.0% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=39/47 comp_minmax=0/11
+ds4: dspark attn rows shape block=6 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=10035 shared_est=2351 reuse=4.27x raw_intersection=1921 raw_lane_aligned=1921 raw_lane=100.0% comp_keys row=1236 shared_est=308 reuse=4.01x comp_common=232 comp_lane_aligned=226 comp_lane=97.4% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=43/53 comp_minmax=0/13
+ds4: dspark attn rows shape block=7 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=11455 shared_est=2635 reuse=4.35x raw_intersection=2205 raw_lane_aligned=2205 raw_lane=100.0% comp_keys row=1427 shared_est=315 reuse=4.53x comp_common=278 comp_lane_aligned=235 comp_lane=84.5% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=49/60 comp_minmax=0/15
+ds4: dspark attn rows shape block=8 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=12950 shared_est=2934 reuse=4.41x raw_intersection=2504 raw_lane_aligned=2504 raw_lane=100.0% comp_keys row=1618 shared_est=354 reuse=4.57x comp_common=316 comp_lane_aligned=244 comp_lane=77.2% zero_comp_rows=105 pad_rows=207 ring_rows=0 raw_minmax=56/66 comp_minmax=0/16
+ds4: dspark attn rows shape block=9 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=14300 shared_est=3204 reuse=4.46x raw_intersection=2774 raw_lane_aligned=2774 raw_lane=100.0% comp_keys row=1788 shared_est=396 reuse=4.52x comp_common=348 comp_lane_aligned=322 comp_lane=92.5% zero_comp_rows=105 pad_rows=203 ring_rows=0 raw_minmax=62/72 comp_minmax=0/18
+ds4: dspark attn rows shape block=10 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=15650 shared_est=3474 reuse=4.50x raw_intersection=3044 raw_lane_aligned=3044 raw_lane=100.0% comp_keys row=1962 shared_est=426 reuse=4.61x comp_common=384 comp_lane_aligned=384 comp_lane=100.0% zero_comp_rows=105 pad_rows=205 ring_rows=0 raw_minmax=68/78 comp_minmax=0/19
+ds4: dspark attn rows shape block=11 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=17000 shared_est=3744 reuse=4.54x raw_intersection=3314 raw_lane_aligned=3314 raw_lane=100.0% comp_keys row=2134 shared_est=462 reuse=4.62x comp_common=418 comp_lane_aligned=374 comp_lane=89.5% zero_comp_rows=105 pad_rows=204 ring_rows=0 raw_minmax=74/84 comp_minmax=0/21
+ds4: dspark attn rows shape block=12 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=17990 shared_est=3942 reuse=4.56x raw_intersection=3512 raw_lane_aligned=3512 raw_lane=100.0% comp_keys row=2258 shared_est=498 reuse=4.53x comp_common=440 comp_lane_aligned=352 comp_lane=80.0% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=80/87 comp_minmax=0/21
+ds4: dspark attn rows shape block=13 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=19055 shared_est=4155 reuse=4.59x raw_intersection=3725 raw_lane_aligned=3725 raw_lane=100.0% comp_keys row=2392 shared_est=528 reuse=4.53x comp_common=466 comp_lane_aligned=378 comp_lane=81.1% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=83/93 comp_minmax=0/23
+ds4: dspark attn rows shape block=14 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=20405 shared_est=4425 reuse=4.61x raw_intersection=3995 raw_lane_aligned=3995 raw_lane=100.0% comp_keys row=2562 shared_est=570 reuse=4.49x comp_common=498 comp_lane_aligned=452 comp_lane=90.8% zero_comp_rows=105 pad_rows=201 ring_rows=0 raw_minmax=89/99 comp_minmax=0/24
+ds4: dspark attn rows shape block=15 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=21755 shared_est=4695 reuse=4.63x raw_intersection=4265 raw_lane_aligned=4265 raw_lane=100.0% comp_keys row=2738 shared_est=594 reuse=4.61x comp_common=536 comp_lane_aligned=499 comp_lane=93.1% zero_comp_rows=105 pad_rows=194 ring_rows=0 raw_minmax=95/105 comp_minmax=0/26
+ds4: dspark attn rows shape block=16 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=23265 shared_est=4997 reuse=4.66x raw_intersection=4567 raw_lane_aligned=4567 raw_lane=100.0% comp_keys row=2938 shared_est=610 reuse=4.82x comp_common=582 comp_lane_aligned=506 comp_lane=86.9% zero_comp_rows=105 pad_rows=209 ring_rows=0 raw_minmax=101/112 comp_minmax=0/28
+ds4: dspark attn rows shape block=17 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=24670 shared_est=5278 reuse=4.67x raw_intersection=4848 raw_lane_aligned=4848 raw_lane=100.0% comp_keys row=3111 shared_est=667 reuse=4.66x comp_common=611 comp_lane_aligned=523 comp_lane=85.6% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=108/118 comp_minmax=0/29
+ds4: dspark attn rows shape block=18 calls=43 indexed=0 rows=215 max_n=5 raw_only=21 mixed=22 raw_same_count=0 raw_same_start=43 comp_same_count=21 raw_keys row=25840 shared_est=5512 reuse=4.69x raw_intersection=5082 raw_lane_aligned=5082 raw_lane=100.0% comp_keys row=3254 shared_est=718 reuse=4.53x comp_common=634 comp_lane_aligned=546 comp_lane=86.1% zero_comp_rows=105 pad_rows=215 ring_rows=0 raw_minmax=114/123 comp_minmax=0/30
+ds4: dspark attn rows shape block=19 calls=43 indexed=0 rows=215 max_n=5 raw_only=2 mixed=41 raw_same_count=0 raw_same_start=43 comp_same_count=2 raw_keys row=26965 shared_est=5737 reuse=4.70x raw_intersection=5307 raw_lane_aligned=5307 raw_lane=100.0% comp_keys row=3430 shared_est=726 reuse=4.72x comp_common=676 comp_lane_aligned=588 comp_lane=87.0% zero_comp_rows=86 pad_rows=196 ring_rows=0 raw_minmax=119/128 comp_minmax=0/32
+ds4: dspark attn rows shape block=20 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=40 raw_same_start=3 comp_same_count=20 raw_keys row=27490 shared_est=26002 reuse=1.06x raw_intersection=5332 raw_lane_aligned=4852 raw_lane=91.0% comp_keys row=3673 shared_est=785 reuse=4.68x comp_common=722 comp_lane_aligned=714 comp_lane=98.9% zero_comp_rows=4 pad_rows=173 ring_rows=200 raw_minmax=124/128 comp_minmax=1/33
+ds4: dspark attn rows shape block=21 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=20 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=4030 shared_est=826 reuse=4.88x comp_common=801 comp_lane_aligned=801 comp_lane=100.0% zero_comp_rows=0 pad_rows=213 ring_rows=215 raw_minmax=128/128 comp_minmax=1/36
+ds4: dspark attn rows shape block=22 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=21 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=3991 shared_est=819 reuse=4.87x comp_common=793 comp_lane_aligned=793 comp_lane=100.0% zero_comp_rows=0 pad_rows=215 ring_rows=215 raw_minmax=128/128 comp_minmax=1/37
+ds4: dspark attn rows shape block=23 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=21 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=4155 shared_est=879 reuse=4.73x comp_common=819 comp_lane_aligned=819 comp_lane=100.0% zero_comp_rows=0 pad_rows=215 ring_rows=215 raw_minmax=128/128 comp_minmax=1/39
+ds4: dspark attn rows shape block=24 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=21 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=4335 shared_est=891 reuse=4.87x comp_common=861 comp_lane_aligned=861 comp_lane=100.0% zero_comp_rows=0 pad_rows=215 ring_rows=215 raw_minmax=128/128 comp_minmax=1/40
+ds4: dspark attn rows shape block=25 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=21 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=4501 shared_est=945 reuse=4.76x comp_common=889 comp_lane_aligned=889 comp_lane=100.0% zero_comp_rows=0 pad_rows=215 ring_rows=215 raw_minmax=128/128 comp_minmax=1/42
+ds4: dspark attn rows shape block=26 calls=43 indexed=0 rows=215 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=21 raw_keys row=27520 shared_est=27520 reuse=1.00x raw_intersection=5332 raw_lane_aligned=4816 raw_lane=90.3% comp_keys row=4679 shared_est=963 reuse=4.86x comp_common=929 comp_lane_aligned=929 comp_lane=100.0% zero_comp_rows=0 pad_rows=215 ring_rows=215 raw_minmax=128/128 comp_minmax=1/43
+ds4: dspark attn rows shape block=27 calls=43 indexed=0 rows=202 max_n=5 raw_only=0 mixed=43 raw_same_count=43 raw_same_start=0 comp_same_count=28 raw_keys row=25856 shared_est=25856 reuse=1.00x raw_intersection=5345 raw_lane_aligned=4868 raw_lane=91.1% comp_keys row=4526 shared_est=1004 reuse=4.51x comp_common=959 comp_lane_aligned=959 comp_lane=100.0% zero_comp_rows=0 pad_rows=202 ring_rows=202 raw_minmax=128/128 comp_minmax=1/44
+ds4: ----------------------------------------
+ds4: prefill: 9.20 t/s, generation: 39.82 t/s (160 tokens in 4.018s)
+ds4: dspark acceptance: 76.4% (126/165 draft tokens)
+ds4: dspark acceptance by position: 1=30/34 2=28/33 3=26/33 4=23/33 5=19/32
+ds4: dspark avg scheduled: 4.85 draft tokens/block (34 blocks)

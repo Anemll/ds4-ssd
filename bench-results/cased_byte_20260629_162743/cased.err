@@ -1,0 +1,327 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=4 active=4 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.313 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: NAX fused matmul library compile failed: In file included from program_source:13:
+In file included from /System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/MetalPerformancePrimitives.h:10:
+In file included from /System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/MPPTensorOpsMatMul2d.h:411:
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/__impl/MPPTensorOpsMatMul2dImpl.h:4385:5: error: static_assert failed due to requirement '__tensor_ops_detail::__is_same_v<const float, unsigned char> || __tensor_ops_detail::__is_same_v<const float, signed char> || __tensor_ops_detail::__is_same_v<const float, metal::uint4b_format> || __tensor_ops_detail::__is_same_v<const float, metal::int4b_format> || __tensor_ops_detail::__is_same_v<const float, float> || __tensor_ops_detail::__is_same_v<const float, bfloat> || __tensor_ops_detail::__is_same_v<const float, half>' "cooperative tensor source data type can only be one of uint8_t/int8_t/uint2b_format/int2b_format/uint4b_format/int4b_format/float/half/bfloat/metal_fp8_e4m3_format/metal_fp8_e5m2_format/metal_fp4_e2m1_format"
+    static_assert(__tensor_ops_detail::__is_same_v<left_element_type, uint8_t> ||
+    ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/__impl/MPPTensorOpsMatMul2dImpl.h:5223:1: note: in instantiation of template class 'mpp::tensor_ops::__mutmul2d_detail::__operand_layout<{128, 64, 32, false, true, true, 1}, mpp::tensor_ops::__mutmul2d_detail::__matmul2d_cooperative_operand_index::destination, metal::execution_simdgroups<4>, const float, half, float, int>' requested here
+using __cooperative_tensor_t =
+^
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/__impl/MPPTensorOpsMatMul2dImpl.h:5229:1: note: in instantiation of template type alias '__cooperative_tensor_t' requested here
+using __cooperative_tensor_destination_t =
+^
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/MPPTensorOpsMatMul2d.h:549:3: note: in instantiation of template type alias '__cooperative_tensor_destination_t' requested here
+  using cooperative_tensor_destination_t =
+  ^
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/MPPTensorOpsMatMul2d.h:561:10: note: in instantiation of template type alias 'cooperative_tensor_destination_t' requested here
+  INLINE cooperative_tensor_destination_t<LeftOperandType, RightOperandType, ElementType, CoordType, CoopArgs...>
+         ^
+program_source:235:18: note: while substituting deduced template arguments into function template 'get_destination_cooperative_tensor' [with LeftOperandType = metal::tensor<const device float, metal::extents<int, 18446744073709551615, 18446744073709551615>, metal::tensor_inline>, RightOperandType = metal::tensor<threadgroup half, metal::extents<int, 18446744073709551615, 18446744073709551615>, metal::tensor_inline>, ElementType = float, CoordType = (no value), U = (no value), CoopArgs = (no value)]
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+                 ^
+program_source:235:18: error: no matching member function for call to 'get_destination_cooperative_tensor'
+    auto cT = mm.get_destination_cooperative_tensor<decltype(tB), decltype(tA), float>();
+              ~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/System/Library/Frameworks/MetalPerformancePrimitives.framework/Headers/MPPTensorOpsMatMul2d.h:562:3: note: candidate template ignored: substitution failure [with LeftOperandType = metal::tensor<const device float, metal::extents<int, 18446744073709551615, 18446744073709551615>, metal::tensor_inline>, RightOperandType = metal::tensor<threadgroup half, metal::extents<int, 18446744073709551615, 18446744073709551615>, metal::tensor_inline>, ElementType = float, CoordType = int, U = void, CoopArgs = <>]
+  get_destination_cooperative_tensor() thread const
+  ^
+
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=29.37 t/s avg=0.26 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.26 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=55.67 t/s avg=0.52 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.52 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.60 t/s avg=0.77 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=0.77 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=0.76 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=47.35 t/s avg=1.01 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.00 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=46.79 t/s avg=1.25 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.24 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=46.62 t/s avg=1.48 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=1.48 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=49.45 t/s avg=1.71 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=1.70 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=1.70 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=41.73 t/s avg=1.93 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=1.91 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=39.57 t/s avg=2.14 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=2.13 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=40.94 t/s avg=2.35 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=2.34 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=53.95 t/s avg=2.56 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=2.55 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=2.54 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=49.24 t/s avg=2.76 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=2.74 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=50.49 t/s avg=2.96 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=2.95 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=49.55 t/s avg=3.16 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=3.14 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=56.68 t/s avg=3.36 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=3.34 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=3.33 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=49.95 t/s avg=3.53 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=3.52 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=48.69 t/s avg=3.72 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=3.70 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=48.45 t/s avg=3.90 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=3.88 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=40.08 t/s avg=4.08 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=4 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: varmap-attn compare layer=2 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.126724 ref=-0.126724 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.126724 ref=-0.126724
+ds4: varmap-attn compare layer=3 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.142369 ref=-0.142369 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.142369 ref=-0.142369
+ds4: varmap-attn compare layer=4 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0313235 ref=-0.0313235 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0313235 ref=-0.0313235
+ds4: varmap-attn compare layer=5 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0149584 ref=-0.0149584 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0149584 ref=-0.0149584
+ds4: varmap-attn compare layer=6 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.238184 ref=0.238184 worst_row=0 worst_idx=0 worst_delta=0 cand=0.238184 ref=0.238184
+ds4: varmap-attn compare layer=7 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0771403 ref=0.0771403 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0771403 ref=0.0771403
+ds4: varmap-attn compare layer=8 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.320772 ref=-0.320772 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.320772 ref=-0.320772
+ds4: varmap-attn compare layer=9 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.160181 ref=-0.160181 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.160181 ref=-0.160181
+ds4: varmap-attn compare layer=10 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0501456 ref=-0.0501456 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0501456 ref=-0.0501456
+ds4: varmap-attn compare layer=11 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0546676 ref=-0.0546676 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0546676 ref=-0.0546676
+ds4: varmap-attn compare layer=12 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.583 ref=0.583 worst_row=0 worst_idx=0 worst_delta=0 cand=0.583 ref=0.583
+ds4: varmap-attn compare layer=13 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.185276 ref=0.185276 worst_row=0 worst_idx=0 worst_delta=0 cand=0.185276 ref=0.185276
+ds4: varmap-attn compare layer=14 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.178305 ref=0.178305 worst_row=0 worst_idx=0 worst_delta=0 cand=0.178305 ref=0.178305
+ds4: varmap-attn compare layer=15 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.68096 ref=-0.68096 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.68096 ref=-0.68096
+ds4: varmap-attn compare layer=16 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.422607 ref=-0.422607 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.422607 ref=-0.422607
+ds4: varmap-attn compare layer=17 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0748091 ref=0.0748091 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0748091 ref=0.0748091
+ds4: varmap-attn compare layer=18 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0938275 ref=-0.0938275 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0938275 ref=-0.0938275
+ds4: varmap-attn compare layer=19 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.168991 ref=0.168991 worst_row=0 worst_idx=0 worst_delta=0 cand=0.168991 ref=0.168991
+ds4: varmap-attn compare layer=20 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0439517 ref=-0.0439517 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0439517 ref=-0.0439517
+ds4: varmap-attn compare layer=21 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.410484 ref=0.410484 worst_row=0 worst_idx=0 worst_delta=0 cand=0.410484 ref=0.410484
+ds4: varmap-attn compare layer=22 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.278805 ref=-0.278805 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.278805 ref=-0.278805
+ds4: varmap-attn compare layer=23 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.527305 ref=-0.527305 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.527305 ref=-0.527305
+ds4: varmap-attn compare layer=24 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.139084 ref=-0.139084 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.139084 ref=-0.139084
+ds4: varmap-attn compare layer=25 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0373629 ref=0.0373629 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0373629 ref=0.0373629
+ds4: dspark hybrid audit prefix block=1 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=14295 exact=14295 margin hybrid=10.941 exact=10.941 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=2 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=19950 exact=19950 margin hybrid=7.893 exact=7.893 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=3 drafted=4 committed=2 state_count=2 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=260 exact=260 margin hybrid=0.512 exact=0.512 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=4 drafted=4 committed=1 state_count=1 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=26073 exact=26073 margin hybrid=0.045 exact=0.045 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=5 drafted=4 committed=1 state_count=1 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=68546 exact=68546 margin hybrid=3.241 exact=3.241 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=6 drafted=4 committed=3 state_count=3 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=6569 exact=6569 margin hybrid=0.350 exact=0.350 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=7 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=9854 exact=9854 margin hybrid=9.091 exact=9.091 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=8 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=201 exact=201 margin hybrid=12.567 exact=12.567 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=9 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=7704 exact=7704 margin hybrid=3.776 exact=3.776 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=10 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=29675 exact=29675 margin hybrid=10.932 exact=10.932 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=11 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=10414 exact=10414 margin hybrid=7.535 exact=7.535 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=12 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=77533 exact=77533 margin hybrid=18.832 exact=18.832 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=13 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=201 exact=201 margin hybrid=16.153 exact=16.153 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: dspark hybrid audit prefix block=14 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=438 exact=438 margin hybrid=20.025 exact=20.025 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: ----------------------------------------
+ds4: prefill: 3.90 t/s, generation: 12.06 t/s (64 tokens in 5.309s)
+ds4: dspark perf: draft=298.4 tok/s, verify=17.7 proposed tok/s, verify-accepted=14.0 tok/s, block=304.70 ms (draft=12.78 verify=214.80 overhead=77.12 commit=76.63, tau=4.00, blocks=16)
+ds4: dspark verify GPU-busy: 149.28 ms/block of 214.80 ms verify (69.5% active, 30.5% idle)
+ds4: vm pressure: app=83.59 GiB resident=15.51 GiB wired=96.05 GiB compressed=1.85 GiB logical=3.67 GiB swap=1.93/3.00 GiB pressure=85% free=2.96 GiB gpu=83.31 GiB gpu-compressed=0.00 GiB task-compressed=76.46 GiB decompressions=7881761
+ds4: dspark acceptance: 78.7% (48/61 draft tokens)
+ds4: dspark acceptance by position: 1=15/16 2=12/15 3=11/15 4=10/15
+ds4: dspark avg scheduled: 3.81 draft tokens/block (16 blocks)

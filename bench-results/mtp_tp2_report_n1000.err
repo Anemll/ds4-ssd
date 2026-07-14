@@ -1,0 +1,425 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: MTP support model loaded: /Users/anemll/Models/antirez/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf (draft=2)
+ds4: MTP sidecar verifier: batch verifier requested (resident all-expert sidecar, draft<=5)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.319 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: Metal model views created in 0.121 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 3631.22 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=29.51 t/s avg=1.51 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=1.46 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=50.29 t/s avg=2.84 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=2.77 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=49.26 t/s avg=4.04 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=3.92 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=3.80 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=46.18 t/s avg=4.94 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=4.81 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=46.52 t/s avg=5.86 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=5.71 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=50.54 t/s avg=6.71 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=6.56 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=55.65 t/s avg=7.51 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=7.35 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=7.23 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=48.99 t/s avg=8.09 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=7.89 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=53.08 t/s avg=8.71 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=8.55 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=47.78 t/s avg=9.31 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=9.13 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=54.64 t/s avg=9.88 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=9.71 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=9.56 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=47.39 t/s avg=10.24 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=10.08 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=46.50 t/s avg=10.72 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=10.54 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=49.89 t/s avg=11.17 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=11.01 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=49.86 t/s avg=11.61 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=11.43 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=11.24 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=47.33 t/s avg=11.80 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=11.62 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=48.98 t/s avg=12.16 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=11.97 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=49.23 t/s avg=12.50 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=12.32 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=41.59 t/s avg=12.79 t/s
+ds4: prefill full: 19 tokens in 1487.4 ms (12.8 t/s)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: mtp timing micro drafted=2 committed=1 draft=2.970 ms snapshot=0.000 ms verify=55.356 ms prefix=0.759 ms total=59.139 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.420 ms snapshot=0.000 ms verify=46.123 ms prefix=0.468 ms total=49.034 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.207 ms snapshot=0.000 ms verify=42.359 ms total=44.615 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.847 ms snapshot=0.000 ms verify=45.449 ms total=48.317 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.185 ms snapshot=0.000 ms verify=45.387 ms total=47.611 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.895 ms snapshot=0.000 ms verify=43.454 ms prefix=0.399 ms total=46.766 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.215 ms snapshot=0.000 ms verify=43.440 ms prefix=0.481 ms total=46.162 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.220 ms snapshot=0.000 ms verify=45.285 ms total=47.527 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.874 ms snapshot=0.000 ms verify=45.358 ms total=48.259 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.175 ms snapshot=0.000 ms verify=42.534 ms prefix=0.799 ms total=45.527 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.428 ms snapshot=0.000 ms verify=45.433 ms total=47.883 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.386 ms snapshot=0.000 ms verify=44.921 ms total=47.331 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.164 ms snapshot=0.000 ms verify=44.348 ms total=47.538 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.211 ms snapshot=0.000 ms verify=42.818 ms total=45.053 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.928 ms snapshot=0.000 ms verify=45.863 ms total=48.818 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.238 ms snapshot=0.000 ms verify=45.961 ms total=48.221 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.274 ms snapshot=0.000 ms verify=44.715 ms total=47.015 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.033 ms snapshot=0.000 ms verify=44.486 ms total=47.558 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.264 ms snapshot=0.000 ms verify=46.107 ms total=48.398 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.910 ms snapshot=0.000 ms verify=46.453 ms total=49.388 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.219 ms snapshot=0.000 ms verify=43.686 ms total=45.931 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.305 ms snapshot=0.000 ms verify=43.967 ms total=46.305 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.225 ms snapshot=0.000 ms verify=46.812 ms total=49.088 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.250 ms snapshot=0.001 ms verify=46.008 ms total=48.283 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.332 ms snapshot=0.000 ms verify=44.656 ms total=47.013 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.361 ms snapshot=0.000 ms verify=44.429 ms total=46.812 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.229 ms snapshot=0.000 ms verify=46.151 ms total=48.410 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.941 ms snapshot=0.000 ms verify=45.491 ms total=48.454 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.163 ms snapshot=0.000 ms verify=43.069 ms total=45.253 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.909 ms snapshot=0.000 ms verify=43.987 ms total=46.916 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.292 ms snapshot=0.000 ms verify=44.966 ms total=47.289 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.075 ms snapshot=0.000 ms verify=46.278 ms total=49.377 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.219 ms snapshot=0.000 ms verify=44.325 ms prefix=0.430 ms total=46.993 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.202 ms snapshot=0.000 ms verify=45.986 ms total=48.219 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.954 ms snapshot=0.000 ms verify=46.341 ms total=49.326 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.203 ms snapshot=0.000 ms verify=44.707 ms total=46.931 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.242 ms snapshot=0.000 ms verify=45.436 ms total=47.702 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.986 ms snapshot=0.000 ms verify=44.967 ms prefix=0.438 ms total=48.416 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.174 ms snapshot=0.000 ms verify=45.758 ms total=47.981 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.213 ms snapshot=0.000 ms verify=45.079 ms total=47.323 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.946 ms snapshot=0.000 ms verify=45.211 ms total=48.182 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.161 ms snapshot=0.000 ms verify=46.282 ms total=48.463 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.326 ms snapshot=0.000 ms verify=47.438 ms total=49.788 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.914 ms snapshot=0.000 ms verify=45.242 ms total=48.180 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.888 ms snapshot=0.000 ms verify=45.318 ms total=48.267 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.150 ms snapshot=0.000 ms verify=46.743 ms total=48.912 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.403 ms snapshot=0.000 ms verify=46.966 ms total=49.396 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.949 ms snapshot=0.000 ms verify=47.086 ms total=50.060 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.180 ms snapshot=0.000 ms verify=44.786 ms total=46.992 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.175 ms snapshot=0.000 ms verify=45.224 ms total=47.426 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.957 ms snapshot=0.000 ms verify=47.258 ms total=50.240 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.876 ms snapshot=0.000 ms verify=46.677 ms total=49.580 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.201 ms snapshot=0.000 ms verify=44.897 ms total=47.115 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.158 ms snapshot=0.000 ms verify=44.490 ms total=46.676 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.825 ms snapshot=0.000 ms verify=46.455 ms total=49.307 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.232 ms snapshot=0.000 ms verify=46.463 ms total=48.717 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.201 ms snapshot=0.000 ms verify=45.016 ms total=47.241 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.832 ms snapshot=0.000 ms verify=44.962 ms total=47.820 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.149 ms snapshot=0.000 ms verify=46.540 ms total=48.735 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.200 ms snapshot=0.000 ms verify=47.059 ms total=49.294 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.168 ms snapshot=0.000 ms verify=45.203 ms total=47.396 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.866 ms snapshot=0.000 ms verify=45.504 ms total=48.395 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.154 ms snapshot=0.000 ms verify=46.740 ms total=48.913 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.331 ms snapshot=0.000 ms verify=46.472 ms total=48.821 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.178 ms snapshot=0.000 ms verify=46.049 ms total=48.250 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.894 ms snapshot=0.000 ms verify=45.794 ms total=48.711 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.962 ms snapshot=0.000 ms verify=45.357 ms total=48.348 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.238 ms snapshot=0.000 ms verify=46.543 ms total=48.799 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.359 ms snapshot=0.000 ms verify=47.319 ms total=49.706 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.252 ms snapshot=0.000 ms verify=46.240 ms total=48.523 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.235 ms snapshot=0.000 ms verify=45.109 ms total=47.367 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.222 ms snapshot=0.000 ms verify=46.604 ms total=48.875 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.179 ms snapshot=0.000 ms verify=47.488 ms total=49.686 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.216 ms snapshot=0.000 ms verify=48.056 ms total=50.297 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.311 ms snapshot=0.000 ms verify=45.143 ms total=47.476 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.914 ms snapshot=0.000 ms verify=44.797 ms total=47.733 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.161 ms snapshot=0.000 ms verify=44.205 ms total=46.391 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.856 ms snapshot=0.000 ms verify=45.165 ms total=48.039 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.170 ms snapshot=0.000 ms verify=44.887 ms total=47.075 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.180 ms snapshot=0.000 ms verify=47.678 ms total=49.880 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.848 ms snapshot=0.000 ms verify=47.414 ms total=50.280 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.032 ms snapshot=0.000 ms verify=45.018 ms total=48.112 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.192 ms snapshot=0.000 ms verify=45.189 ms total=47.399 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.215 ms snapshot=0.000 ms verify=47.956 ms total=50.197 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.621 ms snapshot=0.000 ms verify=46.689 ms total=49.339 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.911 ms snapshot=0.000 ms verify=45.097 ms prefix=0.382 ms total=48.409 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.167 ms snapshot=0.000 ms verify=46.674 ms total=48.861 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.170 ms snapshot=0.000 ms verify=47.558 ms total=49.754 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.712 ms snapshot=0.000 ms verify=45.299 ms total=48.033 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.906 ms snapshot=0.000 ms verify=45.151 ms total=48.078 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.144 ms snapshot=0.000 ms verify=46.596 ms total=48.769 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.358 ms snapshot=0.000 ms verify=46.672 ms total=49.056 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.892 ms snapshot=0.000 ms verify=45.452 ms total=48.396 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.157 ms snapshot=0.000 ms verify=45.613 ms total=47.811 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.115 ms snapshot=0.000 ms verify=47.343 ms total=49.479 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.265 ms snapshot=0.000 ms verify=48.106 ms total=50.398 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.738 ms snapshot=0.000 ms verify=46.257 ms total=49.020 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.855 ms snapshot=0.000 ms verify=45.741 ms total=48.618 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.198 ms snapshot=0.000 ms verify=46.483 ms total=48.726 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.156 ms snapshot=0.000 ms verify=46.941 ms total=49.118 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.244 ms snapshot=0.000 ms verify=48.355 ms total=50.623 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.206 ms snapshot=0.000 ms verify=45.300 ms total=47.528 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.868 ms snapshot=0.000 ms verify=45.710 ms total=48.604 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.223 ms snapshot=0.000 ms verify=46.722 ms total=48.981 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.219 ms snapshot=0.000 ms verify=47.063 ms total=49.303 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.257 ms snapshot=0.000 ms verify=46.482 ms total=48.764 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.318 ms snapshot=0.000 ms verify=45.719 ms total=48.058 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.190 ms snapshot=0.000 ms verify=45.609 ms total=47.834 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.183 ms snapshot=0.000 ms verify=47.079 ms total=49.283 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.469 ms snapshot=0.000 ms verify=48.055 ms total=50.550 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.869 ms snapshot=0.000 ms verify=45.902 ms total=48.793 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.933 ms snapshot=0.000 ms verify=46.188 ms prefix=0.394 ms total=49.535 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.945 ms snapshot=0.000 ms verify=46.140 ms total=49.108 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.175 ms snapshot=0.000 ms verify=46.759 ms total=48.971 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.171 ms snapshot=0.000 ms verify=47.012 ms total=49.201 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.166 ms snapshot=0.000 ms verify=45.938 ms total=48.129 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.240 ms snapshot=0.000 ms verify=45.965 ms total=48.229 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.766 ms snapshot=0.000 ms verify=48.136 ms total=50.926 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.919 ms snapshot=0.001 ms verify=47.305 ms total=50.246 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.961 ms snapshot=0.000 ms verify=45.840 ms total=48.827 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.235 ms snapshot=0.000 ms verify=45.050 ms total=47.301 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.218 ms snapshot=0.000 ms verify=44.087 ms total=46.332 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.918 ms snapshot=0.000 ms verify=47.191 ms prefix=0.422 ms total=50.552 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.178 ms snapshot=0.000 ms verify=45.265 ms prefix=0.417 ms total=47.881 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.169 ms snapshot=0.000 ms verify=46.117 ms total=48.321 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.325 ms snapshot=0.000 ms verify=48.020 ms prefix=0.347 ms total=50.713 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.164 ms snapshot=0.000 ms verify=45.153 ms total=47.340 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.321 ms snapshot=0.000 ms verify=46.471 ms total=48.813 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.193 ms snapshot=0.000 ms verify=46.685 ms total=48.900 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.291 ms snapshot=0.000 ms verify=46.569 ms total=48.886 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.192 ms snapshot=0.000 ms verify=45.164 ms total=47.380 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.807 ms snapshot=0.000 ms verify=46.982 ms total=49.813 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.135 ms snapshot=0.000 ms verify=46.757 ms total=48.916 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.164 ms snapshot=0.000 ms verify=44.181 ms total=46.373 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.577 ms snapshot=0.000 ms verify=44.922 ms total=47.525 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.167 ms snapshot=0.000 ms verify=46.879 ms total=49.087 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.175 ms snapshot=0.000 ms verify=46.973 ms total=49.170 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.351 ms snapshot=0.000 ms verify=45.495 ms total=47.873 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.904 ms snapshot=0.000 ms verify=45.871 ms total=48.798 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.161 ms snapshot=0.000 ms verify=46.914 ms prefix=0.401 ms total=49.497 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.180 ms snapshot=0.000 ms verify=44.264 ms total=46.466 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.176 ms snapshot=0.000 ms verify=45.595 ms total=47.792 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.946 ms snapshot=0.000 ms verify=47.445 ms total=50.415 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.221 ms snapshot=0.000 ms verify=47.032 ms total=49.316 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.149 ms snapshot=0.000 ms verify=44.824 ms total=46.994 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.179 ms snapshot=0.000 ms verify=46.192 ms total=48.396 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.918 ms snapshot=0.000 ms verify=46.803 ms total=49.746 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.226 ms snapshot=0.000 ms verify=46.773 ms total=49.021 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.169 ms snapshot=0.000 ms verify=46.939 ms total=49.128 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.444 ms snapshot=0.000 ms verify=45.571 ms total=48.034 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.958 ms snapshot=0.000 ms verify=45.703 ms total=48.681 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.820 ms snapshot=0.000 ms verify=44.851 ms total=47.697 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.321 ms snapshot=0.000 ms verify=44.419 ms total=46.762 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.888 ms snapshot=0.000 ms verify=46.970 ms prefix=0.387 ms total=50.265 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.176 ms snapshot=0.000 ms verify=44.726 ms total=46.925 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.208 ms snapshot=0.000 ms verify=44.801 ms total=47.039 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.849 ms snapshot=0.000 ms verify=47.234 ms total=50.105 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.933 ms snapshot=0.000 ms verify=47.109 ms total=50.065 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.737 ms snapshot=0.000 ms verify=45.082 ms total=47.844 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.282 ms snapshot=0.000 ms verify=44.657 ms total=46.964 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.818 ms snapshot=0.000 ms verify=48.196 ms total=51.042 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.898 ms snapshot=0.000 ms verify=47.703 ms prefix=0.684 ms total=51.306 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.879 ms snapshot=0.000 ms verify=45.909 ms total=48.814 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.925 ms snapshot=0.000 ms verify=46.313 ms total=49.261 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.173 ms snapshot=0.000 ms verify=47.563 ms total=49.761 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.243 ms snapshot=0.000 ms verify=47.455 ms total=49.761 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.189 ms snapshot=0.000 ms verify=46.406 ms total=48.617 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.500 ms snapshot=0.000 ms verify=46.210 ms total=48.734 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.819 ms snapshot=0.000 ms verify=45.952 ms total=48.794 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.411 ms snapshot=0.000 ms verify=46.688 ms total=49.125 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.156 ms snapshot=0.000 ms verify=46.568 ms total=48.761 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.350 ms snapshot=0.000 ms verify=49.532 ms total=51.929 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.363 ms snapshot=0.000 ms verify=48.053 ms total=50.476 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.169 ms snapshot=0.000 ms verify=45.821 ms total=48.009 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.152 ms snapshot=0.000 ms verify=47.824 ms total=49.994 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.200 ms snapshot=0.000 ms verify=47.076 ms total=49.299 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.442 ms snapshot=0.000 ms verify=46.758 ms total=49.218 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.140 ms snapshot=0.000 ms verify=46.363 ms total=48.521 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.991 ms snapshot=0.000 ms verify=48.508 ms total=51.518 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.897 ms snapshot=0.000 ms verify=47.720 ms total=50.641 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.933 ms snapshot=0.000 ms verify=46.934 ms total=49.892 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.897 ms snapshot=0.000 ms verify=46.109 ms total=49.028 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.211 ms snapshot=0.000 ms verify=48.601 ms total=50.834 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.396 ms snapshot=0.001 ms verify=48.961 ms total=51.380 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.188 ms snapshot=0.000 ms verify=46.610 ms total=48.819 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.189 ms snapshot=0.000 ms verify=44.396 ms total=46.611 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.180 ms snapshot=0.000 ms verify=45.874 ms total=48.080 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.054 ms snapshot=0.000 ms verify=47.994 ms total=51.073 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.919 ms snapshot=0.000 ms verify=47.573 ms total=50.514 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.047 ms snapshot=0.000 ms verify=45.714 ms total=48.783 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.956 ms snapshot=0.000 ms verify=45.727 ms prefix=0.521 ms total=49.225 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.199 ms snapshot=0.000 ms verify=46.857 ms total=49.094 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.153 ms snapshot=0.000 ms verify=47.422 ms total=49.593 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.870 ms snapshot=0.000 ms verify=47.950 ms total=50.844 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.979 ms snapshot=0.000 ms verify=45.472 ms total=48.475 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.579 ms snapshot=0.000 ms verify=44.924 ms total=47.550 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.243 ms snapshot=0.000 ms verify=47.787 ms total=50.057 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.209 ms snapshot=0.000 ms verify=47.885 ms total=50.118 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.233 ms snapshot=0.000 ms verify=45.429 ms total=47.689 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.898 ms snapshot=0.000 ms verify=45.657 ms total=48.579 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.551 ms snapshot=0.000 ms verify=45.314 ms total=47.917 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.174 ms snapshot=0.000 ms verify=46.736 ms prefix=0.392 ms total=49.325 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.488 ms snapshot=0.000 ms verify=45.827 ms prefix=0.578 ms total=48.915 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.858 ms snapshot=0.000 ms verify=48.811 ms total=51.689 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.947 ms snapshot=0.000 ms verify=48.974 ms total=51.944 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.673 ms snapshot=0.000 ms verify=45.787 ms prefix=0.400 ms total=48.882 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.990 ms snapshot=0.000 ms verify=47.613 ms prefix=0.400 ms total=51.025 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.217 ms snapshot=0.000 ms verify=47.480 ms total=49.752 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.222 ms snapshot=0.000 ms verify=47.268 ms total=49.511 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.191 ms snapshot=0.000 ms verify=45.801 ms total=48.014 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.231 ms snapshot=0.000 ms verify=48.348 ms total=50.599 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.195 ms snapshot=0.000 ms verify=45.748 ms total=47.968 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.414 ms snapshot=0.000 ms verify=46.117 ms total=48.552 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.921 ms snapshot=0.000 ms verify=47.228 ms total=50.170 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.256 ms snapshot=0.001 ms verify=46.327 ms total=48.606 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.181 ms snapshot=0.000 ms verify=45.564 ms prefix=0.329 ms total=48.095 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.903 ms snapshot=0.000 ms verify=47.726 ms total=50.653 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.963 ms snapshot=0.000 ms verify=46.909 ms total=49.896 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.196 ms snapshot=0.000 ms verify=46.215 ms prefix=0.404 ms total=48.836 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.171 ms snapshot=0.000 ms verify=46.659 ms total=48.854 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.187 ms snapshot=0.000 ms verify=48.354 ms total=50.562 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.237 ms snapshot=0.000 ms verify=45.932 ms total=48.193 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.192 ms snapshot=0.000 ms verify=45.709 ms total=47.926 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.287 ms snapshot=0.000 ms verify=46.844 ms total=49.180 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.200 ms snapshot=0.000 ms verify=46.642 ms total=48.862 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.369 ms snapshot=0.001 ms verify=46.275 ms prefix=0.481 ms total=49.148 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.872 ms snapshot=0.000 ms verify=47.321 ms total=50.217 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=3.065 ms snapshot=0.000 ms verify=47.453 ms prefix=0.387 ms total=50.929 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=3.025 ms snapshot=0.000 ms verify=45.611 ms total=48.661 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.423 ms snapshot=0.000 ms verify=45.006 ms prefix=0.381 ms total=47.832 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.197 ms snapshot=0.000 ms verify=47.636 ms prefix=0.713 ms total=50.566 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.161 ms snapshot=0.000 ms verify=45.083 ms total=47.272 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.352 ms snapshot=0.000 ms verify=45.734 ms total=48.114 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.200 ms snapshot=0.000 ms verify=47.322 ms prefix=0.380 ms total=49.921 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.182 ms snapshot=0.001 ms verify=44.917 ms total=47.122 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.209 ms snapshot=0.000 ms verify=45.225 ms total=47.466 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.940 ms snapshot=0.000 ms verify=47.391 ms total=50.353 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.168 ms snapshot=0.000 ms verify=47.179 ms total=49.377 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.228 ms snapshot=0.000 ms verify=45.992 ms total=48.241 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.162 ms snapshot=0.000 ms verify=44.825 ms total=47.012 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.826 ms snapshot=0.000 ms verify=45.501 ms total=48.353 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.184 ms snapshot=0.000 ms verify=46.811 ms prefix=0.369 ms total=49.383 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.213 ms snapshot=0.000 ms verify=45.054 ms total=47.286 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.162 ms snapshot=0.000 ms verify=45.835 ms total=48.021 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.909 ms snapshot=0.000 ms verify=47.780 ms total=50.716 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.867 ms snapshot=0.000 ms verify=47.457 ms total=50.343 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.967 ms snapshot=0.000 ms verify=48.236 ms total=51.221 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.994 ms snapshot=0.001 ms verify=46.751 ms total=49.764 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.296 ms snapshot=0.000 ms verify=47.673 ms prefix=0.479 ms total=50.469 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.405 ms snapshot=0.000 ms verify=49.473 ms prefix=0.408 ms total=52.306 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.224 ms snapshot=0.000 ms verify=46.301 ms prefix=0.427 ms total=48.973 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.201 ms snapshot=0.000 ms verify=47.595 ms total=49.837 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.221 ms snapshot=0.000 ms verify=47.659 ms total=49.898 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.212 ms snapshot=0.000 ms verify=46.503 ms total=48.740 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.204 ms snapshot=0.000 ms verify=46.976 ms total=49.202 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.274 ms snapshot=0.000 ms verify=48.578 ms total=50.868 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.290 ms snapshot=0.000 ms verify=48.392 ms total=50.709 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.262 ms snapshot=0.000 ms verify=46.676 ms total=48.962 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.341 ms snapshot=0.000 ms verify=46.741 ms total=49.104 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.448 ms snapshot=0.000 ms verify=48.557 ms total=51.024 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.216 ms snapshot=0.000 ms verify=48.456 ms total=50.693 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.849 ms snapshot=0.000 ms verify=46.192 ms total=49.065 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.903 ms snapshot=0.000 ms verify=46.217 ms total=49.143 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.890 ms snapshot=0.000 ms verify=47.976 ms total=50.891 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.972 ms snapshot=0.000 ms verify=47.692 ms total=50.688 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.890 ms snapshot=0.000 ms verify=46.838 ms total=49.752 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.893 ms snapshot=0.000 ms verify=46.698 ms total=49.613 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.266 ms snapshot=0.000 ms verify=46.754 ms total=49.073 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.234 ms snapshot=0.000 ms verify=47.399 ms total=49.680 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.145 ms snapshot=0.000 ms verify=45.844 ms total=48.017 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.125 ms snapshot=0.000 ms verify=45.706 ms prefix=0.820 ms total=48.679 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.928 ms snapshot=0.000 ms verify=48.172 ms total=51.123 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.896 ms snapshot=0.000 ms verify=47.659 ms total=50.585 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.901 ms snapshot=0.000 ms verify=46.079 ms total=49.005 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.146 ms snapshot=0.000 ms verify=45.424 ms total=47.589 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.195 ms snapshot=0.000 ms verify=45.082 ms total=47.301 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.764 ms snapshot=0.000 ms verify=48.166 ms total=50.958 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.658 ms snapshot=0.000 ms verify=47.931 ms total=50.609 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.878 ms snapshot=0.000 ms verify=45.698 ms total=48.605 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.933 ms snapshot=0.000 ms verify=45.985 ms total=48.978 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.163 ms snapshot=0.000 ms verify=46.997 ms total=49.195 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.160 ms snapshot=0.000 ms verify=46.873 ms total=49.050 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.194 ms snapshot=0.000 ms verify=45.917 ms total=48.136 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.197 ms snapshot=0.000 ms verify=46.210 ms total=48.438 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.891 ms snapshot=0.000 ms verify=47.546 ms total=50.458 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.925 ms snapshot=0.000 ms verify=47.317 ms total=50.266 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.928 ms snapshot=0.000 ms verify=45.677 ms total=48.647 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.185 ms snapshot=0.000 ms verify=45.865 ms total=48.071 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.181 ms snapshot=0.000 ms verify=47.343 ms total=49.551 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.357 ms snapshot=0.000 ms verify=47.621 ms total=49.997 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.163 ms snapshot=0.000 ms verify=45.620 ms prefix=0.394 ms total=48.198 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=3.066 ms snapshot=0.000 ms verify=48.272 ms total=51.361 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.912 ms snapshot=0.000 ms verify=47.207 ms total=50.142 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.916 ms snapshot=0.000 ms verify=45.890 ms total=48.830 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.188 ms snapshot=0.000 ms verify=45.132 ms total=47.339 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.379 ms snapshot=0.000 ms verify=47.509 ms total=49.912 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.201 ms snapshot=0.000 ms verify=48.613 ms total=50.836 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.179 ms snapshot=0.000 ms verify=45.556 ms total=47.758 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.748 ms snapshot=0.000 ms verify=46.332 ms total=49.102 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.936 ms snapshot=0.000 ms verify=47.442 ms total=50.402 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.938 ms snapshot=0.000 ms verify=47.731 ms total=50.693 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.906 ms snapshot=0.000 ms verify=45.901 ms total=48.830 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.892 ms snapshot=0.000 ms verify=45.870 ms total=48.789 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.173 ms snapshot=0.000 ms verify=48.308 ms total=50.502 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.183 ms snapshot=0.000 ms verify=47.833 ms prefix=0.437 ms total=50.471 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.169 ms snapshot=0.000 ms verify=46.010 ms total=48.224 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.191 ms snapshot=0.000 ms verify=47.673 ms total=49.901 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.436 ms snapshot=0.001 ms verify=47.639 ms total=50.098 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.193 ms snapshot=0.000 ms verify=46.654 ms total=48.873 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.264 ms snapshot=0.000 ms verify=47.033 ms total=49.340 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.319 ms snapshot=0.000 ms verify=48.648 ms total=50.990 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.325 ms snapshot=0.000 ms verify=48.033 ms prefix=0.425 ms total=50.803 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.217 ms snapshot=0.000 ms verify=45.058 ms total=47.307 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.874 ms snapshot=0.000 ms verify=49.038 ms total=51.936 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.320 ms snapshot=0.000 ms verify=47.398 ms total=49.744 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.959 ms snapshot=0.000 ms verify=46.661 ms total=49.644 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.911 ms snapshot=0.000 ms verify=45.805 ms total=48.740 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.898 ms snapshot=0.000 ms verify=46.131 ms total=49.054 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.284 ms snapshot=0.000 ms verify=48.383 ms total=50.691 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.210 ms snapshot=0.000 ms verify=47.041 ms total=49.308 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.189 ms snapshot=0.000 ms verify=46.973 ms total=49.183 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.191 ms snapshot=0.000 ms verify=46.461 ms total=48.677 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.194 ms snapshot=0.000 ms verify=47.117 ms total=49.334 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.756 ms snapshot=0.000 ms verify=48.048 ms total=50.823 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.815 ms snapshot=0.000 ms verify=47.991 ms total=50.828 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.946 ms snapshot=0.000 ms verify=46.094 ms total=49.064 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.959 ms snapshot=0.000 ms verify=45.860 ms total=48.844 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.164 ms snapshot=0.000 ms verify=47.173 ms total=49.368 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.163 ms snapshot=0.000 ms verify=46.894 ms total=49.075 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.234 ms snapshot=0.000 ms verify=45.874 ms total=48.132 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.218 ms snapshot=0.000 ms verify=46.000 ms total=48.242 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.907 ms snapshot=0.000 ms verify=47.551 ms total=50.484 ms
+ds4: mtp timing micro drafted=1 committed=1 draft=0.066 ms snapshot=0.000 ms verify=44.037 ms total=44.131 ms
+ds4: ----------------------------------------
+ds4: prefill: 12.77 t/s, generation: 34.74 t/s (1000 tokens in 28.785s)
+ds4: vm pressure: app=77.33 GiB resident=60.41 GiB wired=93.27 GiB compressed=2.19 GiB logical=3.97 GiB swap=2.11/3.00 GiB pressure=79% free=0.15 GiB gpu=77.26 GiB gpu-compressed=0.00 GiB task-compressed=12.24 GiB decompressions=2199299
+ds4: mtp acceptance: 89.7% (630/702 draft tokens)
+ds4: mtp acceptance by position: 1=333/370 2=297/332
+ds4: mtp avg scheduled: 1.90 draft tokens/block (370 blocks)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

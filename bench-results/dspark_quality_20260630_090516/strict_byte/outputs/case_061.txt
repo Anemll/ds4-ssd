@@ -1,0 +1,13 @@
+You've asked a great question that gets at a fundamental trade-off in computer science.
+
+The reason sorted arrays make membership tests faster with binary search is that **binary search exploits the sorted order to eliminate half of the remaining elements at each step**, rather than checking them one by one.
+
+Let's break this down:
+
+### 1. The Problem: Membership Test
+
+A membership test asks: "Is element `X` in this array?"
+
+### 2. The Unsorted Array Approach (Linear Search)
+
+If the array is **unsorted**, you have no information about where `X` might be. The only reliable way to find it is

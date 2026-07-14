@@ -1,0 +1,52 @@
+```json
+[
+  {
+    "title": "The Echo of Forgotten Stars",
+    "author": "Elara Voss",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 342,
+    "summary": "A lone astronaut discovers that the stars are singing a message from a long-vanished civilization, forcing humanity to confront its place in the cosmos."
+  },
+  {
+    "title": "The Last Garden on Earth",
+    "author": "Jasper Hale",
+    "year": 2019,
+    "genre": "Post-Apocalyptic Fiction",
+    "pages": 298,
+    "summary": "In a world covered by toxic dust, a young botanist races against time to save the last fertile garden that holds the key to humanity's survival."
+  },
+  {
+    "title": "Whispers in the Marble",
+    "author": "Clara Nightingale",
+    "year": 2020,
+    "genre": "Gothic Horror",
+    "pages": 315,
+    "summary": "When a sculptor inherits a crumbling mansion, she discovers the statues within hold the trapped souls of its former inhabitants."
+  },
+  {
+    "title": "The Cartographer's Daughter",
+    "author": "Ravi Singh",
+    "year": 2022,
+    "genre": "Historical Fiction",
+    "pages": 410,
+    "summary": "Set in 17th-century India, a young woman disguises herself as a boy to complete her father's forbidden map of the Mughal Empire."
+  },
+  {
+    "title": "Neon Dreams",
+    "author": "Sylvia Chen",
+    "year": 2023,
+    "genre": "Cyberpunk",
+    "pages": 367,
+    "summary": "A hacker-for-hire uncovers a corporate plot to control human emotions through neural implants in a dystopian city of perpetual rain."
+  },
+  {
+    "title": "The Baker's Secret",
+    "author": "Liam O'Connor",
+    "year": 2018,
+    "genre": "Literary Fiction",
+    "pages": 284,
+    "summary": "In a small Irish village during the Great Famine, a baker must decide whether to share her secret bread recipe that could save her starving neighbors."
+  },
+  {
+    "title": "Stars Beyond

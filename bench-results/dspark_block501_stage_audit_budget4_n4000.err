@@ -1,0 +1,144 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=4 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.274 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=30.77 t/s avg=0.44 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.44 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=53.33 t/s avg=0.87 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.86 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=54.02 t/s avg=1.28 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.27 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.26 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.29 t/s avg=1.66 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.65 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=48.65 t/s avg=2.05 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.03 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.89 t/s avg=2.42 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.40 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.11 t/s avg=2.78 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.76 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.75 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=54.76 t/s avg=3.11 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.09 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=55.59 t/s avg=3.45 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.42 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.37 t/s avg=3.78 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.75 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.91 t/s avg=4.10 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.07 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.05 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=51.21 t/s avg=4.38 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.35 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.17 t/s avg=4.68 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.65 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=51.25 t/s avg=4.97 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=4.94 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=56.55 t/s avg=5.26 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.23 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.19 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=51.26 t/s avg=5.50 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=5.46 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=54.19 t/s avg=5.77 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=5.73 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=51.95 t/s avg=6.02 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=5.98 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.79 t/s avg=6.27 t/s
+ds4: prefill full: 19 tokens in 3032.1 ms (6.3 t/s)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=4 rows=4 in 183.6 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid audit prefix block=501 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-08 first=15 row=3 idx=12 delta=2.23517e-08 h=0.063855 e=0.063855 max=3.1665e-08 rms=3.66803e-09 worst=40 row=3 idx=2470 worst_delta=0.0343858 h=-1.62203 e=-1.65641 worst_rms=0.000302401 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-08 first=15 row=3 idx=0 delta=2.08616e-07 h=0.372645 e=0.372645 max=1.43051e-06 rms=8.18492e-08 worst=42 row=3 idx=20323 worst_delta=0.0203967 h=-4.38653 e=-4.40693 worst_rms=0.0015114 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-08 first=15 row=3 idx=453 delta=1.49012e-08 h=0.100638 e=0.100638 max=4.76837e-07 rms=2.9625e-08 worst=30 row=3 idx=3 worst_delta=0.125 h=1.125 e=1.25 worst_rms=0.00290615 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=1216 delta=1.49012e-08 h=-0.106148 e=-0.106148 max=1.19209e-07 rms=9.74656e-10 worst=38 row=3 idx=10906 worst_delta=0.111628 h=-1.28269 e=-1.17107 worst_rms=0.00100726 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=1216 delta=1.49012e-08 h=-0.106148 e=-0.106148 max=1.19209e-07 rms=1.00145e-09 worst=38 row=3 idx=10906 worst_delta=0.111628 h=-1.28269 e=-1.17107 worst_rms=0.00100726 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=0 delta=2.38419e-07 h=0.624612 e=0.624612 max=9.53674e-07 rms=7.9623e-08 worst=38 row=3 idx=2470 worst_delta=0.0900354 h=-5.24891 e=-5.33895 worst_rms=0.00516908 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=4096 delta=2.98023e-08 h=-0.373552 e=-0.373552 max=1.78814e-07 rms=8.42209e-09 worst=42 row=3 idx=6891 worst_delta=0.145762 h=-7.58967 e=-7.44391 worst_rms=0.00971197 layers=43 rows=4
+ds4: dspark hybrid layer ffn-pre audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=0 delta=2.98023e-08 h=-0.469208 e=-0.469208 max=2.38419e-07 rms=1.94054e-08 worst=42 row=3 idx=2795 worst_delta=0.123959 h=-11.9257 e=-11.8017 worst_rms=0.0103586 layers=43 rows=4
+ds4: dspark hybrid layer ffn-norm audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=0 delta=1.49012e-08 h=-0.245863 e=-0.245863 max=1.19209e-07 rms=1.11459e-08 worst=42 row=3 idx=2795 worst_delta=0.0088383 h=-0.911326 e=-0.902488 worst_rms=0.000929244 layers=43 rows=4
+ds4: dspark hybrid layer routed-out audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=0 delta=1.49012e-08 h=-0.131858 e=-0.131858 max=1.78814e-07 rms=2.53199e-08 worst=42 row=3 idx=1176 worst_delta=0.0196152 h=8.20779 e=8.22741 worst_rms=0.00190158 layers=43 rows=4
+ds4: dspark hybrid layer shared-out audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=1 delta=1.49012e-08 h=-0.148844 e=-0.148844 max=1.04308e-07 rms=1.11367e-08 worst=42 row=3 idx=2739 worst_delta=0.112181 h=31.2321 e=31.1199 worst_rms=0.00328876 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-08 first=14 row=3 idx=122 delta=1.49012e-08 h=-0.235167 e=-0.235167 max=4.17233e-07 rms=2.33481e-08 worst=42 row=3 idx=6891 worst_delta=0.145103 h=-7.55373 e=-7.40863 worst_rms=0.00986288 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=attn-heads-raw layer=14 row=3 idx=1216 delta=1.49012e-08 h=-0.106148 e=-0.106148 layer_max=1.19209e-07 layer_rms=9.74656e-10
+ds4: dspark hybrid audit commit logits top hybrid=304 exact=304 margin hybrid=13.166 exact=13.142 max=0.0819893 rms=0.0153489
+ds4: dspark batch state audit hybrid-vs-exact layer=15 n_comp 18/18 n_index 0/0 attn_kv max=5.96046e-08 rms=1.49074e-09 attn_score max=2.38419e-07 rms=3.89323e-09 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0 rms=0 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=16 n_comp 604/604 n_index 604/604 attn_kv max=1.90735e-06 rms=2.19508e-07 attn_score max=1.00136e-05 rms=2.34267e-06 index_kv max=2.22027e-06 rms=3.46876e-07 index_score max=1.19209e-05 rms=2.32032e-06 raw max=6.10352e-05 rms=1.50789e-06 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=17 n_comp 18/18 n_index 0/0 attn_kv max=4.79817e-06 rms=1.18055e-07 attn_score max=1.00136e-05 rms=3.04515e-07 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=6.10352e-05 rms=1.3592e-06 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=18 n_comp 604/604 n_index 604/604 attn_kv max=8.15094e-06 rms=1.0504e-06 attn_score max=3.12328e-05 rms=8.69424e-06 index_kv max=8.50856e-06 rms=1.39885e-06 index_score max=4.35114e-05 rms=8.17117e-06 raw max=0.000244141 rms=5.73197e-06 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=19 n_comp 18/18 n_index 0/0 attn_kv max=1.54562e-05 rms=1.89399e-07 attn_score max=2.26237e-05 rms=3.04613e-07 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.0078125 rms=0.000178261 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=20 n_comp 604/604 n_index 604/604 attn_kv max=0.000102192 rms=6.02351e-06 attn_score max=0.000249445 rms=4.59694e-05 index_kv max=9.79528e-05 rms=9.50379e-06 index_score max=0.000287652 rms=4.75047e-05 raw max=0.00195312 rms=5.0325e-05 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=21 n_comp 18/18 n_index 0/0 attn_kv max=4.80413e-05 rms=6.23834e-07 attn_score max=4.11086e-05 rms=9.6848e-07 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.015625 rms=0.000386599 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=22 n_comp 604/604 n_index 604/604 attn_kv max=9.1821e-05 rms=1.30444e-05 attn_score max=0.000513077 rms=8.77209e-05 index_kv max=0.000139832 rms=2.12945e-05 index_score max=0.000375271 rms=8.4463e-05 raw max=0.0078125 rms=0.000246941 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=23 n_comp 18/18 n_index 0/0 attn_kv max=7.73668e-05 rms=1.70958e-06 attn_score max=0.000113964 rms=2.60497e-06 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.03125 rms=0.000691468 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=24 n_comp 604/604 n_index 604/604 attn_kv max=9.35793e-05 rms=1.2432e-05 attn_score max=0.000431061 rms=6.3532e-05 index_kv max=8.23066e-05 rms=1.42583e-05 index_score max=0.000355721 rms=6.91622e-05 raw max=0.015625 rms=0.000348278 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=25 n_comp 18/18 n_index 0/0 attn_kv max=2.12435e-05 rms=5.05257e-07 attn_score max=6.53192e-05 rms=1.01988e-06 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.0078125 rms=0.000181607 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=26 n_comp 604/604 n_index 604/604 attn_kv max=0.000117555 rms=9.70042e-06 attn_score max=0.0004462 rms=9.60718e-05 index_kv max=9.05991e-05 rms=1.15071e-05 index_score max=0.000555992 rms=9.74397e-05 raw max=0.00390625 rms=0.000108639 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=27 n_comp 18/18 n_index 0/0 attn_kv max=5.79283e-05 rms=1.55865e-06 attn_score max=8.7142e-05 rms=2.4566e-06 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.015625 rms=0.000390838 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=28 n_comp 604/604 n_index 604/604 attn_kv max=0.000145249 rms=1.23064e-05 attn_score max=0.000350952 rms=3.70961e-05 index_kv max=0.000159651 rms=1.39279e-05 index_score max=0.000277042 rms=3.77193e-05 raw max=0.03125 rms=0.000792707 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=29 n_comp 18/18 n_index 0/0 attn_kv max=0.000452913 rms=4.39798e-06 attn_score max=0.000425398 rms=7.56562e-06 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.0625 rms=0.00149798 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=30 n_comp 604/604 n_index 604/604 attn_kv max=0.000398219 rms=3.61607e-05 attn_score max=0.00153092 rms=0.000333474 index_kv max=0.000470582 rms=5.33872e-05 index_score max=0.00129592 rms=0.000298731 raw max=0.125 rms=0.00290722 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=31 n_comp 18/18 n_index 0/0 attn_kv max=0.000183411 rms=4.83483e-06 attn_score max=0.000487685 rms=1.01821e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.125 rms=0.00311263 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=32 n_comp 604/604 n_index 604/604 attn_kv max=0.000425518 rms=6.14958e-05 attn_score max=0.00117278 rms=0.00017284 index_kv max=0.000504494 rms=8.29117e-05 index_score max=0.00187016 rms=0.000206142 raw max=0.0625 rms=0.00227961 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=33 n_comp 18/18 n_index 0/0 attn_kv max=0.00061018 rms=8.29711e-06 attn_score max=0.000632972 rms=1.89332e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.125 rms=0.00485443 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=34 n_comp 604/604 n_index 604/604 attn_kv max=0.000727639 rms=9.96557e-05 attn_score max=0.00823784 rms=0.00197051 index_kv max=0.000893384 rms=0.000124882 index_score max=0.00797749 rms=0.00198477 raw max=0.125 rms=0.0029464 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=35 n_comp 18/18 n_index 0/0 attn_kv max=0.00108905 rms=1.93879e-05 attn_score max=0.00186676 rms=4.04232e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.125 rms=0.00631576 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=36 n_comp 604/604 n_index 604/604 attn_kv max=0.00193767 rms=0.000138597 attn_score max=0.00324979 rms=0.000417498 index_kv max=0.00141602 rms=0.000157907 index_score max=0.00264156 rms=0.0004127 raw max=0.0625 rms=0.00329521 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=37 n_comp 18/18 n_index 0/0 attn_kv max=0.000920862 rms=9.17942e-06 attn_score max=0.00195396 rms=7.51968e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.0625 rms=0.00335484 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=38 n_comp 604/604 n_index 604/604 attn_kv max=0.00250506 rms=0.000223514 attn_score max=0.00730658 rms=0.00147062 index_kv max=0.00146553 rms=0.000251454 index_score max=0.00808853 rms=0.00146713 raw max=0.125 rms=0.00383401 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=39 n_comp 18/18 n_index 0/0 attn_kv max=0.000945814 rms=2.27815e-05 attn_score max=0.00270194 rms=6.37467e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.125 rms=0.00599283 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=40 n_comp 604/604 n_index 604/604 attn_kv max=0.00267914 rms=0.000193495 attn_score max=0.0477219 rms=0.0108809 index_kv max=0.00373954 rms=0.000329537 index_score max=0.0447729 rms=0.0106178 raw max=0.125 rms=0.00469103 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=41 n_comp 18/18 n_index 0/0 attn_kv max=0.00121263 rms=1.96984e-05 attn_score max=0.00296164 rms=4.62307e-05 index_kv max=0 rms=0 index_score max=0 rms=0 raw max=0.125 rms=0.00389627 rows=4
+ds4: dspark batch state audit hybrid-vs-exact layer=42 n_comp 604/604 n_index 604/604 attn_kv max=0.00357338 rms=0.000169082 attn_score max=0.0128042 rms=0.0012005 index_kv max=0.00171333 rms=0.000200884 index_score max=0.00954252 rms=0.00167456 raw max=0.0625 rms=0.0020048 rows=4
+ds4: dspark batch state audit hybrid-vs-exact final_hc row=3 max=0.145103 rms=0.0194398
+ds4: dspark batch state audit hybrid-vs-exact dspark_target_hidden start=2412 rows=4 max=0.0823345 rms=0.00634652
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-08 mismatch_layers=28 first_stage=attn-kv first_layer=15 first_max=5.96046e-08 first_rms=1.49074e-09 max=0.145103 final_hc_max=0.145103 decode_hc_max=0 dspark_hidden max=0.0823345 rms=0.00634652 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: ----------------------------------------
+ds4: prefill: 5.86 t/s, generation: 33.94 t/s (2479 tokens in 73.034s)
+ds4: dspark acceptance: 79.3% (1885/2377 draft tokens)
+ds4: dspark acceptance by position: 1=520/595 2=495/595 3=457/594 4=413/593
+ds4: dspark avg scheduled: 3.99 draft tokens/block (595 blocks)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

@@ -1,0 +1,16 @@
+Here's pseudocode for a binary heap push operation (inserting a new element):
+
+```
+function push(heap, value):
+    // Add the new value to the end of the heap
+    heap.append(value)
+    
+    // Get the index of the new element
+    index = heap.length - 1
+    
+    // Bubble up the new element to maintain heap property
+    while index > 0:
+        parent_index = floor((index - 1) / 2)
+        
+        // For a min-heap: if parent > current, swap
+        // For a max-heap: if parent < current, swap

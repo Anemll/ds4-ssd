@@ -1,0 +1,35 @@
+outdir=bench-results/dspark_pair2_candidate_fixedenv_163102
+
+[control-fast]
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+90:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+104:ds4: prefill: 5.38 t/s, generation: 45.15 t/s (300 tokens in 6.644s)
+105:ds4: dspark perf: draft=404.4 tok/s, verify=72.9 proposed tok/s, verify-accepted=59.5 tok/s, block=79.63 ms (draft=11.88 verify=65.85 overhead=1.90 commit=1.46, tau=3.92, blocks=61)
+108:ds4: dspark acceptance: 81.6% (239/293 draft tokens)
+109:ds4: dspark acceptance by position: 1=54/61 2=53/61 3=50/59 4=43/58 5=39/54
+111:ds4: dspark full-accept: 70.5% (43/61 blocks), first-miss: 11.5% (7/61 blocks)
+112:ds4: dspark avg scheduled: 4.80 draft tokens/block (61 blocks)
+
+[pair2-fast]
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+90:ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+91:ds4: dspark row-routed grouped Q2 down materialization diagnostic enabled (unsafe shared-weight math)
+106:ds4: prefill: 5.43 t/s, generation: 43.75 t/s (300 tokens in 6.856s)
+107:ds4: dspark perf: draft=400.2 tok/s, verify=64.9 proposed tok/s, verify-accepted=57.1 tok/s, block=86.95 ms (draft=11.85 verify=73.07 overhead=2.03 commit=1.56, tau=4.17, blocks=58)
+110:ds4: dspark acceptance: 88.0% (242/275 draft tokens)
+111:ds4: dspark acceptance by position: 1=55/58 2=54/58 3=51/55 4=44/54 5=38/50
+113:ds4: dspark full-accept: 74.1% (43/58 blocks), first-miss: 5.2% (3/58 blocks)
+114:ds4: dspark avg scheduled: 4.74 draft tokens/block (58 blocks)
+
+[cmp/control-vs-pair2]
+cmp=0
+
+[canary control]
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_pair2_candidate_fixedenv_163102/control.out	887	37	37	1	0		0		0	0	0	1	1	0
+
+[canary pair2]
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_pair2_candidate_fixedenv_163102/pair2.out	887	37	37	1	0		0		0	0	0	1	1	0

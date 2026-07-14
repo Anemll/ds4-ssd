@@ -1,0 +1,149 @@
+outdir=bench-results/dspark_stateonly_guardtop_165823
+
+[state_only_guardtop]
+exit=0
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00 gate; non-target-greedy)
+90:ds4: dspark relaxed loop guard checks target-top draft tokens too (set DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1 for the old bypass)
+91:ds4: dspark state-only verifier enabled (target state refresh, DSpark logits, force full draft accept)
+97:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+103:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+106:ds4: dspark relaxed loop guard rejected non-argmax token=32214 target=32214 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+107:ds4: dspark relaxed loop guard rejected non-argmax token=201 target=201 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+108:ds4: dspark relaxed loop guard rejected non-argmax token=201 target=87579 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+109:ds4: dspark relaxed loop guard rejected non-argmax token=438 target=438 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=4
+110:ds4: dspark relaxed loop guard rejected non-argmax token=6884 target=6884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+111:ds4: dspark relaxed loop guard rejected non-argmax token=5692 target=5692 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+112:ds4: dspark relaxed loop guard rejected non-argmax token=111000 target=111000 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+113:ds4: dspark relaxed loop guard rejected non-argmax token=55352 target=55352 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+114:ds4: dspark relaxed loop guard rejected non-argmax token=6980 target=6980 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+115:ds4: dspark relaxed loop guard rejected non-argmax token=114884 target=114884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+116:ds4: dspark relaxed loop guard rejected non-argmax token=71144 target=71144 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+117:ds4: dspark relaxed loop guard rejected non-argmax token=71144 target=8990 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+118:ds4: dspark relaxed loop guard rejected non-argmax token=5692 target=5692 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+119:ds4: dspark relaxed loop guard rejected non-argmax token=77533 target=77533 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+120:ds4: dspark relaxed loop guard rejected non-argmax token=17283 target=17283 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+121:ds4: dspark relaxed loop guard rejected non-argmax token=114884 target=114884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+123:ds4: prefill: 5.49 t/s, generation: 21.72 t/s (500 tokens in 23.024s)
+124:ds4: dspark perf: draft=337.1 tok/s, verify=84.3 proposed tok/s, verify-accepted=39.3 tok/s, block=75.07 ms (draft=11.94 verify=47.75 overhead=15.38 commit=0.62, tau=1.88, blocks=208)
+127:ds4: dspark acceptance: 49.1% (254/517 draft tokens)
+128:ds4: dspark acceptance by position: 1=95/144 2=55/119 3=43/101 4=32/80 5=29/73
+129:ds4: dspark conditional acceptance: 1=66.0% (95/144) 2|1=72.4% (55/76) 3|1-2=79.6% (43/54) 4|1-3=94.1% (32/34) 5|1-4=96.7% (29/30)
+130:ds4: dspark full-accept: 41.7% (60/144 blocks), first-miss: 34.0% (49/144 blocks)
+131:ds4: dspark avg scheduled: 3.59 draft tokens/block (144 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_stateonly_guardtop_165823/state_only_guardtop.out	1442	53	44	2	0		0		2	0	0	6	2	1
+[tail state_only_guardtop]
+" = (WHWHITE = (255, 255, 255,, 255255)
+)
+BLBLACK = ( (0, 0,, 0)
+REDRED = ( (255,, 0, 0)
+GGREEN = ( ( (00, 255255, 00)
+BLUEUE = ( ( (0, 0, 255)
+)
+# = ( (255, 255, 255)
+# = = (0,, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# = = (255, 255, 255)
+# = = (0, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# =
+
+[state_skip_all_guardtop]
+exit=0
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00 gate; non-target-greedy)
+90:ds4: dspark relaxed loop guard checks target-top draft tokens too (set DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1 for the old bypass)
+91:ds4: dspark state-only verifier enabled (target state refresh, DSpark logits, force full draft accept)
+97:ds4: WARNING DS4_DSPARK_SKIP_ROW_ROUTED skips selected DSpark verifier routed-MoE layers for timing only; output/cmp are invalid
+102:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+104:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+106:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+107:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=4
+108:ds4: dspark relaxed loop guard rejected non-argmax token=4654 target=734 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=2
+109:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=1 accepted_prefix=3
+110:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=1 accepted_prefix=1
+111:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=1 accepted_prefix=2
+112:ds4: dspark relaxed loop guard rejected non-argmax token=54001 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+113:ds4: dspark relaxed loop guard rejected non-argmax token=54001 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+114:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+115:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+116:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+117:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+118:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+119:ds4: dspark relaxed loop guard rejected non-argmax token=734 target=3917 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+120:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=1 accepted_prefix=1
+121:ds4: dspark relaxed loop guard rejected non-argmax token=3917 target=3917 target_top=1 ngram=4 token_count_guard=1 accepted_prefix=1
+123:ds4: prefill: 5.43 t/s, generation: 19.51 t/s (500 tokens in 25.632s)
+124:ds4: dspark perf: draft=396.3 tok/s, verify=65.9 proposed tok/s, verify-accepted=37.2 tok/s, block=114.82 ms (draft=11.85 verify=71.26 overhead=31.71 commit=0.22, tau=2.65, blocks=148)
+127:ds4: dspark acceptance: 12.1% (69/570 draft tokens)
+128:ds4: dspark acceptance by position: 1=21/123 2=14/115 3=12/111 4=11/111 5=11/110
+129:ds4: dspark conditional acceptance: 1=17.1% (21/123) 2|1=70.0% (14/20) 3|1-2=92.3% (12/13) 4|1-3=91.7% (11/12) 5|1-4=100.0% (11/11)
+130:ds4: dspark full-accept: 10.6% (13/123 blocks), first-miss: 82.9% (102/123 blocks)
+131:ds4: dspark avg scheduled: 4.63 draft tokens/block (123 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_stateonly_guardtop_165823/state_skip_all_guardtop.out	2512	1	1	1	0		0		0	0	0	414	410	1
+[tail state_skip_all_guardtop]
+Here's a complete game game with a simple, but we can be a simple simple complete game complete Python complete Python! Complete game complete game game complete game game Python game module simple game game game Python simple game simple game code simple game simple complete game's game's'simpleimple game's been made a simple simple's simple game's simple simple'simple game's simple game game game's simple simple game's's game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game game
+
+[state_skip_every2_guardtop]
+exit=0
+9:ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00 gate; non-target-greedy)
+90:ds4: dspark relaxed loop guard checks target-top draft tokens too (set DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1 for the old bypass)
+91:ds4: dspark state-only verifier enabled (target state refresh, DSpark logits, force full draft accept)
+97:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+103:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+106:ds4: dspark relaxed loop guard rejected non-argmax token=32214 target=32214 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+107:ds4: dspark relaxed loop guard rejected non-argmax token=201 target=201 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+108:ds4: dspark relaxed loop guard rejected non-argmax token=201 target=87579 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+109:ds4: dspark relaxed loop guard rejected non-argmax token=438 target=438 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=4
+110:ds4: dspark relaxed loop guard rejected non-argmax token=6884 target=6884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+111:ds4: dspark relaxed loop guard rejected non-argmax token=5692 target=5692 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+112:ds4: dspark relaxed loop guard rejected non-argmax token=111000 target=111000 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=3
+113:ds4: dspark relaxed loop guard rejected non-argmax token=55352 target=55352 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+114:ds4: dspark relaxed loop guard rejected non-argmax token=6980 target=6980 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+115:ds4: dspark relaxed loop guard rejected non-argmax token=114884 target=114884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+116:ds4: dspark relaxed loop guard rejected non-argmax token=71144 target=71144 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=2
+117:ds4: dspark relaxed loop guard rejected non-argmax token=71144 target=8990 target_top=0 ngram=4 token_count_guard=0 accepted_prefix=1
+118:ds4: dspark relaxed loop guard rejected non-argmax token=5692 target=5692 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+119:ds4: dspark relaxed loop guard rejected non-argmax token=77533 target=77533 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+120:ds4: dspark relaxed loop guard rejected non-argmax token=17283 target=17283 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+121:ds4: dspark relaxed loop guard rejected non-argmax token=114884 target=114884 target_top=1 ngram=4 token_count_guard=0 accepted_prefix=1
+123:ds4: prefill: 5.09 t/s, generation: 21.75 t/s (500 tokens in 22.991s)
+124:ds4: dspark perf: draft=336.8 tok/s, verify=84.4 proposed tok/s, verify-accepted=39.3 tok/s, block=75.00 ms (draft=11.95 verify=47.70 overhead=15.35 commit=0.60, tau=1.88, blocks=208)
+127:ds4: dspark acceptance: 49.1% (254/517 draft tokens)
+128:ds4: dspark acceptance by position: 1=95/144 2=55/119 3=43/101 4=32/80 5=29/73
+129:ds4: dspark conditional acceptance: 1=66.0% (95/144) 2|1=72.4% (55/76) 3|1-2=79.6% (43/54) 4|1-3=94.1% (32/34) 5|1-4=96.7% (29/30)
+130:ds4: dspark full-accept: 41.7% (60/144 blocks), first-miss: 34.0% (49/144 blocks)
+131:ds4: dspark avg scheduled: 3.59 draft tokens/block (144 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_stateonly_guardtop_165823/state_skip_every2_guardtop.out	1442	53	44	2	0		0		2	0	0	6	2	1
+[tail state_skip_every2_guardtop]
+" = (WHWHITE = (255, 255, 255,, 255255)
+)
+BLBLACK = ( (0, 0,, 0)
+REDRED = ( (255,, 0, 0)
+GGREEN = ( ( (00, 255255, 00)
+BLUEUE = ( ( (0, 0, 255)
+)
+# = ( (255, 255, 255)
+# = = (0,, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# = = (255, 255, 255)
+# = = (0, 0, 0)
+# = = (255, 0, 0)
+# = = (0, 255, 0)
+# = = (0, 0, 255)
+# =
+
+[compact]
+state_only_guardtop	gen=21.72 tokens=500	draft=337.1 verify=84.3 verify_acc=39.3 block=75.07 verify_ms=47.75 tau=1.88 blocks=208	acc=49.1% 254/517	full=41.7% firstmiss=34.0%
+state_skip_all_guardtop	gen=19.51 tokens=500	draft=396.3 verify=65.9 verify_acc=37.2 block=114.82 verify_ms=71.26 tau=2.65 blocks=148	acc=12.1% 69/570	full=10.6% firstmiss=82.9%
+state_skip_every2_guardtop	gen=21.75 tokens=500	draft=336.8 verify=84.4 verify_acc=39.3 block=75.00 verify_ms=47.70 tau=1.88 blocks=208	acc=49.1% 254/517	full=41.7% firstmiss=34.0%

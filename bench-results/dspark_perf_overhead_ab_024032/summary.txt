@@ -1,0 +1,16 @@
+=== perf_on ===
+105:ds4: prefill: 7.49 t/s, generation: 51.70 t/s (1000 tokens in 19.341s)
+106:ds4: dspark perf: draft=463.6 tok/s, verify=72.9 proposed tok/s, verify-accepted=63.2 tok/s, block=81.29 ms (draft=10.76 verify=68.40 overhead=2.13 commit=1.69, tau=4.32, blocks=227)
+109:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+112:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_perf_overhead_ab_024032/perf_on.out	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0
+=== perf_off ===
+105:ds4: prefill: 7.91 t/s, generation: 51.84 t/s (1000 tokens in 19.289s)
+106:ds4: dspark perf: draft=464.3 tok/s, verify=73.1 proposed tok/s, verify-accepted=63.3 tok/s, block=81.11 ms (draft=10.74 verify=68.25 overhead=2.12 commit=1.68, tau=4.32, blocks=227)
+109:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+112:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_perf_overhead_ab_024032/perf_off.out	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0

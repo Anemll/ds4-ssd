@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_stateonly_prefix_current_004910/prefix1.out	960	32	32	1	2	screen:2	0		2	0	0	2	1	1

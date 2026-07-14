@@ -1,0 +1,7 @@
+Questa è un'ottima domanda che tocca un aspetto cruciale dell'architettura Mixture of Experts (MoE).
+
+Per capire perché raggruppare gli esperti (Expert grouping) può accelerare il *prefill* (o *prefill phase*), bisogna prima capire cosa succede durante il prefill e qual è il "collo di bottiglia" in un modello MoE standard.
+
+### Il Problema del Prefill in un MoE Standard
+
+Durante la fase di **prefill** (o encoding), il modello processa la sequenza di input (ad

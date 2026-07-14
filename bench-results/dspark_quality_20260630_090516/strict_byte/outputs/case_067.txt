@@ -1,0 +1,7 @@
+This is an excellent question that gets to the heart of how virtual memory works in modern operating systems.
+
+The core reason is that **mmap creates a mapping in the virtual address space, but the actual physical memory (the "page residency") is only allocated on demand.**
+
+Think of it like this:
+- **Virtual Address Space Size:** The size of the reservation you made on a map. You've drawn a rectangle and said "this area is mine."
+- **Page Residency:** The actual houses and buildings that have been built on that land. The land is reserved, but the buildings are only constructed when you first try to use them

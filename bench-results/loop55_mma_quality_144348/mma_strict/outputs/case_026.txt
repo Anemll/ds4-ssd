@@ -1,0 +1,12 @@
+Here is a brief, structured plan for testing long-context prompt chunking.
+
+### Goal
+To verify that the chunking strategy correctly splits long prompts into manageable pieces **without losing critical information, breaking logical flow, or degrading model performance.**
+
+---
+
+### 1. Define Test Variables
+- **Chunk Size:** (e.g., 512, 1024, 2048 tokens)
+- **Overlap Strategy:** (e.g., 10% overlap, sentence boundary overlap, no overlap)
+- **Chunking Method:** (e.g., fixed-length, semantic split, sliding window)
+- **Model Context Window:** (

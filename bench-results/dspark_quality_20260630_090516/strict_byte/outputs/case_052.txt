@@ -1,0 +1,11 @@
+Ti spiego il meccanismo di **softmax nell'attenzione** in modo semplice, usando variabili chiare.
+
+## Concetto base
+
+Immagina di avere una frase e vuoi capire quali parole sono più importanti per capire ogni singola parola. Il softmax serve a trasformare dei "punteggi di importanza" in **probabilità** (numeri tra 0 e 1 che sommati danno 1).
+
+## Le variabili principali
+
+Prendiamo una frase di 3 parole: **"Il gatto dorme"**
+
+Ogni parola viene trasformata in

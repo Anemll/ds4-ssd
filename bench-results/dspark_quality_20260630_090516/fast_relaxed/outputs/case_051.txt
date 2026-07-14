@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca il cuore di come funzionano i modelli di linguaggio (LLM).
+
+La risposta è: **perché la scelta "greedy" (argmax) non considera la probabilità relativa, ma solo quale opzione è la più probabile, anche per un margine infinitesimale.**
+
+Ecco la spiegazione passo dopo passo:
+
+### 1. Cosa sono i logit?
+
+I logit sono i valori numeri grezzi (non normalizzati) che un modello produce per ogni parola (token) nel suo vocabolario

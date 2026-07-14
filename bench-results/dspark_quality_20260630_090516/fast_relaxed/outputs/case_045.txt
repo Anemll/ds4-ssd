@@ -1,0 +1,11 @@
+This is a great question that gets to a core tension in **concurrent systems** and **distributed databases**.
+
+The short answer is: **A single large buffer creates a single point of contention and a bottleneck**, while multiple overlapping views (like in a multi-version or sharded system) allow for **parallelism** and **reduced contention**.
+
+Let's break down the "why" with concrete examples.
+
+### The Core Problem: The "Mutex" Effect
+
+Imagine a single large buffer (e.g., a giant array or a single huge table) that multiple threads or processes need to read and write.
+
+**Scenario 1

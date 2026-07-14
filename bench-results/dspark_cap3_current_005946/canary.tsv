@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_cap3_current_005946/out.txt	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0

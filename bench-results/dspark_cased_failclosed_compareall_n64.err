@@ -1,0 +1,854 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=4 active=4 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.335 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=31.34 t/s avg=0.35 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.34 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=54.14 t/s avg=0.68 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.68 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.66 t/s avg=1.01 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.00 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.00 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.16 t/s avg=1.32 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.31 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=49.65 t/s avg=1.63 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.62 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=52.88 t/s avg=1.93 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=1.92 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.61 t/s avg=2.23 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.21 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.20 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=55.41 t/s avg=2.50 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=2.48 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=55.53 t/s avg=2.78 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=2.76 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=50.54 t/s avg=3.05 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.03 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=58.80 t/s avg=3.32 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.30 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.28 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=48.42 t/s avg=3.56 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=3.54 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=48.77 t/s avg=3.81 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=3.79 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=52.65 t/s avg=4.06 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=4.04 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=55.41 t/s avg=4.31 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.29 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.26 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=53.21 t/s avg=4.52 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=4.50 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=51.94 t/s avg=4.75 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=4.72 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=52.64 t/s avg=4.97 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=4.95 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=48.00 t/s avg=5.19 t/s
+ds4: prefill full: 19 tokens in 3662.1 ms (5.2 t/s)
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=4 rows=4 in 172.4 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=4 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: varmap-attn compare layer=2 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.126289 ref=-0.126289 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.126289 ref=-0.126289
+ds4: varmap-attn compare layer=3 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.142865 ref=-0.142865 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.142865 ref=-0.142865
+ds4: varmap-attn compare layer=4 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0333518 ref=-0.0333518 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0333518 ref=-0.0333518
+ds4: varmap-attn compare layer=5 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0141814 ref=-0.0141814 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0141814 ref=-0.0141814
+ds4: varmap-attn compare layer=6 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.244991 ref=0.244991 worst_row=0 worst_idx=0 worst_delta=0 cand=0.244991 ref=0.244991
+ds4: varmap-attn compare layer=7 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0721426 ref=0.0721426 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0721426 ref=0.0721426
+ds4: varmap-attn compare layer=8 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.309497 ref=-0.309497 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.309497 ref=-0.309497
+ds4: varmap-attn compare layer=9 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.171705 ref=-0.171705 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.171705 ref=-0.171705
+ds4: varmap-attn compare layer=10 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.014409 ref=0.014409 worst_row=0 worst_idx=0 worst_delta=0 cand=0.014409 ref=0.014409
+ds4: varmap-attn compare layer=11 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0561091 ref=-0.0561091 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0561091 ref=-0.0561091
+ds4: varmap-attn compare layer=12 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.546783 ref=0.546783 worst_row=0 worst_idx=0 worst_delta=0 cand=0.546783 ref=0.546783
+ds4: varmap-attn compare layer=13 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.158871 ref=0.158871 worst_row=0 worst_idx=0 worst_delta=0 cand=0.158871 ref=0.158871
+ds4: varmap-attn compare layer=14 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.170003 ref=0.170003 worst_row=0 worst_idx=0 worst_delta=0 cand=0.170003 ref=0.170003
+ds4: varmap-attn compare layer=15 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.6751 ref=-0.6751 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.6751 ref=-0.6751
+ds4: varmap-attn compare layer=16 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.390673 ref=-0.390673 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.390673 ref=-0.390673
+ds4: varmap-attn compare layer=17 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0921035 ref=0.0921035 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0921035 ref=0.0921035
+ds4: varmap-attn compare layer=18 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0667981 ref=-0.0667981 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0667981 ref=-0.0667981
+ds4: varmap-attn compare layer=19 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.115017 ref=0.115017 worst_row=0 worst_idx=0 worst_delta=0 cand=0.115017 ref=0.115017
+ds4: varmap-attn compare layer=20 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0269066 ref=-0.0269066 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0269066 ref=-0.0269066
+ds4: varmap-attn compare layer=21 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.388311 ref=0.388311 worst_row=0 worst_idx=0 worst_delta=0 cand=0.388311 ref=0.388311
+ds4: varmap-attn compare layer=22 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.286356 ref=-0.286356 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.286356 ref=-0.286356
+ds4: varmap-attn compare layer=23 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.542601 ref=-0.542601 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.542601 ref=-0.542601
+ds4: varmap-attn compare layer=24 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.116939 ref=-0.116939 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.116939 ref=-0.116939
+ds4: varmap-attn compare layer=25 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0427181 ref=0.0427181 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0427181 ref=0.0427181
+ds4: varmap-attn compare layer=26 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.108723 ref=-0.108723 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.108723 ref=-0.108723
+ds4: varmap-attn compare layer=27 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.1112 ref=-0.1112 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.1112 ref=-0.1112
+ds4: varmap-attn compare layer=28 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.37645 ref=-0.37645 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.37645 ref=-0.37645
+ds4: varmap-attn compare layer=29 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.11609 ref=0.11609 worst_row=0 worst_idx=0 worst_delta=0 cand=0.11609 ref=0.11609
+ds4: varmap-attn compare layer=30 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.102188 ref=-0.102188 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.102188 ref=-0.102188
+ds4: varmap-attn compare layer=31 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.143441 ref=-0.143441 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.143441 ref=-0.143441
+ds4: varmap-attn compare layer=32 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.200724 ref=-0.200724 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.200724 ref=-0.200724
+ds4: varmap-attn compare layer=33 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.152026 ref=-0.152026 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.152026 ref=-0.152026
+ds4: varmap-attn compare layer=34 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.217545 ref=-0.217545 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.217545 ref=-0.217545
+ds4: varmap-attn compare layer=35 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.656619 ref=-0.656619 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.656619 ref=-0.656619
+ds4: varmap-attn compare layer=36 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.105164 ref=-0.105164 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.105164 ref=-0.105164
+ds4: varmap-attn compare layer=37 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.121013 ref=-0.121013 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.121013 ref=-0.121013
+ds4: varmap-attn compare layer=38 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.719427 ref=-0.719427 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.719427 ref=-0.719427
+ds4: varmap-attn compare layer=39 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.11573 ref=1.11573 worst_row=0 worst_idx=0 worst_delta=0 cand=1.11573 ref=1.11573
+ds4: varmap-attn compare layer=40 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.42129 ref=-1.42129 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.42129 ref=-1.42129
+ds4: varmap-attn compare layer=41 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.14763 ref=1.14763 worst_row=0 worst_idx=0 worst_delta=0 cand=1.14763 ref=1.14763
+ds4: varmap-attn compare layer=42 pos=20 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.106846 ref=0.106846 worst_row=0 worst_idx=0 worst_delta=0 cand=0.106846 ref=0.106846
+ds4: dspark hybrid audit prefix block=1 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=14295 exact=14295 margin hybrid=10.638 exact=10.638 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.282698 ref=0.282698 worst_row=0 worst_idx=0 worst_delta=0 cand=0.282698 ref=0.282698
+ds4: varmap-attn compare layer=3 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.070438 ref=0.070438 worst_row=0 worst_idx=0 worst_delta=0 cand=0.070438 ref=0.070438
+ds4: varmap-attn compare layer=4 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0991515 ref=0.0991515 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0991515 ref=0.0991515
+ds4: varmap-attn compare layer=5 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.161595 ref=-0.161595 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.161595 ref=-0.161595
+ds4: varmap-attn compare layer=6 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.177647 ref=0.177647 worst_row=0 worst_idx=0 worst_delta=0 cand=0.177647 ref=0.177647
+ds4: varmap-attn compare layer=7 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.112761 ref=-0.112761 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.112761 ref=-0.112761
+ds4: varmap-attn compare layer=8 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.60361 ref=0.60361 worst_row=0 worst_idx=0 worst_delta=0 cand=0.60361 ref=0.60361
+ds4: varmap-attn compare layer=9 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.193379 ref=0.193379 worst_row=0 worst_idx=0 worst_delta=0 cand=0.193379 ref=0.193379
+ds4: varmap-attn compare layer=10 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.130045 ref=0.130045 worst_row=0 worst_idx=0 worst_delta=0 cand=0.130045 ref=0.130045
+ds4: varmap-attn compare layer=11 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0217533 ref=-0.0217533 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0217533 ref=-0.0217533
+ds4: varmap-attn compare layer=12 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.25133 ref=0.25133 worst_row=0 worst_idx=0 worst_delta=0 cand=0.25133 ref=0.25133
+ds4: varmap-attn compare layer=13 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0782844 ref=0.0782844 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0782844 ref=0.0782844
+ds4: varmap-attn compare layer=14 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.972458 ref=-0.972458 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.972458 ref=-0.972458
+ds4: varmap-attn compare layer=15 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.545828 ref=-0.545828 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.545828 ref=-0.545828
+ds4: varmap-attn compare layer=16 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.24487 ref=-1.24487 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.24487 ref=-1.24487
+ds4: varmap-attn compare layer=17 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.775507 ref=0.775507 worst_row=0 worst_idx=0 worst_delta=0 cand=0.775507 ref=0.775507
+ds4: varmap-attn compare layer=18 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.122687 ref=-0.122687 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.122687 ref=-0.122687
+ds4: varmap-attn compare layer=19 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0476193 ref=-0.0476193 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0476193 ref=-0.0476193
+ds4: varmap-attn compare layer=20 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.46258 ref=-0.46258 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.46258 ref=-0.46258
+ds4: varmap-attn compare layer=21 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.285003 ref=0.285003 worst_row=0 worst_idx=0 worst_delta=0 cand=0.285003 ref=0.285003
+ds4: varmap-attn compare layer=22 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.645826 ref=-0.645826 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.645826 ref=-0.645826
+ds4: varmap-attn compare layer=23 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0912381 ref=-0.0912381 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0912381 ref=-0.0912381
+ds4: varmap-attn compare layer=24 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.313262 ref=-0.313262 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.313262 ref=-0.313262
+ds4: varmap-attn compare layer=25 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0798185 ref=0.0798185 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0798185 ref=0.0798185
+ds4: varmap-attn compare layer=26 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.244646 ref=-0.244646 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.244646 ref=-0.244646
+ds4: varmap-attn compare layer=27 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.370773 ref=-0.370773 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.370773 ref=-0.370773
+ds4: varmap-attn compare layer=28 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.413179 ref=-0.413179 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.413179 ref=-0.413179
+ds4: varmap-attn compare layer=29 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.288282 ref=0.288282 worst_row=0 worst_idx=0 worst_delta=0 cand=0.288282 ref=0.288282
+ds4: varmap-attn compare layer=30 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0334901 ref=-0.0334901 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0334901 ref=-0.0334901
+ds4: varmap-attn compare layer=31 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.159187 ref=-0.159187 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.159187 ref=-0.159187
+ds4: varmap-attn compare layer=32 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.367494 ref=-0.367494 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.367494 ref=-0.367494
+ds4: varmap-attn compare layer=33 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.231484 ref=-0.231484 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.231484 ref=-0.231484
+ds4: varmap-attn compare layer=34 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.748935 ref=0.748935 worst_row=0 worst_idx=0 worst_delta=0 cand=0.748935 ref=0.748935
+ds4: varmap-attn compare layer=35 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.754432 ref=-0.754432 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.754432 ref=-0.754432
+ds4: varmap-attn compare layer=36 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.163183 ref=-0.163183 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.163183 ref=-0.163183
+ds4: varmap-attn compare layer=37 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0917779 ref=0.0917779 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0917779 ref=0.0917779
+ds4: varmap-attn compare layer=38 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.232016 ref=0.232016 worst_row=0 worst_idx=0 worst_delta=0 cand=0.232016 ref=0.232016
+ds4: varmap-attn compare layer=39 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.965805 ref=0.965805 worst_row=0 worst_idx=0 worst_delta=0 cand=0.965805 ref=0.965805
+ds4: varmap-attn compare layer=40 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.86693 ref=-0.86693 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.86693 ref=-0.86693
+ds4: varmap-attn compare layer=41 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.39359 ref=0.39359 worst_row=0 worst_idx=0 worst_delta=0 cand=0.39359 ref=0.39359
+ds4: varmap-attn compare layer=42 pos=25 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0467454 ref=-0.0467454 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0467454 ref=-0.0467454
+ds4: dspark hybrid audit prefix block=2 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=19950 exact=19950 margin hybrid=8.344 exact=8.344 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0133543 ref=0.0133543 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0133543 ref=0.0133543
+ds4: varmap-attn compare layer=3 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.345954 ref=0.345954 worst_row=0 worst_idx=0 worst_delta=0 cand=0.345954 ref=0.345954
+ds4: varmap-attn compare layer=4 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.167616 ref=0.167616 worst_row=0 worst_idx=0 worst_delta=0 cand=0.167616 ref=0.167616
+ds4: varmap-attn compare layer=5 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.002018 ref=0.002018 worst_row=0 worst_idx=0 worst_delta=0 cand=0.002018 ref=0.002018
+ds4: varmap-attn compare layer=6 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.145653 ref=0.145653 worst_row=0 worst_idx=0 worst_delta=0 cand=0.145653 ref=0.145653
+ds4: varmap-attn compare layer=7 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0790777 ref=0.0790777 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0790777 ref=0.0790777
+ds4: varmap-attn compare layer=8 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.277206 ref=0.277206 worst_row=0 worst_idx=0 worst_delta=0 cand=0.277206 ref=0.277206
+ds4: varmap-attn compare layer=9 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.134632 ref=0.134632 worst_row=0 worst_idx=0 worst_delta=0 cand=0.134632 ref=0.134632
+ds4: varmap-attn compare layer=10 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.981358 ref=0.981358 worst_row=0 worst_idx=0 worst_delta=0 cand=0.981358 ref=0.981358
+ds4: varmap-attn compare layer=11 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.120467 ref=0.120467 worst_row=0 worst_idx=0 worst_delta=0 cand=0.120467 ref=0.120467
+ds4: varmap-attn compare layer=12 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.690786 ref=0.690786 worst_row=0 worst_idx=0 worst_delta=0 cand=0.690786 ref=0.690786
+ds4: varmap-attn compare layer=13 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.206811 ref=0.206811 worst_row=0 worst_idx=0 worst_delta=0 cand=0.206811 ref=0.206811
+ds4: varmap-attn compare layer=14 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.333698 ref=-0.333698 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.333698 ref=-0.333698
+ds4: varmap-attn compare layer=15 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.843771 ref=-0.843771 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.843771 ref=-0.843771
+ds4: varmap-attn compare layer=16 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.02004 ref=-1.02004 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.02004 ref=-1.02004
+ds4: varmap-attn compare layer=17 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.185416 ref=-0.185416 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.185416 ref=-0.185416
+ds4: varmap-attn compare layer=18 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0647702 ref=0.0647702 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0647702 ref=0.0647702
+ds4: varmap-attn compare layer=19 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0465403 ref=-0.0465403 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0465403 ref=-0.0465403
+ds4: varmap-attn compare layer=20 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0244014 ref=0.0244014 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0244014 ref=0.0244014
+ds4: varmap-attn compare layer=21 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.347136 ref=0.347136 worst_row=0 worst_idx=0 worst_delta=0 cand=0.347136 ref=0.347136
+ds4: varmap-attn compare layer=22 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.309684 ref=-0.309684 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.309684 ref=-0.309684
+ds4: varmap-attn compare layer=23 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.424673 ref=-0.424673 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.424673 ref=-0.424673
+ds4: varmap-attn compare layer=24 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.434449 ref=-0.434449 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.434449 ref=-0.434449
+ds4: varmap-attn compare layer=25 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.10128 ref=0.10128 worst_row=0 worst_idx=0 worst_delta=0 cand=0.10128 ref=0.10128
+ds4: varmap-attn compare layer=26 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.298783 ref=-0.298783 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.298783 ref=-0.298783
+ds4: varmap-attn compare layer=27 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0103656 ref=-0.0103656 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0103656 ref=-0.0103656
+ds4: varmap-attn compare layer=28 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.205635 ref=-0.205635 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.205635 ref=-0.205635
+ds4: varmap-attn compare layer=29 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.12673 ref=0.12673 worst_row=0 worst_idx=0 worst_delta=0 cand=0.12673 ref=0.12673
+ds4: varmap-attn compare layer=30 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0238978 ref=-0.0238978 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0238978 ref=-0.0238978
+ds4: varmap-attn compare layer=31 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.160267 ref=-0.160267 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.160267 ref=-0.160267
+ds4: varmap-attn compare layer=32 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.502286 ref=-0.502286 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.502286 ref=-0.502286
+ds4: varmap-attn compare layer=33 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.085014 ref=-0.085014 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.085014 ref=-0.085014
+ds4: varmap-attn compare layer=34 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.888692 ref=0.888692 worst_row=0 worst_idx=0 worst_delta=0 cand=0.888692 ref=0.888692
+ds4: varmap-attn compare layer=35 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.723193 ref=-0.723193 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.723193 ref=-0.723193
+ds4: varmap-attn compare layer=36 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.299641 ref=-0.299641 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.299641 ref=-0.299641
+ds4: varmap-attn compare layer=37 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0289284 ref=0.0289284 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0289284 ref=0.0289284
+ds4: varmap-attn compare layer=38 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0513741 ref=0.0513741 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0513741 ref=0.0513741
+ds4: varmap-attn compare layer=39 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.21175 ref=1.21175 worst_row=0 worst_idx=0 worst_delta=0 cand=1.21175 ref=1.21175
+ds4: varmap-attn compare layer=40 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.924995 ref=-0.924995 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.924995 ref=-0.924995
+ds4: varmap-attn compare layer=41 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.200018 ref=0.200018 worst_row=0 worst_idx=0 worst_delta=0 cand=0.200018 ref=0.200018
+ds4: varmap-attn compare layer=42 pos=30 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.22411 ref=0.22411 worst_row=0 worst_idx=0 worst_delta=0 cand=0.22411 ref=0.22411
+ds4: dspark hybrid audit prefix block=3 drafted=4 committed=2 state_count=2 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=270 exact=270 margin hybrid=0.063 exact=0.063 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.322212 ref=0.322212 worst_row=0 worst_idx=0 worst_delta=0 cand=0.322212 ref=0.322212
+ds4: varmap-attn compare layer=3 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0426459 ref=-0.0426459 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0426459 ref=-0.0426459
+ds4: varmap-attn compare layer=4 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0269711 ref=-0.0269711 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0269711 ref=-0.0269711
+ds4: varmap-attn compare layer=5 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0757052 ref=0.0757052 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0757052 ref=0.0757052
+ds4: varmap-attn compare layer=6 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0649587 ref=0.0649587 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0649587 ref=0.0649587
+ds4: varmap-attn compare layer=7 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.276124 ref=0.276124 worst_row=0 worst_idx=0 worst_delta=0 cand=0.276124 ref=0.276124
+ds4: varmap-attn compare layer=8 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0914012 ref=0.0914012 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0914012 ref=0.0914012
+ds4: varmap-attn compare layer=9 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.203847 ref=0.203847 worst_row=0 worst_idx=0 worst_delta=0 cand=0.203847 ref=0.203847
+ds4: varmap-attn compare layer=10 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0826937 ref=0.0826937 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0826937 ref=0.0826937
+ds4: varmap-attn compare layer=11 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.162455 ref=-0.162455 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.162455 ref=-0.162455
+ds4: varmap-attn compare layer=12 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.729793 ref=0.729793 worst_row=0 worst_idx=0 worst_delta=0 cand=0.729793 ref=0.729793
+ds4: varmap-attn compare layer=13 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0721192 ref=0.0721192 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0721192 ref=0.0721192
+ds4: varmap-attn compare layer=14 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0275601 ref=0.0275601 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0275601 ref=0.0275601
+ds4: varmap-attn compare layer=15 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.19726 ref=-1.19726 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.19726 ref=-1.19726
+ds4: varmap-attn compare layer=16 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0785693 ref=-0.0785693 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0785693 ref=-0.0785693
+ds4: varmap-attn compare layer=17 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.296528 ref=0.296528 worst_row=0 worst_idx=0 worst_delta=0 cand=0.296528 ref=0.296528
+ds4: varmap-attn compare layer=18 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.060593 ref=0.060593 worst_row=0 worst_idx=0 worst_delta=0 cand=0.060593 ref=0.060593
+ds4: varmap-attn compare layer=19 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0820221 ref=0.0820221 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0820221 ref=0.0820221
+ds4: varmap-attn compare layer=20 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.270917 ref=-0.270917 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.270917 ref=-0.270917
+ds4: varmap-attn compare layer=21 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.362143 ref=0.362143 worst_row=0 worst_idx=0 worst_delta=0 cand=0.362143 ref=0.362143
+ds4: varmap-attn compare layer=22 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.288003 ref=-0.288003 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.288003 ref=-0.288003
+ds4: varmap-attn compare layer=23 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.248178 ref=-0.248178 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.248178 ref=-0.248178
+ds4: varmap-attn compare layer=24 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.427521 ref=-0.427521 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.427521 ref=-0.427521
+ds4: varmap-attn compare layer=25 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0432685 ref=0.0432685 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0432685 ref=0.0432685
+ds4: varmap-attn compare layer=26 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.154386 ref=-0.154386 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.154386 ref=-0.154386
+ds4: varmap-attn compare layer=27 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.105619 ref=-0.105619 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.105619 ref=-0.105619
+ds4: varmap-attn compare layer=28 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.368121 ref=-0.368121 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.368121 ref=-0.368121
+ds4: varmap-attn compare layer=29 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0886787 ref=0.0886787 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0886787 ref=0.0886787
+ds4: varmap-attn compare layer=30 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0769637 ref=-0.0769637 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0769637 ref=-0.0769637
+ds4: varmap-attn compare layer=31 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00842669 ref=0.00842669 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00842669 ref=0.00842669
+ds4: varmap-attn compare layer=32 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.673889 ref=-0.673889 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.673889 ref=-0.673889
+ds4: varmap-attn compare layer=33 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0149439 ref=-0.0149439 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0149439 ref=-0.0149439
+ds4: varmap-attn compare layer=34 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.46607 ref=1.46607 worst_row=0 worst_idx=0 worst_delta=0 cand=1.46607 ref=1.46607
+ds4: varmap-attn compare layer=35 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.30509 ref=-1.30509 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.30509 ref=-1.30509
+ds4: varmap-attn compare layer=36 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.145313 ref=-0.145313 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.145313 ref=-0.145313
+ds4: varmap-attn compare layer=37 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0690137 ref=-0.0690137 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0690137 ref=-0.0690137
+ds4: varmap-attn compare layer=38 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.191286 ref=-0.191286 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.191286 ref=-0.191286
+ds4: varmap-attn compare layer=39 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.17487 ref=1.17487 worst_row=0 worst_idx=0 worst_delta=0 cand=1.17487 ref=1.17487
+ds4: varmap-attn compare layer=40 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.415374 ref=-0.415374 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.415374 ref=-0.415374
+ds4: varmap-attn compare layer=41 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.301781 ref=-0.301781 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.301781 ref=-0.301781
+ds4: varmap-attn compare layer=42 pos=33 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0622726 ref=0.0622726 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0622726 ref=0.0622726
+ds4: dspark hybrid audit prefix block=4 drafted=4 committed=1 state_count=1 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=9963 exact=9963 margin hybrid=0.281 exact=0.281 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.319734 ref=0.319734 worst_row=0 worst_idx=0 worst_delta=0 cand=0.319734 ref=0.319734
+ds4: varmap-attn compare layer=3 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0553321 ref=-0.0553321 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0553321 ref=-0.0553321
+ds4: varmap-attn compare layer=4 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0101986 ref=0.0101986 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0101986 ref=0.0101986
+ds4: varmap-attn compare layer=5 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0383473 ref=0.0383473 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0383473 ref=0.0383473
+ds4: varmap-attn compare layer=6 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.115535 ref=0.115535 worst_row=0 worst_idx=0 worst_delta=0 cand=0.115535 ref=0.115535
+ds4: varmap-attn compare layer=7 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.285681 ref=-0.285681 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.285681 ref=-0.285681
+ds4: varmap-attn compare layer=8 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.38301 ref=0.38301 worst_row=0 worst_idx=0 worst_delta=0 cand=0.38301 ref=0.38301
+ds4: varmap-attn compare layer=9 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.10054 ref=0.10054 worst_row=0 worst_idx=0 worst_delta=0 cand=0.10054 ref=0.10054
+ds4: varmap-attn compare layer=10 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.269123 ref=0.269123 worst_row=0 worst_idx=0 worst_delta=0 cand=0.269123 ref=0.269123
+ds4: varmap-attn compare layer=11 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0231198 ref=0.0231198 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0231198 ref=0.0231198
+ds4: varmap-attn compare layer=12 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.308187 ref=0.308187 worst_row=0 worst_idx=0 worst_delta=0 cand=0.308187 ref=0.308187
+ds4: varmap-attn compare layer=13 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0366582 ref=0.0366582 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0366582 ref=0.0366582
+ds4: varmap-attn compare layer=14 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.769458 ref=-0.769458 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.769458 ref=-0.769458
+ds4: varmap-attn compare layer=15 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.42963 ref=-0.42963 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.42963 ref=-0.42963
+ds4: varmap-attn compare layer=16 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.625586 ref=-0.625586 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.625586 ref=-0.625586
+ds4: varmap-attn compare layer=17 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.601138 ref=0.601138 worst_row=0 worst_idx=0 worst_delta=0 cand=0.601138 ref=0.601138
+ds4: varmap-attn compare layer=18 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.271021 ref=-0.271021 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.271021 ref=-0.271021
+ds4: varmap-attn compare layer=19 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.273616 ref=-0.273616 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.273616 ref=-0.273616
+ds4: varmap-attn compare layer=20 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.411177 ref=-0.411177 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.411177 ref=-0.411177
+ds4: varmap-attn compare layer=21 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.107468 ref=0.107468 worst_row=0 worst_idx=0 worst_delta=0 cand=0.107468 ref=0.107468
+ds4: varmap-attn compare layer=22 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.139907 ref=-0.139907 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.139907 ref=-0.139907
+ds4: varmap-attn compare layer=23 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.414337 ref=-0.414337 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.414337 ref=-0.414337
+ds4: varmap-attn compare layer=24 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.530557 ref=-0.530557 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.530557 ref=-0.530557
+ds4: varmap-attn compare layer=25 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00732225 ref=0.00732225 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00732225 ref=0.00732225
+ds4: varmap-attn compare layer=26 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.282113 ref=-0.282113 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.282113 ref=-0.282113
+ds4: varmap-attn compare layer=27 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.117519 ref=-0.117519 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.117519 ref=-0.117519
+ds4: varmap-attn compare layer=28 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.173363 ref=-0.173363 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.173363 ref=-0.173363
+ds4: varmap-attn compare layer=29 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0695471 ref=0.0695471 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0695471 ref=0.0695471
+ds4: varmap-attn compare layer=30 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0859699 ref=-0.0859699 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0859699 ref=-0.0859699
+ds4: varmap-attn compare layer=31 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.00605723 ref=-0.00605723 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.00605723 ref=-0.00605723
+ds4: varmap-attn compare layer=32 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.380417 ref=-0.380417 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.380417 ref=-0.380417
+ds4: varmap-attn compare layer=33 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.299478 ref=0.299478 worst_row=0 worst_idx=0 worst_delta=0 cand=0.299478 ref=0.299478
+ds4: varmap-attn compare layer=34 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.399302 ref=0.399302 worst_row=0 worst_idx=0 worst_delta=0 cand=0.399302 ref=0.399302
+ds4: varmap-attn compare layer=35 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.456524 ref=-0.456524 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.456524 ref=-0.456524
+ds4: varmap-attn compare layer=36 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.197524 ref=-0.197524 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.197524 ref=-0.197524
+ds4: varmap-attn compare layer=37 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.143407 ref=-0.143407 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.143407 ref=-0.143407
+ds4: varmap-attn compare layer=38 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0191962 ref=0.0191962 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0191962 ref=0.0191962
+ds4: varmap-attn compare layer=39 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.537534 ref=0.537534 worst_row=0 worst_idx=0 worst_delta=0 cand=0.537534 ref=0.537534
+ds4: varmap-attn compare layer=40 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.328886 ref=-0.328886 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.328886 ref=-0.328886
+ds4: varmap-attn compare layer=41 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0683179 ref=0.0683179 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0683179 ref=0.0683179
+ds4: varmap-attn compare layer=42 pos=36 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.130916 ref=0.130916 worst_row=0 worst_idx=0 worst_delta=0 cand=0.130916 ref=0.130916
+ds4: dspark hybrid audit prefix block=5 drafted=4 committed=1 state_count=1 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=68546 exact=68546 margin hybrid=3.263 exact=3.263 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.200192 ref=0.200192 worst_row=0 worst_idx=0 worst_delta=0 cand=0.200192 ref=0.200192
+ds4: varmap-attn compare layer=3 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0591757 ref=-0.0591757 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0591757 ref=-0.0591757
+ds4: varmap-attn compare layer=4 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.144778 ref=0.144778 worst_row=0 worst_idx=0 worst_delta=0 cand=0.144778 ref=0.144778
+ds4: varmap-attn compare layer=5 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.148822 ref=0.148822 worst_row=0 worst_idx=0 worst_delta=0 cand=0.148822 ref=0.148822
+ds4: varmap-attn compare layer=6 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.000381231 ref=-0.000381231 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.000381231 ref=-0.000381231
+ds4: varmap-attn compare layer=7 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.13604 ref=-0.13604 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.13604 ref=-0.13604
+ds4: varmap-attn compare layer=8 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.368879 ref=0.368879 worst_row=0 worst_idx=0 worst_delta=0 cand=0.368879 ref=0.368879
+ds4: varmap-attn compare layer=9 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.213963 ref=0.213963 worst_row=0 worst_idx=0 worst_delta=0 cand=0.213963 ref=0.213963
+ds4: varmap-attn compare layer=10 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.124986 ref=-0.124986 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.124986 ref=-0.124986
+ds4: varmap-attn compare layer=11 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.366505 ref=0.366505 worst_row=0 worst_idx=0 worst_delta=0 cand=0.366505 ref=0.366505
+ds4: varmap-attn compare layer=12 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.566146 ref=0.566146 worst_row=0 worst_idx=0 worst_delta=0 cand=0.566146 ref=0.566146
+ds4: varmap-attn compare layer=13 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.107427 ref=0.107427 worst_row=0 worst_idx=0 worst_delta=0 cand=0.107427 ref=0.107427
+ds4: varmap-attn compare layer=14 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.401327 ref=-0.401327 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.401327 ref=-0.401327
+ds4: varmap-attn compare layer=15 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.479159 ref=-0.479159 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.479159 ref=-0.479159
+ds4: varmap-attn compare layer=16 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.857332 ref=-0.857332 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.857332 ref=-0.857332
+ds4: varmap-attn compare layer=17 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.476975 ref=0.476975 worst_row=0 worst_idx=0 worst_delta=0 cand=0.476975 ref=0.476975
+ds4: varmap-attn compare layer=18 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.149889 ref=-0.149889 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.149889 ref=-0.149889
+ds4: varmap-attn compare layer=19 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.133419 ref=-0.133419 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.133419 ref=-0.133419
+ds4: varmap-attn compare layer=20 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.37586 ref=-0.37586 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.37586 ref=-0.37586
+ds4: varmap-attn compare layer=21 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.123258 ref=0.123258 worst_row=0 worst_idx=0 worst_delta=0 cand=0.123258 ref=0.123258
+ds4: varmap-attn compare layer=22 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0814232 ref=-0.0814232 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0814232 ref=-0.0814232
+ds4: varmap-attn compare layer=23 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.472998 ref=-0.472998 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.472998 ref=-0.472998
+ds4: varmap-attn compare layer=24 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.469617 ref=-0.469617 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.469617 ref=-0.469617
+ds4: varmap-attn compare layer=25 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.137148 ref=0.137148 worst_row=0 worst_idx=0 worst_delta=0 cand=0.137148 ref=0.137148
+ds4: varmap-attn compare layer=26 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.20521 ref=-0.20521 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.20521 ref=-0.20521
+ds4: varmap-attn compare layer=27 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.142508 ref=-0.142508 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.142508 ref=-0.142508
+ds4: varmap-attn compare layer=28 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.180603 ref=-0.180603 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.180603 ref=-0.180603
+ds4: varmap-attn compare layer=29 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0434195 ref=0.0434195 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0434195 ref=0.0434195
+ds4: varmap-attn compare layer=30 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0821853 ref=-0.0821853 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0821853 ref=-0.0821853
+ds4: varmap-attn compare layer=31 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0698764 ref=-0.0698764 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0698764 ref=-0.0698764
+ds4: varmap-attn compare layer=32 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.16907 ref=-0.16907 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.16907 ref=-0.16907
+ds4: varmap-attn compare layer=33 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.62734 ref=-0.62734 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.62734 ref=-0.62734
+ds4: varmap-attn compare layer=34 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.5776 ref=1.5776 worst_row=0 worst_idx=0 worst_delta=0 cand=1.5776 ref=1.5776
+ds4: varmap-attn compare layer=35 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.41116 ref=-1.41116 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.41116 ref=-1.41116
+ds4: varmap-attn compare layer=36 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.110089 ref=-0.110089 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.110089 ref=-0.110089
+ds4: varmap-attn compare layer=37 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.381808 ref=-0.381808 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.381808 ref=-0.381808
+ds4: varmap-attn compare layer=38 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0786503 ref=0.0786503 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0786503 ref=0.0786503
+ds4: varmap-attn compare layer=39 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.870984 ref=0.870984 worst_row=0 worst_idx=0 worst_delta=0 cand=0.870984 ref=0.870984
+ds4: varmap-attn compare layer=40 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.10768 ref=-0.10768 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.10768 ref=-0.10768
+ds4: varmap-attn compare layer=41 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.789902 ref=-0.789902 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.789902 ref=-0.789902
+ds4: varmap-attn compare layer=42 pos=38 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00742477 ref=0.00742477 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00742477 ref=0.00742477
+ds4: dspark hybrid audit prefix block=6 drafted=4 committed=3 state_count=3 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=6569 exact=6569 margin hybrid=0.416 exact=0.416 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.284923 ref=0.284923 worst_row=0 worst_idx=0 worst_delta=0 cand=0.284923 ref=0.284923
+ds4: varmap-attn compare layer=3 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.070206 ref=0.070206 worst_row=0 worst_idx=0 worst_delta=0 cand=0.070206 ref=0.070206
+ds4: varmap-attn compare layer=4 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0615814 ref=0.0615814 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0615814 ref=0.0615814
+ds4: varmap-attn compare layer=5 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.132169 ref=-0.132169 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.132169 ref=-0.132169
+ds4: varmap-attn compare layer=6 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.158502 ref=-0.158502 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.158502 ref=-0.158502
+ds4: varmap-attn compare layer=7 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00727268 ref=0.00727268 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00727268 ref=0.00727268
+ds4: varmap-attn compare layer=8 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.390643 ref=0.390643 worst_row=0 worst_idx=0 worst_delta=0 cand=0.390643 ref=0.390643
+ds4: varmap-attn compare layer=9 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.302109 ref=-0.302109 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.302109 ref=-0.302109
+ds4: varmap-attn compare layer=10 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.872054 ref=0.872054 worst_row=0 worst_idx=0 worst_delta=0 cand=0.872054 ref=0.872054
+ds4: varmap-attn compare layer=11 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.343424 ref=0.343424 worst_row=0 worst_idx=0 worst_delta=0 cand=0.343424 ref=0.343424
+ds4: varmap-attn compare layer=12 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.378281 ref=0.378281 worst_row=0 worst_idx=0 worst_delta=0 cand=0.378281 ref=0.378281
+ds4: varmap-attn compare layer=13 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0756938 ref=0.0756938 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0756938 ref=0.0756938
+ds4: varmap-attn compare layer=14 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.88519 ref=-0.88519 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.88519 ref=-0.88519
+ds4: varmap-attn compare layer=15 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.747566 ref=-0.747566 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.747566 ref=-0.747566
+ds4: varmap-attn compare layer=16 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.522382 ref=-0.522382 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.522382 ref=-0.522382
+ds4: varmap-attn compare layer=17 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.256835 ref=0.256835 worst_row=0 worst_idx=0 worst_delta=0 cand=0.256835 ref=0.256835
+ds4: varmap-attn compare layer=18 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0722772 ref=-0.0722772 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0722772 ref=-0.0722772
+ds4: varmap-attn compare layer=19 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.342259 ref=-0.342259 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.342259 ref=-0.342259
+ds4: varmap-attn compare layer=20 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.1745 ref=-0.1745 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.1745 ref=-0.1745
+ds4: varmap-attn compare layer=21 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.131214 ref=0.131214 worst_row=0 worst_idx=0 worst_delta=0 cand=0.131214 ref=0.131214
+ds4: varmap-attn compare layer=22 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0215621 ref=0.0215621 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0215621 ref=0.0215621
+ds4: varmap-attn compare layer=23 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.242175 ref=-0.242175 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.242175 ref=-0.242175
+ds4: varmap-attn compare layer=24 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.347797 ref=-0.347797 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.347797 ref=-0.347797
+ds4: varmap-attn compare layer=25 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.108831 ref=0.108831 worst_row=0 worst_idx=0 worst_delta=0 cand=0.108831 ref=0.108831
+ds4: varmap-attn compare layer=26 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.196152 ref=-0.196152 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.196152 ref=-0.196152
+ds4: varmap-attn compare layer=27 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0154014 ref=-0.0154014 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0154014 ref=-0.0154014
+ds4: varmap-attn compare layer=28 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.089277 ref=-0.089277 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.089277 ref=-0.089277
+ds4: varmap-attn compare layer=29 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00450115 ref=0.00450115 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00450115 ref=0.00450115
+ds4: varmap-attn compare layer=30 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0624982 ref=-0.0624982 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0624982 ref=-0.0624982
+ds4: varmap-attn compare layer=31 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0287342 ref=-0.0287342 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0287342 ref=-0.0287342
+ds4: varmap-attn compare layer=32 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.494486 ref=-0.494486 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.494486 ref=-0.494486
+ds4: varmap-attn compare layer=33 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.148333 ref=-0.148333 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.148333 ref=-0.148333
+ds4: varmap-attn compare layer=34 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.728679 ref=0.728679 worst_row=0 worst_idx=0 worst_delta=0 cand=0.728679 ref=0.728679
+ds4: varmap-attn compare layer=35 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.89326 ref=-1.89326 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.89326 ref=-1.89326
+ds4: varmap-attn compare layer=36 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.120643 ref=-0.120643 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.120643 ref=-0.120643
+ds4: varmap-attn compare layer=37 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.158218 ref=-0.158218 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.158218 ref=-0.158218
+ds4: varmap-attn compare layer=38 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0661548 ref=0.0661548 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0661548 ref=0.0661548
+ds4: varmap-attn compare layer=39 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.09504 ref=1.09504 worst_row=0 worst_idx=0 worst_delta=0 cand=1.09504 ref=1.09504
+ds4: varmap-attn compare layer=40 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.228526 ref=-0.228526 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.228526 ref=-0.228526
+ds4: varmap-attn compare layer=41 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.707691 ref=-0.707691 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.707691 ref=-0.707691
+ds4: varmap-attn compare layer=42 pos=42 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0238231 ref=0.0238231 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0238231 ref=0.0238231
+ds4: dspark hybrid audit prefix block=7 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=9854 exact=9854 margin hybrid=9.183 exact=9.183 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00975342 ref=0.00975342 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00975342 ref=0.00975342
+ds4: varmap-attn compare layer=3 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0177153 ref=-0.0177153 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0177153 ref=-0.0177153
+ds4: varmap-attn compare layer=4 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0523352 ref=-0.0523352 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0523352 ref=-0.0523352
+ds4: varmap-attn compare layer=5 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0210318 ref=-0.0210318 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0210318 ref=-0.0210318
+ds4: varmap-attn compare layer=6 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0597114 ref=0.0597114 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0597114 ref=0.0597114
+ds4: varmap-attn compare layer=7 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.368549 ref=0.368549 worst_row=0 worst_idx=0 worst_delta=0 cand=0.368549 ref=0.368549
+ds4: varmap-attn compare layer=8 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0644173 ref=0.0644173 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0644173 ref=0.0644173
+ds4: varmap-attn compare layer=9 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0865451 ref=-0.0865451 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0865451 ref=-0.0865451
+ds4: varmap-attn compare layer=10 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.415928 ref=0.415928 worst_row=0 worst_idx=0 worst_delta=0 cand=0.415928 ref=0.415928
+ds4: varmap-attn compare layer=11 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.173714 ref=-0.173714 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.173714 ref=-0.173714
+ds4: varmap-attn compare layer=12 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.63024 ref=0.63024 worst_row=0 worst_idx=0 worst_delta=0 cand=0.63024 ref=0.63024
+ds4: varmap-attn compare layer=13 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0770027 ref=0.0770027 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0770027 ref=0.0770027
+ds4: varmap-attn compare layer=14 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0813499 ref=-0.0813499 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0813499 ref=-0.0813499
+ds4: varmap-attn compare layer=15 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.682791 ref=-0.682791 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.682791 ref=-0.682791
+ds4: varmap-attn compare layer=16 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.000494796 ref=-0.000494796 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.000494796 ref=-0.000494796
+ds4: varmap-attn compare layer=17 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.179583 ref=0.179583 worst_row=0 worst_idx=0 worst_delta=0 cand=0.179583 ref=0.179583
+ds4: varmap-attn compare layer=18 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0511725 ref=0.0511725 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0511725 ref=0.0511725
+ds4: varmap-attn compare layer=19 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.111788 ref=-0.111788 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.111788 ref=-0.111788
+ds4: varmap-attn compare layer=20 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0589153 ref=0.0589153 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0589153 ref=0.0589153
+ds4: varmap-attn compare layer=21 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.280997 ref=0.280997 worst_row=0 worst_idx=0 worst_delta=0 cand=0.280997 ref=0.280997
+ds4: varmap-attn compare layer=22 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.400118 ref=-0.400118 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.400118 ref=-0.400118
+ds4: varmap-attn compare layer=23 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.354648 ref=-0.354648 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.354648 ref=-0.354648
+ds4: varmap-attn compare layer=24 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.332838 ref=-0.332838 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.332838 ref=-0.332838
+ds4: varmap-attn compare layer=25 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.127553 ref=0.127553 worst_row=0 worst_idx=0 worst_delta=0 cand=0.127553 ref=0.127553
+ds4: varmap-attn compare layer=26 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.153746 ref=0.153746 worst_row=0 worst_idx=0 worst_delta=0 cand=0.153746 ref=0.153746
+ds4: varmap-attn compare layer=27 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.180443 ref=-0.180443 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.180443 ref=-0.180443
+ds4: varmap-attn compare layer=28 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.330557 ref=-0.330557 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.330557 ref=-0.330557
+ds4: varmap-attn compare layer=29 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0608994 ref=0.0608994 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0608994 ref=0.0608994
+ds4: varmap-attn compare layer=30 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0249986 ref=-0.0249986 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0249986 ref=-0.0249986
+ds4: varmap-attn compare layer=31 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0404571 ref=0.0404571 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0404571 ref=0.0404571
+ds4: varmap-attn compare layer=32 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0671206 ref=-0.0671206 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0671206 ref=-0.0671206
+ds4: varmap-attn compare layer=33 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0391475 ref=0.0391475 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0391475 ref=0.0391475
+ds4: varmap-attn compare layer=34 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.813891 ref=0.813891 worst_row=0 worst_idx=0 worst_delta=0 cand=0.813891 ref=0.813891
+ds4: varmap-attn compare layer=35 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.571175 ref=-0.571175 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.571175 ref=-0.571175
+ds4: varmap-attn compare layer=36 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.315987 ref=-0.315987 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.315987 ref=-0.315987
+ds4: varmap-attn compare layer=37 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.093053 ref=-0.093053 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.093053 ref=-0.093053
+ds4: varmap-attn compare layer=38 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.318319 ref=-0.318319 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.318319 ref=-0.318319
+ds4: varmap-attn compare layer=39 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.16179 ref=1.16179 worst_row=0 worst_idx=0 worst_delta=0 cand=1.16179 ref=1.16179
+ds4: varmap-attn compare layer=40 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.27805 ref=-1.27805 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.27805 ref=-1.27805
+ds4: varmap-attn compare layer=41 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.658113 ref=-0.658113 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.658113 ref=-0.658113
+ds4: varmap-attn compare layer=42 pos=47 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.133795 ref=0.133795 worst_row=0 worst_idx=0 worst_delta=0 cand=0.133795 ref=0.133795
+ds4: dspark hybrid audit prefix block=8 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=201 exact=201 margin hybrid=12.838 exact=12.838 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.161897 ref=0.161897 worst_row=0 worst_idx=0 worst_delta=0 cand=0.161897 ref=0.161897
+ds4: varmap-attn compare layer=3 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.396716 ref=-0.396716 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.396716 ref=-0.396716
+ds4: varmap-attn compare layer=4 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0395425 ref=-0.0395425 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0395425 ref=-0.0395425
+ds4: varmap-attn compare layer=5 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00500052 ref=0.00500052 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00500052 ref=0.00500052
+ds4: varmap-attn compare layer=6 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.203366 ref=-0.203366 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.203366 ref=-0.203366
+ds4: varmap-attn compare layer=7 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0225172 ref=0.0225172 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0225172 ref=0.0225172
+ds4: varmap-attn compare layer=8 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.246248 ref=0.246248 worst_row=0 worst_idx=0 worst_delta=0 cand=0.246248 ref=0.246248
+ds4: varmap-attn compare layer=9 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.310371 ref=-0.310371 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.310371 ref=-0.310371
+ds4: varmap-attn compare layer=10 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.482832 ref=0.482832 worst_row=0 worst_idx=0 worst_delta=0 cand=0.482832 ref=0.482832
+ds4: varmap-attn compare layer=11 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0617258 ref=0.0617258 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0617258 ref=0.0617258
+ds4: varmap-attn compare layer=12 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.397481 ref=0.397481 worst_row=0 worst_idx=0 worst_delta=0 cand=0.397481 ref=0.397481
+ds4: varmap-attn compare layer=13 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.233105 ref=0.233105 worst_row=0 worst_idx=0 worst_delta=0 cand=0.233105 ref=0.233105
+ds4: varmap-attn compare layer=14 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.492229 ref=-0.492229 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.492229 ref=-0.492229
+ds4: varmap-attn compare layer=15 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.12403 ref=-1.12403 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.12403 ref=-1.12403
+ds4: varmap-attn compare layer=16 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.113777 ref=-0.113777 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.113777 ref=-0.113777
+ds4: varmap-attn compare layer=17 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.052186 ref=0.052186 worst_row=0 worst_idx=0 worst_delta=0 cand=0.052186 ref=0.052186
+ds4: varmap-attn compare layer=18 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0946518 ref=0.0946518 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0946518 ref=0.0946518
+ds4: varmap-attn compare layer=19 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.344653 ref=-0.344653 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.344653 ref=-0.344653
+ds4: varmap-attn compare layer=20 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.172164 ref=-0.172164 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.172164 ref=-0.172164
+ds4: varmap-attn compare layer=21 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.218991 ref=0.218991 worst_row=0 worst_idx=0 worst_delta=0 cand=0.218991 ref=0.218991
+ds4: varmap-attn compare layer=22 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0824663 ref=-0.0824663 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0824663 ref=-0.0824663
+ds4: varmap-attn compare layer=23 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0851896 ref=-0.0851896 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0851896 ref=-0.0851896
+ds4: varmap-attn compare layer=24 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.394926 ref=-0.394926 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.394926 ref=-0.394926
+ds4: varmap-attn compare layer=25 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0492057 ref=0.0492057 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0492057 ref=0.0492057
+ds4: varmap-attn compare layer=26 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0325891 ref=0.0325891 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0325891 ref=0.0325891
+ds4: varmap-attn compare layer=27 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.178443 ref=-0.178443 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.178443 ref=-0.178443
+ds4: varmap-attn compare layer=28 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.33816 ref=-0.33816 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.33816 ref=-0.33816
+ds4: varmap-attn compare layer=29 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00353888 ref=0.00353888 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00353888 ref=0.00353888
+ds4: varmap-attn compare layer=30 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0724471 ref=-0.0724471 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0724471 ref=-0.0724471
+ds4: varmap-attn compare layer=31 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.124204 ref=-0.124204 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.124204 ref=-0.124204
+ds4: varmap-attn compare layer=32 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0503973 ref=-0.0503973 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0503973 ref=-0.0503973
+ds4: varmap-attn compare layer=33 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.69882 ref=-0.69882 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.69882 ref=-0.69882
+ds4: varmap-attn compare layer=34 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.862298 ref=0.862298 worst_row=0 worst_idx=0 worst_delta=0 cand=0.862298 ref=0.862298
+ds4: varmap-attn compare layer=35 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.490132 ref=-0.490132 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.490132 ref=-0.490132
+ds4: varmap-attn compare layer=36 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.18952 ref=-0.18952 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.18952 ref=-0.18952
+ds4: varmap-attn compare layer=37 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.321447 ref=-0.321447 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.321447 ref=-0.321447
+ds4: varmap-attn compare layer=38 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0471143 ref=-0.0471143 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0471143 ref=-0.0471143
+ds4: varmap-attn compare layer=39 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.348914 ref=0.348914 worst_row=0 worst_idx=0 worst_delta=0 cand=0.348914 ref=0.348914
+ds4: varmap-attn compare layer=40 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.335358 ref=-0.335358 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.335358 ref=-0.335358
+ds4: varmap-attn compare layer=41 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.49447 ref=-1.49447 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.49447 ref=-1.49447
+ds4: varmap-attn compare layer=42 pos=52 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0923119 ref=0.0923119 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0923119 ref=0.0923119
+ds4: dspark hybrid audit prefix block=9 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=7704 exact=7704 margin hybrid=3.443 exact=3.443 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0488035 ref=-0.0488035 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0488035 ref=-0.0488035
+ds4: varmap-attn compare layer=3 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.163278 ref=-0.163278 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.163278 ref=-0.163278
+ds4: varmap-attn compare layer=4 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0136342 ref=0.0136342 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0136342 ref=0.0136342
+ds4: varmap-attn compare layer=5 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.173877 ref=0.173877 worst_row=0 worst_idx=0 worst_delta=0 cand=0.173877 ref=0.173877
+ds4: varmap-attn compare layer=6 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.179782 ref=-0.179782 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.179782 ref=-0.179782
+ds4: varmap-attn compare layer=7 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.291456 ref=0.291456 worst_row=0 worst_idx=0 worst_delta=0 cand=0.291456 ref=0.291456
+ds4: varmap-attn compare layer=8 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0997153 ref=0.0997153 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0997153 ref=0.0997153
+ds4: varmap-attn compare layer=9 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0226856 ref=-0.0226856 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0226856 ref=-0.0226856
+ds4: varmap-attn compare layer=10 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.587526 ref=0.587526 worst_row=0 worst_idx=0 worst_delta=0 cand=0.587526 ref=0.587526
+ds4: varmap-attn compare layer=11 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.114562 ref=0.114562 worst_row=0 worst_idx=0 worst_delta=0 cand=0.114562 ref=0.114562
+ds4: varmap-attn compare layer=12 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.416096 ref=0.416096 worst_row=0 worst_idx=0 worst_delta=0 cand=0.416096 ref=0.416096
+ds4: varmap-attn compare layer=13 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.315584 ref=0.315584 worst_row=0 worst_idx=0 worst_delta=0 cand=0.315584 ref=0.315584
+ds4: varmap-attn compare layer=14 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.113947 ref=-0.113947 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.113947 ref=-0.113947
+ds4: varmap-attn compare layer=15 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.88398 ref=-0.88398 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.88398 ref=-0.88398
+ds4: varmap-attn compare layer=16 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0557672 ref=-0.0557672 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0557672 ref=-0.0557672
+ds4: varmap-attn compare layer=17 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0295261 ref=0.0295261 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0295261 ref=0.0295261
+ds4: varmap-attn compare layer=18 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.141671 ref=0.141671 worst_row=0 worst_idx=0 worst_delta=0 cand=0.141671 ref=0.141671
+ds4: varmap-attn compare layer=19 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.315625 ref=-0.315625 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.315625 ref=-0.315625
+ds4: varmap-attn compare layer=20 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0122399 ref=-0.0122399 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0122399 ref=-0.0122399
+ds4: varmap-attn compare layer=21 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.13771 ref=0.13771 worst_row=0 worst_idx=0 worst_delta=0 cand=0.13771 ref=0.13771
+ds4: varmap-attn compare layer=22 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0718346 ref=-0.0718346 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0718346 ref=-0.0718346
+ds4: varmap-attn compare layer=23 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.115158 ref=-0.115158 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.115158 ref=-0.115158
+ds4: varmap-attn compare layer=24 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.31135 ref=-0.31135 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.31135 ref=-0.31135
+ds4: varmap-attn compare layer=25 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.261461 ref=0.261461 worst_row=0 worst_idx=0 worst_delta=0 cand=0.261461 ref=0.261461
+ds4: varmap-attn compare layer=26 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.242315 ref=0.242315 worst_row=0 worst_idx=0 worst_delta=0 cand=0.242315 ref=0.242315
+ds4: varmap-attn compare layer=27 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.193799 ref=-0.193799 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.193799 ref=-0.193799
+ds4: varmap-attn compare layer=28 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.150898 ref=-0.150898 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.150898 ref=-0.150898
+ds4: varmap-attn compare layer=29 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.00756019 ref=-0.00756019 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.00756019 ref=-0.00756019
+ds4: varmap-attn compare layer=30 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0512396 ref=-0.0512396 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0512396 ref=-0.0512396
+ds4: varmap-attn compare layer=31 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.140585 ref=-0.140585 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.140585 ref=-0.140585
+ds4: varmap-attn compare layer=32 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.117257 ref=-0.117257 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.117257 ref=-0.117257
+ds4: varmap-attn compare layer=33 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0028615 ref=-0.0028615 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0028615 ref=-0.0028615
+ds4: varmap-attn compare layer=34 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.942873 ref=0.942873 worst_row=0 worst_idx=0 worst_delta=0 cand=0.942873 ref=0.942873
+ds4: varmap-attn compare layer=35 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.174245 ref=-0.174245 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.174245 ref=-0.174245
+ds4: varmap-attn compare layer=36 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.376577 ref=-0.376577 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.376577 ref=-0.376577
+ds4: varmap-attn compare layer=37 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.451732 ref=-0.451732 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.451732 ref=-0.451732
+ds4: varmap-attn compare layer=38 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.196916 ref=-0.196916 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.196916 ref=-0.196916
+ds4: varmap-attn compare layer=39 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.831534 ref=0.831534 worst_row=0 worst_idx=0 worst_delta=0 cand=0.831534 ref=0.831534
+ds4: varmap-attn compare layer=40 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.754284 ref=-0.754284 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.754284 ref=-0.754284
+ds4: varmap-attn compare layer=41 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.553761 ref=0.553761 worst_row=0 worst_idx=0 worst_delta=0 cand=0.553761 ref=0.553761
+ds4: varmap-attn compare layer=42 pos=57 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.199128 ref=0.199128 worst_row=0 worst_idx=0 worst_delta=0 cand=0.199128 ref=0.199128
+ds4: dspark hybrid audit prefix block=10 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=29675 exact=29675 margin hybrid=10.848 exact=10.848 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0310891 ref=0.0310891 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0310891 ref=0.0310891
+ds4: varmap-attn compare layer=3 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.131176 ref=0.131176 worst_row=0 worst_idx=0 worst_delta=0 cand=0.131176 ref=0.131176
+ds4: varmap-attn compare layer=4 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.00426705 ref=-0.00426705 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.00426705 ref=-0.00426705
+ds4: varmap-attn compare layer=5 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.174644 ref=0.174644 worst_row=0 worst_idx=0 worst_delta=0 cand=0.174644 ref=0.174644
+ds4: varmap-attn compare layer=6 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.126116 ref=-0.126116 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.126116 ref=-0.126116
+ds4: varmap-attn compare layer=7 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.228516 ref=0.228516 worst_row=0 worst_idx=0 worst_delta=0 cand=0.228516 ref=0.228516
+ds4: varmap-attn compare layer=8 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0275453 ref=-0.0275453 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0275453 ref=-0.0275453
+ds4: varmap-attn compare layer=9 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0466917 ref=0.0466917 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0466917 ref=0.0466917
+ds4: varmap-attn compare layer=10 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.6839 ref=0.6839 worst_row=0 worst_idx=0 worst_delta=0 cand=0.6839 ref=0.6839
+ds4: varmap-attn compare layer=11 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.214359 ref=-0.214359 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.214359 ref=-0.214359
+ds4: varmap-attn compare layer=12 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.779701 ref=0.779701 worst_row=0 worst_idx=0 worst_delta=0 cand=0.779701 ref=0.779701
+ds4: varmap-attn compare layer=13 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.139029 ref=0.139029 worst_row=0 worst_idx=0 worst_delta=0 cand=0.139029 ref=0.139029
+ds4: varmap-attn compare layer=14 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.235375 ref=-0.235375 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.235375 ref=-0.235375
+ds4: varmap-attn compare layer=15 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.409104 ref=-0.409104 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.409104 ref=-0.409104
+ds4: varmap-attn compare layer=16 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.00249705 ref=0.00249705 worst_row=0 worst_idx=0 worst_delta=0 cand=0.00249705 ref=0.00249705
+ds4: varmap-attn compare layer=17 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.137769 ref=-0.137769 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.137769 ref=-0.137769
+ds4: varmap-attn compare layer=18 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.231018 ref=0.231018 worst_row=0 worst_idx=0 worst_delta=0 cand=0.231018 ref=0.231018
+ds4: varmap-attn compare layer=19 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.261326 ref=-0.261326 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.261326 ref=-0.261326
+ds4: varmap-attn compare layer=20 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0538598 ref=-0.0538598 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0538598 ref=-0.0538598
+ds4: varmap-attn compare layer=21 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.129761 ref=0.129761 worst_row=0 worst_idx=0 worst_delta=0 cand=0.129761 ref=0.129761
+ds4: varmap-attn compare layer=22 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.122294 ref=-0.122294 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.122294 ref=-0.122294
+ds4: varmap-attn compare layer=23 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0724126 ref=-0.0724126 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0724126 ref=-0.0724126
+ds4: varmap-attn compare layer=24 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.452828 ref=-0.452828 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.452828 ref=-0.452828
+ds4: varmap-attn compare layer=25 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.168622 ref=0.168622 worst_row=0 worst_idx=0 worst_delta=0 cand=0.168622 ref=0.168622
+ds4: varmap-attn compare layer=26 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0223278 ref=0.0223278 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0223278 ref=0.0223278
+ds4: varmap-attn compare layer=27 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.115283 ref=-0.115283 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.115283 ref=-0.115283
+ds4: varmap-attn compare layer=28 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0116663 ref=-0.0116663 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0116663 ref=-0.0116663
+ds4: varmap-attn compare layer=29 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.08273 ref=-0.08273 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.08273 ref=-0.08273
+ds4: varmap-attn compare layer=30 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0661534 ref=-0.0661534 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0661534 ref=-0.0661534
+ds4: varmap-attn compare layer=31 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.122005 ref=-0.122005 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.122005 ref=-0.122005
+ds4: varmap-attn compare layer=32 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.123114 ref=-0.123114 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.123114 ref=-0.123114
+ds4: varmap-attn compare layer=33 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.901975 ref=-0.901975 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.901975 ref=-0.901975
+ds4: varmap-attn compare layer=34 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.638602 ref=0.638602 worst_row=0 worst_idx=0 worst_delta=0 cand=0.638602 ref=0.638602
+ds4: varmap-attn compare layer=35 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0434015 ref=0.0434015 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0434015 ref=0.0434015
+ds4: varmap-attn compare layer=36 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.415145 ref=-0.415145 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.415145 ref=-0.415145
+ds4: varmap-attn compare layer=37 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.302808 ref=-0.302808 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.302808 ref=-0.302808
+ds4: varmap-attn compare layer=38 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.265741 ref=-0.265741 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.265741 ref=-0.265741
+ds4: varmap-attn compare layer=39 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.602253 ref=0.602253 worst_row=0 worst_idx=0 worst_delta=0 cand=0.602253 ref=0.602253
+ds4: varmap-attn compare layer=40 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.28092 ref=-0.28092 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.28092 ref=-0.28092
+ds4: varmap-attn compare layer=41 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.234735 ref=0.234735 worst_row=0 worst_idx=0 worst_delta=0 cand=0.234735 ref=0.234735
+ds4: varmap-attn compare layer=42 pos=62 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.118875 ref=-0.118875 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.118875 ref=-0.118875
+ds4: dspark hybrid audit prefix block=11 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=10414 exact=10414 margin hybrid=7.666 exact=7.666 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0937291 ref=0.0937291 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0937291 ref=0.0937291
+ds4: varmap-attn compare layer=3 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.152466 ref=-0.152466 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.152466 ref=-0.152466
+ds4: varmap-attn compare layer=4 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.279072 ref=0.279072 worst_row=0 worst_idx=0 worst_delta=0 cand=0.279072 ref=0.279072
+ds4: varmap-attn compare layer=5 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0394048 ref=0.0394048 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0394048 ref=0.0394048
+ds4: varmap-attn compare layer=6 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.190658 ref=-0.190658 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.190658 ref=-0.190658
+ds4: varmap-attn compare layer=7 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.23715 ref=0.23715 worst_row=0 worst_idx=0 worst_delta=0 cand=0.23715 ref=0.23715
+ds4: varmap-attn compare layer=8 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.137789 ref=0.137789 worst_row=0 worst_idx=0 worst_delta=0 cand=0.137789 ref=0.137789
+ds4: varmap-attn compare layer=9 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0803247 ref=-0.0803247 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0803247 ref=-0.0803247
+ds4: varmap-attn compare layer=10 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.402678 ref=0.402678 worst_row=0 worst_idx=0 worst_delta=0 cand=0.402678 ref=0.402678
+ds4: varmap-attn compare layer=11 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0530139 ref=-0.0530139 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0530139 ref=-0.0530139
+ds4: varmap-attn compare layer=12 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.723041 ref=0.723041 worst_row=0 worst_idx=0 worst_delta=0 cand=0.723041 ref=0.723041
+ds4: varmap-attn compare layer=13 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.087259 ref=0.087259 worst_row=0 worst_idx=0 worst_delta=0 cand=0.087259 ref=0.087259
+ds4: varmap-attn compare layer=14 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.362498 ref=-0.362498 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.362498 ref=-0.362498
+ds4: varmap-attn compare layer=15 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.912896 ref=-0.912896 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.912896 ref=-0.912896
+ds4: varmap-attn compare layer=16 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.365471 ref=-0.365471 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.365471 ref=-0.365471
+ds4: varmap-attn compare layer=17 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0340037 ref=-0.0340037 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0340037 ref=-0.0340037
+ds4: varmap-attn compare layer=18 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.127783 ref=0.127783 worst_row=0 worst_idx=0 worst_delta=0 cand=0.127783 ref=0.127783
+ds4: varmap-attn compare layer=19 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0972525 ref=-0.0972525 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0972525 ref=-0.0972525
+ds4: varmap-attn compare layer=20 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.707603 ref=-0.707603 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.707603 ref=-0.707603
+ds4: varmap-attn compare layer=21 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0291478 ref=0.0291478 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0291478 ref=0.0291478
+ds4: varmap-attn compare layer=22 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0930321 ref=-0.0930321 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0930321 ref=-0.0930321
+ds4: varmap-attn compare layer=23 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.48071 ref=0.48071 worst_row=0 worst_idx=0 worst_delta=0 cand=0.48071 ref=0.48071
+ds4: varmap-attn compare layer=24 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.1177 ref=-0.1177 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.1177 ref=-0.1177
+ds4: varmap-attn compare layer=25 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.123878 ref=0.123878 worst_row=0 worst_idx=0 worst_delta=0 cand=0.123878 ref=0.123878
+ds4: varmap-attn compare layer=26 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.160085 ref=-0.160085 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.160085 ref=-0.160085
+ds4: varmap-attn compare layer=27 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0616822 ref=-0.0616822 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0616822 ref=-0.0616822
+ds4: varmap-attn compare layer=28 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0318056 ref=-0.0318056 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0318056 ref=-0.0318056
+ds4: varmap-attn compare layer=29 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.268946 ref=-0.268946 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.268946 ref=-0.268946
+ds4: varmap-attn compare layer=30 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.626138 ref=-0.626138 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.626138 ref=-0.626138
+ds4: varmap-attn compare layer=31 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.318929 ref=-0.318929 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.318929 ref=-0.318929
+ds4: varmap-attn compare layer=32 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.297994 ref=-0.297994 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.297994 ref=-0.297994
+ds4: varmap-attn compare layer=33 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.407841 ref=-0.407841 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.407841 ref=-0.407841
+ds4: varmap-attn compare layer=34 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0174179 ref=-0.0174179 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0174179 ref=-0.0174179
+ds4: varmap-attn compare layer=35 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.403803 ref=-0.403803 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.403803 ref=-0.403803
+ds4: varmap-attn compare layer=36 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.267982 ref=-0.267982 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.267982 ref=-0.267982
+ds4: varmap-attn compare layer=37 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.367901 ref=-0.367901 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.367901 ref=-0.367901
+ds4: varmap-attn compare layer=38 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0897052 ref=0.0897052 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0897052 ref=0.0897052
+ds4: varmap-attn compare layer=39 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.845562 ref=0.845562 worst_row=0 worst_idx=0 worst_delta=0 cand=0.845562 ref=0.845562
+ds4: varmap-attn compare layer=40 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.516938 ref=-0.516938 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.516938 ref=-0.516938
+ds4: varmap-attn compare layer=41 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.328875 ref=-0.328875 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.328875 ref=-0.328875
+ds4: varmap-attn compare layer=42 pos=67 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.148328 ref=0.148328 worst_row=0 worst_idx=0 worst_delta=0 cand=0.148328 ref=0.148328
+ds4: dspark hybrid audit prefix block=12 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=77533 exact=77533 margin hybrid=19.016 exact=19.016 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.292789 ref=0.292789 worst_row=0 worst_idx=0 worst_delta=0 cand=0.292789 ref=0.292789
+ds4: varmap-attn compare layer=3 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.014126 ref=-0.014126 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.014126 ref=-0.014126
+ds4: varmap-attn compare layer=4 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.468585 ref=0.468585 worst_row=0 worst_idx=0 worst_delta=0 cand=0.468585 ref=0.468585
+ds4: varmap-attn compare layer=5 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0950095 ref=-0.0950095 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0950095 ref=-0.0950095
+ds4: varmap-attn compare layer=6 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.048201 ref=-0.048201 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.048201 ref=-0.048201
+ds4: varmap-attn compare layer=7 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.120978 ref=0.120978 worst_row=0 worst_idx=0 worst_delta=0 cand=0.120978 ref=0.120978
+ds4: varmap-attn compare layer=8 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0963203 ref=0.0963203 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0963203 ref=0.0963203
+ds4: varmap-attn compare layer=9 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0244127 ref=0.0244127 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0244127 ref=0.0244127
+ds4: varmap-attn compare layer=10 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.637552 ref=0.637552 worst_row=0 worst_idx=0 worst_delta=0 cand=0.637552 ref=0.637552
+ds4: varmap-attn compare layer=11 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.00688992 ref=-0.00688992 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.00688992 ref=-0.00688992
+ds4: varmap-attn compare layer=12 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.288165 ref=0.288165 worst_row=0 worst_idx=0 worst_delta=0 cand=0.288165 ref=0.288165
+ds4: varmap-attn compare layer=13 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.126844 ref=0.126844 worst_row=0 worst_idx=0 worst_delta=0 cand=0.126844 ref=0.126844
+ds4: varmap-attn compare layer=14 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.46698 ref=-0.46698 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.46698 ref=-0.46698
+ds4: varmap-attn compare layer=15 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.796018 ref=-0.796018 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.796018 ref=-0.796018
+ds4: varmap-attn compare layer=16 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0414876 ref=0.0414876 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0414876 ref=0.0414876
+ds4: varmap-attn compare layer=17 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.043412 ref=-0.043412 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.043412 ref=-0.043412
+ds4: varmap-attn compare layer=18 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.71019 ref=0.71019 worst_row=0 worst_idx=0 worst_delta=0 cand=0.71019 ref=0.71019
+ds4: varmap-attn compare layer=19 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0128126 ref=0.0128126 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0128126 ref=0.0128126
+ds4: varmap-attn compare layer=20 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.379953 ref=-0.379953 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.379953 ref=-0.379953
+ds4: varmap-attn compare layer=21 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0171906 ref=-0.0171906 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0171906 ref=-0.0171906
+ds4: varmap-attn compare layer=22 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.200251 ref=0.200251 worst_row=0 worst_idx=0 worst_delta=0 cand=0.200251 ref=0.200251
+ds4: varmap-attn compare layer=23 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.428046 ref=0.428046 worst_row=0 worst_idx=0 worst_delta=0 cand=0.428046 ref=0.428046
+ds4: varmap-attn compare layer=24 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.411519 ref=-0.411519 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.411519 ref=-0.411519
+ds4: varmap-attn compare layer=25 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0346827 ref=-0.0346827 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0346827 ref=-0.0346827
+ds4: varmap-attn compare layer=26 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.255441 ref=-0.255441 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.255441 ref=-0.255441
+ds4: varmap-attn compare layer=27 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0819306 ref=-0.0819306 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0819306 ref=-0.0819306
+ds4: varmap-attn compare layer=28 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0290846 ref=-0.0290846 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0290846 ref=-0.0290846
+ds4: varmap-attn compare layer=29 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0607372 ref=-0.0607372 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0607372 ref=-0.0607372
+ds4: varmap-attn compare layer=30 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.00854065 ref=-0.00854065 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.00854065 ref=-0.00854065
+ds4: varmap-attn compare layer=31 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.117278 ref=0.117278 worst_row=0 worst_idx=0 worst_delta=0 cand=0.117278 ref=0.117278
+ds4: varmap-attn compare layer=32 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.201538 ref=-0.201538 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.201538 ref=-0.201538
+ds4: varmap-attn compare layer=33 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0128961 ref=0.0128961 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0128961 ref=0.0128961
+ds4: varmap-attn compare layer=34 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.473266 ref=0.473266 worst_row=0 worst_idx=0 worst_delta=0 cand=0.473266 ref=0.473266
+ds4: varmap-attn compare layer=35 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0696656 ref=0.0696656 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0696656 ref=0.0696656
+ds4: varmap-attn compare layer=36 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.413492 ref=-0.413492 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.413492 ref=-0.413492
+ds4: varmap-attn compare layer=37 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.153978 ref=-0.153978 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.153978 ref=-0.153978
+ds4: varmap-attn compare layer=38 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.392858 ref=-0.392858 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.392858 ref=-0.392858
+ds4: varmap-attn compare layer=39 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.576062 ref=0.576062 worst_row=0 worst_idx=0 worst_delta=0 cand=0.576062 ref=0.576062
+ds4: varmap-attn compare layer=40 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.426434 ref=-0.426434 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.426434 ref=-0.426434
+ds4: varmap-attn compare layer=41 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.85083 ref=-0.85083 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.85083 ref=-0.85083
+ds4: varmap-attn compare layer=42 pos=72 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.246394 ref=0.246394 worst_row=0 worst_idx=0 worst_delta=0 cand=0.246394 ref=0.246394
+ds4: dspark hybrid audit prefix block=13 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=201 exact=201 margin hybrid=16.519 exact=16.519 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: varmap-attn compare layer=2 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.243058 ref=0.243058 worst_row=0 worst_idx=0 worst_delta=0 cand=0.243058 ref=0.243058
+ds4: varmap-attn compare layer=3 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.184766 ref=-0.184766 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.184766 ref=-0.184766
+ds4: varmap-attn compare layer=4 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.558086 ref=0.558086 worst_row=0 worst_idx=0 worst_delta=0 cand=0.558086 ref=0.558086
+ds4: varmap-attn compare layer=5 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0284133 ref=-0.0284133 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0284133 ref=-0.0284133
+ds4: varmap-attn compare layer=6 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-1.6756e-05 ref=-1.6756e-05 worst_row=0 worst_idx=0 worst_delta=0 cand=-1.6756e-05 ref=-1.6756e-05
+ds4: varmap-attn compare layer=7 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0933597 ref=-0.0933597 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0933597 ref=-0.0933597
+ds4: varmap-attn compare layer=8 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.603219 ref=0.603219 worst_row=0 worst_idx=0 worst_delta=0 cand=0.603219 ref=0.603219
+ds4: varmap-attn compare layer=9 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0108313 ref=0.0108313 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0108313 ref=0.0108313
+ds4: varmap-attn compare layer=10 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.560401 ref=0.560401 worst_row=0 worst_idx=0 worst_delta=0 cand=0.560401 ref=0.560401
+ds4: varmap-attn compare layer=11 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0253729 ref=-0.0253729 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0253729 ref=-0.0253729
+ds4: varmap-attn compare layer=12 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.244308 ref=0.244308 worst_row=0 worst_idx=0 worst_delta=0 cand=0.244308 ref=0.244308
+ds4: varmap-attn compare layer=13 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.323629 ref=0.323629 worst_row=0 worst_idx=0 worst_delta=0 cand=0.323629 ref=0.323629
+ds4: varmap-attn compare layer=14 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.836945 ref=-0.836945 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.836945 ref=-0.836945
+ds4: varmap-attn compare layer=15 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.702397 ref=-0.702397 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.702397 ref=-0.702397
+ds4: varmap-attn compare layer=16 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.342651 ref=-0.342651 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.342651 ref=-0.342651
+ds4: varmap-attn compare layer=17 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.343801 ref=0.343801 worst_row=0 worst_idx=0 worst_delta=0 cand=0.343801 ref=0.343801
+ds4: varmap-attn compare layer=18 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.551762 ref=0.551762 worst_row=0 worst_idx=0 worst_delta=0 cand=0.551762 ref=0.551762
+ds4: varmap-attn compare layer=19 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.234076 ref=-0.234076 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.234076 ref=-0.234076
+ds4: varmap-attn compare layer=20 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.105516 ref=-0.105516 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.105516 ref=-0.105516
+ds4: varmap-attn compare layer=21 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.166138 ref=-0.166138 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.166138 ref=-0.166138
+ds4: varmap-attn compare layer=22 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.121278 ref=-0.121278 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.121278 ref=-0.121278
+ds4: varmap-attn compare layer=23 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.139754 ref=0.139754 worst_row=0 worst_idx=0 worst_delta=0 cand=0.139754 ref=0.139754
+ds4: varmap-attn compare layer=24 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.351234 ref=-0.351234 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.351234 ref=-0.351234
+ds4: varmap-attn compare layer=25 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.675358 ref=-0.675358 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.675358 ref=-0.675358
+ds4: varmap-attn compare layer=26 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0241619 ref=0.0241619 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0241619 ref=0.0241619
+ds4: varmap-attn compare layer=27 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0164091 ref=-0.0164091 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0164091 ref=-0.0164091
+ds4: varmap-attn compare layer=28 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0480211 ref=-0.0480211 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0480211 ref=-0.0480211
+ds4: varmap-attn compare layer=29 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0286098 ref=-0.0286098 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0286098 ref=-0.0286098
+ds4: varmap-attn compare layer=30 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.0411717 ref=-0.0411717 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.0411717 ref=-0.0411717
+ds4: varmap-attn compare layer=31 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.0337876 ref=0.0337876 worst_row=0 worst_idx=0 worst_delta=0 cand=0.0337876 ref=0.0337876
+ds4: varmap-attn compare layer=32 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.219078 ref=-0.219078 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.219078 ref=-0.219078
+ds4: varmap-attn compare layer=33 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.314272 ref=-0.314272 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.314272 ref=-0.314272
+ds4: varmap-attn compare layer=34 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=1.09733 ref=1.09733 worst_row=0 worst_idx=0 worst_delta=0 cand=1.09733 ref=1.09733
+ds4: varmap-attn compare layer=35 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.026074 ref=-0.026074 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.026074 ref=-0.026074
+ds4: varmap-attn compare layer=36 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.637546 ref=-0.637546 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.637546 ref=-0.637546
+ds4: varmap-attn compare layer=37 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.223981 ref=-0.223981 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.223981 ref=-0.223981
+ds4: varmap-attn compare layer=38 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.122547 ref=0.122547 worst_row=0 worst_idx=0 worst_delta=0 cand=0.122547 ref=0.122547
+ds4: varmap-attn compare layer=39 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=0.264961 ref=0.264961 worst_row=0 worst_idx=0 worst_delta=0 cand=0.264961 ref=0.264961
+ds4: varmap-attn compare layer=40 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.362317 ref=-0.362317 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.362317 ref=-0.362317
+ds4: varmap-attn compare layer=41 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.319735 ref=-0.319735 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.319735 ref=-0.319735
+ds4: varmap-attn compare layer=42 pos=77 rows=4 max=0 rms=0 first_row=0 first_idx=0 first_delta=0 cand=-0.176666 ref=-0.176666 worst_row=0 worst_idx=0 worst_delta=0 cand=-0.176666 ref=-0.176666
+ds4: dspark hybrid audit prefix block=14 drafted=4 committed=4 state_count=4 prefix_slots=3
+ds4: dspark hybrid layer attn-norm audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer q-rope audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer kv-cache-row audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads-raw audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-heads audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-out audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer attn-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid layer post-HC audit decodeN-attn-ffn-batch eps=1e-05 first=-1 row=0 idx=0 delta=0 h=0 e=0 max=0 rms=0 worst=-1 row=0 idx=0 worst_delta=0 h=0 e=0 worst_rms=0 layers=43 rows=4
+ds4: dspark hybrid first divergence audit decodeN-attn-ffn-batch stage=clean
+ds4: dspark hybrid audit commit logits top hybrid=438 exact=438 margin hybrid=19.389 exact=19.389 max=0 rms=0
+ds4: dspark batch state audit hybrid-vs-exact summary eps=1e-05 mismatch_layers=0 first_stage=clean first_layer=-1 first_max=0 first_rms=0 max=0 final_hc_max=0 decode_hc_max=0 dspark_hidden max=0 rms=0 dspark_kv max=0 rms=0 raw_rows=4 mtp_n_raw 0/0
+ds4: ----------------------------------------
+ds4: prefill: 4.92 t/s, generation: 11.21 t/s (64 tokens in 5.707s)
+ds4: dspark perf: draft=291.0 tok/s, verify=16.2 proposed tok/s, verify-accepted=12.8 tok/s, block=328.55 ms (draft=13.10 verify=234.72 overhead=80.73 commit=80.26, tau=4.00, blocks=16)
+ds4: dspark verify GPU-busy: 156.53 ms/block of 234.72 ms verify (66.7% active, 33.3% idle)
+ds4: vm pressure: app=83.60 GiB resident=23.40 GiB wired=96.22 GiB compressed=1.26 GiB logical=2.63 GiB swap=2.27/3.00 GiB pressure=85% free=3.17 GiB gpu=83.33 GiB gpu-compressed=0.00 GiB task-compressed=68.57 GiB decompressions=6724773
+ds4: dspark acceptance: 78.7% (48/61 draft tokens)
+ds4: dspark acceptance by position: 1=15/16 2=12/15 3=11/15 4=10/15
+ds4: dspark avg scheduled: 3.81 draft tokens/block (16 blocks)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

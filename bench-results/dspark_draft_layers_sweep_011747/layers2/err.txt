@@ -1,0 +1,367 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.471 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=31.00 t/s avg=0.67 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.66 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=55.65 t/s avg=1.30 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.29 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.54 t/s avg=1.91 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.88 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.86 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.82 t/s avg=2.45 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.42 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=50.54 t/s avg=2.99 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.95 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.29 t/s avg=3.51 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=3.47 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=60.94 t/s avg=4.01 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.97 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.93 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=53.91 t/s avg=4.45 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=4.39 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=57.71 t/s avg=4.89 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.85 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.91 t/s avg=5.33 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=5.27 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.04 t/s avg=5.75 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.69 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.65 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=50.92 t/s avg=6.10 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=6.04 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.86 t/s avg=6.48 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=6.42 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=53.18 t/s avg=6.85 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=6.80 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=56.84 t/s avg=7.22 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.15 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.09 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=52.53 t/s avg=7.49 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=7.42 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=55.01 t/s avg=7.82 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=7.74 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=53.95 t/s avg=8.13 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=8.06 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.23 t/s avg=8.42 t/s
+ds4: DSpark draft layer cap diagnostic enabled (layers=2/3; non-default quality/speed probe)
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark draft profile cap=5 rows=5 graph=85.489 ms markov=28.864 ms total=114.353 ms
+ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+ds4: dspark draft profile cap=5 rows=5 graph=10.261 ms markov=2.827 ms total=13.088 ms
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+ds4: dspark draft profile cap=5 rows=5 graph=6.305 ms markov=2.084 ms total=8.389 ms
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+ds4: dspark draft profile cap=5 rows=5 graph=6.350 ms markov=2.103 ms total=8.453 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.537 ms markov=2.037 ms total=8.574 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.316 ms markov=2.049 ms total=8.365 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.362 ms markov=2.119 ms total=8.481 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.331 ms markov=2.099 ms total=8.430 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.338 ms markov=2.096 ms total=8.434 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.680 ms markov=2.225 ms total=8.905 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.354 ms markov=2.154 ms total=8.508 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.339 ms markov=2.048 ms total=8.387 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.330 ms markov=2.090 ms total=8.420 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.352 ms markov=2.078 ms total=8.430 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.325 ms markov=2.520 ms total=8.845 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.358 ms markov=2.043 ms total=8.401 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.352 ms markov=2.116 ms total=8.468 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.434 ms markov=2.027 ms total=8.461 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.388 ms markov=2.082 ms total=8.470 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.494 ms markov=2.065 ms total=8.559 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.395 ms markov=2.022 ms total=8.417 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.475 ms markov=2.455 ms total=8.930 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.614 ms markov=2.124 ms total=8.738 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.388 ms markov=2.145 ms total=8.533 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.389 ms markov=2.052 ms total=8.441 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.580 ms markov=2.090 ms total=8.670 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.788 ms markov=2.036 ms total=8.824 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.897 ms markov=2.027 ms total=8.924 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.409 ms markov=2.079 ms total=8.488 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.368 ms markov=2.075 ms total=8.443 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.488 ms markov=2.014 ms total=8.502 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.593 ms markov=1.999 ms total=8.592 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.409 ms markov=2.191 ms total=8.600 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.783 ms markov=1.991 ms total=8.774 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.421 ms markov=2.410 ms total=8.831 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.414 ms markov=2.061 ms total=8.475 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.351 ms markov=2.055 ms total=8.406 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.362 ms markov=2.080 ms total=8.442 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.347 ms markov=2.085 ms total=8.432 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.361 ms markov=2.128 ms total=8.489 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.351 ms markov=2.055 ms total=8.406 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.322 ms markov=2.030 ms total=8.352 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.414 ms markov=2.060 ms total=8.474 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.435 ms markov=2.088 ms total=8.523 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.396 ms markov=2.017 ms total=8.413 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.450 ms markov=2.095 ms total=8.545 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.458 ms markov=2.061 ms total=8.519 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.403 ms markov=2.039 ms total=8.442 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.478 ms markov=2.023 ms total=8.501 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.463 ms markov=2.234 ms total=8.697 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.539 ms markov=2.039 ms total=8.578 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.422 ms markov=2.081 ms total=8.503 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.409 ms markov=2.068 ms total=8.477 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.474 ms markov=2.101 ms total=8.575 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.461 ms markov=2.090 ms total=8.551 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.404 ms markov=2.061 ms total=8.465 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.378 ms markov=2.180 ms total=8.558 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.436 ms markov=2.105 ms total=8.541 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.414 ms markov=2.108 ms total=8.522 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.417 ms markov=2.123 ms total=8.540 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.451 ms markov=2.029 ms total=8.480 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.475 ms markov=2.053 ms total=8.528 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.392 ms markov=2.050 ms total=8.442 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.466 ms markov=2.059 ms total=8.525 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.428 ms markov=2.055 ms total=8.483 ms
+ds4: dspark draft profile cap=5 rows=5 graph=7.058 ms markov=2.214 ms total=9.272 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.426 ms markov=2.060 ms total=8.486 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.434 ms markov=2.038 ms total=8.472 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.814 ms markov=2.137 ms total=8.951 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.497 ms markov=1.999 ms total=8.496 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.645 ms markov=2.105 ms total=8.750 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.468 ms markov=2.014 ms total=8.482 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.466 ms markov=2.052 ms total=8.518 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.432 ms markov=2.045 ms total=8.477 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.433 ms markov=2.151 ms total=8.584 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.735 ms markov=2.086 ms total=8.821 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.411 ms markov=1.974 ms total=8.385 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.433 ms markov=2.064 ms total=8.497 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.436 ms markov=2.072 ms total=8.508 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.419 ms markov=2.070 ms total=8.489 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.490 ms markov=2.086 ms total=8.576 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.471 ms markov=2.203 ms total=8.674 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.455 ms markov=2.131 ms total=8.586 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.463 ms markov=2.143 ms total=8.606 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.454 ms markov=2.096 ms total=8.550 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.462 ms markov=2.069 ms total=8.531 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.445 ms markov=2.168 ms total=8.613 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.993 ms markov=2.038 ms total=9.031 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.440 ms markov=2.016 ms total=8.456 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.454 ms markov=2.095 ms total=8.549 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.435 ms markov=2.143 ms total=8.578 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.473 ms markov=2.093 ms total=8.566 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.459 ms markov=2.067 ms total=8.526 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.458 ms markov=2.088 ms total=8.546 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.465 ms markov=2.124 ms total=8.589 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.557 ms markov=2.010 ms total=8.567 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.515 ms markov=2.081 ms total=8.596 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.461 ms markov=2.100 ms total=8.561 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.448 ms markov=2.191 ms total=8.639 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.620 ms markov=2.142 ms total=8.762 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.509 ms markov=2.567 ms total=9.076 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.459 ms markov=2.134 ms total=8.593 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.485 ms markov=2.133 ms total=8.618 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.516 ms markov=2.169 ms total=8.685 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.518 ms markov=2.008 ms total=8.526 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.936 ms markov=2.108 ms total=9.044 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.527 ms markov=2.124 ms total=8.651 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.812 ms markov=2.273 ms total=9.085 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.972 ms markov=2.284 ms total=9.256 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.426 ms markov=2.092 ms total=8.518 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.751 ms markov=2.095 ms total=8.846 ms
+ds4: dspark draft profile cap=5 rows=5 graph=7.078 ms markov=2.137 ms total=9.215 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.892 ms markov=2.057 ms total=8.949 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.545 ms markov=2.206 ms total=8.751 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.958 ms markov=2.077 ms total=9.035 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.452 ms markov=2.118 ms total=8.570 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.444 ms markov=2.106 ms total=8.550 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.514 ms markov=2.175 ms total=8.689 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.763 ms markov=2.084 ms total=8.847 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.596 ms markov=2.069 ms total=8.665 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.666 ms markov=2.068 ms total=8.734 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.728 ms markov=1.997 ms total=8.725 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.453 ms markov=2.022 ms total=8.475 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.453 ms markov=2.057 ms total=8.510 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.679 ms markov=2.024 ms total=8.703 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.448 ms markov=2.078 ms total=8.526 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.436 ms markov=2.132 ms total=8.568 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.431 ms markov=2.046 ms total=8.477 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.451 ms markov=2.110 ms total=8.561 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.471 ms markov=2.144 ms total=8.615 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.481 ms markov=2.065 ms total=8.546 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.462 ms markov=2.110 ms total=8.572 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.504 ms markov=2.115 ms total=8.619 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.458 ms markov=2.503 ms total=8.961 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.444 ms markov=2.114 ms total=8.558 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.607 ms markov=2.104 ms total=8.711 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.488 ms markov=2.069 ms total=8.557 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.539 ms markov=2.060 ms total=8.599 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.486 ms markov=2.027 ms total=8.513 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.784 ms markov=2.295 ms total=9.079 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.481 ms markov=2.021 ms total=8.502 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.443 ms markov=2.043 ms total=8.486 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.504 ms markov=2.130 ms total=8.634 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.448 ms markov=2.052 ms total=8.500 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.539 ms markov=2.121 ms total=8.660 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.465 ms markov=2.058 ms total=8.523 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.482 ms markov=2.066 ms total=8.548 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.479 ms markov=2.075 ms total=8.554 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.452 ms markov=2.077 ms total=8.529 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.457 ms markov=2.108 ms total=8.565 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.473 ms markov=2.083 ms total=8.556 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.547 ms markov=2.202 ms total=8.749 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.437 ms markov=2.044 ms total=8.481 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.525 ms markov=2.038 ms total=8.563 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.429 ms markov=2.022 ms total=8.451 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.457 ms markov=2.043 ms total=8.500 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.465 ms markov=2.092 ms total=8.557 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.426 ms markov=2.064 ms total=8.490 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.473 ms markov=2.034 ms total=8.507 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.480 ms markov=2.082 ms total=8.562 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.571 ms markov=2.158 ms total=8.729 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.540 ms markov=2.149 ms total=8.689 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.498 ms markov=2.007 ms total=8.505 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.476 ms markov=2.130 ms total=8.606 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.505 ms markov=2.012 ms total=8.517 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.448 ms markov=2.091 ms total=8.539 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.451 ms markov=2.091 ms total=8.542 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.438 ms markov=2.131 ms total=8.569 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.639 ms markov=2.148 ms total=8.787 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.457 ms markov=2.102 ms total=8.559 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.460 ms markov=2.238 ms total=8.698 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.847 ms markov=2.057 ms total=8.904 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.477 ms markov=2.095 ms total=8.572 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.428 ms markov=2.085 ms total=8.513 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.467 ms markov=2.117 ms total=8.584 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.482 ms markov=2.135 ms total=8.617 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.460 ms markov=2.091 ms total=8.551 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.452 ms markov=2.077 ms total=8.529 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.488 ms markov=2.097 ms total=8.585 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.454 ms markov=2.054 ms total=8.508 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.842 ms markov=2.112 ms total=8.954 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.648 ms markov=2.040 ms total=8.688 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.479 ms markov=2.107 ms total=8.586 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.450 ms markov=2.080 ms total=8.530 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.459 ms markov=2.092 ms total=8.551 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.480 ms markov=2.092 ms total=8.572 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.633 ms markov=2.079 ms total=8.712 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.502 ms markov=2.038 ms total=8.540 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.711 ms markov=2.170 ms total=8.881 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.485 ms markov=2.023 ms total=8.508 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.500 ms markov=2.086 ms total=8.586 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.488 ms markov=2.169 ms total=8.657 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.448 ms markov=2.038 ms total=8.486 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.461 ms markov=2.094 ms total=8.555 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.519 ms markov=2.084 ms total=8.603 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.456 ms markov=2.097 ms total=8.553 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.745 ms markov=1.986 ms total=8.731 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.637 ms markov=2.115 ms total=8.752 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.716 ms markov=2.033 ms total=8.749 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.636 ms markov=2.056 ms total=8.692 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.519 ms markov=2.297 ms total=8.816 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.953 ms markov=2.114 ms total=9.067 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.407 ms markov=2.430 ms total=8.837 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.908 ms markov=2.056 ms total=8.964 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.498 ms markov=2.082 ms total=8.580 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.472 ms markov=2.149 ms total=8.621 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.592 ms markov=2.485 ms total=9.077 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.520 ms markov=2.090 ms total=8.610 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.640 ms markov=2.303 ms total=8.943 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.899 ms markov=2.235 ms total=9.134 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.549 ms markov=2.268 ms total=8.817 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.923 ms markov=2.086 ms total=9.009 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.456 ms markov=2.498 ms total=8.954 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.803 ms markov=2.081 ms total=8.884 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.814 ms markov=2.076 ms total=8.890 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.489 ms markov=2.143 ms total=8.632 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.464 ms markov=2.059 ms total=8.523 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.467 ms markov=2.072 ms total=8.539 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.431 ms markov=2.075 ms total=8.506 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.996 ms markov=2.057 ms total=9.053 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.515 ms markov=2.071 ms total=8.586 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.449 ms markov=2.031 ms total=8.480 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.444 ms markov=2.060 ms total=8.504 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.475 ms markov=2.040 ms total=8.515 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.428 ms markov=2.086 ms total=8.514 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.427 ms markov=2.020 ms total=8.447 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.441 ms markov=2.101 ms total=8.542 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.472 ms markov=2.155 ms total=8.627 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.472 ms markov=2.064 ms total=8.536 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.477 ms markov=2.099 ms total=8.576 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.946 ms markov=2.143 ms total=9.089 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.635 ms markov=2.065 ms total=8.700 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.488 ms markov=2.034 ms total=8.522 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.467 ms markov=2.085 ms total=8.552 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.630 ms markov=2.151 ms total=8.781 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.449 ms markov=2.612 ms total=9.061 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.461 ms markov=2.089 ms total=8.550 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.472 ms markov=2.136 ms total=8.608 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.494 ms markov=2.160 ms total=8.654 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.474 ms markov=2.079 ms total=8.553 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.502 ms markov=2.075 ms total=8.577 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.467 ms markov=2.141 ms total=8.608 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.506 ms markov=2.116 ms total=8.622 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.788 ms markov=2.080 ms total=8.868 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.525 ms markov=2.543 ms total=9.068 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.588 ms markov=2.021 ms total=8.609 ms
+ds4: dspark draft profile cap=5 rows=5 graph=7.085 ms markov=2.099 ms total=9.184 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.490 ms markov=2.103 ms total=8.593 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.566 ms markov=2.119 ms total=8.685 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.540 ms markov=2.062 ms total=8.602 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.476 ms markov=2.073 ms total=8.549 ms
+ds4: dspark draft profile cap=5 rows=5 graph=6.547 ms markov=2.202 ms total=8.749 ms
+ds4: dspark draft profile cap=4 rows=4 graph=5.792 ms markov=1.700 ms total=7.492 ms
+ds4: dspark draft profile cap=3 rows=3 graph=5.060 ms markov=1.352 ms total=6.412 ms
+ds4: dspark draft profile cap=2 rows=2 graph=4.946 ms markov=1.013 ms total=5.959 ms
+ds4: dspark draft profile cap=2 rows=2 graph=4.595 ms markov=0.934 ms total=5.529 ms
+ds4: dspark draft profile cap=1 rows=1 graph=4.838 ms markov=0.640 ms total=5.478 ms
+ds4: ----------------------------------------
+ds4: prefill: 7.93 t/s, generation: 26.04 t/s (300 tokens in 11.519s)
+ds4: dspark perf: draft=563.7 tok/s, verify=205.7 proposed tok/s, verify-accepted=31.2 tok/s, block=32.95 ms (draft=8.62 verify=23.62 overhead=0.70 commit=0.48, tau=0.74, blocks=255)
+ds4: dspark verify GPU-busy: 21.64 ms/block of 23.62 ms verify (91.6% active, 8.4% idle)
+ds4: vm pressure: app=83.45 GiB resident=66.70 GiB wired=96.14 GiB compressed=2.65 GiB logical=4.23 GiB swap=6.87/8.00 GiB pressure=86% free=1.80 GiB gpu=83.36 GiB gpu-compressed=0.00 GiB task-compressed=25.07 GiB decompressions=3854478
+ds4: dspark acceptance: 27.1% (188/694 draft tokens)
+ds4: dspark acceptance by position: 1=84/145 2=52/141 3=32/139 4=13/137 5=7/132
+ds4: dspark conditional acceptance: 1=57.9% (84/145) 2|1=61.9% (52/84) 3|1-2=61.5% (32/52) 4|1-3=40.6% (13/32) 5|1-4=53.8% (7/13)
+ds4: dspark full-accept: 4.8% (7/145 blocks), first-miss: 42.1% (61/145 blocks)
+ds4: dspark avg scheduled: 4.79 draft tokens/block (145 blocks)

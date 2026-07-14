@@ -1,0 +1,8 @@
+This is a great question that gets to the heart of how we control the "creativity" and "deterministic" nature of large language models.
+
+The core tradeoff is **diversity vs. determinism**. Let's break down the two approaches.
+
+### The Core Difference
+
+- **Top-p Sampling (Nucleus Sampling):** A *stochastic* method. It selects from the smallest set of tokens whose cumulative probability exceeds a threshold `p`. This set is dynamic and changes based on the model's confidence.
+- **Top-k Sampling (Often confused with Top-p):** A *stochastic* method that picks from

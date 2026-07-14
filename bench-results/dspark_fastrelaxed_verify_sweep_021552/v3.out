@@ -1,0 +1,93 @@
+Here's a complete Space Invaders game in Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT - 50
+        self.width = 50
+        self.height = 40
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x - self.width//2, self.y - self.height//2, 
+                                        self.width, self.height))
+        
+        # Draw nose
+        pygame.draw.polygon(screen, GREEN, 
+                          [(self.x, self.y - self.height//2),
+                           (self.x - 10, self.y - self.height//2 - 15),
+                           (self.x + 10, self.y - self.height//2 - 15)])
+        
+    def move(self, dx):
+        self.x += dx * self.speed
+        self.x = max(self.width//2, min(self.x, SCREEN_WIDTH - self.width//2))
+        
+    def shoot(self, bullets):
+        if len(bullets) < 3:  # Max 3 bullets on screen
+            bullets.append(Bullet(self.x, self.y - self.height//2))
+
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = 1
+        self.direction = 1
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x - self.width//2, self.y - self.height//2,
+                                      self.width, self.height))
+        
+    def update(self):
+        self.x += self.speed * self.direction
+        
+    def check_collision(self):
+        if self.x + self.width//2 >= SCREEN_WIDTH or self.x - self.width//2 <= 0:
+            self.direction *= -1
+            return True
+        return False
+
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 10
+        self.width = 4
+        self.height = 10
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, YELLOW, (self.x - self.width//2, self.y - self.height//2,
+                                         self.width, self.height))
+        
+    def update(self):
+        self.y -= self.speed
+        
+class EnemyBullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 5
+        self.width = 4

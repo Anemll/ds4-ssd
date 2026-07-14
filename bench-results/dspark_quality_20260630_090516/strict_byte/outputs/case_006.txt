@@ -1,0 +1,10 @@
+This is an excellent question that gets at the core of how LLMs balance creativity versus determinism.
+
+The fundamental tradeoff is between **diversity** (top-p) and **determinism** (temperature=0). However, the comparison is not exactly apples-to-apples because they operate on different mathematical principles.
+
+Here is the breakdown of the tradeoffs between **Top-p (nucleus) sampling** and **Temperature=0 (greedy) decoding**.
+
+### The Core Difference
+
+- **Temperature=0 (Greedy Decoding):** Always picks the single token with the highest probability. It is deterministic.
+-

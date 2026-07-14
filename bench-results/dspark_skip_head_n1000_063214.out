@@ -1,0 +1,120 @@
+I'll create a complete Space Invaders game using Pygame. This is a classic arcade game where you control a spaceship and shoot at invading aliens.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.vel = 5
+        self.lives = 3
+        self.score = 0
+        
+        # Create a simple spaceship shape
+    def draw(self, screen):
+        # Draw spaceship (triangle shape)
+        points = []
+        # Main body
+        points.append((self.x + self.width//2, self.y))  # Top point
+        points.append((self.x, self.y + self.height))  # Bottom left
+        points.append((self.x + self.width, self.y + self.height))  # Bottom right
+        
+        pygame.draw.polygon(screen, GREEN, points)
+        
+        # Draw cockpit
+        cockpit_x = self.x + self.width//2 - 10
+        cockpit_y = self.y + 10
+        pygame.draw.circle(screen, BLUE, (cockpit_x, cockpit_y), 8)
+    def move(self, keys, left_key, right_key):
+        if keys[left_key] and self.x > 0:
+            self.x -= self.vel
+        if keys[right_key] and self.x < SCREEN_WIDTH - self.width:
+            self.x += self.vel
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Bullet:
+    def __init__(self, x, y, speed=10):
+        self.x = x
+        self.y = y
+        self.width = 5
+        self.height = 15
+        self.speed = speed
+    def draw(self, screen):
+        pygame.draw.rect(screen, YELLOW, (self.x, self.y, self.width, self.height))
+    def move(self):
+        self.y -= self.speed
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Enemy:
+    def __init__(self, x, y, enemy_type="normal"):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.type = enemy_type
+    def draw(self, screen):
+        if self.type == "normal":
+            # Draw alien (simple shape)
+            points = []
+            points.append((self.x + self.width//2, self.y))  # Top
+            points.append((self.x + self.width, self.y + self.height//2))  # Right
+            points.append((self.x + self.width//2, self.y + self.height))  # Bottom
+            points.append((self.x, self.y + self.height//2))  # Left
+            pygame.draw.polygon(screen, RED, points)
+    def move(self, dx):
+        self.x += dx
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class EnemyBullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 5
+        self.height = 10
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+    def move(self):
+        self.y += 5
+    
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class SpaceInvaders:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+    def run(self):
+        # Game objects
+        player = Player(SCREEN_WIDTH//2 - 25, SCREEN_HEIGHT - 100)
+        bullets = []
+        enemies = []
+        enemy_bul

@@ -1,0 +1,296 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 2.634 ms, residency requested in 9656.443 ms, warmup 7.117 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 4.4 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=9.749s profile=0.000s model=0.013s sidecar=0.000s weights=0.001s dspark=0.000s backend=9.727s prewarm=0.004s
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: metal prefill layer 1/43
+ds4: metal prefill layer 2/43
+ds4: metal prefill layer 3/43
+ds4: metal prefill layer 4/43
+ds4: metal prefill layer 5/43
+ds4: metal prefill layer 6/43
+ds4: metal prefill layer 7/43
+ds4: metal prefill layer 8/43
+ds4: metal prefill layer 9/43
+ds4: metal prefill layer 10/43
+ds4: metal prefill layer 11/43
+ds4: metal prefill layer 12/43
+ds4: metal prefill layer 13/43
+ds4: metal prefill layer 14/43
+ds4: metal prefill layer 15/43
+ds4: metal prefill layer 16/43
+ds4: metal prefill layer 17/43
+ds4: metal prefill layer 18/43
+ds4: metal prefill layer 19/43
+ds4: metal prefill layer 20/43
+ds4: metal prefill layer 21/43
+ds4: metal prefill layer 22/43
+ds4: metal prefill layer 23/43
+ds4: metal prefill layer 24/43
+ds4: metal prefill layer 25/43
+ds4: metal prefill layer 26/43
+ds4: metal prefill layer 27/43
+ds4: metal prefill layer 28/43
+ds4: metal prefill layer 29/43
+ds4: metal prefill layer 30/43
+ds4: metal prefill layer 31/43
+ds4: metal prefill layer 32/43
+ds4: metal prefill layer 33/43
+ds4: metal prefill layer 34/43
+ds4: metal prefill layer 35/43
+ds4: metal prefill layer 36/43
+ds4: metal prefill layer 37/43
+ds4: metal prefill layer 38/43
+ds4: metal prefill layer 39/43
+ds4: metal prefill layer 40/43
+ds4: metal prefill layer 41/43
+ds4: metal prefill layer 42/43
+ds4: metal prefill layer 43/43
+```cpp
+// Tetris Game for macOS - Full Source Code
+// Compile with: g++ -std=c++11 tetris.cpp -o tetris -framework OpenGL -framework GLUT
+// Required: OpenGL and GLUT frameworks (pre-installed on macOS)
+
+#include <OpenGL/gl.h>
+#include <OpenGL/glu.h>
+#include <GLUT/glut.h>
+#include <ctime>
+#include <cstdlib>
+#include <vector>
+#include <string>
+#include <cmath>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200;  // Extra space for info
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE + 50;
+
+// Tetromino shapes (4x4 matrices)
+// Each piece is defined as a 4x4 grid where 1 = filled, 0 = empty
+const std::vector<std::vector<std::vector<int>>> SHAPES = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1,0,0},
+     {1,1,0,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // T piece
+    {{0,1,0,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // S piece
+    {{0,1,1,0},
+     {1,1,0,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // Z piece
+    {{1,1,0,0},
+     {0,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // J piece
+    {{1,0,0,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // L piece
+    {{0,0,1,0},
+     {1,1,1,0},
+     {0,0,0,0},
+     {0,0,0,0}}
+};
+
+// Colors for each piece (R, G, B)
+const std::vector<std::vector<float>> COLORS = {
+    {0.0f, 1.0f, 1.0f},  // I - Cyan
+    {1.0f, 1.0f, 0.0f},  // O - Yellow
+    {0.5f, 0.0f, 1.0f},  // T - Purple
+    {0.0f, 1.0f, 0.0f},  // S - Green
+    {1.0f, 0.0f, 0.0f},  // Z - Red
+    {0.0f, 0.0f, 1.0f},  // J - Blue
+    {1.0f, 0.5f, 0.0f}   // L - Orange
+};
+
+// Game state
+class Tetris {
+private:
+    int board[BOARD_HEIGHT][BOARD_WIDTH];
+    int currentPiece[4][4];
+    int currentX, currentY;
+    int currentType;
+    int nextType;
+    int score;
+    int level;
+    int linesCleared;
+    bool gameOver;
+    float fallSpeed;
+    clock_t lastFall;
+
+public:
+    Tetris() : score(0), level(1), linesCleared(0), gameOver(false), fallSpeed(0.5f) {
+        // Initialize board
+        for (int y = 0; y < BOARD_HEIGHT; y++)
+            for (int x = 0; x < BOARD_WIDTH; x++)
+                board[y][x] = -1;  // -1 = empty
+
+        // Seed random
+        std::srand(static_cast<unsigned>(std::time(nullptr)));
+
+        // Create first pieces
+        currentType = std::rand() % 7;
+        nextType = std::rand() % 7;
+        spawnPiece();
+        lastFall = clock();
+    }
+
+    void spawnPiece() {
+        // Copy shape to current piece
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++)
+                currentPiece[y][x] = SHAPES[currentType][y][x];
+
+        currentX = BOARD_WIDTH / 2 - 2;
+        currentY = 0;
+        currentType = nextType;
+        nextType = std::rand() % 7;
+
+        // Check if game over
+        if (!isValidPosition(currentX, currentY, currentPiece)) {
+            gameOver = true;
+        }
+    }
+
+    bool isValidPosition(int x, int y, int piece[4][4]) {
+        for (int py = 0; py < 4; py++) {
+            for (int px = 0; px < 4; px++) {
+                if (piece[py][px]) {
+                    int boardX = x + px;
+                    int boardY = y + py;
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                        boardY >= BOARD_HEIGHT || boardY < 0)
+                        return false;
+                    if (boardY >= 0 && board[boardY][boardX] != -1)
+                        return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    void rotatePiece() {
+        int rotated[4][4];
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++)
+                rotated[x][3 - y] = currentPiece[y][x];
+
+        if (isValidPosition(currentX, currentY, rotated)) {
+            for (int y = 0; y < 4; y++)
+                for (int x = 0; x < 4; x++)
+                    currentPiece[y][x] = rotated[y][x];
+        }
+    }
+
+    void moveLeft() {
+        if (isValidPosition(currentX - 1, currentY, currentPiece))
+            currentX--;
+    }
+
+    void moveRight() {
+        if (isValidPosition(currentX + 1, currentY, currentPiece))
+            currentX++;
+    }
+
+    void moveDown() {
+        if (isValidPosition(currentX, currentY + 1, currentPiece)) {
+            currentY++;
+        } else {
+            lockPiece();
+            clearLines();
+            spawnPiece();
+        }
+    }
+
+    void hardDrop() {
+        while (isValidPosition(currentX, currentY + 1, currentPiece)) {
+            currentY++;
+        }
+        lockPiece();
+        clearLines();
+        spawnPiece();
+    }
+
+    void lockPiece() {
+        for (int y = 0; y < 4; y++) {
+            for (int x = 0; x < 4; x++) {
+                if (currentPiece[y][x]) {
+                    int boardY = currentY + y;
+                    int boardX = currentX + x;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                        boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = currentType;
+                    }
+                }
+            }
+        }
+    }
+
+    void clearLines() {
+        int cleared = 0;
+        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+            bool full = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (board[y][x] == -1) {
+                    full = false;
+                    break;
+                }
+            }
+            if (full) {
+                cleared++;
+                // Shift everything down
+                for (int ny = y; ny > 0; ny--) {
+                    for (int nx = 0; nx < BOARD_WIDTH; nx++) {
+                        board[ny][nx] = board[ny-1][nx];
+                    }
+                }
+                // Clear top row
+                for (int nx = 0; nx < BOARD_WIDTH; nx++) {
+                    board[0][nx] = -1;
+                }
+                y++;  // Check same row again
+            }
+        }
+
+        if (cleared > 0) {
+            linesCleared += cleared;
+            score += cleared * 100 * level;
+            // Level up every 10 lines
+            level = 1 + linesCleared / 10;
+            fallSpeed = 0.5f - (level - 1) * 0.05f;
+            if (fallSpeed < 0.1f) fallSpeed = 0.1f;
+        }
+    }
+
+    void update() {
+        if (gameOver) return;
+
+        clock_t now = clock();
+        double elapsed = double(now - lastFall) / CLOC
+ds4: ----------------------------------------
+ds4: prefill: 574.46 t/s, generation: 29.54 t/s (2000 tokens in 67.700s)

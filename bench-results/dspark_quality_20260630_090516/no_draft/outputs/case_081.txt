@@ -1,0 +1,32 @@
+Here are a few ways to complete that C comment, depending on the context:
+
+**Most common:**
+```c
+/* This lock protects the shared data structure */
+```
+
+**More specific examples:**
+```c
+/* This lock protects the critical section */
+```
+
+```c
+/* This lock protects the buffer from concurrent access */
+```
+
+```c
+/* This lock protects the linked list */
+```
+
+```c
+/* This lock protects the cache */
+```
+
+**General pattern:**
+```c
+/* This lock protects [the resource being protected] */
+```
+
+The comment is typically followed by the lock declaration, like:
+```c
+/* This lock protects

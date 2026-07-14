@@ -1,0 +1,11 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: on (72.56 GiB mapped); expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: FFN actual-shape proxy NA-ALU overlap bench (M=6 N=2048 K=7168 na_iters=3 na_tiles=16, alu_rows=36 ncol=2048 k=7168 alu_tgs=36)
+ds4:   t_NA(solo) = 3.0850 ms  [C[0]=1.719]
+ds4:   alu_iters=3    t_ALU=20.4744 ms (ratio ALU/NA=6.64)  t_fused=20.7517 ms  OVERLAP=(NA+ALU)/fused=1.135  fused/max=1.014  [O[0]=8.735]
+ds4: NA-ALU bench done. FFN promotion requires >=1.08 overlap at this actual shape.

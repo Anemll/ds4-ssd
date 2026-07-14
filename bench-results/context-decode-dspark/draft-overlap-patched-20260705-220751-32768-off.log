@@ -1,0 +1,64 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.309 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.415s profile=0.001s model=0.006s sidecar=0.006s weights=0.000s dspark=1.401s backend=0.000s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 3.1GB Total <<<< 83.9GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=17.098s raw-graph=0.005s flash-moe=17.093s steering=0.000s draft-scratch=yes
+processing 32767 input tokens: 0/32767 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 32767 input tokens: 0/32767 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 32767 input tokens: 381/32767 (1.2%) batch=329.71 t/s avg=167.76 t/s
+processing 32767 input tokens: 762/32767 (2.3%) batch=469.34 t/s avg=247.18 t/s
+processing 32767 input tokens: 1143/32767 (3.5%) batch=298.52 t/s avg=262.21 t/s
+processing 32767 input tokens: 1524/32767 (4.7%) batch=448.60 t/s avg=292.60 t/s
+processing 32767 input tokens: 1905/32767 (5.8%) batch=317.20 t/s avg=297.21 t/s
+processing 32767 input tokens: 2286/32767 (7.0%) batch=455.00 t/s avg=315.45 t/s
+processing 32767 input tokens: 2667/32767 (8.1%) batch=314.45 t/s avg=315.30 t/s
+processing 32767 input tokens: 3048/32767 (9.3%) batch=449.70 t/s avg=327.54 t/s
+processing 32767 input tokens: 3429/32767 (10.5%) batch=304.01 t/s avg=324.75 t/s
+processing 32767 input tokens: 3810/32767 (11.6%) batch=445.74 t/s avg=333.81 t/s
+processing 32767 input tokens: 4191/32767 (12.8%) batch=314.51 t/s avg=331.96 t/s
+processing 32767 input tokens: 4572/32767 (14.0%) batch=440.50 t/s avg=338.92 t/s
+processing 32767 input tokens: 4953/32767 (15.1%) batch=300.59 t/s avg=335.62 t/s
+processing 32767 input tokens: 5334/32767 (16.3%) batch=414.28 t/s avg=340.24 t/s
+processing 32767 input tokens: 5715/32767 (17.4%) batch=297.39 t/s avg=337.00 t/s
+processing 32767 input tokens: 6096/32767 (18.6%) batch=424.90 t/s avg=341.42 t/s
+processing 32767 input tokens: 6477/32767 (19.8%) batch=304.14 t/s avg=338.97 t/s
+processing 32767 input tokens: 6858/32767 (20.9%) batch=423.69 t/s avg=342.78 t/s
+processing 32767 input tokens: 7239/32767 (22.1%) batch=293.41 t/s avg=339.77 t/s
+processing 32767 input tokens: 7620/32767 (23.3%) batch=434.48 t/s avg=343.51 t/s
+processing 32767 input tokens: 8001/32767 (24.4%) batch=290.12 t/s avg=340.53 t/s
+processing 32767 input tokens: 8382/32767 (25.6%) batch=411.09 t/s avg=343.21 t/s
+processing 32767 input tokens: 8763/32767 (26.7%) batch=297.75 t/s avg=340.94 t/s
+processing 32767 input tokens: 9144/32767 (27.9%) batch=411.75 t/s avg=343.40 t/s
+processing 32767 input tokens: 9525/32767 (29.1%) batch=288.75 t/s avg=340.82 t/s

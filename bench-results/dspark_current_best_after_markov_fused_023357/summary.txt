@@ -1,0 +1,8 @@
+105:ds4: prefill: 7.81 t/s, generation: 51.63 t/s (1000 tokens in 19.369s)
+106:ds4: dspark perf: draft=462.5 tok/s, verify=72.8 proposed tok/s, verify-accepted=63.1 tok/s, block=81.40 ms (draft=10.78 verify=68.49 overhead=2.13 commit=1.69, tau=4.32, blocks=227)
+109:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+111:ds4: dspark conditional acceptance: 1=98.1% (208/212) 2|1=98.1% (204/208) 3|1-2=97.0% (197/203) 4|1-3=94.9% (187/197) 5|1-4=92.5% (173/187)
+112:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_current_best_after_markov_fused_023357/stdout.txt	3553	114	101	1	2	enemies:2,running:2,bullet_cooldown:2	0		0	0	0	4	3	0

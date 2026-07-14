@@ -1,0 +1,117 @@
+This HTML code creates a faithful, self-contained reproduction of the classic 1978 Taito arcade game "Astrans" (a fictional name for this exercise) within a single file. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito Arcade – Astrans</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+    }
+    .cabinet {
+      background: #222;
+      border: 6px solid #8b5a2b;
+      border-radius: 20px 20px 10px 10px;
+      padding: 20px 30px 30px;
+      box-shadow: 0 0 30px rgba(255, 200, 50, 0.2);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .marquee {
+      background: #1a1a2e;
+      color: #f0c060;
+      font-size: 2.2rem;
+      font-weight: bold;
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #f0c060, 0 0 20px #ff8c00;
+      padding: 10px 30px;
+      border: 3px solid #b8860b;
+      border-radius: 10px 10px 0 0;
+      margin-bottom: 10px;
+      text-align: center;
+      width: 100%;
+    }
+    .screen-wrapper {
+      background: #000;
+      border: 6px solid #333;
+      border-radius: 10px;
+      padding: 10px;
+      margin: 5px 0;
+      box-shadow: inset 0 0 20px #000, 0 0 10px #f0c06040;
+    }
+    canvas {
+      display: block;
+      background: #0a0a0a;
+      width: 640px;
+      height: 480px;
+      image-rendering: pixelated;
+      border: 2px solid #5a3e1a;
+    }
+    .controls {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+      color: #ddd;
+      font-size: 1.1rem;
+      background: #2b1a0e;
+      padding: 10px 30px;
+      border-radius: 20px;
+      border: 2px solid #b8860b;
+    }
+    .controls span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .key {
+      background: #444;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 2px 10px;
+      color: #ffd966;
+      font-weight: bold;
+    }
+    .btn {
+      background: #c8411a;
+      border: 3px solid #ff6e1e;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      box-shadow: 0 0 10px #ff6e1e80;
+    }
+    .info {
+      color: #bdb76b;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      text-align: center;
+      border-top: 2px solid #6b4a2b;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="marquee">★ ASTRANS ★</div>
+  <div class="screen-wrapper">
+    <canvas id="gameCanvas" width="640" height="480"></canvas>
+  </div>
+  <div class="controls">
+    <span><span class="key">← →</span> move</span>
+    <span><span class="key">↑</span> thrust</span>
+    <span><span class="key">Z</span> fire</span>
+    <span><span class="key">R</span> restart</span>
+  </div>
+ 

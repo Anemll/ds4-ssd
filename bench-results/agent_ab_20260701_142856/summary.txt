@@ -1,0 +1,7 @@
+== nodraft
+  agent decode: 1989 tokens / 64.64s = 30.77 t/s over 6 rounds
+  TOOLS: clean
+== strict_b5
+  agent decode: 1989 tokens / 59.42s = 33.47 t/s over 6 rounds
+  TOOLS: clean
+  TRAJECTORY: DIVERGES from no-draft reference (inspect strict_b5.trace)

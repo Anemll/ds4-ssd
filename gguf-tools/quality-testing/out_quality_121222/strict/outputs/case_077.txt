@@ -1,0 +1,1 @@
+Questa è un'ottima domanda che tocca un concetto fondamentale di `mmap`. La differenza tra

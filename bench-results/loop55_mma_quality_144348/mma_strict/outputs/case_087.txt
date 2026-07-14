@@ -1,0 +1,8 @@
+Here are three useful server metrics, each with a clear explanation of why it matters and how it helps in practice:
+
+---
+
+### 1. **CPU Utilization (Percentage)**
+- **What it measures:** The percentage of time the CPU spends processing instructions (as opposed to being idle).
+- **Why it’s useful:** High CPU utilization (e.g., consistently above 80-90%) indicates the server is under heavy load, which can lead to slow response times or timeouts. Conversely, very low utilization might mean resources are being wasted.
+- **Actionable insight:** If CPU spikes correlate with user requests, you might need to

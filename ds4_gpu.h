@@ -255,6 +255,19 @@ int ds4_gpu_add_argmax_f32_tensor(
         uint32_t                n_comp,
         uint32_t                n_tokens);
 
+/* DSpark-specific F16 Markov projection + base-logit argmax.  Uses scratch
+ * only for tile maxima and does not materialize the vocab-sized projection. */
+int ds4_gpu_markov_f16_argmax_tensor(
+        ds4_gpu_tensor       *selected,
+        ds4_gpu_tensor       *scratch,
+        const ds4_gpu_tensor *base_scores,
+        const void           *model_map,
+        uint64_t              model_size,
+        uint64_t              weight_offset,
+        uint32_t              rank,
+        uint32_t              n_vocab,
+        const ds4_gpu_tensor *embedding);
+
 int ds4_gpu_indexer_topk_logits_tensor(
         float                  *values,
         const ds4_gpu_tensor   *scores,
@@ -813,6 +826,30 @@ int ds4_gpu_compressor_store_batch_tensor(
         uint32_t                ratio,
         uint32_t                pos0,
         uint32_t                n_tokens);
+
+/* DSpark strict verifier: fold a consecutive run of non-emitting compressor
+ * frontier stores plus its prefix snapshots into one exact Metal dispatch.
+ * The run must not cross a compression boundary.  capture_kv/capture_score
+ * contain up to five prefix slots; prefix_base is the verifier row of the
+ * first source row and capture_count is the number of live prefix slots. */
+int ds4_gpu_compressor_store_capture_rows_tensor(
+        const ds4_gpu_tensor *kv,
+        const ds4_gpu_tensor *sc,
+        ds4_gpu_tensor       *state_kv,
+        ds4_gpu_tensor       *state_score,
+        ds4_gpu_tensor *const capture_kv[5],
+        ds4_gpu_tensor *const capture_score[5],
+        const void             *model_map,
+        uint64_t                model_size,
+        uint64_t                ape_offset,
+        uint32_t                ape_type,
+        uint32_t                head_dim,
+        uint32_t                ratio,
+        uint32_t                pos0,
+        uint32_t                source_row,
+        uint32_t                n_rows,
+        uint32_t                prefix_base,
+        uint32_t                capture_count);
 
 int ds4_gpu_compressor_prefill_tensor(
         ds4_gpu_tensor       *comp_cache,
@@ -1421,6 +1458,40 @@ int ds4_gpu_routed_moe_banked_batch_tensor(
         float                   clamp,
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens);
+
+/* Full-prefill counterpart of the tiny banked batch path above.  The three
+ * banks may be views into a mixed resident allocation, so their per-expert
+ * strides are independent of the family payload sizes.  This keeps the
+ * grouped mul_mm_id compute spine while sourcing routed weights from a
+ * preloaded Flash-MoE resident bank. */
+int ds4_gpu_routed_moe_banked_prefill_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *gate,
+        ds4_gpu_tensor       *up,
+        ds4_gpu_tensor       *mid,
+        ds4_gpu_tensor       *experts,
+        ds4_gpu_tensor       *gate_bank,
+        ds4_gpu_tensor       *up_bank,
+        ds4_gpu_tensor       *down_bank,
+        uint32_t                n_slots,
+        uint32_t                gate_type,
+        uint32_t                down_type,
+        uint64_t                gate_expert_bytes,
+        uint64_t                gate_slot_stride,
+        uint64_t                gate_row_bytes,
+        uint64_t                down_expert_bytes,
+        uint64_t                down_slot_stride,
+        uint64_t                down_row_bytes,
+        uint32_t                expert_in_dim,
+        uint32_t                expert_mid_dim,
+        uint32_t                out_dim,
+        const ds4_gpu_tensor *selected,
+        const ds4_gpu_tensor *weights,
+        uint32_t                n_expert,
+        float                   clamp,
+        const ds4_gpu_tensor *x,
+        uint32_t                n_tokens,
+        bool                   *mid_is_f16);
 
 int ds4_gpu_routed_moe_banked_rows_exact_tensor(
         ds4_gpu_tensor       *out,

@@ -1,0 +1,281 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=48, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.278 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.137s profile=0.001s model=0.006s sidecar=0.006s weights=0.000s dspark=1.124s backend=0.000s prewarm=0.000s
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=13.61 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=13.61 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=48 gpu-bank=13.6GB Dense: 8.2GB Context: 3.1GB Total <<<< 24.9GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=24
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=48
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=0.620s raw-graph=0.004s flash-moe=0.615s steering=0.000s draft-scratch=yes
+processing 32767 input tokens: 0/32767 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 32767 input tokens: 0/32767 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 32767 input tokens: 381/32767 (1.2%) batch=383.62 t/s avg=344.27 t/s
+processing 32767 input tokens: 762/32767 (2.3%) batch=485.01 t/s avg=402.70 t/s
+processing 32767 input tokens: 1143/32767 (3.5%) batch=310.14 t/s avg=366.26 t/s
+processing 32767 input tokens: 1524/32767 (4.7%) batch=455.74 t/s avg=385.17 t/s
+processing 32767 input tokens: 1905/32767 (5.8%) batch=317.46 t/s avg=369.41 t/s
+processing 32767 input tokens: 2286/32767 (7.0%) batch=456.94 t/s avg=381.59 t/s
+processing 32767 input tokens: 2667/32767 (8.1%) batch=313.08 t/s avg=370.03 t/s
+processing 32767 input tokens: 3048/32767 (9.3%) batch=451.05 t/s avg=378.53 t/s
+processing 32767 input tokens: 3429/32767 (10.5%) batch=309.95 t/s avg=369.44 t/s
+processing 32767 input tokens: 3810/32767 (11.6%) batch=442.45 t/s avg=375.64 t/s
+processing 32767 input tokens: 4191/32767 (12.8%) batch=296.58 t/s avg=366.75 t/s
+processing 32767 input tokens: 4572/32767 (14.0%) batch=436.37 t/s avg=371.69 t/s
+processing 32767 input tokens: 4953/32767 (15.1%) batch=305.93 t/s avg=365.65 t/s
+processing 32767 input tokens: 5334/32767 (16.3%) batch=431.07 t/s avg=369.66 t/s
+processing 32767 input tokens: 5715/32767 (17.4%) batch=296.98 t/s avg=363.72 t/s
+processing 32767 input tokens: 6096/32767 (18.6%) batch=420.11 t/s avg=366.80 t/s
+processing 32767 input tokens: 6477/32767 (19.8%) batch=295.56 t/s avg=361.67 t/s
+processing 32767 input tokens: 6858/32767 (20.9%) batch=417.71 t/s avg=364.39 t/s
+processing 32767 input tokens: 7239/32767 (22.1%) batch=294.17 t/s avg=359.87 t/s
+processing 32767 input tokens: 7620/32767 (23.3%) batch=440.53 t/s avg=363.19 t/s
+processing 32767 input tokens: 8001/32767 (24.4%) batch=292.41 t/s avg=359.05 t/s
+processing 32767 input tokens: 8382/32767 (25.6%) batch=421.64 t/s avg=361.49 t/s
+processing 32767 input tokens: 8763/32767 (26.7%) batch=290.72 t/s avg=357.71 t/s
+processing 32767 input tokens: 9144/32767 (27.9%) batch=412.26 t/s avg=359.69 t/s
+processing 32767 input tokens: 9525/32767 (29.1%) batch=289.24 t/s avg=356.22 t/s
+processing 32767 input tokens: 9906/32767 (30.2%) batch=412.11 t/s avg=358.09 t/s
+processing 32767 input tokens: 10287/32767 (31.4%) batch=293.08 t/s avg=355.17 t/s
+processing 32767 input tokens: 10668/32767 (32.6%) batch=420.94 t/s avg=357.16 t/s
+processing 32767 input tokens: 11049/32767 (33.7%) batch=291.21 t/s avg=354.39 t/s
+processing 32767 input tokens: 11430/32767 (34.9%) batch=420.04 t/s avg=356.25 t/s
+processing 32767 input tokens: 11811/32767 (36.0%) batch=290.02 t/s avg=353.65 t/s
+processing 32767 input tokens: 12192/32767 (37.2%) batch=412.94 t/s avg=355.24 t/s
+processing 32767 input tokens: 12573/32767 (38.4%) batch=289.43 t/s avg=352.81 t/s
+processing 32767 input tokens: 12954/32767 (39.5%) batch=417.48 t/s avg=354.42 t/s
+processing 32767 input tokens: 13335/32767 (40.7%) batch=290.64 t/s avg=352.21 t/s
+processing 32767 input tokens: 13716/32767 (41.9%) batch=416.50 t/s avg=353.73 t/s
+processing 32767 input tokens: 14097/32767 (43.0%) batch=291.01 t/s avg=351.68 t/s
+processing 32767 input tokens: 14478/32767 (44.2%) batch=422.83 t/s avg=353.25 t/s
+processing 32767 input tokens: 14859/32767 (45.3%) batch=289.62 t/s avg=351.27 t/s
+processing 32767 input tokens: 15240/32767 (46.5%) batch=424.60 t/s avg=352.79 t/s
+processing 32767 input tokens: 15621/32767 (47.7%) batch=296.32 t/s avg=351.16 t/s
+processing 32767 input tokens: 16002/32767 (48.8%) batch=438.76 t/s avg=352.84 t/s
+processing 32767 input tokens: 16384/32767 (50.0%) batch=298.72 t/s avg=351.35 t/s
+processing 32767 input tokens: 16384/32767 (50.0%) batch=0.00 t/s avg=351.34 t/s
+processing 32767 input tokens: 16384/32767 (50.0%) batch=0.00 t/s avg=351.34 t/s
+processing 32767 input tokens: 16765/32767 (51.2%) batch=444.17 t/s avg=353.02 t/s
+processing 32767 input tokens: 17146/32767 (52.3%) batch=445.14 t/s avg=354.65 t/s
+processing 32767 input tokens: 17527/32767 (53.5%) batch=211.68 t/s avg=349.52 t/s
+processing 32767 input tokens: 17908/32767 (54.7%) batch=398.84 t/s avg=350.44 t/s
+processing 32767 input tokens: 18289/32767 (55.8%) batch=216.52 t/s avg=345.98 t/s
+processing 32767 input tokens: 18670/32767 (57.0%) batch=401.36 t/s avg=346.96 t/s
+processing 32767 input tokens: 19051/32767 (58.1%) batch=212.35 t/s avg=342.61 t/s
+processing 32767 input tokens: 19432/32767 (59.3%) batch=400.35 t/s avg=343.58 t/s
+processing 32767 input tokens: 19813/32767 (60.5%) batch=215.60 t/s avg=339.71 t/s
+processing 32767 input tokens: 20194/32767 (61.6%) batch=391.00 t/s avg=340.55 t/s
+processing 32767 input tokens: 20575/32767 (62.8%) batch=215.39 t/s avg=336.92 t/s
+processing 32767 input tokens: 20956/32767 (64.0%) batch=397.93 t/s avg=337.87 t/s
+processing 32767 input tokens: 21337/32767 (65.1%) batch=216.82 t/s avg=334.53 t/s
+processing 32767 input tokens: 21718/32767 (66.3%) batch=392.33 t/s avg=335.40 t/s
+processing 32767 input tokens: 22099/32767 (67.4%) batch=215.21 t/s avg=332.20 t/s
+processing 32767 input tokens: 22480/32767 (68.6%) batch=384.64 t/s avg=332.97 t/s
+processing 32767 input tokens: 22861/32767 (69.8%) batch=213.26 t/s avg=329.88 t/s
+processing 32767 input tokens: 23242/32767 (70.9%) batch=377.32 t/s avg=330.56 t/s
+processing 32767 input tokens: 23623/32767 (72.1%) batch=212.11 t/s avg=327.61 t/s
+processing 32767 input tokens: 24004/32767 (73.3%) batch=394.24 t/s avg=328.50 t/s
+processing 32767 input tokens: 24385/32767 (74.4%) batch=213.93 t/s avg=325.77 t/s
+processing 32767 input tokens: 24766/32767 (75.6%) batch=376.46 t/s avg=326.45 t/s
+processing 32767 input tokens: 25147/32767 (76.7%) batch=209.41 t/s avg=323.70 t/s
+processing 32767 input tokens: 25528/32767 (77.9%) batch=370.12 t/s avg=324.31 t/s
+processing 32767 input tokens: 25909/32767 (79.1%) batch=208.67 t/s avg=321.69 t/s
+processing 32767 input tokens: 26290/32767 (80.2%) batch=369.35 t/s avg=322.29 t/s
+processing 32767 input tokens: 26671/32767 (81.4%) batch=210.82 t/s avg=319.88 t/s
+processing 32767 input tokens: 27052/32767 (82.6%) batch=375.35 t/s avg=320.54 t/s
+processing 32767 input tokens: 27433/32767 (83.7%) batch=210.04 t/s avg=318.22 t/s
+processing 32767 input tokens: 27814/32767 (84.9%) batch=371.50 t/s avg=318.84 t/s
+processing 32767 input tokens: 28195/32767 (86.0%) batch=209.69 t/s avg=316.62 t/s
+processing 32767 input tokens: 28576/32767 (87.2%) batch=372.40 t/s avg=317.25 t/s
+processing 32767 input tokens: 28957/32767 (88.4%) batch=209.29 t/s avg=315.11 t/s
+processing 32767 input tokens: 29338/32767 (89.5%) batch=378.46 t/s avg=315.80 t/s
+processing 32767 input tokens: 29719/32767 (90.7%) batch=211.47 t/s avg=313.81 t/s
+processing 32767 input tokens: 30100/32767 (91.9%) batch=378.10 t/s avg=314.49 t/s
+processing 32767 input tokens: 30481/32767 (93.0%) batch=211.61 t/s avg=312.59 t/s
+processing 32767 input tokens: 30862/32767 (94.2%) batch=379.09 t/s avg=313.27 t/s
+processing 32767 input tokens: 31243/32767 (95.3%) batch=212.13 t/s avg=311.46 t/s
+processing 32767 input tokens: 31624/32767 (96.5%) batch=382.67 t/s avg=312.16 t/s
+processing 32767 input tokens: 32005/32767 (97.7%) batch=212.81 t/s avg=310.43 t/s
+processing 32767 input tokens: 32386/32767 (98.8%) batch=308.04 t/s avg=310.41 t/s
+processing 32767 input tokens: 32767/32767 (100.0%) batch=216.53 t/s avg=308.85 t/s
+processing 32767 input tokens: 32767/32767 (100.0%) batch=0.00 t/s avg=308.84 t/s
+processing 32767 input tokens: 32767/32767 (100.0%) batch=0.00 t/s avg=308.84 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: Flash-MoE mixed slot bank using fully fused banked decode path
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+Here's a complete Tetris game implementation in C++ for macOS using SFML:
+
+```cpp
+// Tetris.cpp
+// A complete Tetris game implementation for macOS using SFML
+// Compile with: g++ -std=c++11 Tetris.cpp -o Tetris -lsfml-graphics -lsfml-window -lsfml-system
+
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for next piece display
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+const int FPS = 60;
+
+// Tetromino shapes (7 standard pieces)
+// Each piece is represented as a 4x4 grid
+const std::vector<std::vector<std::vector<int>>> SHAPES = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,0,0},
+     {1,1,1},
+     {0,1,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each piece type
+const std::vector<sf::Color> PIECE_COLORS = {
+    sf::Color::Cyan,      // I
+    sf::Color::Yellow,    // O
+    sf::Color::Magenta,   // T
+    sf::Color::Green,     // S
+    sf::Color::Red,       // Z
+    sf::Color::Blue,      // J
+    sf::Color::Orange     // L
+};
+
+class Tetris {
+private:
+    // Game board: 0 = empty, 1-7 = piece type
+    std::vector<std::vector<int>> board;
+    
+    // Current falling piece
+    std::vector<std::vector<int>> currentPiece;
+    int currentPieceType;
+    int currentX, currentY;
+    
+    // Next piece
+    std::vector<std::vector<int>> nextPiece;
+    int nextPieceType;
+    
+    // Game state
+    int score;
+    int level;
+    int linesCleared;
+    bool gameOver;
+    bool paused;
+    
+    // Timing
+    sf::Clock dropTimer;
+    float dropInterval;
+    float dropSpeed;
+    
+    // SFML objects
+    sf::RenderWindow window;
+    sf::Font font;
+    sf::Text scoreText;
+    sf::Text levelText;
+    sf::Text gameOverText;
+    sf::Text pausedText;
+    
+    // Helper functions
+    void initializeBoard() {
+        board.clear();
+        board.resize(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0));
+    }
+    
+    void spawnNewPiece() {
+        // Move next piece to current
+        currentPiece = nextPiece;
+        currentPieceType = nextPieceType;
+        
+        // Generate new next piece
+        nextPieceType = rand() % 7;
+        nextPiece = SHAPES[nextPieceType];
+        
+        // Set starting position
+        currentX = BOARD_WIDTH / 2 - currentPiece[0].size() / 2;
+        currentY = 0;
+        
+        // Check if game over
+        if (!isValidPosition(currentPiece, currentX, currentY)) {
+            gameOver = true;
+        }
+    }
+    
+    bool isValidPosition(const std::vector<std::vector<int>>& piece, int x, int y) {
+        for (int i = 0; i < piece.size(); i++) {
+            for (int j = 0; j < piece[i].size(); j++) {
+                if (piece[i][j] != 0) {
+                    int boardX = x + j;
+                    int boardY = y + i;
+                    
+                   
+ds4: ----------------------------------------
+ds4: prefill: 308.12 t/s, generation: 13.96 t/s (1000 tokens in 71.632s)
+ds4: ttf: first-output=108.535s total=179.767s (engine=1.137s session=0.620s prompt=0.003s prefill=106.343s decode=71.632s)
+ds4: dspark perf: draft=434.6 tok/s, verify=32.1 proposed tok/s, verify-accepted=15.3 tok/s, block=168.54 ms (draft=11.48 verify=155.50 overhead=1.57 commit=0.00, tau=2.39, blocks=322)
+ds4: dspark verify GPU-busy: 1.08 ms/block of 155.50 ms verify (0.7% active, 99.3% idle)
+ds4: dspark draft-overlap upper-bound: 15.2 tok/s (1.07x block decode, hides 11.48 ms/block)
+ds4: vm pressure: app=28.08 GiB resident=33.16 GiB wired=40.10 GiB compressed=0.79 GiB logical=1.75 GiB swap=4.53/6.00 GiB pressure=43% free=0.46 GiB gpu=28.13 GiB gpu-compressed=0.00 GiB task-compressed=0.00 GiB decompressions=0
+ds4: dspark acceptance: 66.4% (768/1156 draft tokens)
+ds4: dspark acceptance by position: 1=198/232 2=172/231 3=154/231 4=136/231 5=108/231
+ds4: dspark conditional acceptance: 1=85.3% (198/232) 2|1=87.3% (172/197) 3|1-2=89.5% (154/172) 4|1-3=88.3% (136/154) 5|1-4=79.4% (108/136)
+ds4: dspark full-accept: 47.0% (109/232 blocks), first-miss: 14.7% (34/232 blocks)
+ds4: dspark avg scheduled: 4.98 draft tokens/block (232 blocks)

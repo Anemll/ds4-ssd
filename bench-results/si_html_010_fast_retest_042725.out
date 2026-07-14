@@ -1,0 +1,429 @@
+I'll create a pixel-perfect Space Invaders arcade game in a single HTML file, replicating the original 1978 Taito experience with authentic sprites, mechanics, and rules.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 TAITO ARCADE</title>
+    <style>
+        /* CRT scanline overlay + retro palette */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #0f0f0f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #1a1a2e;
+            border: 6px solid #2a2a3e;
+            border-radius: 20px;
+            padding: 20px 30px 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.9), inset 0 0 20px #3f3f5f;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .screen-wrapper {
+            background: #0a0a0a;
+            border: 4px solid #3a3a3a;
+            border-radius: 10px;
+            padding: 10px;
+            position: relative;
+        }
+        canvas {
+            display: block;
+            width: 600px;
+            height: 600px;
+            background: #0a0a0a;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 30px #000000;
+        }
+        .scanlines {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 600px;
+            height: 600px;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0.15) 0px,
+                rgba(0,0,0,0.15) 2px,
+                transparent 2px,
+                transparent 4px
+            );
+            border-radius: 2px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 20px;
+            gap: 20px;
+        }
+        .btn {
+            background: #2a2a3e;
+            border: 3px solid #5a5a7a;
+            border-radius: 12px;
+            color: #d0d0ff;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px 25px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: 0.1s;
+            box-shadow: 0 0 10px #2a2a3e;
+        }
+        .btn:active {
+            background: #3a3a5a;
+            border-color: #8a8aaa;
+            transform: scale(0.95);
+        }
+        .info {
+            color: #b0b0d0;
+            font-size: 1.1rem;
+            background: #1a1a2e;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 2px solid #3a3a5a;
+            text-shadow: 0 0 6px #000;
+        }
+        .info span {
+            color: #f0f060;
+            font-weight: bold;
+        }
+        .footer {
+            color: #5a5a7a;
+            margin-top: 10px;
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+        }
+        @media (max-width: 700px) {
+            canvas { width: 360px; height: 360px; }
+            .scanlines { width: 360px; height: 360px; }
+            .cabinet { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div class="scanlines"></div>
+    </div>
+    <div class="controls">
+        <button class="btn" id="leftBtn">◄ LEFT</button>
+        <div class="info">SCORE <span id="scoreDisplay">000</span></div>
+        <button class="btn" id="rightBtn">RIGHT ►</button>
+    </div>
+    <div style="display: flex; gap: 20px; margin-top: 10px;">
+        <button class="btn" id="fireBtn">🔥 FIRE</button>
+        <button class="btn" id="resetBtn">↺ RESET</button>
+    </div>
+    <div class="footer">⦿ 1978 TAITO · PIXEL PERFECT · 1 PLAYER ⦿</div>
+</div>
+
+<script>
+    (function() {
+        // ---------- ORIGINAL 1978 SPECS ----------
+        // 55 invaders (11 columns x 5 rows), 2 bunkers, 1 player, 1 laser
+        // Invaders move left/right, descend when reaching edge
+        // Player can move left/right, fire one shot at a time
+        // Mystery score at top (not implemented in original? but we add for flair)
+        // Score: invader = 10, 20, 30, 40, 50 (top row = 50, bottom = 10)
+        // Bunkers degrade with shots
+        // Player dies after 3 hits (original had 3 lives)
+        // Game over when invaders reach bottom or all invaders killed
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+
+        // ---------- GAME STATE ----------
+        let game = {
+            score: 0,
+            lives: 3,
+            level: 1,
+            gameOver: false,
+            win: false,
+            player: { x: 300, y: 560, width: 28, height: 20, active: true },
+            invaders: [],
+            bunkers: [],
+            playerLaser: null,          // { x, y, width, height }
+            invaderLasers: [],
+            mystery: null,              // { x, y, active }
+            frame: 0,
+            invaderDirection: 1,        // 1 = right, -1 = left
+            invaderSpeed: 0.8,
+            invaderStepCounter: 0,
+            invaderStepMax: 12,
+            invaderDownCounter: 0,
+            invaderDownMax: 4,
+            invaderAnim: 0,             // 0 / 1 for leg animation
+            fireCooldown: 0,
+            invaderFireTimer: 0,
+            invaderFireRate: 60,        // frames between invader shots
+        };
+
+        // ---------- HELPER: RESET GAME ----------
+        function resetGame() {
+            game.score = 0;
+            game.lives = 3;
+            game.level = 1;
+            game.gameOver = false;
+            game.win = false;
+            game.player.active = true;
+            game.player.x = 300;
+            game.player.y = 560;
+            game.playerLaser = null;
+            game.invaderLasers = [];
+            game.mystery = null;
+            game.frame = 0;
+            game.invaderDirection = 1;
+            game.invaderSpeed = 0.8;
+            game.invaderStepCounter = 0;
+            game.invaderStepMax = 12;
+            game.invaderDownCounter = 0;
+            game.invaderDownMax = 4;
+            game.invaderAnim = 0;
+            game.fireCooldown = 0;
+            game.invaderFireTimer = 0;
+            game.invaderFireRate = 60;
+
+            // Build invaders (11x5 grid)
+            const invaders = [];
+            const startX = 30, startY = 40, spacingX = 44, spacingY = 36;
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 11; col++) {
+                    let type;
+                    if (row === 0) type = 'crab';       // top row (50 pts)
+                    else if (row === 1 || row === 2) type = 'crab';   // 2nd & 3rd row (40, 30)
+                    else type = 'squid';                 // bottom rows (20, 10)
+                    // original: row0=50, row1=40, row2=30, row3=20, row4=10
+                    let pts = 10 * (5 - row);
+                    invaders.push({
+                        x: startX + col * spacingX,
+                        y: startY + row * spacingY,
+                        width: 28,
+                        height: 24,
+                        row: row,
+                        col: col,
+                        type: type,
+                        points: pts,
+                        alive: true
+                    });
+                }
+            }
+            game.invaders = invaders;
+
+            // Bunkers (3 bunkers, each 4 blocks wide, 2 blocks tall)
+            const bunkers = [];
+            const bunkerPositions = [80, 260, 440];
+            for (let b = 0; b < 3; b++) {
+                const bx = bunkerPositions[b];
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 2; j++) {
+                        bunkers.push({
+                            x: bx + i * 12,
+                            y: 500 + j * 12,
+                            width: 12,
+                            height: 12,
+                            alive: true
+                        });
+                    }
+                }
+            }
+            game.bunkers = bunkers;
+
+            updateScoreDisplay();
+        }
+
+        // ---------- UPDATE SCORE DISPLAY ----------
+        function updateScoreDisplay() {
+            let s = String(game.score);
+            while (s.length < 3) s = '0' + s;
+            scoreSpan.textContent = s;
+        }
+
+        // ---------- DRAW PIXEL ART (original sprite style) ----------
+        function drawInvader(ctx, x, y, type, animFrame, isAlive) {
+            if (!isAlive) return;
+            const w = 28, h = 24;
+            // pixel map (simplified but iconic)
+            ctx.save();
+            ctx.translate(x, y);
+            // Crab (top rows) – green
+            if (type === 'crab') {
+                ctx.fillStyle = '#50c850';
+                // body
+                ctx.fillRect(4, 2, 20, 4);
+                ctx.fillRect(2, 6, 24, 4);
+                ctx.fillRect(4, 10, 20, 4);
+                // legs (animated)
+                if (animFrame === 0) {
+                    ctx.fillRect(0, 14, 6, 6);
+                    ctx.fillRect(22, 14, 6, 6);
+                } else {
+                    ctx.fillRect(2, 16, 6, 4);
+                    ctx.fillRect(20, 16, 6, 4);
+                }
+                // eyes
+                ctx.fillStyle = '#f0f060';
+                ctx.fillRect(6, 4, 4, 4);
+                ctx.fillRect(18, 4, 4, 4);
+                // antennae
+                ctx.fillStyle = '#50c850';
+                ctx.fillRect(2, 0, 2, 2);
+                ctx.fillRect(24, 0, 2, 2);
+            } else { // squid (bottom rows) – pink/magenta
+                ctx.fillStyle = '#e060b0';
+                // body
+                ctx.fillRect(4, 2, 20, 4);
+                ctx.fillRect(2, 6, 24, 4);
+                ctx.fillRect(6, 10, 16, 4);
+                // legs
+                if (animFrame === 0) {
+                    ctx.fillRect(0, 14, 6, 6);
+                    ctx.fillRect(22, 14, 6, 6);
+                } else {
+                    ctx.fillRect(2, 16, 6, 4);
+                    ctx.fillRect(20, 16, 6, 4);
+                }
+                // eyes
+                ctx.fillStyle = '#f0f060';
+                ctx.fillRect(6, 4, 4, 4);
+                ctx.fillRect(18, 4, 4, 4);
+                // antennae
+                ctx.fillStyle = '#e060b0';
+                ctx.fillRect(2, 0, 2, 2);
+                ctx.fillRect(24, 0, 2, 2);
+            }
+            ctx.restore();
+        }
+
+        function drawPlayer(ctx, x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            // player ship (green)
+            ctx.fillStyle = '#50c850';
+            ctx.fillRect(4, 0, 20, 4);
+            ctx.fillRect(2, 4, 24, 4);
+            ctx.fillRect(6, 8, 16, 4);
+            ctx.fillRect(10, 12, 8, 4);
+            // cockpit
+            ctx.fillStyle = '#f0f060';
+            ctx.fillRect(10, 4, 8, 4);
+            // wings
+            ctx.fillStyle = '#50c850';
+            ctx.fillRect(0, 8, 4, 6);
+            ctx.fillRect(24, 8, 4, 6);
+            ctx.restore();
+        }
+
+        function drawLaser(ctx, x, y, w, h) {
+            ctx.fillStyle = '#f0f060';
+            ctx.fillRect(x, y, w, h);
+        }
+
+        function drawInvaderLaser(ctx, x, y, w, h) {
+            ctx.fillStyle = '#ff6060';
+            ctx.fillRect(x, y, w, h);
+        }
+
+        function drawBunker(ctx, x, y, w, h, alive) {
+            if (!alive) return;
+            ctx.fillStyle = '#40a0a0';
+            ctx.fillRect(x, y, w, h);
+            // pixel detail
+            ctx.fillStyle = '#206060';
+            ctx.fillRect(x+2, y+2, w-4, h-4);
+        }
+
+        function drawMystery(ctx, x, y) {
+            ctx.fillStyle = '#b0b0f0';
+            ctx.fillRect(x, y, 28, 16);
+            ctx.fillStyle = '#f0f060';
+            ctx.fillRect(x+4, y+2, 20, 4);
+            ctx.fillRect(x+8, y+8, 12, 4);
+        }
+
+        // ---------- DRAW SCENE ----------
+        function draw() {
+            ctx.clearRect(0, 0, 600, 600);
+
+            // background grid (retro)
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, 600, 600);
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 600; i+=30) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, 600);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(600, i);
+                ctx.stroke();
+            }
+
+            // bunkers
+            for (let b of game.bunkers) {
+                drawBunker(ctx, b.x, b.y, b.width, b.height, b.alive);
+            }
+
+            // invaders
+            for (let inv of game.invaders) {
+                if (inv.alive) {
+                    drawInvader(ctx, inv.x, inv.y, inv.type, game.invaderAnim, true);
+                }
+            }
+
+            // player
+            if (game.player.active && !game.gameOver && !game.win) {
+                drawPlayer(ctx, game.player.x, game.player.y);
+            }
+
+            // player laser
+            if (game.playerLaser) {
+                drawLaser(ctx, game.playerLaser.x, game.playerLaser.y, game.playerLaser.width, game.playerLaser.height);
+            }
+
+            // invader lasers
+            for (let l of game.invaderLasers) {
+                drawInvaderLaser(ctx, l.x, l.y, l.width, l.height);
+            }
+
+            // mystery (floating bonus)
+            if (game.mystery && game.mystery.active) {
+                drawMystery(ctx, game.mystery.x, game.mystery.y);
+            }
+
+            // UI overlay
+            ctx.fillStyle = '#f0f060';
+            ctx.font = 'bold 18px "Courier New", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('SCORE', 20, 20);
+            ctx.fillStyle = '#f0f0f0';
+            ctx.font = 'bold 20px "Courier New", monospace';
+            ctx.fillText(String(game.score).padStart(5,'0'), 20, 44);
+
+            // lives
+            ctx.fillStyle = '#50c850';
+            for (let i = 0; i < game.lives; i++) {
+                ctx.fillRect(520 + i * 24, 12, 18, 14);
+            }
+
+            // game over / win
+            if (game.gameOver) {
+                ctx.fillStyle

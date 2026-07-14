@@ -1,0 +1,11 @@
+Ecco un piano breve per testare il chunking di prompt lunghi:
+
+## Obiettivo
+Verificare che il sistema gestisca correttamente prompt che superano la lunghezza massima consentita, suddividendoli in chunk e processandoli in modo coerente.
+
+## Casi di test
+
+1. **Prompt leggermente eccedente** (es. 10% oltre il limite)
+2. **Prompt molto lungo** (es. 2-3x il limite)
+3. **Prompt con struttura chiara** (paragrafi, liste, codice)
+4. **Prompt

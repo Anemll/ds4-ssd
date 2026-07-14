@@ -1,0 +1,3 @@
+variant	tps	tau	acc	suspect	gate_avg	down_avg	total_avg	out	err
+control	43.06	4.32	92.6	0	0.936	0.305	1.242	bench-results/rowrouted_control_070947.out	bench-results/rowrouted_control_070947.err
+grouped_iq2	42.49	4.32	92.6	0	0.918	0.303	1.222	bench-results/rowrouted_grouped_iq2_070947.out	bench-results/rowrouted_grouped_iq2_070947.err

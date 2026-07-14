@@ -1,0 +1,394 @@
+# started_at=2026-07-10T21:34:19.396460+00:00
+# cwd=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd
+# command=./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft --draft-verify 5 --draft-scheduler confidence --nothink --temp 0 --resident -c 20000 -p 'Make a game of Space Invader in Pygame'
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=20000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/5002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.500 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.353 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=1.735s profile=0.001s model=0.006s sidecar=0.006s weights=0.000s dspark=1.722s backend=0.000s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 2.2GB Total <<<< 83.0GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=off pread-threads=4 readahead=12 bank-prefetch=0 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=26.921s raw-graph=0.004s flash-moe=26.917s steering=0.000s draft-scratch=yes
+[36mprocessing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s[0m[K[36mprocessing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s[0m[K[36mprocessing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s[0m[K[36mprocessing 19 input tokens: 1/19 (5.3%) batch=9.42 t/s avg=0.38 t/s[0m[K[36mprocessing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.37 t/s[0m[K[36mprocessing 19 input tokens: 2/19 (10.5%) batch=16.52 t/s avg=0.72 t/s[0m[K[36mprocessing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.71 t/s[0m[K[36mprocessing 19 input tokens: 3/19 (15.8%) batch=16.44 t/s avg=1.04 t/s[0m[K[36mprocessing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.01 t/s[0m[K[36mprocessing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=0.99 t/s[0m[K[36mprocessing 19 input tokens: 4/19 (21.1%) batch=14.25 t/s avg=1.29 t/s[0m[K[36mprocessing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.27 t/s[0m[K[36mprocessing 19 input tokens: 5/19 (26.3%) batch=14.33 t/s avg=1.55 t/s[0m[K[36mprocessing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.52 t/s[0m[K[36mprocessing 19 input tokens: 6/19 (31.6%) batch=16.33 t/s avg=1.79 t/s[0m[K[36mprocessing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=1.76 t/s[0m[K[36mprocessing 19 input tokens: 7/19 (36.8%) batch=17.82 t/s avg=2.02 t/s[0m[K[36mprocessing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=1.99 t/s[0m[K[36mprocessing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=1.96 t/s[0m[K[36mprocessing 19 input tokens: 8/19 (42.1%) batch=17.83 t/s avg=2.21 t/s[0m[K[36mprocessing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=2.16 t/s[0m[K[36mprocessing 19 input tokens: 9/19 (47.4%) batch=17.76 t/s avg=2.39 t/s[0m[K[36mprocessing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=2.35 t/s[0m[K[36mprocessing 19 input tokens: 10/19 (52.6%) batch=16.18 t/s avg=2.57 t/s[0m[K[36mprocessing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=2.53 t/s[0m[K[36mprocessing 19 input tokens: 11/19 (57.9%) batch=18.68 t/s avg=2.74 t/s[0m[K[36mprocessing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=2.70 t/s[0m[K[36mprocessing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=2.67 t/s[0m[K[36mprocessing 19 input tokens: 12/19 (63.2%) batch=15.10 t/s avg=2.87 t/s[0m[K[36mprocessing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=2.83 t/s[0m[K[36mprocessing 19 input tokens: 13/19 (68.4%) batch=15.02 t/s avg=3.01 t/s[0m[K[36mprocessing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=2.97 t/s[0m[K[36mprocessing 19 input tokens: 14/19 (73.7%) batch=14.69 t/s avg=3.15 t/s[0m[K[36mprocessing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=3.11 t/s[0m[K[36mprocessing 19 input tokens: 15/19 (78.9%) batch=16.54 t/s avg=3.29 t/s[0m[K[36mprocessing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=3.24 t/s[0m[K[36mprocessing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=3.19 t/s[0m[K[36mprocessing 19 input tokens: 16/19 (84.2%) batch=15.66 t/s avg=3.36 t/s[0m[K[36mprocessing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=3.31 t/s[0m[K[36mprocessing 19 input tokens: 17/19 (89.5%) batch=15.00 t/s avg=3.47 t/s[0m[K[36mprocessing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=3.42 t/s[0m[K[36mprocessing 19 input tokens: 18/19 (94.7%) batch=16.14 t/s avg=3.58 t/s[0m[K[36mprocessing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=3.53 t/s[0m[K[36mprocessing 19 input tokens: 19/19 (100.0%) batch=13.10 t/s avg=3.67 t/s[0m[K
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark frontier rows-6 verify enabled (first token + up to 5 drafts, confidence-aware)
+ds4: dspark verifier single-drain enabled (embed + layers + head share one terminal wait)
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (banked-generic-row-loop-exact, experts=6)
+ds4: dspark hybrid row-routed verifier using exact row-loop path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+I'll create ads4: dspark draft single-drain enabled (trunk + Markov share one wait)
+ complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+BULLET_SPEED = 7
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.lives = 3
+        self.score = 0
+        
+    def move_left(self):
+        self.x -= self.speed
+        if self.x < 0:
+            self.x = 0
+            
+    def move_right(self):
+        self.x += self.speed
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+            
+    def shoot(self):
+        bullet = Bullet(self.x + self.width//2 - 2, self.y, -BULLET_SPEED)
+        self.bullets.append(bullet)
+        
+    def draw(self, screen):
+        # Draw player ship (triangle shape)
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x, self.y + self.height),
+            (self.x + self.width, self.y + self.height)
+        ]
+        pygame.draw.polygon(screen, GREEN, points)
+        
+        # Draw bullets
+        for bullet in self.bullets:
+            bullet.draw(screen)
+            
+    def update(self):
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+
+class Enemy:
+    def __init__(self, x, y, row, col):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = ENEMY_SPEED
+        self.direction = 1  # 1 for right, -1 for left
+        self.row = row
+        self.col = col
+        self.alive = True
+        
+    def draw(self, screen):
+        if self.alive:
+            # Draw enemy (rectangle with antenna)
+            pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+            # Draw antenna
+            pygame.draw.line(screen, RED, (self.x + 10, self.y), (self.x + 10, self.y - 10), 2)
+            pygame.draw.line(screen, RED, (self.x + 30, self.y), (self.x + 30, self.y - 10), 2)
+            
+    def update(self):
+        self.x += self.speed * self.direction
+        
+    def move_down(self):
+        self.y += 10
+        
+    def shoot(self):
+        if self.alive and random.random() < 0.02:  # 2% chance to shoot
+            return EnemyBullet(self.x + self.width//2 - 2, self.y + self.height)
+        return None
+
+class Bullet:
+    def __init__(self, x, y, speed):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 10
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, YELLOW, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        self.y += self.speed
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class EnemyBullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = ENEMY_BULLET_SPEED
+        self.width = 4
+        self.height = 10
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        self.y += self.speed
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        self.running = True
+        self.game_over = False
+        self.player = Player(SCREEN_WIDTH//2 - 25, SCREEN_HEIGHT - 60)
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        
+    def create_enemies(self):
+        # Create grid of enemies
+        for row in range(5):
+            for col in range(10):
+                x = 50 + col * 70
+                y = 50 + row * 50
+                enemy = Enemy(x, y, row, col)
+                self.enemies.append(enemy)
+                
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.player.shoot()
+                if event.key == pygame.K_r and self.game_over:
+                    self.reset_game()
+                    
+    def update(self):
+        if self.game_over:
+            return
+            
+        # Player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move_left()
+        if keys[pygame.K_RIGHT]:
+            self.player.move_right()
+            
+        # Update player
+        self.player.update()
+        
+        # Update enemies
+        move_down = False
+        for enemy in self.enemies:
+            enemy.update()
+            if enemy.x <= 0 or enemy.x >= SCREEN_WIDTH - enemy.width:
+                move_down = True
+                
+        if move_down:
+            for enemy in self.enemies:
+                enemy.direction *= -1
+                enemy.move_down()
+                
+        # Enemy shooting
+        for enemy in self.enemies:
+            bullet = enemy.shoot()
+            if bullet:
+                self.enemy_bullets.append(bullet)
+                
+        # Update enemy bullets
+        for bullet in self.enemy_bullets[:]:
+            bullet.update()
+            if bullet.y > SCREEN_HEIGHT:
+                self.enemy_bullets.remove(bullet)
+                
+        # Check collisions
+        self.check_collisions()
+        
+        # Check game over conditions
+        if self.player.lives <= 0:
+            self.game_over = True
+        elif all(not enemy.alive for enemy in self.enemies):
+            self.game_over = True
+            
+    def check_collisions(self):
+        player_rect = pygame.Rect(self.player.x, self.player.y, 
+                                 self.player.width, self.player.height)
+        
+        # Check player bullets hitting enemies
+        for bullet in self.player.bullets[:]:
+            bullet_rect = bullet.get_rect()
+            for enemy in self.enemies:
+                if enemy.alive:
+                    enemy_rect = pygame.Rect(enemy.x, enemy.y, 
+                                           enemy.width, enemy.height)
+                    if bullet_rect.colliderect(enemy_rect):
+                        self.player.bullets.remove(bullet)
+                        enemy.alive = False
+                        self.player.score += 10
+                        break
+                        
+        # Check enemy bullets hitting player
+        for bullet in self.enemy_bullets[:]:
+            bullet_rect = bullet.get_rect()
+            if bullet_rect.colliderect(player_rect):
+                self.enemy_bullets.remove(bullet)
+                self.player.lives -= 1
+                break
+                
+        # Check enemies hitting player
+        for enemy in self.enemies:
+            if enemy.alive:
+                enemy_rect = pygame.Rect(enemy.x, enemy.y, 
+                                       enemy.width, enemy.height)
+                if enemy_rect.colliderect(player_rect):
+                    self.player.lives = 0
+                    break
+                    
+    def draw(self):
+        self.screen.fill(BLACK)
+        
+        # Draw game objects
+        self.player.draw(self.screen)
+        
+        for enemy in self.enemies:
+            enemy.draw(self.screen)
+            
+        for bullet in self.enemy_bullets:
+            bullet.draw(self.screen)
+            
+        # Draw UI
+        score_text = self.font.render(f"Score: {self.player.score}", True, WHITE)
+        lives_text = self.font.render(f"Lives: {self.player.lives}", True, WHITE)
+        self.screen.blit(score_text, (10, 10))
+        self.screen.blit(lives_text, (SCREEN_WIDTH - 150, 10))
+        
+        # Draw game over message
+        if self.game_over:
+            game_over_text = self.font.render("GAME OVER", True, RED)
+            restart_text = self.small_font.render("Press R to restart", True, WHITE)
+            text_rect = game_over_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2))
+            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH//2, SCREEN_HEIGHT//2 + 40))
+            self.screen.blit(game_over_text, text_rect)
+            self.screen.blit(restart_text, restart_rect)
+            
+        pygame.display.flip()
+        
+    def reset_game(self):
+        self.game_over = False
+        self.player = Player(SCREEN_WIDTH//2 - 25, SCREEN_HEIGHT - 60)
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        
+    def run(self):
+        while self.running:
+            self.handle_events()
+            self.update()
+            self.draw()
+            self.clock.tick(60)
+            
+        pygame.quit()
+
+# Main game loop
+if __name__ == "__main__":
+    game = Game()
+    game.run()
+```
+
+This Space Invaders game includes:
+
+1. **Player Ship**: A green triangle that moves left/right and shoots yellow bullets
+2. **Enemies**: Red rectangles with antennas that move in formation and shoot back
+3. **Bullets**: Player bullets move upward, enemy bullets move downward
+4. **Collision Detection**: Bullets can hit enemies, enemy bullets can hit player
+5. **Scoring**: 10 points per enemy destroyed
+6. **Lives**: Player has 3 lives
+7. **Game Over**: When lives reach 0 or all enemies are destroyed
+8. **Restart**: Press R to restart the game
+
+The game features:
+- Smooth movement with arrow keys
+- Space bar to shoot
+- Enemies that move in a wave pattern
+- Random enemy shooting
+- Visual feedback with different colors
+- Score and lives display
+
+To run the game, make sure you have pygame installed (`pip install pygame`) and run the script.
+ds4: ----------------------------------------
+ds4: prefill: 3.55 t/s, generation: 38.61 t/s (2528 tokens in 65.482s)
+ds4: ttf: first-output=34.124s total=99.514s (engine=1.735s session=26.921s prompt=0.000s prefill=5.349s decode=65.482s)
+ds4: dspark perf: draft=439.7 tok/s, verify=47.9 proposed tok/s, verify-accepted=44.0 tok/s, block=121.56 ms (draft=11.66 verify=106.95 overhead=2.95 commit=2.51, tau=4.70, blocks=538, skip-pre=0, skip-verify=0)
+ds4: dspark verify GPU-busy: 106.12 ms/block of 106.95 ms verify (99.2% active, 0.8% idle)
+ds4: dspark draft-overlap upper-bound: 42.8 tok/s (1.11x block decode, hides 11.66 ms/block)
+ds4: vm pressure: app=84.97 GiB resident=12.48 GiB wired=97.91 GiB compressed=2.29 GiB logical=4.72 GiB swap=2.37/3.00 GiB pressure=87% free=0.28 GiB gpu=84.44 GiB gpu-compressed=0.43 GiB task-compressed=77.52 GiB decompressions=7460120
+ds4: dspark acceptance: 91.7% (2529/2758 draft tokens)
+ds4: dspark acceptance by position: 1=538/538 2=503/538 3=443/481 4=400/445 5=356/406 6=289/350
+ds4: dspark conditional acceptance: 1=100.0% (538/538) 2|1=93.5% (503/538) 3|1-2=96.1% (443/461) 4|1-3=96.9% (400/413) 5|1-4=95.4% (356/373) 6|1-5=92.9% (289/311)
+ds4: dspark full-accept: 80.5% (433/538 blocks), first-miss: 0.0% (0/538 blocks)
+ds4: dspark avg scheduled: 5.13 draft tokens/block (538 blocks)

@@ -1,0 +1,8 @@
+Non esiste un metodo unico e infallibile per confrontare due quantizzazioni, perché la scelta dipende fortemente dal contesto (hardware, tipo di rete, obiettivi di prestazioni). Tuttavia, ecco una procedura sistematica per confrontare due quantizzazioni in modo obiettivo e robusto, senza basarsi su una singola risposta o metrica.
+
+---
+
+### **1. Definire il contesto e gli obiettivi**
+Prima di tutto, specifica:
+- **Tipo di modello**: CNN, Transformer, LSTM, ecc.
+- **Hardware

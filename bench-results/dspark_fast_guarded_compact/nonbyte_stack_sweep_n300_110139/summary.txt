@@ -1,0 +1,36 @@
+== frontier_top8_d1
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+ds4: dspark relaxed accept enabled (target top-8 + logit-delta<=1.00 gate; non-target-greedy)
+ds4: prefill: 5.83 t/s, generation: 45.85 t/s (300 tokens in 6.544s)
+ds4: dspark perf: draft=402.3 tok/s, verify=65.5 proposed tok/s, verify-accepted=55.1 tok/s, block=90.17 ms (draft=12.32 verify=75.64 overhead=2.20 commit=1.72, tau=5.17, blocks=71)
+ds4: dspark verify GPU-busy: 69.18 ms/block of 75.64 ms verify (91.5% active, 8.5% idle)
+ds4: dspark acceptance: 89.2% (296/332 draft tokens)
+ds4: dspark conditional acceptance: 1=100.0% (67/67) 2|1=95.5% (64/67) 3|1-2=95.3% (61/64) 4|1-3=91.7% (55/60) 5|1-4=89.1% (49/55)
+ds4: dspark full-accept: 74.6% (50/67 blocks), first-miss: 0.0% (0/67 blocks)
+ds4: dspark avg scheduled: 4.96 draft tokens/block (67 blocks)
+== frontier_unbounded
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+ds4: dspark force accept enabled (ungated non-target-greedy diagnostic; may repeat)
+ds4: prefill: 5.80 t/s, generation: 43.81 t/s (300 tokens in 6.848s)
+ds4: dspark perf: draft=403.5 tok/s, verify=62.1 proposed tok/s, verify-accepted=51.9 tok/s, block=94.89 ms (draft=12.36 verify=80.27 overhead=2.26 commit=1.82, tau=5.17, blocks=72)
+ds4: dspark verify GPU-busy: 73.59 ms/block of 80.27 ms verify (91.7% active, 8.3% idle)
+ds4: dspark acceptance: 83.6% (300/359 draft tokens)
+ds4: dspark conditional acceptance: 1=100.0% (72/72) 2|1=90.3% (65/72) 3|1-2=93.8% (61/65) 4|1-3=93.4% (57/61) 5|1-4=80.4% (45/56)
+ds4: dspark full-accept: 63.9% (46/72 blocks), first-miss: 0.0% (0/72 blocks)
+ds4: dspark avg scheduled: 4.99 draft tokens/block (72 blocks)
+== nax_frontier_top8_d1
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+ds4: dspark relaxed accept enabled (target top-8 + logit-delta<=1.00 gate; non-target-greedy)
+ds4: prefill: 5.28 t/s, generation: 41.74 t/s (300 tokens in 7.187s)
+ds4: dspark perf: draft=398.5 tok/s, verify=62.2 proposed tok/s, verify-accepted=49.8 tok/s, block=94.28 ms (draft=12.44 verify=79.70 overhead=2.13 commit=1.69, tau=4.97, blocks=74)
+ds4: dspark verify GPU-busy: 73.52 ms/block of 79.70 ms verify (92.2% active, 7.8% idle)
+ds4: dspark acceptance: 87.2% (294/337 draft tokens)
+ds4: dspark conditional acceptance: 1=100.0% (68/68) 2|1=95.6% (65/68) 3|1-2=95.3% (61/64) 4|1-3=86.9% (53/61) 5|1-4=88.7% (47/53)
+ds4: dspark full-accept: 70.6% (48/68 blocks), first-miss: 0.0% (0/68 blocks)
+ds4: dspark avg scheduled: 4.96 draft tokens/block (68 blocks)

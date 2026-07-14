@@ -1,0 +1,153 @@
+I'll create a faithful reproduction of the classic 1978 Taito arcade game "Asteroids" as a single self-contained HTML file with inline CSS and JS.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroids - 1978 Taito Arcade</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #000;
+            border: 3px solid #333;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        canvas {
+            display: block;
+            background: #000;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            color: #0f0;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #0f0;
+        }
+        #lives {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #0f0;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #0f0;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f00;
+            font-size: 36px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #f00;
+            display: none;
+            text-align: center;
+        }
+        #gameOver span {
+            font-size: 18px;
+            color: #0f0;
+            display: block;
+            margin-top: 20px;
+        }
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #555;
+            font-size: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="score">SCORE: 0</div>
+        <div id="lives">LIVES: 3</div>
+        <div id="gameOver">GAME OVER<span>PRESS SPACE TO RESTART</span></div>
+        <div id="instructions">↑ THRUST  ← → ROTATE  SPACE FIRE</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const livesDisplay = document.getElementById('lives');
+        const gameOverDisplay = document.getElementById('gameOver');
+
+        // Game state
+        let player, bullets, asteroids, particles, score, lives, gameRunning, level;
+        let keys = {};
+
+        // Constants
+        const ASTEROID_COUNTS = [4, 6, 8, 10, 12];
+        const PLAYER_RADIUS = 20;
+        const BULLET_SPEED = 400;
+        const BULLET_LIFE = 1.5;
+        const MAX_BULLETS = 4;
+        const SHIP_ROTATION_SPEED = Math.PI * 2.5;
+        const THRUST_ACCELERATION = 300;
+        const MAX_SPEED = 300;
+        const FRICTION = 0.98;
+
+        // Initialize game
+        function initGame() {
+            player = {
+                x: 400,
+                y: 300,
+                angle: -Math.PI / 2,
+                speed: 0,
+                vx: 0,
+                vy: 0,
+                radius: PLAYER_RADIUS,
+                alive: true,
+                invulnerable: 0,
+                thrust: false
+            };
+            bullets = [];
+            asteroids = [];
+            particles = [];
+            score = 0;
+            lives = 3;
+            level = 0;
+            gameRunning = true;
+            gameOverDisplay.style.display = 'none';
+            spawnAsteroids(ASTEROID_COUNTS[level] || 4);
+            updateUI();
+        }
+
+        // Spawn asteroids
+        function spawnAsteroids(count) {
+            for (let i = 0; i < count; i++) {
+                let x, y;
+                do {
+                    x = Math.random() * 800;
+                    y = Math.random() * 600;
+                } while (Math.abs(x - 400) < 100 && Math.abs(y - 300) < 100);
+                asteroids.push(createAsteroid(x, y, 3));
+            }
+        }
+
+        function createAsteroid(x, y, size) {
+            const speed = 20 + Math.random() * 40;
+            const angle = Math.random() * Math.PI * 2;
+            const vertices = [];
+            const numVertices = 8 + Math.floor(Math.random() *

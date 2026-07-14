@@ -1,0 +1,9 @@
+Questa è un'ottima domanda che tocca un concetto fondamentale dell'informatica.
+
+La risposta breve è: **perché, in un array ordinato, possiamo utilizzare algoritmi di ricerca molto più efficienti, come la ricerca binaria, che non sono applicabili (o sono meno efficienti) su array non ordinati.**
+
+Ecco la spiegazione dettagliata, partendo dal caso peggiore (array non ordinato) e poi mostrando il vantaggio dell'ordinamento.
+
+### 1. Ricerca in un Array Non Ordinato
+
+In un array non ordinato,

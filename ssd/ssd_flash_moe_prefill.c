@@ -63,6 +63,76 @@ static uint32_t metal_graph_effective_prefill_cap(const ds4_gpu_graph *g) {
     return cap ? cap : 1u;
 }
 
+/* The direct grouped path is a prefill-speed experiment.  Keep the legacy
+ * expert-ordered executor as the default until its reduction is promoted by
+ * greedy-output parity; set this explicitly for speed A/Bs. */
+static bool flash_moe_resident_grouped_prefill_enabled(void) {
+    const char *value = getenv("DS4_FLASH_MOE_RESIDENT_GROUPED_PREFILL");
+    return value && value[0] && atoi(value) != 0;
+}
+
+/* IQ2_XXS/Q2_K grouped mul_mm_id defaults to 32 rows.  Mirror an explicit
+ * override here so the tiled caller never encodes a large prefix and then
+ * discovers that its final tile is too small for the GPU kernel. */
+static uint32_t flash_moe_resident_grouped_prefill_min_tokens(void) {
+    uint32_t minimum = 32u;
+    const char *value = getenv("DS4_METAL_MOE_MM_MIN_REFS");
+    if (value && value[0]) {
+        char *end = NULL;
+        const unsigned long parsed = strtoul(value, &end, 10);
+        if (end != value && parsed != 0 && parsed <= UINT32_MAX) {
+            minimum = (uint32_t)parsed;
+        }
+    }
+    return minimum;
+}
+
+static bool metal_graph_flash_moe_resident_grouped_prefill_eligible(
+        const ds4_gpu_graph       *g,
+        const ds4_layer_weights   *layer,
+        uint32_t                   il,
+        uint32_t                   n_tokens) {
+    if (!flash_moe_resident_grouped_prefill_enabled() ||
+        !g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+        g->quality ||
+        n_tokens < flash_moe_resident_grouped_prefill_min_tokens() ||
+        n_tokens > g->prefill_cap ||
+        !metal_graph_flash_moe_identity_gpu_selected_active(g, il) ||
+        g->flash_slot_bank != DS4_N_EXPERT ||
+        !g->batch_router_selected || !g->batch_router_weights ||
+        !g->batch_ffn_norm || !g->batch_routed_out ||
+        !g->batch_routed_gate || !g->batch_routed_up ||
+        !g->batch_routed_mid || !g->batch_routed_down ||
+        !g->flash_gate_bank[il] || !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il]) {
+        return false;
+    }
+
+    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
+    if (!flash_moe_layer_no_mxfp4_plane_split(flash_layer) ||
+        !layer->ffn_gate_exps || !layer->ffn_up_exps || !layer->ffn_down_exps ||
+        (active_expert_used != 1u && active_expert_used != 2u &&
+         active_expert_used != 4u && active_expert_used != 5u &&
+         active_expert_used != 6u) ||
+        flash_layer->family_type[DS4_FLASH_FAMILY_GATE] != layer->ffn_gate_exps->type ||
+        flash_layer->family_type[DS4_FLASH_FAMILY_UP] != layer->ffn_up_exps->type ||
+        flash_layer->family_type[DS4_FLASH_FAMILY_DOWN] != layer->ffn_down_exps->type) {
+        return false;
+    }
+
+    /* The legacy sidecar executor owns ANE and MPP split/merge modes.  This
+     * grouped path owns the complete output, so preserve those explicit
+     * experiments rather than silently dropping their work split. */
+    return !env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_MPP_INT8_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_MPP_I8I8_PREFILL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_MPP_I8I8_FUSED_PREFILL");
+}
+
 static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
         ds4_gpu_graph       *g,
         const ds4_layer_weights *layer,
@@ -293,8 +363,42 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         uint32_t             expert_mid_dim,
         uint32_t             out_dim) {
     if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
-        n_tokens == 0 || n_tokens > g->prefill_cap ||
-        !g->flash_prefill_x || !g->flash_prefill_gate ||
+        n_tokens == 0 || n_tokens > g->prefill_cap) {
+        return false;
+    }
+
+    if (metal_graph_flash_moe_resident_grouped_prefill_eligible(g,
+                                                                 layer,
+                                                                 il,
+                                                                 n_tokens)) {
+        bool mid_is_f16 = false;
+        const bool ok = metal_graph_flash_moe_resident_grouped_prefill_tiled(
+            g,
+            layer,
+            il,
+            n_tokens,
+            flash_moe_resident_grouped_prefill_min_tokens(),
+            gate_expert_bytes,
+            gate_row_bytes,
+            down_expert_bytes,
+            down_row_bytes,
+            expert_in_dim,
+            expert_mid_dim,
+            out_dim,
+            &mid_is_f16);
+        if (!ok) {
+            fprintf(stderr,
+                    "ds4: resident grouped Flash-MoE prefill failed at layer %u "
+                    "(%u tokens); refusing unsafe partial fallback\n",
+                    il,
+                    n_tokens);
+            return false;
+        }
+        g->batch_routed_mid_is_f16 = mid_is_f16;
+        return true;
+    }
+
+    if (!g->flash_prefill_x || !g->flash_prefill_gate ||
         !g->flash_prefill_up || !g->flash_prefill_mid ||
         !g->flash_prefill_out || !g->flash_prefill_tokens ||
         !g->flash_prefill_selected || !g->flash_prefill_weights) {

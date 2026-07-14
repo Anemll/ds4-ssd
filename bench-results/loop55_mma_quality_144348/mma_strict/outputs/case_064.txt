@@ -1,0 +1,10 @@
+This is a great question because these two terms are often confused, but they measure very different things. The best way to understand them is with an analogy.
+
+### The Highway Analogy
+
+Imagine a highway connecting two cities.
+
+- **Latency** is the **time** it takes for a single car to drive from point A to point B. It's about speed and delay.
+- **Throughput** is the **number of cars** that can arrive at point B per hour. It's about capacity and volume.
+
+A single car might arrive in 30 minutes (low latency), but if the road is a single lane with a slow

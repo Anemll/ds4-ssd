@@ -1,0 +1,30 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito Space Invaders arcade experience. It's a single-file implementation with inline CSS and JavaScript, featuring the iconic pixel art style, sound effects, and core gameplay mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders (1978) – Arcade Cabinet</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #1a0e00;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .cabinet {
+            background: #2c1c0e;
+            background: linear-gradient(145deg, #3d2a1a, #1f140a);
+            border: 6px solid #b87a3a;
+            border-radius: 20px 20px 10px 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.9), inset

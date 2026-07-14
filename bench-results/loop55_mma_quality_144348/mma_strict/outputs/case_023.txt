@@ -1,0 +1,8 @@
+**Backpressure** in a network server context is a **flow control mechanism** used to prevent a system from being overwhelmed by incoming data that it cannot process fast enough.
+
+Think of it like a busy kitchen in a restaurant:
+- The **kitchen** (server) can only cook (process) a certain number of orders per minute.
+- The **waiters** (network/clients) keep sending orders faster than the kitchen can cook.
+- If the kitchen doesn't stop the waiters, orders pile up, get cold, or the kitchen catches fire (crashes).
+
+**Backpressure** is the kitchen telling the waiters

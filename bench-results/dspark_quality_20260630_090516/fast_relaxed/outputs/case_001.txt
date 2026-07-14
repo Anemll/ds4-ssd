@@ -1,0 +1,13 @@
+Here's a concise design for a TCP echo server that handles slow clients:
+
+## Design Overview
+
+```
+┌─────────────────────────────────────────────┐
+│           TCP Echo Server (Slow Client)     │
+├─────────────────────────────┬───────────────┤
+│  Accept Loop (main thread) │  Worker Pool  │
+│  - Accept connections      │  - Non-blocking│
+│  - Create per-client tasks │  - Timeout     │
+│  - Queue to worker pool    │  - Buffer mgmt│
+└─────────────────────────────┴───────────────┘

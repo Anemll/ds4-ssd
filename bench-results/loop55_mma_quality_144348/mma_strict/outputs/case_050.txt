@@ -1,0 +1,5 @@
+Ecco cinque misure iniziali per affrontare il problema di decode lento in contesti lunghi:
+
+1. **Verificare la dimensione del contesto e il limite di memoria**: Controllare se il modello sta effettivamente gestendo la lunghezza massima di contesto supportata (es. 128k token) e se la memoria GPU/CPU è sufficiente per gestire l'elaborazione di sequenze lunghe senza swapping su disco.
+
+2. **Analizzare la complessità dell'attenzione**: Per modelli con attenzione quadratica (es. softmax attention

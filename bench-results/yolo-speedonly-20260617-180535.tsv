@@ -1,0 +1,8 @@
+case	bank	gen_tps	decode_s	prefill_s	ctx	log
+b134_res1	134	15.251	33.571226	NA	1857	bench-results/20260617-180535-b134_res1.log
+b134_res0	134	15.527	32.975631	NA	1857	bench-results/20260617-180535-b134_res0.log
+b128_res1	128	15.207	33.668391	NA	1857	bench-results/20260617-180535-b128_res1.log
+b112_res1	112	14.349	35.680856	NA	1857	bench-results/20260617-180535-b112_res1.log
+b134_slotwise0	134	15.496	33.041311	NA	1857	bench-results/20260617-180535-b134_slotwise0.log
+b134_directauto	134	6.810	75.184619	NA	1857	bench-results/20260617-180535-b134_directauto.log
+b134_prefetch	134	15.016	34.096218	NA	1857	bench-results/20260617-180535-b134_prefetch.log

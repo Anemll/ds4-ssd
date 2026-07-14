@@ -1,0 +1,12 @@
+This is a great question that gets to the heart of how modern operating systems optimize performance.
+
+The core reason is that **the page cache avoids slow disk I/O** by reusing data that is already in fast memory.
+
+Here’s a step-by-step breakdown:
+
+### 1. The Fundamental Speed Difference
+
+The key is the massive speed difference between the two main types of memory in a computer:
+
+- **RAM (Main Memory):** Very Fast. It can transfer data in nanoseconds.
+- **Disk (HDD/SSD):** Very Slow. Even a fast SSD takes microseconds to access, which is *thousands of times

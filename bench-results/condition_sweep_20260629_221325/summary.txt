@@ -1,0 +1,31 @@
+=== aggregate (median across reps) ===
+variant           gen t/s   verify   acc%   tau
+caseE_fastav        27.84    55.09   36.0  2.80
+caseE_simpleav      28.37    58.92   39.2  2.96
+strict              26.25    64.00   37.2  2.86
+
+=== verify ms by context position (bin=200, median) ===
+    pos caseE_fastav caseE_simple       strict
+      0         78.1         80.3         85.9
+    200         79.4         81.7         88.6
+    400         79.9         82.9         91.1
+    600         81.0         84.4         93.6
+    800         81.8         86.3         96.0
+   1000         82.6         87.5         98.1
+   1200        107.6         89.5          nan
+   1400        109.2        108.8          nan
+
+=== delta% vs 'strict' (negative = faster) ===
+    pos caseE_fastav caseE_simple
+      0        -9.1%        -6.5%
+    200       -10.4%        -7.8%
+    400       -12.2%        -9.0%
+    600       -13.5%        -9.9%
+    800       -14.8%       -10.2%
+   1000       -15.8%       -10.8%
+   1200            -            -
+   1400            -            -
+
+=== break-even (first position where variant beats 'strict') ===
+  caseE_fastav     always faster (from pos 0)
+  caseE_simpleav   always faster (from pos 0)

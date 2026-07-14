@@ -1,0 +1,9 @@
+== skip_head ==
+106:ds4: prefill: 6.38 t/s, generation: 20.48 t/s (500 tokens in 24.417s)
+107:ds4: dspark perf: draft=500.9 tok/s, verify=1800.6 proposed tok/s, verify-accepted=13.7 tok/s, block=12.72 ms (draft=9.89 verify=2.75 overhead=0.08 commit=0.05, tau=0.04, blocks=928)
+110:ds4: dspark acceptance: 1.5% (35/2281 draft tokens)
+111:ds4: dspark acceptance by position: 1=35/464 2=0/463 3=0/461 4=0/447 5=0/446
+113:ds4: dspark full-accept: 0.0% (0/464 blocks), first-miss: 92.5% (429/464 blocks)
+114:ds4: dspark avg scheduled: 4.92 draft tokens/block (464 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_skip_head_recheck_021920/skip_head.out	1726	56	56	1	0		0		0	0	0	1	1	0

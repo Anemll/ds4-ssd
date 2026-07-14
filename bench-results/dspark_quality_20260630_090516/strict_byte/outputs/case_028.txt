@@ -1,0 +1,9 @@
+This is an excellent question that gets at a core efficiency optimization in modern Large Language Models (LLMs) like Mixtral 8x7B or Gemini.
+
+The short answer is: **Grouped MoE expert execution improves prefill by replacing unpredictable, scattered memory accesses with predictable, batched, and contiguous memory accesses, which is far more friendly to modern hardware accelerators (GPUs/TPUs).**
+
+Let's break down *why* this is such a big deal, contrasting the naive approach with the grouped approach.
+
+### The Problem: The "Naive" MoE Prefill
+
+In a standard Mixture of Experts

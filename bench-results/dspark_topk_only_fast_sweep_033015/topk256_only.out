@@ -1,0 +1,102 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame.sprite
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+pygame.display = 0
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+
+# Player class
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT - 30
+        self.width = 50
+        self.height = 20
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+
+# Enemy class
+    def move_left(self):
+        self.x -= self.speed
+    def move(self.x, self.x):
+        self.x += self.speed
+
+# Enemy class
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y
+        self.width = 40
+        self.height = 20
+    def move(self):
+        self.y += 1
+
+# Bullet class
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 10
+        self.width = 5
+        self.height = 10
+
+    def move(self):
+        self.y -= self.speed
+
+# Main class
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.player.display = pygame.display()
+        self.clock = pygame.time.Clock()
+        self.player = Player()
+        self.enemies = []
+        self.bullets = []
+        self.spawn_timer()
+        self.running = True
+    def create_game_overlay(self):
+        font = pygame.font.Font(None, 36)
+        self.screen.font.render("Lives", font, self.player.lives, self.screen)
+        self.screen.render("Score", font, self.player.score, self.screen)
+
+    def spawn(self, x):
+        enemy = Enemy(x, 0)
+        self.enemies.append(enemy)
+
+    def handle(self, event):
+        if event.type == pygame.QUIT:
+            self.running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                self.player.move_left()
+            elif event.key == pygame.K_RIGHT:
+                self.player.move_right()
+            elif event.key == pygame.K_SPACE:
+                bullet = Bullet(self.player.x, self.player.y, self.player.width)
+                self.bullets.append(bullet)
+
+    def update(self):
+        for enemy in self.enemies:
+            enemy.move()
+            if enemy.y > self.screen.height:
+                self.enemies.remove(enemy)
+        for self.bullet in self.bullets:
+            self.bullet.move()
+            if self.bullet.y < 0:
+                self.bullets.remove(self

@@ -1,0 +1,7 @@
+Ecco cinque misure iniziali per affrontare un problema di decoding lento in contesti di lunghezza estesa (long context) con un modello di linguaggio:
+
+1. **Verifica della finestra di contesto e del limite di memoria**  
+   Controllare se il modello sta effettivamente utilizzando la finestra di contesto massima consentita (es. 128k token) e se il rallentamento è dovuto a un limite di memoria (GPU/CPU) che causa swapping o paginazione.
+
+2. **Analisi del pattern di attenzione**  
+   Esamin

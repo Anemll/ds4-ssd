@@ -1,0 +1,205 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito Space Invaders arcade experience. It's a single-file implementation with inline CSS and JavaScript, featuring the iconic pixel art style, sound effects, and core gameplay mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders (1978) – Arcade Cabinet</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #1a0e00;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        .cabinet {
+            background: #2c1c0e;
+            background: linear-gradient(145deg, #3d2a1a, #1f140a);
+            border: 6px solid #b87a3a;
+            border-radius: 20px 20px 10px 10px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.9), inset 0 0 20px #6b3f1a;
+            padding: 25px 20px 20px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 780px;
+            width: 100%;
+            position: relative;
+        }
+        .cabinet::before {
+            content: "SPACE INVADERS";
+            display: block;
+            font-family: 'Courier New', monospace;
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: 6px;
+            color: #f0d8b0;
+            text-shadow: 0 0 10px #f0a030, 0 4px 0 #5a2e1a;
+            margin-bottom: 12px;
+            text-align: center;
+            word-break: break-word;
+        }
+        .screen-wrapper {
+            background: #0a0a0a;
+            border: 6px solid #3a2a1a;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: inset 0 0 20px #000, 0 0 0 2px #b87a3a;
+            width: 100%;
+        }
+        canvas {
+            display: block;
+            background: #000;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 640 / 720;
+            image-rendering: pixelated;
+            border-radius: 4px;
+            margin: 0 auto;
+            box-shadow: 0 0 30px #1a0a00;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px 40px;
+            margin-top: 20px;
+            padding: 10px 0;
+            width: 100%;
+            background: #1f140a;
+            border-top: 3px solid #b87a3a;
+        }
+        .control-group {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .btn {
+            background: #3a2a1a;
+            border: 3px solid #b87a3a;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #f0d8b0;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #5a2e1a, inset 0 2px 5px #f0a030;
+            transition: 0.05s;
+            user-select: none;
+        }
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #5a2e1a, inset 0 2px 5px #f0a030;
+        }
+        .btn-restart {
+            background: #5a2e1a;
+            border: 3px solid #f0d8b0;
+            border-radius: 12px;
+            width: auto;
+            padding: 0 20px;
+            height: 50px;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+        }
+        .info {
+            color: #b87a3a;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-shadow: 0 2px 0 #2c1c0e;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .info span {
+            background: #0a0a0a;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 2px solid #b87a3a;
+            color: #f0d8b0;
+            min-width: 50px;
+            text-align: center;
+        }
+        @media (max-width: 600px) {
+            .cabinet { padding: 15px 10px; }
+            .controls { flex-direction: column; align-items: center; gap: 10px; }
+            .control-group { gap: 15px; }
+            .btn { width: 50px; height: 50px; font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="640" height="720"></canvas>
+    </div>
+    <div class="controls">
+        <div class="control-group">
+            <div class="btn" id="leftBtn">◄</div>
+            <div class="btn" id="fireBtn">⏺</div>
+            <div class="btn" id="rightBtn">►</div>
+        </div>
+        <div class="info">
+            <span id="scoreDisplay">0000</span>
+            <span id="livesDisplay">3</span>
+            <div class="btn btn-restart" id="restartBtn">⟳ RESTART</div>
+        </div>
+    </div>
+</div>
+<script>
+    (function() {
+        // ---------- 1978 Space Invaders core engine ----------
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // display elements
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const livesSpan = document.getElementById('livesDisplay');
+
+        // ---------- GAME CONFIG (original fidelity) ----------
+        const INVADER_ROWS = 5;
+        const INVADERS_PER_ROW = 11;
+        const INVADER_WIDTH = 28;
+        const INVADER_HEIGHT = 24;
+        const PLAYER_WIDTH = 32;
+        const PLAYER_HEIGHT = 20;
+        const PLAYER_Y = 660;       // fixed Y near bottom
+        const PLAYER_SPEED = 4;
+        const BOMB_SPEED = 5;
+        const BULLET_SPEED = 8;
+        const INVADER_BOMB_RATE = 0.02;  // per frame chance
+
+        // sprite data (pixel art, 1978 style)
+        const INVADER_SPRITES = [
+            // row 0 (top) - squid
+            [  // frame 0
+                0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+                1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+            ],
+            // frame 1 (alternate)
+            [
+                0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+                0,1,1,1,1,1,1,1,1,1,

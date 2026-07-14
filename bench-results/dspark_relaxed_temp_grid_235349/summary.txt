@@ -1,0 +1,37 @@
+CASE top128_delta6
+105:ds4: prefill: 6.25 t/s, generation: 54.10 t/s (300 tokens in 5.545s)
+106:ds4: dspark perf: draft=440.7 tok/s, verify=72.5 proposed tok/s, verify-accepted=65.2 tok/s, block=82.25 ms (draft=11.31 verify=68.80 overhead=2.14 commit=1.70, tau=4.48, blocks=66)
+109:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+112:ds4: dspark full-accept: 90.3% (56/62 blocks), first-miss: 0.0% (0/62 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+bench-results/dspark_relaxed_temp_grid_235349/top128_delta6/run.out	952	35	35	1	0		0		0	0	0	1	1	0
+CASE top512_delta10
+105:ds4: prefill: 6.17 t/s, generation: 52.55 t/s (300 tokens in 5.709s)
+106:ds4: dspark perf: draft=443.2 tok/s, verify=74.1 proposed tok/s, verify-accepted=64.7 tok/s, block=80.17 ms (draft=11.18 verify=66.87 overhead=2.11 commit=1.67, tau=4.32, blocks=68)
+109:ds4: dspark acceptance: 92.6% (289/312 draft tokens)
+112:ds4: dspark full-accept: 84.1% (53/63 blocks), first-miss: 1.6% (1/63 blocks)
+113:ds4: dspark avg scheduled: 4.95 draft tokens/block (63 blocks)
+bench-results/dspark_relaxed_temp_grid_235349/top512_delta10/run.out	955	37	37	1	0		0		0	0	0	1	1	0
+CASE top512_delta10_temp1
+105:ds4: prefill: 6.90 t/s, generation: 53.16 t/s (300 tokens in 5.644s)
+106:ds4: dspark perf: draft=441.5 tok/s, verify=71.8 proposed tok/s, verify-accepted=63.8 tok/s, block=82.88 ms (draft=11.29 verify=69.45 overhead=2.13 commit=1.69, tau=4.43, blocks=67)
+109:ds4: dspark acceptance: 93.1% (297/319 draft tokens)
+112:ds4: dspark full-accept: 81.2% (52/64 blocks), first-miss: 0.0% (0/64 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (64 blocks)
+bench-results/dspark_relaxed_temp_grid_235349/top512_delta10_temp1/run.out	954	35	35	1	0		0		0	0	0	1	1	0
+CASE top512_delta10_temp2
+105:ds4: prefill: 7.14 t/s, generation: 52.49 t/s (300 tokens in 5.715s)
+106:ds4: dspark perf: draft=440.8 tok/s, verify=70.3 proposed tok/s, verify-accepted=63.9 tok/s, block=83.89 ms (draft=11.24 verify=70.43 overhead=2.22 commit=1.76, tau=4.50, blocks=66)
+109:ds4: dspark acceptance: 92.1% (292/317 draft tokens)
+112:ds4: dspark full-accept: 78.1% (50/64 blocks), first-miss: 1.6% (1/64 blocks)
+113:ds4: dspark avg scheduled: 4.95 draft tokens/block (64 blocks)
+bench-results/dspark_relaxed_temp_grid_235349/top512_delta10_temp2/run.out	1069	37	37	1	0		0		0	0	0	1	1	0
+CASE top1024_delta12_full
+105:ds4: prefill: 6.69 t/s, generation: 44.91 t/s (300 tokens in 6.680s)
+106:ds4: dspark perf: draft=441.3 tok/s, verify=81.0 proposed tok/s, verify-accepted=55.0 tok/s, block=74.42 ms (draft=11.25 verify=61.27 overhead=1.90 commit=1.45, tau=3.37, blocks=86)
+109:ds4: dspark acceptance: 76.9% (290/377 draft tokens)
+112:ds4: dspark full-accept: 53.9% (41/76 blocks), first-miss: 3.9% (3/76 blocks)
+113:ds4: dspark avg scheduled: 4.96 draft tokens/block (76 blocks)
+bench-results/dspark_relaxed_temp_grid_235349/top1024_delta12_full/run.out	861	35	35	1	0		0		0	0	0	1	1	0
+
+OUT=bench-results/dspark_relaxed_temp_grid_235349

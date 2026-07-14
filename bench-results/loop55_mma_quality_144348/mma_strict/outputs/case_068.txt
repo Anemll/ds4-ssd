@@ -1,0 +1,9 @@
+This is an excellent and insightful question. The core reason is that **quantization is a "democratic" process that prioritizes the common over the rare.**
+
+To understand why, we need to break down how quantization works and what "rare experts" are in a neural network.
+
+### The Core Concept: Quantization is a Lossy Compression
+
+Quantization reduces the precision of the weights and activations in a neural network (e.g., from 32-bit floating point to 8-bit integer). This saves memory and speeds up computation, but it introduces a small error for *every single value*.
+
+The key is that this error is

@@ -1,0 +1,13 @@
+metric	value
+cases	20
+byte_equal_cases	20
+byte_diff_cases	0
+base_effective_tps	34.594020
+candidate_effective_tps	30.359786
+speedup	0.877602
+base_tokens	2560
+candidate_tokens	2560
+candidate_acceptance_pct	43.166004
+avg_char_lcp	508.950
+avg_token_lcp	77.350
+max_repeated_line_run	1

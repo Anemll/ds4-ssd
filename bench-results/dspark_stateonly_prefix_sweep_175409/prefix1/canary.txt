@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_stateonly_prefix_sweep_175409/prefix1/out.txt	1025	52	30	1	14	GREEN:14,PURPLE:12,WHITE:2,BLUE:2	0		0	0	0	12	12	1

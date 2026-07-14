@@ -1,0 +1,3 @@
+A hash table handles collisions (when two different keys hash to the same index) using two primary strategies:
+
+## 1

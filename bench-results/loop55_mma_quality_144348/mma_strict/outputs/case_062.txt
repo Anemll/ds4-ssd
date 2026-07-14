@@ -1,0 +1,8 @@
+**Eventual consistency** is a consistency model used in distributed databases (like Cassandra, DynamoDB, or CouchDB). It guarantees that **if no new updates are made to a data item, eventually all reads will return the last updated value**.
+
+Here’s a breakdown of what that means in practice:
+
+### 1. The Core Trade-off: Availability vs. Strict Accuracy
+In distributed systems, there is a fundamental trade-off (often described by the **CAP theorem**):
+- **Consistency (C):** All nodes see the same data at the same time.
+- **Availability (A):** Every request gets a

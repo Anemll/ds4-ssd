@@ -1,0 +1,3 @@
+outdir=bench-results/dspark_fast_scheduler_sweep_164320
+
+[v4_static]

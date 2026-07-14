@@ -1,0 +1,9 @@
+This is a great question that gets to the heart of how language models work. The core reason is that **the model doesn't just pick the word with the highest probability; it picks the *next token* based on a sequence of probabilities, and small changes in those probabilities can cascade into a completely different path.**
+
+Let's break down why small logit differences matter so much.
+
+### The Core Mechanism: Greedy vs. Probabilistic
+
+First, let's clarify what "greedy" usually means in this context.
+
+- **Greedy Decoding:** The model picks the token with the **highest probability** (

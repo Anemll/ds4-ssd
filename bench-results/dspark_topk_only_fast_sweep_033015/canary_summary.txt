@@ -1,0 +1,10 @@
+== default.canary
+bench-results/dspark_topk_only_fast_sweep_033015/default.out	2381	79	67	1	0		0		0	0	0	3	3	0
+== topk128_only.canary
+bench-results/dspark_topk_only_fast_sweep_033015/topk128_only.out	2581	89	83	1	0		0		0	0	0	2	2	0
+== topk256_only.canary
+bench-results/dspark_topk_only_fast_sweep_033015/topk256_only.out	2581	89	83	1	0		0		0	0	0	2	2	0
+== topk32_only.canary
+bench-results/dspark_topk_only_fast_sweep_033015/topk32_only.out	2244	58	32	1	0		0		0	0	0	14	14	1
+== topk64_only.canary
+bench-results/dspark_topk_only_fast_sweep_033015/topk64_only.out	2581	89	83	1	0		0		0	0	0	2	2	0

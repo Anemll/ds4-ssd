@@ -1,0 +1,11 @@
+Ecco una checklist per validare che un modello quantizzato mantenga la capacità di seguire le istruzioni:
+
+## Checklist di Validazione per Modello Quantizzato
+
+### 1. **Test di Comprensione di Base**
+- [ ] Risponde correttamente a comandi semplici ("Cosa è 2+2?")
+- [ ] Segue istruzioni a un solo passaggio ("Traduci 'hello' in italiano")
+- [ ] Mantiene la coerenza con domande di follow-up semplici
+
+### 2. **Test di Istruzioni Complesse**
+- [ ]

@@ -1,0 +1,3 @@
+## Ring Buffer Wrapping
+
+A ring buffer (circular buffer) wraps when the write pointer reaches the end of the

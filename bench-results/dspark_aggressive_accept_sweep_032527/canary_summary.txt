@@ -1,0 +1,8 @@
+== baseline.canary
+bench-results/dspark_aggressive_accept_sweep_032527/baseline.out	2381	79	67	1	0		0		0	0	0	3	3	0
+== delta12.canary
+bench-results/dspark_aggressive_accept_sweep_032527/delta12.out	2439	79	78	1	0		0		0	0	0	1	1	0
+== trust_draft.canary
+bench-results/dspark_aggressive_accept_sweep_032527/trust_draft.out	2211	30	23	1	0		0		0	0	0	9	8	1
+== unbounded.canary
+bench-results/dspark_aggressive_accept_sweep_032527/unbounded.out	2867	118	27	1	48	player:48,pygame:3	0		0	0	0	46	39	1

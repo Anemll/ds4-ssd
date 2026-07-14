@@ -1,0 +1,1346 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 387.12 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=514/1026 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.294 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=31.44 t/s avg=0.46 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.46 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=54.64 t/s avg=0.91 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.90 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.50 t/s avg=1.34 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.33 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.32 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.26 t/s avg=1.74 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.73 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=51.68 t/s avg=2.14 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.12 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.79 t/s avg=2.53 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.51 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=59.32 t/s avg=2.91 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.89 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.87 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=54.87 t/s avg=3.25 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.22 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=56.60 t/s avg=3.60 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=3.57 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=53.29 t/s avg=3.94 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.91 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=58.52 t/s avg=4.27 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.24 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.22 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=52.67 t/s avg=4.57 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=4.54 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=51.27 t/s avg=4.88 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.85 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=51.21 t/s avg=5.18 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.15 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=58.07 t/s avg=5.48 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.45 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=5.41 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=50.56 t/s avg=5.73 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=5.68 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=55.91 t/s avg=6.00 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=5.96 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=53.33 t/s avg=6.27 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.22 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=45.16 t/s avg=6.52 t/s
+ds4: dspark rebuilt main-kv window positions 0..18
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark draft row=0 prev=128822 next=9544 fast-markov
+ds4: dspark draft row=1 prev=9544 next=734 fast-markov
+ds4: dspark draft row=2 prev=734 next=260 fast-markov
+ds4: dspark draft row=3 prev=260 next=5553 fast-markov
+ds4: dspark draft row=4 prev=5553 next=3917 fast-markov
+ds4: dspark draft row=0 prev=43 next=5922 fast-markov
+ds4: dspark draft row=1 prev=5922 next=3551 fast-markov
+ds4: dspark draft row=2 prev=3551 next=260 fast-markov
+ds4: dspark draft row=3 prev=260 next=5553 fast-markov
+ds4: dspark draft row=4 prev=5553 next=3917 fast-markov
+ds4: dspark frontier rows-6 verify enabled (first token + 5 drafts)
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: frontier block start=19 commit=5/6 tok0=43
+ds4: dspark draft row=0 prev=14295 next=32214 fast-markov
+ds4: dspark draft row=1 prev=32214 next=40856 fast-markov
+ds4: dspark draft row=2 prev=40856 next=3917 fast-markov
+ds4: dspark draft row=3 prev=3917 next=1812 fast-markov
+ds4: dspark draft row=4 prev=1812 next=19950 fast-markov
+ds4: frontier block start=24 commit=6/6 tok0=14295
+ds4: dspark draft row=0 prev=29675 next=16 fast-markov
+ds4: dspark draft row=1 prev=16 next=1162 fast-markov
+ds4: dspark draft row=2 prev=1162 next=759 fast-markov
+ds4: dspark draft row=3 prev=759 next=366 fast-markov
+ds4: dspark draft row=4 prev=366 next=260 fast-markov
+ds4: frontier block start=30 commit=4/6 tok0=29675
+ds4: dspark draft row=0 prev=3394 next=710 fast-markov
+ds4: dspark draft row=1 prev=710 next=270 fast-markov
+ds4: dspark draft row=2 prev=270 next=1840 fast-markov
+ds4: dspark draft row=3 prev=1840 next=29821 fast-markov
+ds4: dspark draft row=4 prev=29821 next=14 fast-markov
+ds4: frontier block start=34 commit=1/6 tok0=3394
+ds4: dspark draft row=0 prev=260 next=8469 fast-markov
+ds4: dspark draft row=1 prev=8469 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=17425 fast-markov
+ds4: dspark draft row=3 prev=17425 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=305 fast-markov
+ds4: frontier block start=35 commit=2/6 tok0=260
+ds4: dspark draft row=0 prev=11319 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=26217 fast-markov
+ds4: dspark draft row=2 prev=26217 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=305 fast-markov
+ds4: dspark draft row=4 prev=305 next=26217 fast-markov
+ds4: frontier block start=37 commit=4/6 tok0=11319
+ds4: dspark draft row=0 prev=68546 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=305 fast-markov
+ds4: dspark draft row=2 prev=305 next=25585 fast-markov
+ds4: dspark draft row=3 prev=25585 next=339 fast-markov
+ds4: dspark draft row=4 prev=339 next=9854 fast-markov
+ds4: frontier block start=41 commit=6/6 tok0=68546
+ds4: dspark draft row=0 prev=36490 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=1897 fast-markov
+ds4: dspark draft row=2 prev=1897 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=1897 fast-markov
+ds4: frontier block start=47 commit=6/6 tok0=36490
+ds4: dspark draft row=0 prev=6719 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=1897 fast-markov
+ds4: dspark draft row=2 prev=1897 next=22832 fast-markov
+ds4: dspark draft row=3 prev=22832 next=271 fast-markov
+ds4: dspark draft row=4 prev=271 next=5 fast-markov
+ds4: frontier block start=53 commit=3/6 tok0=6719
+ds4: dspark draft row=0 prev=7704 next=271 fast-markov
+ds4: dspark draft row=1 prev=271 next=5 fast-markov
+ds4: dspark draft row=2 prev=5 next=60873 fast-markov
+ds4: dspark draft row=3 prev=60873 next=19950 fast-markov
+ds4: dspark draft row=4 prev=19950 next=29675 fast-markov
+ds4: frontier block start=56 commit=6/6 tok0=7704
+ds4: dspark draft row=0 prev=201 next=12403 fast-markov
+ds4: dspark draft row=1 prev=12403 next=29675 fast-markov
+ds4: dspark draft row=2 prev=29675 next=57597 fast-markov
+ds4: dspark draft row=3 prev=57597 next=10414 fast-markov
+ds4: dspark draft row=4 prev=10414 next=5 fast-markov
+ds4: frontier block start=62 commit=6/6 tok0=201
+ds4: dspark draft row=0 prev=110686 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=5692 fast-markov
+ds4: dspark draft row=2 prev=5692 next=77533 fast-markov
+ds4: dspark draft row=3 prev=77533 next=111000 fast-markov
+ds4: dspark draft row=4 prev=111000 next=438 fast-markov
+ds4: frontier block start=68 commit=6/6 tok0=110686
+ds4: dspark draft row=0 prev=223 next=6884 fast-markov
+ds4: dspark draft row=1 prev=6884 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=5692 fast-markov
+ds4: dspark draft row=3 prev=5692 next=77533 fast-markov
+ds4: dspark draft row=4 prev=77533 next=114884 fast-markov
+ds4: frontier block start=74 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=23719 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=6391 fast-markov
+ds4: dspark draft row=3 prev=6391 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=98585 fast-markov
+ds4: frontier block start=80 commit=6/6 tok0=23719
+ds4: dspark draft row=0 prev=1647 next=48582 fast-markov
+ds4: dspark draft row=1 prev=48582 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=1484 fast-markov
+ds4: dspark draft row=4 prev=1484 next=201 fast-markov
+ds4: frontier block start=86 commit=1/6 tok0=1647
+ds4: dspark draft row=0 prev=108239 next=39 fast-markov
+ds4: dspark draft row=1 prev=39 next=3316 fast-markov
+ds4: dspark draft row=2 prev=3316 next=438 fast-markov
+ds4: dspark draft row=3 prev=438 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=553 fast-markov
+ds4: frontier block start=87 commit=5/6 tok0=108239
+ds4: dspark draft row=0 prev=23 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=2389 fast-markov
+ds4: dspark draft row=2 prev=2389 next=4846 fast-markov
+ds4: dspark draft row=3 prev=4846 next=59 fast-markov
+ds4: dspark draft row=4 prev=59 next=108239 fast-markov
+ds4: frontier block start=92 commit=6/6 tok0=23
+ds4: dspark draft row=0 prev=39 next=3316 fast-markov
+ds4: dspark draft row=1 prev=3316 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=21 fast-markov
+ds4: dspark draft row=4 prev=21 next=201 fast-markov
+ds4: frontier block start=98 commit=4/6 tok0=39
+ds4: dspark draft row=0 prev=20 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=36 fast-markov
+ds4: dspark draft row=2 prev=36 next=6552 fast-markov
+ds4: dspark draft row=3 prev=6552 next=59 fast-markov
+ds4: dspark draft row=4 prev=59 next=108239 fast-markov
+ds4: frontier block start=102 commit=4/6 tok0=20
+ds4: dspark draft row=0 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=1 prev=108239 next=39 fast-markov
+ds4: dspark draft row=2 prev=39 next=3316 fast-markov
+ds4: dspark draft row=3 prev=3316 next=438 fast-markov
+ds4: dspark draft row=4 prev=438 next=223 fast-markov
+ds4: frontier block start=106 commit=6/6 tok0=3402
+ds4: dspark draft row=0 prev=25 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=2389 fast-markov
+ds4: dspark draft row=2 prev=2389 next=4846 fast-markov
+ds4: dspark draft row=3 prev=4846 next=59 fast-markov
+ds4: dspark draft row=4 prev=59 next=111000 fast-markov
+ds4: frontier block start=112 commit=5/6 tok0=25
+ds4: dspark draft row=0 prev=14568 next=6552 fast-markov
+ds4: dspark draft row=1 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=2 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=3 prev=108239 next=39 fast-markov
+ds4: dspark draft row=4 prev=39 next=438 fast-markov
+ds4: frontier block start=117 commit=5/6 tok0=14568
+ds4: dspark draft row=0 prev=3316 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=23 fast-markov
+ds4: dspark draft row=3 prev=23 next=271 fast-markov
+ds4: dspark draft row=4 prev=271 next=5 fast-markov
+ds4: frontier block start=122 commit=3/6 tok0=3316
+ds4: dspark draft row=0 prev=21 next=271 fast-markov
+ds4: dspark draft row=1 prev=271 next=5 fast-markov
+ds4: dspark draft row=2 prev=5 next=42237 fast-markov
+ds4: dspark draft row=3 prev=42237 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=5 fast-markov
+ds4: frontier block start=125 commit=5/6 tok0=21
+ds4: dspark draft row=0 prev=20880 next=16617 fast-markov
+ds4: dspark draft row=1 prev=16617 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=343 fast-markov
+ds4: dspark draft row=3 prev=343 next=18 fast-markov
+ds4: dspark draft row=4 prev=18 next=14 fast-markov
+ds4: frontier block start=130 commit=6/6 tok0=20880
+ds4: dspark draft row=0 prev=223 next=18 fast-markov
+ds4: dspark draft row=1 prev=18 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=18 fast-markov
+ds4: dspark draft row=4 prev=18 next=682 fast-markov
+ds4: frontier block start=136 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=18089 next=26764 fast-markov
+ds4: dspark draft row=1 prev=26764 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=343 fast-markov
+ds4: dspark draft row=3 prev=343 next=9489 fast-markov
+ds4: dspark draft row=4 prev=9489 next=14 fast-markov
+ds4: frontier block start=142 commit=6/6 tok0=18089
+ds4: dspark draft row=0 prev=223 next=9489 fast-markov
+ds4: dspark draft row=1 prev=9489 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=9489 fast-markov
+ds4: dspark draft row=4 prev=9489 next=682 fast-markov
+ds4: frontier block start=148 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=63529 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=343 fast-markov
+ds4: dspark draft row=2 prev=343 next=9489 fast-markov
+ds4: dspark draft row=3 prev=9489 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=223 fast-markov
+ds4: frontier block start=154 commit=6/6 tok0=63529
+ds4: dspark draft row=0 prev=18 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=41 fast-markov
+ds4: frontier block start=160 commit=6/6 tok0=18
+ds4: dspark draft row=0 prev=77533 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=343 fast-markov
+ds4: dspark draft row=2 prev=343 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=223 fast-markov
+ds4: frontier block start=166 commit=6/6 tok0=77533
+ds4: dspark draft row=0 prev=9489 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=59 fast-markov
+ds4: frontier block start=172 commit=5/6 tok0=9489
+ds4: dspark draft row=0 prev=20880 next=11698 fast-markov
+ds4: dspark draft row=1 prev=11698 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=343 fast-markov
+ds4: dspark draft row=3 prev=343 next=18 fast-markov
+ds4: dspark draft row=4 prev=18 next=14 fast-markov
+ds4: frontier block start=177 commit=6/6 tok0=20880
+ds4: dspark draft row=0 prev=223 next=18 fast-markov
+ds4: dspark draft row=1 prev=18 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=9489 fast-markov
+ds4: dspark draft row=4 prev=9489 next=682 fast-markov
+ds4: frontier block start=183 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=59 next=53063 fast-markov
+ds4: dspark draft row=1 prev=53063 next=8309 fast-markov
+ds4: dspark draft row=2 prev=8309 next=438 fast-markov
+ds4: dspark draft row=3 prev=438 next=343 fast-markov
+ds4: dspark draft row=4 prev=343 next=9489 fast-markov
+ds4: frontier block start=189 commit=6/6 tok0=59
+ds4: dspark draft row=0 prev=14 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=9489 fast-markov
+ds4: dspark draft row=2 prev=9489 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=18 fast-markov
+ds4: frontier block start=195 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=868 next=3767 fast-markov
+ds4: dspark draft row=1 prev=3767 next=27422 fast-markov
+ds4: dspark draft row=2 prev=27422 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=361 fast-markov
+ds4: dspark draft row=4 prev=361 next=1351 fast-markov
+ds4: frontier block start=201 commit=3/6 tok0=868
+ds4: dspark draft row=0 prev=1137 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=7854 fast-markov
+ds4: dspark draft row=3 prev=7854 next=7025 fast-markov
+ds4: dspark draft row=4 prev=7025 next=16797 fast-markov
+ds4: frontier block start=204 commit=6/6 tok0=1137
+ds4: dspark draft row=0 prev=2161 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=1527 fast-markov
+ds4: dspark draft row=2 prev=1527 next=3395 fast-markov
+ds4: dspark draft row=3 prev=3395 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=210 commit=3/6 tok0=2161
+ds4: dspark draft row=0 prev=14 next=383 fast-markov
+ds4: dspark draft row=1 prev=383 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=213 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=438 next=1527 fast-markov
+ds4: dspark draft row=1 prev=1527 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=13662 fast-markov
+ds4: frontier block start=219 commit=6/6 tok0=438
+ds4: dspark draft row=0 prev=438 next=383 fast-markov
+ds4: dspark draft row=1 prev=383 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=42529 fast-markov
+ds4: frontier block start=225 commit=6/6 tok0=438
+ds4: dspark draft row=0 prev=438 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=1059 fast-markov
+ds4: dspark draft row=2 prev=1059 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=231 commit=2/6 tok0=438
+ds4: dspark draft row=0 prev=1328 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=4 prev=43427 next=438 fast-markov
+ds4: frontier block start=233 commit=6/6 tok0=1328
+ds4: dspark draft row=0 prev=223 next=1484 fast-markov
+ds4: dspark draft row=1 prev=1484 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=2349 fast-markov
+ds4: frontier block start=239 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=18584 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=92167 fast-markov
+ds4: dspark draft row=2 prev=92167 next=1647 fast-markov
+ds4: dspark draft row=3 prev=1647 next=108239 fast-markov
+ds4: dspark draft row=4 prev=108239 next=39 fast-markov
+ds4: frontier block start=245 commit=6/6 tok0=18584
+ds4: dspark draft row=0 prev=3316 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=3314 fast-markov
+ds4: dspark draft row=4 prev=3314 next=1769 fast-markov
+ds4: frontier block start=251 commit=4/6 tok0=3316
+ds4: dspark draft row=0 prev=6229 next=363 fast-markov
+ds4: dspark draft row=1 prev=363 next=14379 fast-markov
+ds4: dspark draft row=2 prev=14379 next=438 fast-markov
+ds4: dspark draft row=3 prev=438 next=16461 fast-markov
+ds4: dspark draft row=4 prev=16461 next=528 fast-markov
+ds4: frontier block start=255 commit=6/6 tok0=6229
+ds4: dspark draft row=0 prev=2280 next=48218 fast-markov
+ds4: dspark draft row=1 prev=48218 next=69228 fast-markov
+ds4: dspark draft row=2 prev=69228 next=2245 fast-markov
+ds4: dspark draft row=3 prev=2245 next=438 fast-markov
+ds4: dspark draft row=4 prev=438 next=223 fast-markov
+ds4: frontier block start=261 commit=1/6 tok0=2280
+ds4: dspark draft row=0 prev=3314 next=1769 fast-markov
+ds4: dspark draft row=1 prev=1769 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=553 fast-markov
+ds4: dspark draft row=4 prev=553 next=201 fast-markov
+ds4: frontier block start=262 commit=4/6 tok0=3314
+ds4: dspark draft row=0 prev=21 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=17145 fast-markov
+ds4: dspark draft row=4 prev=17145 next=2245 fast-markov
+ds4: frontier block start=266 commit=4/6 tok0=21
+ds4: dspark draft row=0 prev=94314 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=42130 fast-markov
+ds4: dspark draft row=4 prev=42130 next=528 fast-markov
+ds4: frontier block start=270 commit=5/6 tok0=94314
+ds4: dspark draft row=0 prev=361 next=1351 fast-markov
+ds4: dspark draft row=1 prev=1351 next=12077 fast-markov
+ds4: dspark draft row=2 prev=12077 next=6666 fast-markov
+ds4: dspark draft row=3 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=4 prev=3395 next=528 fast-markov
+ds4: frontier block start=275 commit=2/6 tok0=361
+ds4: dspark draft row=0 prev=5002 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=27707 fast-markov
+ds4: dspark draft row=3 prev=27707 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=25946 fast-markov
+ds4: frontier block start=277 commit=1/6 tok0=5002
+ds4: dspark draft row=0 prev=52376 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=278 commit=6/6 tok0=52376
+ds4: dspark draft row=0 prev=26310 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=2349 fast-markov
+ds4: dspark draft row=2 prev=2349 next=18584 fast-markov
+ds4: dspark draft row=3 prev=18584 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=284 commit=6/6 tok0=26310
+ds4: dspark draft row=0 prev=855 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=2 prev=10774 next=818 fast-markov
+ds4: dspark draft row=3 prev=818 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=18 fast-markov
+ds4: frontier block start=290 commit=6/6 tok0=855
+ds4: dspark draft row=0 prev=1137 next=775 fast-markov
+ds4: dspark draft row=1 prev=775 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=3 prev=10774 next=438 fast-markov
+ds4: dspark draft row=4 prev=438 next=223 fast-markov
+ds4: frontier block start=296 commit=6/6 tok0=1137
+ds4: dspark draft row=0 prev=18 next=87346 fast-markov
+ds4: dspark draft row=1 prev=87346 next=361 fast-markov
+ds4: dspark draft row=2 prev=361 next=1351 fast-markov
+ds4: dspark draft row=3 prev=1351 next=5002 fast-markov
+ds4: dspark draft row=4 prev=5002 next=57991 fast-markov
+ds4: frontier block start=302 commit=6/6 tok0=18
+ds4: dspark draft row=0 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=1 prev=3395 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=4 prev=10774 next=7004 fast-markov
+ds4: frontier block start=308 commit=6/6 tok0=6666
+ds4: dspark draft row=0 prev=2280 next=2349 fast-markov
+ds4: dspark draft row=1 prev=2349 next=18584 fast-markov
+ds4: dspark draft row=2 prev=18584 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=855 fast-markov
+ds4: frontier block start=314 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=1 prev=10774 next=1955 fast-markov
+ds4: dspark draft row=2 prev=1955 next=17283 fast-markov
+ds4: dspark draft row=3 prev=17283 next=77533 fast-markov
+ds4: dspark draft row=4 prev=77533 next=111000 fast-markov
+ds4: frontier block start=320 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=565 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=2 prev=42529 next=1137 fast-markov
+ds4: dspark draft row=3 prev=1137 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=2280 fast-markov
+ds4: frontier block start=326 commit=6/6 tok0=565
+ds4: dspark draft row=0 prev=10774 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=17283 fast-markov
+ds4: dspark draft row=2 prev=17283 next=77533 fast-markov
+ds4: dspark draft row=3 prev=77533 next=111000 fast-markov
+ds4: dspark draft row=4 prev=111000 next=565 fast-markov
+ds4: frontier block start=332 commit=6/6 tok0=10774
+ds4: dspark draft row=0 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=1 prev=42529 next=87346 fast-markov
+ds4: dspark draft row=2 prev=87346 next=361 fast-markov
+ds4: dspark draft row=3 prev=361 next=1351 fast-markov
+ds4: dspark draft row=4 prev=1351 next=12077 fast-markov
+ds4: frontier block start=338 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=1 prev=3395 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=855 fast-markov
+ds4: dspark draft row=3 prev=855 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=6229 fast-markov
+ds4: frontier block start=344 commit=3/6 tok0=6666
+ds4: dspark draft row=0 prev=37561 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=15272 fast-markov
+ds4: dspark draft row=2 prev=15272 next=1775 fast-markov
+ds4: dspark draft row=3 prev=1775 next=6666 fast-markov
+ds4: dspark draft row=4 prev=6666 next=10774 fast-markov
+ds4: frontier block start=347 commit=6/6 tok0=37561
+ds4: dspark draft row=0 prev=940 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=2 prev=42529 next=835 fast-markov
+ds4: dspark draft row=3 prev=835 next=20 fast-markov
+ds4: dspark draft row=4 prev=20 next=14 fast-markov
+ds4: frontier block start=353 commit=5/6 tok0=940
+ds4: dspark draft row=0 prev=565 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=553 fast-markov
+ds4: dspark draft row=2 prev=553 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=13662 fast-markov
+ds4: frontier block start=358 commit=2/6 tok0=565
+ds4: dspark draft row=0 prev=20 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=3 prev=13662 next=940 fast-markov
+ds4: dspark draft row=4 prev=940 next=2280 fast-markov
+ds4: frontier block start=360 commit=4/6 tok0=20
+ds4: dspark draft row=0 prev=14 next=406 fast-markov
+ds4: dspark draft row=1 prev=406 next=6552 fast-markov
+ds4: dspark draft row=2 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=3 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=4 prev=108239 next=39 fast-markov
+ds4: frontier block start=364 commit=1/6 tok0=14
+ds4: dspark draft row=0 prev=565 next=19 fast-markov
+ds4: dspark draft row=1 prev=19 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=406 fast-markov
+ds4: dspark draft row=3 prev=406 next=12876 fast-markov
+ds4: dspark draft row=4 prev=12876 next=682 fast-markov
+ds4: frontier block start=365 commit=1/6 tok0=565
+ds4: dspark draft row=0 prev=36 next=6552 fast-markov
+ds4: dspark draft row=1 prev=6552 next=3402 fast-markov
+ds4: dspark draft row=2 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=3 prev=108239 next=39 fast-markov
+ds4: dspark draft row=4 prev=39 next=3316 fast-markov
+ds4: frontier block start=366 commit=6/6 tok0=36
+ds4: dspark draft row=0 prev=682 next=528 fast-markov
+ds4: dspark draft row=1 prev=528 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=6229 fast-markov
+ds4: dspark draft row=3 prev=6229 next=363 fast-markov
+ds4: dspark draft row=4 prev=363 next=14379 fast-markov
+ds4: frontier block start=372 commit=6/6 tok0=682
+ds4: dspark draft row=0 prev=10108 next=7011 fast-markov
+ds4: dspark draft row=1 prev=7011 next=363 fast-markov
+ds4: dspark draft row=2 prev=363 next=1775 fast-markov
+ds4: dspark draft row=3 prev=1775 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=5191 fast-markov
+ds4: frontier block start=378 commit=5/6 tok0=10108
+ds4: dspark draft row=0 prev=9970 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=5140 fast-markov
+ds4: dspark draft row=3 prev=5140 next=6666 fast-markov
+ds4: dspark draft row=4 prev=6666 next=3395 fast-markov
+ds4: frontier block start=383 commit=5/6 tok0=9970
+ds4: dspark draft row=0 prev=14 next=9421 fast-markov
+ds4: dspark draft row=1 prev=9421 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=9421 fast-markov
+ds4: dspark draft row=4 prev=9421 next=80036 fast-markov
+ds4: frontier block start=388 commit=4/6 tok0=14
+ds4: dspark draft row=0 prev=1823 next=27422 fast-markov
+ds4: dspark draft row=1 prev=27422 next=7633 fast-markov
+ds4: dspark draft row=2 prev=7633 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=87579 fast-markov
+ds4: frontier block start=392 commit=1/6 tok0=1823
+ds4: dspark draft row=0 prev=17274 next=8469 fast-markov
+ds4: dspark draft row=1 prev=8469 next=3197 fast-markov
+ds4: dspark draft row=2 prev=3197 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=87579 fast-markov
+ds4: frontier block start=393 commit=2/6 tok0=17274
+ds4: dspark draft row=0 prev=11319 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=16 fast-markov
+ds4: frontier block start=395 commit=1/6 tok0=11319
+ds4: dspark draft row=0 prev=343 next=87411 fast-markov
+ds4: dspark draft row=1 prev=87411 next=682 fast-markov
+ds4: dspark draft row=2 prev=682 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=396 commit=2/6 tok0=343
+ds4: dspark draft row=0 prev=7633 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=16 fast-markov
+ds4: frontier block start=398 commit=3/6 tok0=7633
+ds4: dspark draft row=0 prev=4365 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=10606 fast-markov
+ds4: dspark draft row=2 prev=10606 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=343 fast-markov
+ds4: dspark draft row=4 prev=343 next=2161 fast-markov
+ds4: frontier block start=401 commit=6/6 tok0=4365
+ds4: dspark draft row=0 prev=10774 next=940 fast-markov
+ds4: dspark draft row=1 prev=940 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=3 prev=42529 next=835 fast-markov
+ds4: dspark draft row=4 prev=835 next=20 fast-markov
+ds4: frontier block start=407 commit=6/6 tok0=10774
+ds4: dspark draft row=0 prev=14 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=2 prev=13662 next=3872 fast-markov
+ds4: dspark draft row=3 prev=3872 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=343 fast-markov
+ds4: frontier block start=413 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=2161 next=10774 fast-markov
+ds4: dspark draft row=1 prev=10774 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=4 prev=13662 next=940 fast-markov
+ds4: frontier block start=419 commit=6/6 tok0=2161
+ds4: dspark draft row=0 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=1 prev=43427 next=3872 fast-markov
+ds4: dspark draft row=2 prev=3872 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=343 fast-markov
+ds4: dspark draft row=4 prev=343 next=2161 fast-markov
+ds4: frontier block start=425 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=10774 next=940 fast-markov
+ds4: dspark draft row=1 prev=940 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=3 prev=42529 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=2280 fast-markov
+ds4: frontier block start=431 commit=6/6 tok0=10774
+ds4: dspark draft row=0 prev=13662 next=940 fast-markov
+ds4: dspark draft row=1 prev=940 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=3 prev=43427 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=528 fast-markov
+ds4: frontier block start=437 commit=6/6 tok0=13662
+ds4: dspark draft row=0 prev=20319 next=528 fast-markov
+ds4: dspark draft row=1 prev=528 next=87579 fast-markov
+ds4: dspark draft row=2 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=3 prev=60507 next=3225 fast-markov
+ds4: dspark draft row=4 prev=3225 next=6357 fast-markov
+ds4: frontier block start=443 commit=6/6 tok0=20319
+ds4: dspark draft row=0 prev=22115 next=3982 fast-markov
+ds4: dspark draft row=1 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=2 prev=13592 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=124400 fast-markov
+ds4: dspark draft row=4 prev=124400 next=14 fast-markov
+ds4: frontier block start=449 commit=6/6 tok0=22115
+ds4: dspark draft row=0 prev=4365 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=9970 fast-markov
+ds4: dspark draft row=2 prev=9970 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=1823 fast-markov
+ds4: dspark draft row=4 prev=1823 next=18238 fast-markov
+ds4: frontier block start=455 commit=5/6 tok0=4365
+ds4: dspark draft row=0 prev=17274 next=68546 fast-markov
+ds4: dspark draft row=1 prev=68546 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=362 fast-markov
+ds4: dspark draft row=4 prev=362 next=37561 fast-markov
+ds4: frontier block start=460 commit=6/6 tok0=17274
+ds4: dspark draft row=0 prev=295 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=6229 fast-markov
+ds4: dspark draft row=2 prev=6229 next=363 fast-markov
+ds4: dspark draft row=3 prev=363 next=14379 fast-markov
+ds4: dspark draft row=4 prev=14379 next=1137 fast-markov
+ds4: frontier block start=466 commit=6/6 tok0=295
+ds4: dspark draft row=0 prev=775 next=37561 fast-markov
+ds4: dspark draft row=1 prev=37561 next=60507 fast-markov
+ds4: dspark draft row=2 prev=60507 next=3982 fast-markov
+ds4: dspark draft row=3 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=4 prev=13592 next=682 fast-markov
+ds4: frontier block start=472 commit=6/6 tok0=775
+ds4: dspark draft row=0 prev=20256 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=9502 fast-markov
+ds4: dspark draft row=3 prev=9502 next=6666 fast-markov
+ds4: dspark draft row=4 prev=6666 next=3395 fast-markov
+ds4: frontier block start=478 commit=6/6 tok0=20256
+ds4: dspark draft row=0 prev=528 next=1823 fast-markov
+ds4: dspark draft row=1 prev=1823 next=18238 fast-markov
+ds4: dspark draft row=2 prev=18238 next=68546 fast-markov
+ds4: dspark draft row=3 prev=68546 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=484 commit=6/6 tok0=528
+ds4: dspark draft row=0 prev=362 next=37561 fast-markov
+ds4: dspark draft row=1 prev=37561 next=295 fast-markov
+ds4: dspark draft row=2 prev=295 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=6229 fast-markov
+ds4: dspark draft row=4 prev=6229 next=363 fast-markov
+ds4: frontier block start=490 commit=6/6 tok0=362
+ds4: dspark draft row=0 prev=14379 next=20926 fast-markov
+ds4: dspark draft row=1 prev=20926 next=23902 fast-markov
+ds4: dspark draft row=2 prev=23902 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=37561 fast-markov
+ds4: dspark draft row=4 prev=37561 next=13662 fast-markov
+ds4: frontier block start=496 commit=5/6 tok0=14379
+ds4: dspark draft row=0 prev=35974 next=3390 fast-markov
+ds4: dspark draft row=1 prev=3390 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=855 fast-markov
+ds4: dspark draft row=3 prev=855 next=37561 fast-markov
+ds4: dspark draft row=4 prev=37561 next=13662 fast-markov
+ds4: frontier block start=501 commit=6/6 tok0=35974
+ds4: dspark draft row=0 prev=818 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=18 fast-markov
+ds4: dspark draft row=2 prev=18 next=1137 fast-markov
+ds4: dspark draft row=3 prev=1137 next=1507 fast-markov
+ds4: dspark draft row=4 prev=1507 next=2280 fast-markov
+ds4: frontier block start=507 commit=6/6 tok0=818
+ds4: dspark draft row=0 prev=6229 next=363 fast-markov
+ds4: dspark draft row=1 prev=363 next=14379 fast-markov
+ds4: dspark draft row=2 prev=14379 next=29864 fast-markov
+ds4: dspark draft row=3 prev=29864 next=7011 fast-markov
+ds4: dspark draft row=4 prev=7011 next=363 fast-markov
+ds4: frontier block start=513 commit=6/6 tok0=6229
+ds4: dspark draft row=0 prev=1775 next=868 fast-markov
+ds4: dspark draft row=1 prev=868 next=3767 fast-markov
+ds4: dspark draft row=2 prev=3767 next=103859 fast-markov
+ds4: dspark draft row=3 prev=103859 next=1137 fast-markov
+ds4: dspark draft row=4 prev=1137 next=361 fast-markov
+ds4: frontier block start=519 commit=6/6 tok0=1775
+ds4: dspark draft row=0 prev=1351 next=7854 fast-markov
+ds4: dspark draft row=1 prev=7854 next=7025 fast-markov
+ds4: dspark draft row=2 prev=7025 next=16797 fast-markov
+ds4: dspark draft row=3 prev=16797 next=2161 fast-markov
+ds4: dspark draft row=4 prev=2161 next=14 fast-markov
+ds4: frontier block start=525 commit=6/6 tok0=1351
+ds4: dspark draft row=0 prev=1527 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=383 fast-markov
+ds4: dspark draft row=2 prev=383 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=17425 fast-markov
+ds4: dspark draft row=4 prev=17425 next=15136 fast-markov
+ds4: frontier block start=531 commit=4/6 tok0=1527
+ds4: dspark draft row=0 prev=6946 next=3395 fast-markov
+ds4: dspark draft row=1 prev=3395 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=4 prev=10774 next=438 fast-markov
+ds4: frontier block start=535 commit=1/6 tok0=6946
+ds4: dspark draft row=0 prev=14 next=7133 fast-markov
+ds4: dspark draft row=1 prev=7133 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=536 commit=1/6 tok0=14
+ds4: dspark draft row=0 prev=1278 next=3395 fast-markov
+ds4: dspark draft row=1 prev=3395 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=10774 fast-markov
+ds4: dspark draft row=4 prev=10774 next=438 fast-markov
+ds4: frontier block start=537 commit=6/6 tok0=1278
+ds4: dspark draft row=0 prev=1527 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=4 prev=13662 next=438 fast-markov
+ds4: frontier block start=543 commit=6/6 tok0=1527
+ds4: dspark draft row=0 prev=383 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=4 prev=42529 next=438 fast-markov
+ds4: frontier block start=549 commit=6/6 tok0=383
+ds4: dspark draft row=0 prev=223 next=1484 fast-markov
+ds4: dspark draft row=1 prev=1484 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=43427 fast-markov
+ds4: frontier block start=555 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=438 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=1059 fast-markov
+ds4: dspark draft row=2 prev=1059 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=561 commit=6/6 tok0=438
+ds4: dspark draft row=0 prev=2349 next=18584 fast-markov
+ds4: dspark draft row=1 prev=18584 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=20 fast-markov
+ds4: dspark draft row=4 prev=20 next=201 fast-markov
+ds4: frontier block start=567 commit=3/6 tok0=2349
+ds4: dspark draft row=0 prev=14093 next=4846 fast-markov
+ds4: dspark draft row=1 prev=4846 next=59 fast-markov
+ds4: dspark draft row=2 prev=59 next=108239 fast-markov
+ds4: dspark draft row=3 prev=108239 next=39 fast-markov
+ds4: dspark draft row=4 prev=39 next=3316 fast-markov
+ds4: frontier block start=570 commit=6/6 tok0=14093
+ds4: dspark draft row=0 prev=201 next=528 fast-markov
+ds4: dspark draft row=1 prev=528 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=3845 fast-markov
+ds4: dspark draft row=3 prev=3845 next=14040 fast-markov
+ds4: dspark draft row=4 prev=14040 next=438 fast-markov
+ds4: frontier block start=576 commit=6/6 tok0=201
+ds4: dspark draft row=0 prev=223 next=19 fast-markov
+ds4: dspark draft row=1 prev=19 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=1823 fast-markov
+ds4: dspark draft row=3 prev=1823 next=40134 fast-markov
+ds4: dspark draft row=4 prev=40134 next=201 fast-markov
+ds4: frontier block start=582 commit=4/6 tok0=223
+ds4: dspark draft row=0 prev=223 next=19 fast-markov
+ds4: dspark draft row=1 prev=19 next=362 fast-markov
+ds4: dspark draft row=2 prev=362 next=1748 fast-markov
+ds4: dspark draft row=3 prev=1748 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=565 fast-markov
+ds4: frontier block start=586 commit=6/6 tok0=223
+ds4: dspark draft row=0 prev=19 next=362 fast-markov
+ds4: dspark draft row=1 prev=362 next=3001 fast-markov
+ds4: dspark draft row=2 prev=3001 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=592 commit=6/6 tok0=19
+ds4: dspark draft row=0 prev=77012 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=6946 fast-markov
+ds4: dspark draft row=2 prev=6946 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=598 commit=6/6 tok0=77012
+ds4: dspark draft row=0 prev=38479 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=1278 fast-markov
+ds4: dspark draft row=2 prev=1278 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=604 commit=6/6 tok0=38479
+ds4: dspark draft row=0 prev=55166 next=505 fast-markov
+ds4: dspark draft row=1 prev=505 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=11485 fast-markov
+ds4: dspark draft row=3 prev=11485 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=610 commit=4/6 tok0=55166
+ds4: dspark draft row=0 prev=42130 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=9502 fast-markov
+ds4: dspark draft row=3 prev=9502 next=6666 fast-markov
+ds4: dspark draft row=4 prev=6666 next=3395 fast-markov
+ds4: frontier block start=614 commit=3/6 tok0=42130
+ds4: dspark draft row=0 prev=5140 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=855 fast-markov
+ds4: dspark draft row=4 prev=855 next=2280 fast-markov
+ds4: frontier block start=617 commit=2/6 tok0=5140
+ds4: dspark draft row=0 prev=14 next=9421 fast-markov
+ds4: dspark draft row=1 prev=9421 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=855 fast-markov
+ds4: dspark draft row=4 prev=855 next=9421 fast-markov
+ds4: frontier block start=619 commit=5/6 tok0=14
+ds4: dspark draft row=0 prev=2280 next=55166 fast-markov
+ds4: dspark draft row=1 prev=55166 next=505 fast-markov
+ds4: dspark draft row=2 prev=505 next=1137 fast-markov
+ds4: dspark draft row=3 prev=1137 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=1823 fast-markov
+ds4: frontier block start=624 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=17274 next=17425 fast-markov
+ds4: dspark draft row=1 prev=17425 next=343 fast-markov
+ds4: dspark draft row=2 prev=343 next=63915 fast-markov
+ds4: dspark draft row=3 prev=63915 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=775 fast-markov
+ds4: frontier block start=630 commit=3/6 tok0=17274
+ds4: dspark draft row=0 prev=120384 next=7633 fast-markov
+ds4: dspark draft row=1 prev=7633 next=682 fast-markov
+ds4: dspark draft row=2 prev=682 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=633 commit=1/6 tok0=120384
+ds4: dspark draft row=0 prev=418 next=70423 fast-markov
+ds4: dspark draft row=1 prev=70423 next=682 fast-markov
+ds4: dspark draft row=2 prev=682 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=634 commit=1/6 tok0=418
+ds4: dspark draft row=0 prev=6744 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=4001 fast-markov
+ds4: frontier block start=635 commit=5/6 tok0=6744
+ds4: dspark draft row=0 prev=16 next=9363 fast-markov
+ds4: dspark draft row=1 prev=9363 next=3982 fast-markov
+ds4: dspark draft row=2 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=3 prev=13592 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=343 fast-markov
+ds4: frontier block start=640 commit=5/6 tok0=16
+ds4: dspark draft row=0 prev=58771 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=343 fast-markov
+ds4: dspark draft row=2 prev=343 next=2161 fast-markov
+ds4: dspark draft row=3 prev=2161 next=10774 fast-markov
+ds4: dspark draft row=4 prev=10774 next=14 fast-markov
+ds4: frontier block start=645 commit=6/6 tok0=58771
+ds4: dspark draft row=0 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=1 prev=13662 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=4 prev=42529 next=14 fast-markov
+ds4: frontier block start=651 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=1 prev=43427 next=5203 fast-markov
+ds4: dspark draft row=2 prev=5203 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=657 commit=4/6 tok0=2280
+ds4: dspark draft row=0 prev=1823 next=7043 fast-markov
+ds4: dspark draft row=1 prev=7043 next=1093 fast-markov
+ds4: dspark draft row=2 prev=1093 next=5381 fast-markov
+ds4: dspark draft row=3 prev=5381 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=775 fast-markov
+ds4: frontier block start=661 commit=1/6 tok0=1823
+ds4: dspark draft row=0 prev=17274 next=29831 fast-markov
+ds4: dspark draft row=1 prev=29831 next=71 fast-markov
+ds4: dspark draft row=2 prev=71 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=87579 fast-markov
+ds4: frontier block start=662 commit=1/6 tok0=17274
+ds4: dspark draft row=0 prev=5117 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=16 fast-markov
+ds4: frontier block start=663 commit=3/6 tok0=5117
+ds4: dspark draft row=0 prev=8183 next=17507 fast-markov
+ds4: dspark draft row=1 prev=17507 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=397 fast-markov
+ds4: dspark draft row=4 prev=397 next=201 fast-markov
+ds4: frontier block start=666 commit=1/6 tok0=8183
+ds4: dspark draft row=0 prev=21469 next=438 fast-markov
+ds4: dspark draft row=1 prev=438 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=3 prev=13662 next=940 fast-markov
+ds4: dspark draft row=4 prev=940 next=2280 fast-markov
+ds4: frontier block start=667 commit=5/6 tok0=21469
+ds4: dspark draft row=0 prev=223 next=26 fast-markov
+ds4: dspark draft row=1 prev=26 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=775 fast-markov
+ds4: dspark draft row=3 prev=775 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=672 commit=1/6 tok0=223
+ds4: dspark draft row=0 prev=553 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=16 fast-markov
+ds4: frontier block start=673 commit=5/6 tok0=553
+ds4: dspark draft row=0 prev=4001 next=50675 fast-markov
+ds4: dspark draft row=1 prev=50675 next=3982 fast-markov
+ds4: dspark draft row=2 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=3 prev=13592 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=2280 fast-markov
+ds4: frontier block start=678 commit=5/6 tok0=4001
+ds4: dspark draft row=0 prev=12144 next=26764 fast-markov
+ds4: dspark draft row=1 prev=26764 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=343 fast-markov
+ds4: dspark draft row=3 prev=343 next=2161 fast-markov
+ds4: dspark draft row=4 prev=2161 next=10774 fast-markov
+ds4: frontier block start=683 commit=6/6 tok0=12144
+ds4: dspark draft row=0 prev=940 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=553 fast-markov
+ds4: dspark draft row=2 prev=553 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=8183 fast-markov
+ds4: dspark draft row=4 prev=8183 next=21469 fast-markov
+ds4: frontier block start=689 commit=6/6 tok0=940
+ds4: dspark draft row=0 prev=754 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=21 fast-markov
+ds4: dspark draft row=2 prev=21 next=682 fast-markov
+ds4: dspark draft row=3 prev=682 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=87579 fast-markov
+ds4: frontier block start=695 commit=2/6 tok0=754
+ds4: dspark draft row=0 prev=23 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=4001 fast-markov
+ds4: frontier block start=697 commit=6/6 tok0=23
+ds4: dspark draft row=0 prev=50675 next=3982 fast-markov
+ds4: dspark draft row=1 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=2 prev=13592 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=12144 fast-markov
+ds4: dspark draft row=4 prev=12144 next=26764 fast-markov
+ds4: frontier block start=703 commit=6/6 tok0=50675
+ds4: dspark draft row=0 prev=14 next=343 fast-markov
+ds4: dspark draft row=1 prev=343 next=2161 fast-markov
+ds4: dspark draft row=2 prev=2161 next=10774 fast-markov
+ds4: dspark draft row=3 prev=10774 next=940 fast-markov
+ds4: dspark draft row=4 prev=940 next=223 fast-markov
+ds4: frontier block start=709 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=1059 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=8183 fast-markov
+ds4: dspark draft row=2 prev=8183 next=21469 fast-markov
+ds4: dspark draft row=3 prev=21469 next=754 fast-markov
+ds4: dspark draft row=4 prev=754 next=223 fast-markov
+ds4: frontier block start=715 commit=6/6 tok0=1059
+ds4: dspark draft row=0 prev=23 next=682 fast-markov
+ds4: dspark draft row=1 prev=682 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=87579 fast-markov
+ds4: dspark draft row=3 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=4 prev=60507 next=4001 fast-markov
+ds4: frontier block start=721 commit=6/6 tok0=23
+ds4: dspark draft row=0 prev=50675 next=3982 fast-markov
+ds4: dspark draft row=1 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=2 prev=13592 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=111236 fast-markov
+ds4: dspark draft row=4 prev=111236 next=14 fast-markov
+ds4: frontier block start=727 commit=6/6 tok0=50675
+ds4: dspark draft row=0 prev=343 next=2161 fast-markov
+ds4: dspark draft row=1 prev=2161 next=10774 fast-markov
+ds4: dspark draft row=2 prev=10774 next=940 fast-markov
+ds4: dspark draft row=3 prev=940 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=553 fast-markov
+ds4: frontier block start=733 commit=6/6 tok0=343
+ds4: dspark draft row=0 prev=14 next=8183 fast-markov
+ds4: dspark draft row=1 prev=8183 next=21469 fast-markov
+ds4: dspark draft row=2 prev=21469 next=754 fast-markov
+ds4: dspark draft row=3 prev=754 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=20 fast-markov
+ds4: frontier block start=739 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=682 next=775 fast-markov
+ds4: dspark draft row=1 prev=775 next=87579 fast-markov
+ds4: dspark draft row=2 prev=87579 next=60507 fast-markov
+ds4: dspark draft row=3 prev=60507 next=4001 fast-markov
+ds4: dspark draft row=4 prev=4001 next=50675 fast-markov
+ds4: frontier block start=745 commit=6/6 tok0=682
+ds4: dspark draft row=0 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=1 prev=13592 next=14 fast-markov
+ds4: dspark draft row=2 prev=14 next=111236 fast-markov
+ds4: dspark draft row=3 prev=111236 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=343 fast-markov
+ds4: frontier block start=751 commit=6/6 tok0=3982
+ds4: dspark draft row=0 prev=2161 next=10774 fast-markov
+ds4: dspark draft row=1 prev=10774 next=940 fast-markov
+ds4: dspark draft row=2 prev=940 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=1059 fast-markov
+ds4: dspark draft row=4 prev=1059 next=14 fast-markov
+ds4: frontier block start=757 commit=6/6 tok0=2161
+ds4: dspark draft row=0 prev=8183 next=21469 fast-markov
+ds4: dspark draft row=1 prev=21469 next=754 fast-markov
+ds4: dspark draft row=2 prev=754 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=20 fast-markov
+ds4: dspark draft row=4 prev=20 next=682 fast-markov
+ds4: frontier block start=763 commit=6/6 tok0=8183
+ds4: dspark draft row=0 prev=20256 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=5002 fast-markov
+ds4: dspark draft row=3 prev=5002 next=6666 fast-markov
+ds4: dspark draft row=4 prev=6666 next=3395 fast-markov
+ds4: frontier block start=769 commit=3/6 tok0=20256
+ds4: dspark draft row=0 prev=9502 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=13662 fast-markov
+ds4: frontier block start=772 commit=2/6 tok0=9502
+ds4: dspark draft row=0 prev=14 next=26217 fast-markov
+ds4: dspark draft row=1 prev=26217 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=26495 fast-markov
+ds4: dspark draft row=4 prev=26495 next=37559 fast-markov
+ds4: frontier block start=774 commit=4/6 tok0=14
+ds4: dspark draft row=0 prev=1823 next=40134 fast-markov
+ds4: dspark draft row=1 prev=40134 next=17425 fast-markov
+ds4: dspark draft row=2 prev=17425 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=2280 fast-markov
+ds4: frontier block start=778 commit=6/6 tok0=1823
+ds4: dspark draft row=0 prev=10774 next=7004 fast-markov
+ds4: dspark draft row=1 prev=7004 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=3845 fast-markov
+ds4: dspark draft row=3 prev=3845 next=14040 fast-markov
+ds4: dspark draft row=4 prev=14040 next=982 fast-markov
+ds4: frontier block start=784 commit=3/6 tok0=10774
+ds4: dspark draft row=0 prev=2349 next=18584 fast-markov
+ds4: dspark draft row=1 prev=18584 next=982 fast-markov
+ds4: dspark draft row=2 prev=982 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=3845 fast-markov
+ds4: dspark draft row=4 prev=3845 next=14040 fast-markov
+ds4: frontier block start=787 commit=6/6 tok0=2349
+ds4: dspark draft row=0 prev=42130 next=528 fast-markov
+ds4: dspark draft row=1 prev=528 next=1823 fast-markov
+ds4: dspark draft row=2 prev=1823 next=8824 fast-markov
+ds4: dspark draft row=3 prev=8824 next=855 fast-markov
+ds4: dspark draft row=4 prev=855 next=26217 fast-markov
+ds4: frontier block start=793 commit=5/6 tok0=42130
+ds4: dspark draft row=0 prev=17425 next=4086 fast-markov
+ds4: dspark draft row=1 prev=4086 next=304 fast-markov
+ds4: dspark draft row=2 prev=304 next=2859 fast-markov
+ds4: dspark draft row=3 prev=2859 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=798 commit=1/6 tok0=17425
+ds4: dspark draft row=0 prev=22556 next=9491 fast-markov
+ds4: dspark draft row=1 prev=9491 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=855 fast-markov
+ds4: dspark draft row=4 prev=855 next=2280 fast-markov
+ds4: frontier block start=799 commit=1/6 tok0=22556
+ds4: dspark draft row=0 prev=9449 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=855 fast-markov
+ds4: dspark draft row=3 prev=855 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=800 commit=6/6 tok0=9449
+ds4: dspark draft row=0 prev=8593 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=18 fast-markov
+ds4: dspark draft row=2 prev=18 next=469 fast-markov
+ds4: dspark draft row=3 prev=469 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=806 commit=6/6 tok0=8593
+ds4: dspark draft row=0 prev=11620 next=17283 fast-markov
+ds4: dspark draft row=1 prev=17283 next=77533 fast-markov
+ds4: dspark draft row=2 prev=77533 next=111000 fast-markov
+ds4: dspark draft row=3 prev=111000 next=565 fast-markov
+ds4: dspark draft row=4 prev=565 next=2280 fast-markov
+ds4: frontier block start=812 commit=6/6 tok0=11620
+ds4: dspark draft row=0 prev=42529 next=1137 fast-markov
+ds4: dspark draft row=1 prev=1137 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=3845 fast-markov
+ds4: dspark draft row=4 prev=3845 next=14040 fast-markov
+ds4: frontier block start=818 commit=6/6 tok0=42529
+ds4: dspark draft row=0 prev=52490 next=565 fast-markov
+ds4: dspark draft row=1 prev=565 next=19 fast-markov
+ds4: dspark draft row=2 prev=19 next=201 fast-markov
+ds4: dspark draft row=3 prev=201 next=775 fast-markov
+ds4: dspark draft row=4 prev=775 next=1823 fast-markov
+ds4: frontier block start=824 commit=6/6 tok0=52490
+ds4: dspark draft row=0 prev=40134 next=710 fast-markov
+ds4: dspark draft row=1 prev=710 next=26217 fast-markov
+ds4: dspark draft row=2 prev=26217 next=1910 fast-markov
+ds4: dspark draft row=3 prev=1910 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=775 fast-markov
+ds4: frontier block start=830 commit=6/6 tok0=40134
+ds4: dspark draft row=0 prev=362 next=17425 fast-markov
+ds4: dspark draft row=1 prev=17425 next=295 fast-markov
+ds4: dspark draft row=2 prev=295 next=26217 fast-markov
+ds4: dspark draft row=3 prev=26217 next=1137 fast-markov
+ds4: dspark draft row=4 prev=1137 next=1507 fast-markov
+ds4: frontier block start=836 commit=6/6 tok0=362
+ds4: dspark draft row=0 prev=17425 next=13662 fast-markov
+ds4: dspark draft row=1 prev=13662 next=7004 fast-markov
+ds4: dspark draft row=2 prev=7004 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=397 fast-markov
+ds4: dspark draft row=4 prev=397 next=201 fast-markov
+ds4: frontier block start=842 commit=4/6 tok0=17425
+ds4: dspark draft row=0 prev=553 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=1354 fast-markov
+ds4: dspark draft row=3 prev=1354 next=42130 fast-markov
+ds4: dspark draft row=4 prev=42130 next=528 fast-markov
+ds4: frontier block start=846 commit=1/6 tok0=553
+ds4: dspark draft row=0 prev=87346 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=1178 fast-markov
+ds4: dspark draft row=3 prev=1178 next=9181 fast-markov
+ds4: dspark draft row=4 prev=9181 next=967 fast-markov
+ds4: frontier block start=847 commit=3/6 tok0=87346
+ds4: dspark draft row=0 prev=12077 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=855 fast-markov
+ds4: dspark draft row=4 prev=855 next=2280 fast-markov
+ds4: frontier block start=850 commit=4/6 tok0=12077
+ds4: dspark draft row=0 prev=1823 next=20762 fast-markov
+ds4: dspark draft row=1 prev=20762 next=367 fast-markov
+ds4: dspark draft row=2 prev=367 next=37561 fast-markov
+ds4: dspark draft row=3 prev=37561 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=854 commit=2/6 tok0=1823
+ds4: dspark draft row=0 prev=22189 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=528 fast-markov
+ds4: dspark draft row=2 prev=528 next=855 fast-markov
+ds4: dspark draft row=3 prev=855 next=6719 fast-markov
+ds4: dspark draft row=4 prev=6719 next=39425 fast-markov
+ds4: frontier block start=856 commit=6/6 tok0=22189
+ds4: dspark draft row=0 prev=1393 next=818 fast-markov
+ds4: dspark draft row=1 prev=818 next=223 fast-markov
+ds4: dspark draft row=2 prev=223 next=18 fast-markov
+ds4: dspark draft row=3 prev=18 next=16 fast-markov
+ds4: dspark draft row=4 prev=16 next=3425 fast-markov
+ds4: frontier block start=862 commit=6/6 tok0=1393
+ds4: dspark draft row=0 prev=28 next=223 fast-markov
+ds4: dspark draft row=1 prev=223 next=1823 fast-markov
+ds4: dspark draft row=2 prev=1823 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=397 fast-markov
+ds4: dspark draft row=4 prev=397 next=7 fast-markov
+ds4: frontier block start=868 commit=4/6 tok0=28
+ds4: dspark draft row=0 prev=20 next=7 fast-markov
+ds4: dspark draft row=1 prev=7 next=8369 fast-markov
+ds4: dspark draft row=2 prev=8369 next=716 fast-markov
+ds4: dspark draft row=3 prev=716 next=22189 fast-markov
+ds4: dspark draft row=4 prev=22189 next=37561 fast-markov
+ds4: frontier block start=872 commit=4/6 tok0=20
+ds4: dspark draft row=0 prev=10411 next=201 fast-markov
+ds4: dspark draft row=1 prev=201 next=775 fast-markov
+ds4: dspark draft row=2 prev=775 next=1354 fast-markov
+ds4: dspark draft row=3 prev=1354 next=15272 fast-markov
+ds4: dspark draft row=4 prev=15272 next=1775 fast-markov
+ds4: frontier block start=876 commit=6/6 tok0=10411
+ds4: dspark draft row=0 prev=6666 next=10774 fast-markov
+ds4: dspark draft row=1 prev=10774 next=940 fast-markov
+ds4: dspark draft row=2 prev=940 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=4 prev=42529 next=1915 fast-markov
+ds4: frontier block start=882 commit=5/6 tok0=6666
+ds4: dspark draft row=0 prev=835 next=20 fast-markov
+ds4: dspark draft row=1 prev=20 next=565 fast-markov
+ds4: dspark draft row=2 prev=565 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=20 fast-markov
+ds4: dspark draft row=4 prev=20 next=14 fast-markov
+ds4: frontier block start=887 commit=6/6 tok0=835
+ds4: dspark draft row=0 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=1 prev=13662 next=940 fast-markov
+ds4: dspark draft row=2 prev=940 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=4 prev=43427 next=14 fast-markov
+ds4: frontier block start=893 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=14093 next=4846 fast-markov
+ds4: dspark draft row=1 prev=4846 next=59 fast-markov
+ds4: dspark draft row=2 prev=59 next=14568 fast-markov
+ds4: dspark draft row=3 prev=14568 next=6552 fast-markov
+ds4: dspark draft row=4 prev=6552 next=59 fast-markov
+ds4: frontier block start=899 commit=5/6 tok0=14093
+ds4: dspark draft row=0 prev=3402 next=108239 fast-markov
+ds4: dspark draft row=1 prev=108239 next=39 fast-markov
+ds4: dspark draft row=2 prev=39 next=3316 fast-markov
+ds4: dspark draft row=3 prev=3316 next=682 fast-markov
+ds4: dspark draft row=4 prev=682 next=528 fast-markov
+ds4: frontier block start=904 commit=6/6 tok0=3402
+ds4: dspark draft row=0 prev=1354 next=9952 fast-markov
+ds4: dspark draft row=1 prev=9952 next=271 fast-markov
+ds4: dspark draft row=2 prev=271 next=3767 fast-markov
+ds4: dspark draft row=3 prev=3767 next=15272 fast-markov
+ds4: dspark draft row=4 prev=15272 next=1775 fast-markov
+ds4: frontier block start=910 commit=6/6 tok0=1354
+ds4: dspark draft row=0 prev=1137 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=7854 fast-markov
+ds4: dspark draft row=3 prev=7854 next=7025 fast-markov
+ds4: dspark draft row=4 prev=7025 next=16797 fast-markov
+ds4: frontier block start=916 commit=6/6 tok0=1137
+ds4: dspark draft row=0 prev=2161 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=1527 fast-markov
+ds4: dspark draft row=2 prev=1527 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=383 fast-markov
+ds4: dspark draft row=4 prev=383 next=3395 fast-markov
+ds4: frontier block start=922 commit=5/6 tok0=2161
+ds4: dspark draft row=0 prev=14 next=6276 fast-markov
+ds4: dspark draft row=1 prev=6276 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=10774 fast-markov
+ds4: frontier block start=927 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=438 next=1527 fast-markov
+ds4: dspark draft row=1 prev=1527 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=13662 fast-markov
+ds4: frontier block start=933 commit=6/6 tok0=438
+ds4: dspark draft row=0 prev=438 next=383 fast-markov
+ds4: dspark draft row=1 prev=383 next=201 fast-markov
+ds4: dspark draft row=2 prev=201 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=42529 fast-markov
+ds4: frontier block start=939 commit=5/6 tok0=438
+ds4: dspark draft row=0 prev=2349 next=18584 fast-markov
+ds4: dspark draft row=1 prev=18584 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=6276 fast-markov
+ds4: dspark draft row=3 prev=6276 next=201 fast-markov
+ds4: dspark draft row=4 prev=201 next=528 fast-markov
+ds4: frontier block start=944 commit=6/6 tok0=2349
+ds4: dspark draft row=0 prev=2280 next=42529 fast-markov
+ds4: dspark draft row=1 prev=42529 next=438 fast-markov
+ds4: dspark draft row=2 prev=438 next=223 fast-markov
+ds4: dspark draft row=3 prev=223 next=22 fast-markov
+ds4: dspark draft row=4 prev=22 next=201 fast-markov
+ds4: frontier block start=950 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=528 next=2280 fast-markov
+ds4: dspark draft row=1 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=2 prev=43427 next=438 fast-markov
+ds4: dspark draft row=3 prev=438 next=223 fast-markov
+ds4: dspark draft row=4 prev=223 next=26 fast-markov
+ds4: frontier block start=956 commit=5/6 tok0=528
+ds4: dspark draft row=0 prev=553 next=42130 fast-markov
+ds4: dspark draft row=1 prev=42130 next=361 fast-markov
+ds4: dspark draft row=2 prev=361 next=1351 fast-markov
+ds4: dspark draft row=3 prev=1351 next=9502 fast-markov
+ds4: dspark draft row=4 prev=9502 next=6666 fast-markov
+ds4: frontier block start=961 commit=4/6 tok0=553
+ds4: dspark draft row=0 prev=5140 next=6666 fast-markov
+ds4: dspark draft row=1 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=2280 fast-markov
+ds4: dspark draft row=4 prev=2280 next=13662 fast-markov
+ds4: frontier block start=965 commit=2/6 tok0=5140
+ds4: dspark draft row=0 prev=14 next=9421 fast-markov
+ds4: dspark draft row=1 prev=9421 next=3395 fast-markov
+ds4: dspark draft row=2 prev=3395 next=528 fast-markov
+ds4: dspark draft row=3 prev=528 next=87579 fast-markov
+ds4: dspark draft row=4 prev=87579 next=60507 fast-markov
+ds4: frontier block start=967 commit=6/6 tok0=14
+ds4: dspark draft row=0 prev=16 next=9363 fast-markov
+ds4: dspark draft row=1 prev=9363 next=3982 fast-markov
+ds4: dspark draft row=2 prev=3982 next=13592 fast-markov
+ds4: dspark draft row=3 prev=13592 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=2280 fast-markov
+ds4: frontier block start=973 commit=5/6 tok0=16
+ds4: dspark draft row=0 prev=894 next=53063 fast-markov
+ds4: dspark draft row=1 prev=53063 next=8309 fast-markov
+ds4: dspark draft row=2 prev=8309 next=14 fast-markov
+ds4: dspark draft row=3 prev=14 next=343 fast-markov
+ds4: dspark draft row=4 prev=343 next=2161 fast-markov
+ds4: frontier block start=978 commit=6/6 tok0=894
+ds4: dspark draft row=0 prev=10774 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=3 prev=13662 next=14 fast-markov
+ds4: dspark draft row=4 prev=14 next=2280 fast-markov
+ds4: frontier block start=984 commit=6/6 tok0=10774
+ds4: dspark draft row=0 prev=42529 next=14 fast-markov
+ds4: dspark draft row=1 prev=14 next=2280 fast-markov
+ds4: dspark draft row=2 prev=2280 next=43427 fast-markov
+ds4: dspark draft row=3 prev=43427 next=5203 fast-markov
+ds4: dspark draft row=4 prev=5203 next=9970 fast-markov
+ds4: frontier block start=990 commit=6/6 tok0=42529
+ds4: dspark draft row=0 prev=361 next=1351 fast-markov
+ds4: dspark draft row=1 prev=1351 next=9502 fast-markov
+ds4: dspark draft row=2 prev=9502 next=6666 fast-markov
+ds4: dspark draft row=3 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=4 prev=3395 next=528 fast-markov
+ds4: frontier block start=996 commit=6/6 tok0=361
+ds4: dspark draft row=0 prev=2280 next=13662 fast-markov
+ds4: dspark draft row=1 prev=13662 next=7004 fast-markov
+ds4: dspark draft row=2 prev=7004 next=2280 fast-markov
+ds4: dspark draft row=3 prev=2280 next=2349 fast-markov
+ds4: dspark draft row=4 prev=2349 next=18584 fast-markov
+ds4: frontier block start=1002 commit=6/6 tok0=2280
+ds4: dspark draft row=0 prev=42130 next=361 fast-markov
+ds4: dspark draft row=1 prev=361 next=1351 fast-markov
+ds4: dspark draft row=2 prev=1351 next=1178 fast-markov
+ds4: dspark draft row=3 prev=1178 next=4941 fast-markov
+ds4: dspark draft row=4 prev=4941 next=967 fast-markov
+ds4: frontier block start=1008 commit=4/6 tok0=42130
+ds4: dspark draft row=0 prev=65 next=9363 fast-markov
+ds4: dspark draft row=1 prev=9363 next=6666 fast-markov
+ds4: dspark draft row=2 prev=6666 next=3395 fast-markov
+ds4: dspark draft row=3 prev=3395 next=528 fast-markov
+ds4: dspark draft row=4 prev=528 next=1354 fast-markov
+ds4: frontier block start=1012 commit=6/6 tok0=65
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: ----------------------------------------
+ds4: prefill: 6.16 t/s, generation: 32.33 t/s (1000 tokens in 30.928s)
+ds4: dspark acceptance: 80.4% (999/1242 draft tokens)
+ds4: dspark acceptance by position: 1=207/207 2=188/207 3=177/207 4=164/207 5=144/207 6=119/207
+ds4: dspark conditional acceptance: 1=100.0% (207/207) 2|1=90.8% (188/207) 3|1-2=94.1% (177/188) 4|1-3=92.7% (164/177) 5|1-4=87.8% (144/164) 6|1-5=82.6% (119/144)
+ds4: dspark full-accept: 57.5% (119/207 blocks), first-miss: 0.0% (0/207 blocks)
+ds4: dspark avg scheduled: 6.00 draft tokens/block (207 blocks)

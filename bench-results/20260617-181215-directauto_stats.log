@@ -1,0 +1,2 @@
+ds4-agent: detected DS4 sidecar package: -m /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/DSv4-Flash-MXFP4-unpacked-flash, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (49 env defaults set, 2 kept from environment)

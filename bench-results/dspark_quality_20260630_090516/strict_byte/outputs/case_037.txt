@@ -1,0 +1,5 @@
+Questa è un'ottima domanda, perché tocca un concetto fondamentale per rendere i modelli di intelligenza artificiale più veloci ed efficienti.
+
+In parole povere, **una matrice di importanza (o "Importance Matrix") nella quantizzazione low-bit è una mappa che indica quali pesi (o attivazioni) di un modello di deep learning sono più "critici" per la performance finale e quali, invece, possono essere arrotondati o troncati in modo più aggressivo senza causare un degrado significativo.**
+
+Immagina di dover comprimere

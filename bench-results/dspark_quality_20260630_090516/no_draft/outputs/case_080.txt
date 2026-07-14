@@ -1,0 +1,1 @@
+A good benchmark should measure the right thing, not just something easy to measure.

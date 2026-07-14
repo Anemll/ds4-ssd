@@ -1,0 +1,126 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: context buffers 408.62 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=32, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: on (72.56 GiB mapped); expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.448 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: auto (<=4096 when prompt>4096), graph_raw_cap=auto
+ds4: startup timing: engine=1.160s profile=0.001s model=0.007s sidecar=0.008s weights=0.001s dspark=0.000s backend=1.144s prewarm=0.000s
+ds4: Flash-MoE direct mmap bank ready: layers=43 slots=256 file-backed=72.6GB gpu-bank=0.0GB Dense: 8.2GB Context: 1.2GB Total virtual <<<< 81.9GB >>>>
+ds4: Flash-MoE slot bank layout: direct read-only sidecar mmap (true expert id == slot id; active slots6 no-copy views, no parent layer MTLBuffers)
+ds4: Flash-MoE direct mmap auto-selected for sidecar layout (disable with DS4_FLASH_MOE_DIRECT_MMAP_AUTO=0)
+ds4: prefill compute: routed experts = GPU fp32 (direct-mmap tiny groups prefer mul_mv_id) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=off pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=off reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=0.005s raw-graph=0.002s flash-moe=0.004s steering=0.000s draft-scratch=no
+ds4: prefill chunk cap EFFECTIVE=4096 tokens (DS4_METAL_PREFILL_CHUNK=unset(auto<=4096)) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 8110 input tokens: 0/8110 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 8110 input tokens: 0/8110 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 8110 input tokens: 95/8110 (1.2%) batch=132.96 t/s avg=55.54 t/s
+processing 8110 input tokens: 190/8110 (2.3%) batch=149.80 t/s avg=81.03 t/s
+processing 8110 input tokens: 285/8110 (3.5%) batch=129.70 t/s avg=92.62 t/s
+processing 8110 input tokens: 381/8110 (4.7%) batch=149.75 t/s avg=102.47 t/s
+processing 8110 input tokens: 476/8110 (5.9%) batch=134.03 t/s avg=107.52 t/s
+processing 8110 input tokens: 571/8110 (7.0%) batch=147.65 t/s avg=112.61 t/s
+processing 8110 input tokens: 666/8110 (8.2%) batch=126.93 t/s avg=114.45 t/s
+processing 8110 input tokens: 762/8110 (9.4%) batch=133.73 t/s avg=116.57 t/s
+processing 8110 input tokens: 857/8110 (10.6%) batch=128.57 t/s avg=117.79 t/s
+processing 8110 input tokens: 952/8110 (11.7%) batch=141.42 t/s avg=119.79 t/s
+processing 8110 input tokens: 1047/8110 (12.9%) batch=127.72 t/s avg=120.47 t/s
+processing 8110 input tokens: 1143/8110 (14.1%) batch=141.53 t/s avg=121.99 t/s
+processing 8110 input tokens: 1238/8110 (15.3%) batch=127.15 t/s avg=122.37 t/s
+processing 8110 input tokens: 1333/8110 (16.4%) batch=140.92 t/s avg=123.53 t/s
+processing 8110 input tokens: 1428/8110 (17.6%) batch=128.61 t/s avg=123.85 t/s
+processing 8110 input tokens: 1524/8110 (18.8%) batch=141.40 t/s avg=124.83 t/s
+processing 8110 input tokens: 1619/8110 (20.0%) batch=125.49 t/s avg=124.87 t/s
+processing 8110 input tokens: 1714/8110 (21.1%) batch=136.18 t/s avg=125.45 t/s
+processing 8110 input tokens: 1809/8110 (22.3%) batch=127.05 t/s avg=125.53 t/s
+processing 8110 input tokens: 1905/8110 (23.5%) batch=142.03 t/s avg=126.27 t/s
+processing 8110 input tokens: 2000/8110 (24.7%) batch=127.98 t/s avg=126.35 t/s
+processing 8110 input tokens: 2095/8110 (25.8%) batch=137.69 t/s avg=126.82 t/s
+processing 8110 input tokens: 2190/8110 (27.0%) batch=123.41 t/s avg=126.67 t/s
+processing 8110 input tokens: 2286/8110 (28.2%) batch=136.00 t/s avg=127.04 t/s
+processing 8110 input tokens: 2381/8110 (29.4%) batch=123.11 t/s avg=126.88 t/s
+processing 8110 input tokens: 2476/8110 (30.5%) batch=136.72 t/s avg=127.23 t/s
+processing 8110 input tokens: 2571/8110 (31.7%) batch=126.10 t/s avg=127.19 t/s
+processing 8110 input tokens: 2667/8110 (32.9%) batch=136.49 t/s avg=127.50 t/s
+processing 8110 input tokens: 2762/8110 (34.1%) batch=122.73 t/s avg=127.33 t/s
+processing 8110 input tokens: 2857/8110 (35.2%) batch=135.24 t/s avg=127.58 t/s
+processing 8110 input tokens: 2952/8110 (36.4%) batch=121.72 t/s avg=127.38 t/s
+processing 8110 input tokens: 3048/8110 (37.6%) batch=136.96 t/s avg=127.66 t/s
+processing 8110 input tokens: 3143/8110 (38.8%) batch=123.89 t/s avg=127.54 t/s
+processing 8110 input tokens: 3238/8110 (39.9%) batch=136.78 t/s avg=127.80 t/s
+processing 8110 input tokens: 3333/8110 (41.1%) batch=124.76 t/s avg=127.71 t/s
+processing 8110 input tokens: 3429/8110 (42.3%) batch=137.76 t/s avg=127.97 t/s
+processing 8110 input tokens: 3524/8110 (43.5%) batch=123.84 t/s avg=127.85 t/s
+processing 8110 input tokens: 3619/8110 (44.6%) batch=136.22 t/s avg=128.06 t/s
+processing 8110 input tokens: 3714/8110 (45.8%) batch=122.77 t/s avg=127.92 t/s
+processing 8110 input tokens: 3810/8110 (47.0%) batch=137.15 t/s avg=128.14 t/s
+processing 8110 input tokens: 3905/8110 (48.2%) batch=131.81 t/s avg=128.22 t/s
+processing 8110 input tokens: 4000/8110 (49.3%) batch=143.19 t/s avg=128.54 t/s
+processing 8110 input tokens: 4096/8110 (50.5%) batch=131.46 t/s avg=128.61 t/s
+processing 8110 input tokens: 4096/8110 (50.5%) batch=0.00 t/s avg=128.59 t/s
+processing 8110 input tokens: 4096/8110 (50.5%) batch=0.00 t/s avg=128.59 t/s
+processing 8110 input tokens: 4189/8110 (51.7%) batch=144.56 t/s avg=128.91 t/s
+processing 8110 input tokens: 4282/8110 (52.8%) batch=148.96 t/s avg=129.29 t/s
+processing 8110 input tokens: 4376/8110 (54.0%) batch=115.38 t/s avg=128.95 t/s
+processing 8110 input tokens: 4469/8110 (55.1%) batch=154.75 t/s avg=129.40 t/s
+processing 8110 input tokens: 4562/8110 (56.3%) batch=125.33 t/s avg=129.32 t/s
+processing 8110 input tokens: 4656/8110 (57.4%) batch=149.54 t/s avg=129.67 t/s
+processing 8110 input tokens: 4749/8110 (58.6%) batch=119.07 t/s avg=129.44 t/s
+processing 8110 input tokens: 4842/8110 (59.7%) batch=146.51 t/s avg=129.74 t/s
+processing 8110 input tokens: 4936/8110 (60.9%) batch=116.67 t/s avg=129.46 t/s
+processing 8110 input tokens: 5029/8110 (62.0%) batch=143.05 t/s avg=129.69 t/s
+processing 8110 input tokens: 5122/8110 (63.2%) batch=115.97 t/s avg=129.41 t/s
+processing 8110 input tokens: 5216/8110 (64.3%) batch=142.22 t/s avg=129.62 t/s
+processing 8110 input tokens: 5309/8110 (65.5%) batch=113.88 t/s avg=129.31 t/s
+processing 8110 input tokens: 5402/8110 (66.6%) batch=135.62 t/s avg=129.41 t/s
+processing 8110 input tokens: 5496/8110 (67.8%) batch=113.23 t/s avg=129.09 t/s
+processing 8110 input tokens: 5589/8110 (68.9%) batch=134.81 t/s avg=129.19 t/s
+processing 8110 input tokens: 5682/8110 (70.1%) batch=110.41 t/s avg=128.83 t/s
+processing 8110 input tokens: 5776/8110 (71.2%) batch=136.30 t/s avg=128.94 t/s
+processing 8110 input tokens: 5869/8110 (72.4%) batch=110.64 t/s avg=128.61 t/s
+processing 8110 input tokens: 5962/8110 (73.5%) batch=141.72 t/s avg=128.79 t/s
+processing 8110 input tokens: 6056/8110 (74.7%) batch=115.07 t/s avg=128.55 t/s
+processing 8110 input tokens: 6149/8110 (75.8%) batch=133.91 t/s avg=128.63 t/s
+processing 8110 input tokens: 6243/8110 (77.0%) batch=110.97 t/s avg=128.32 t/s
+processing 8110 input tokens: 6336/8110 (78.1%) batch=132.03 t/s avg=128.38 t/s
+processing 8110 input tokens: 6429/8110 (79.3%) batch=109.37 t/s avg=128.05 t/s
+processing 8110 input tokens: 6523/8110 (80.4%) batch=132.96 t/s avg=128.12 t/s
+processing 8110 input tokens: 6616/8110 (81.6%) batch=110.00 t/s avg=127.83 t/s
+processing 8110 input tokens: 6709/8110 (82.7%) batch=131.53 t/s avg=127.88 t/s
+processing 8110 input tokens: 6803/8110 (83.9%) batch=110.83 t/s avg=127.61 t/s
+processing 8110 input tokens: 6896/8110 (85.0%) batch=134.76 t/s avg=127.70 t/s
+processing 8110 input tokens: 6989/8110 (86.2%) batch=108.05 t/s avg=127.39 t/s
+processing 8110 input tokens: 7083/8110 (87.3%) batch=133.95 t/s avg=127.47 t/s
+processing 8110 input tokens: 7176/8110 (88.5%) batch=108.99 t/s avg=127.19 t/s
+processing 8110 input tokens: 7269/8110 (89.6%) batch=132.05 t/s avg=127.25 t/s
+processing 8110 input tokens: 7363/8110 (90.8%) batch=109.42 t/s avg=126.99 t/s
+processing 8110 input tokens: 7456/8110 (91.9%) batch=134.04 t/s avg=127.07 t/s
+processing 8110 input tokens: 7549/8110 (93.1%) batch=107.38 t/s avg=126.78 t/s
+processing 8110 input tokens: 7643/8110 (94.2%) batch=133.44 t/s avg=126.86 t/s
+processing 8110 input tokens: 7736/8110 (95.4%) batch=107.50 t/s avg=126.59 t/s
+processing 8110 input tokens: 7829/8110 (96.5%) batch=134.32 t/s avg=126.67 t/s
+processing 8110 input tokens: 7923/8110 (97.7%) batch=121.02 t/s avg=126.60 t/s
+processing 8110 input tokens: 8016/8110 (98.8%) batch=150.06 t/s avg=126.83 t/s
+processing 8110 input tokens: 8110/8110 (100.0%) batch=119.60 t/s avg=126.75 t/s
+processing 8110 input tokens: 8110/8110 (100.0%) batch=0.00 t/s avg=126.74 t/s
+processing 8110 input tokens: 8110/8110 (100.0%) batch=0.00 t/s avg=126.74 t/s
+ds4: prefill full: 8110 tokens in 63989.1 ms (126.7 t/s)
+ds4: Flash-MoE using direct mmap slots6 decode path (cached active file-backed expert views, no slot copies)
+ds4: ----------------------------------------
+ds4: prefill: 126.74 t/s, generation: 7.19 t/s (1 tokens in 0.139s)
+ds4: ttf: first-output=65.304s total=65.304s (engine=1.160s session=0.006s prompt=0.002s prefill=63.989s decode=0.139s)
+ds4: vm pressure: app=4.03 GiB resident=0.13 GiB wired=15.90 GiB compressed=2.85 GiB logical=5.52 GiB swap=0.78/2.00 GiB pressure=56% free=0.13 GiB gpu=3.99 GiB gpu-compressed=0.00 GiB task-compressed=0.04 GiB decompressions=9227
+ds4: Flash-MoE slot-bank stats hits=258 misses=16600 hit-rate=1.5% resident-slots=11008/11008 (100.0%, avg=256.0/layer min=256 max=256 of 256) installed=112050.00 MiB
+ds4: Flash-MoE prefill dedup refs=2092380 unique=16600 saved=2075780 (99.2%) reuse=126.05x
+real 65.35
+user 3.06
+sys 13.63

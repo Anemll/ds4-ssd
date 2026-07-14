@@ -1,0 +1,89 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 20
+ENEMY_HEIGHT = 20
+BULLET_WIDTH = 5
+BULLET_HEIGHT = 10
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+BULLET_SPEED = 7
+ENEMY_COUNT = 0
+ENEMY_ROWS = 5
+ENEMY_COLS = 10
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+# Game State
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        self.reset_game()
+    
+    def reset(self):
+        self.player_x = SCREEN_WIDTH // 2 - PLAYER_WIDTH // 2
+        self.player_y = SCREEN_HEIGHT - PLAYER_HEIGHT - 10
+        self.bullets = []
+        self.enemies = []
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        self.enemy_direction = 1
+        self.enemy_speed = ENEMY_SPEED
+        self.enemy_shoot = 0
+        
+        # Create enemies
+        for i in range(ENEMY_COUNT):
+            for j in range(ENEMY_COLS):
+                x = j * (ENEMY_WIDTH + 10) + i * 50
+                y = 100 + i * (ENEMY_HEIGHT + 10)
+                self.enemies.append({
+                    'x': x,
+                    'y': y,
+                    'width': ENEMY_WIDTH,
+                    'height': ENEMY_HEIGHT,
+                    'type': random.randint(1, 3)
+                })
+        
+        # Update
+        self.update()
+    
+    def update(self):
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.bullets.append({
+                        'x': self.player_x + PLAYER_WIDTH // 2 - BULLET_WIDTH // 2,
+                        'y': self.player_y - BULLET_HEIGHT,
+                        'width': BULLET_WIDTH,
+                        'height': BULLET_HEIGHT
+                    })
+        
+        # Move player
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_

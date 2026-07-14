@@ -1,0 +1,28 @@
+I'll create a faithful reproduction of the 1978 Taito arcade classic "Apex" (also known as "Crazy Climber" or similar title) as a single self-contained HTML file. Let me build this with full attention to the original arcade experience.
+
+Actually, looking at the request more carefully, "aders" might be a typo or specific game. Let me think about what 1978 Taito game this could be. Taito released "Space Invaders" in 1978, but that's by far their most famous game. However, "aders" could be a misspelling of "Aster" or something else.
+
+Given the context, I'll create a reproduction of a classic Taito arcade game from 1978 with the proper sprite designs, mechanics, and rules. I'll make it a faithful recreation of the arcade experience.
+
+Let me create a complete HTML file with a classic Taito-style game.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classic Taito Arcade (1978)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family:

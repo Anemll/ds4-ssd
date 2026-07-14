@@ -1,0 +1,163 @@
+ds4: unknown option: ./ds4
+Usage: ds4 [(-p PROMPT | --prompt-file FILE)] [options]
+
+Invocation modes:
+  ds4
+      Start the interactive chat prompt with a session backend: ds4>
+  ds4 -p TEXT
+      Run one prompt and exit.
+  ds4 --prompt-file FILE
+      Run one prompt read from FILE and exit. Useful for long prompts.
+
+Model and runtime:
+  -m, --model FILE
+      GGUF model path. Default: ds4flash.gguf
+      A sidecar package directory is also accepted when it contains
+      manifest.json and dense/model-dense.gguf.
+  --mtp FILE
+      Optional MTP support GGUF used for draft-token probes.
+  --mtp-draft N
+      Maximum autoregressive MTP draft tokens per speculative step. Default: 1
+  --mtp-margin F
+      Minimum recursive-draft confidence for the fast N=2 verifier. Default: 3
+  --draft dspark
+      Use a DSpark draft package for speculative decoding. Greedy only.
+  --draft-path PATH
+      DS4 DSpark draft package directory, e.g. /Users/anemll/Models/DSv4-Flash-DSpark-draft.
+  --draft-verify N
+      Fixed DSpark verification budget, 1..5. Default: 5
+  --draft-verify-dynamic
+      Adapt active DSpark verify budget from 2 up to --draft-verify based on recent accepted tokens.
+  --draft-mode strict|batch|unified
+      DSpark verifier contract. strict keeps no-draft greedy compatibility; batch/unified are experimental.
+  --draft-scheduler static|confidence|confidence-softmax
+      DSpark verification scheduler. Default: static
+  --draft-conf-threshold F
+      DSpark confidence threshold for the confidence scheduler. Default: 0
+  --dspark-attn-force-mma
+      Diagnostic: force DSpark verifier MMA attention path.
+  --moe-sidecar PATH
+      Flash-MoE sidecar directory containing manifest.json and expert records.
+  --moe-mode NAME
+      Routed expert weight source: off or slot-bank. Default: off
+  --moe-slot-bank N
+      Streaming slots per layer; main RAM/cache knob. Default: 32
+      Higher caches more experts; lower uses less RAM.
+  --resident
+      Flash-MoE sidecar resident mode: load every expert into a mixed
+      slot bank, request Metal residency, touch pages, and preload all
+      routed layers. Implies --moe-mode slot-bank and defaults slots
+      per layer to the model expert count.
+  --ssd-cache BYTES|auto
+      Size the Flash-MoE slot bank from a cache budget such as 25GB.
+      auto uses available memory minus dense weights and context buffers,
+      then assigns DS4_SSD_CACHE_AUTO_PCT% (default 20) of the remainder
+      to the slot bank, leaving headroom for the OS file cache that
+      serves decode-miss reads of the sidecar.
+  --moe-expert-topk N
+      Experimental: route/stream only N experts per token instead of
+      the model default. Applies to both prefill and decode.
+  -c, --ctx N
+      Context size allocated for the session. Default: 32768
+  --metal
+      Use the Metal graph backend. This is the normal fast path on macOS.
+  --cuda
+      Use the CUDA graph backend. This is the normal fast path on CUDA builds.
+  --cpu
+      Use the CPU reference/debug backend. Not recommended for normal inference.
+  --backend NAME
+      Select backend explicitly: metal, cuda, or cpu.
+  -t, --threads N
+      CPU helper threads for host-side or reference work.
+  --quality
+      Prefer exact kernels where faster approximate paths exist; implies --no-int8.
+  --no-int8
+      Disable int8 accelerator paths; use NAX-half/GPU fallbacks for quality-preserving runs.
+  --dir-steering-file FILE
+      Load one f32 direction vector per layer for directional steering.
+  --dir-steering-ffn F
+      Apply steering after FFN outputs: y -= F*v*dot(v,y). Default with file: 1
+  --dir-steering-attn F
+      Apply steering after attention outputs. Default: 0
+  --warm-weights
+      Touch mapped tensor pages before generation. Slower startup, fewer first-use stalls.
+
+Prompt and generation:
+  -p, --prompt TEXT
+      Prompt to generate from.
+  --prompt-file FILE
+      Read the prompt text from FILE.
+  -sys, --system TEXT
+      System prompt. Empty string disables the default. Default: You are a helpful assistant
+  -n, --tokens N
+      Maximum tokens to generate. Default: 50000
+  --temp F
+      Sampling temperature. 0 is greedy/deterministic. Default: 1
+  --top-p F
+      Nucleus sampling probability. Default: 1
+  --min-p F
+      Keep tokens scoring at least F times the top token. Default: 0.05
+  --seed N
+      Sampling seed for reproducible non-greedy runs. Default: time-based
+  --think
+      Use normal thinking mode. This is the default.
+  --think-max
+      Use Think Max when --ctx is at least 393216 tokens; otherwise normal thinking.
+  --nothink
+      Start assistant turns with </think> for direct non-thinking replies.
+
+Interactive commands:
+  /help
+      Show interactive commands.
+  /think, /think-max, /nothink
+      Select normal thinking, context-gated Think Max, or non-thinking mode.
+  /ctx N
+      Recreate the interactive session with a new context size.
+  /read FILE
+      Read a prompt from FILE and run it as the next user message.
+  /quit, /exit
+      Leave the interactive prompt.
+  Ctrl+C
+      Stop the current generation and return to ds4> without exiting.
+
+Diagnostics:
+  --inspect
+      Load the model and print a summary only.
+  --dump-tokens
+      Print the rendered prompt tokens, then exit without inference.
+  --dump-logprobs FILE
+      Write greedy continuation top-logprobs as JSON without printing text.
+  --logprobs-top-k N
+      Number of local alternatives stored by --dump-logprobs. Default: 20
+  --imatrix-dataset FILE
+      Rendered DS4 prompt dataset produced by misc/imatrix_dataset.
+  --imatrix-out FILE
+      Collect a routed-MoE activation imatrix and write llama-compatible .dat.
+  --imatrix-max-prompts N
+      Stop imatrix collection after N prompts. Default: no prompt limit
+  --imatrix-max-tokens N
+      Stop imatrix collection after N prompt tokens. Default: no token limit
+  --head-test
+      Run the output HC/logits head after the native slice.
+  --first-token-test
+      Run an exact CPU whole-model pass for the first prompt token.
+  --metal-graph-test
+      Compare first GPU-resident graph stages with CPU.
+  --metal-graph-full-test
+      Run the GPU-resident self-token graph across all layers.
+  --metal-graph-prompt-test
+      Compare CPU and GPU graph logits for the full prompt.
+
+Normal CLI commands:
+  ./ds4
+  ./ds4 -p "Scrivi una storia su una papera scansafatiche"
+  ./ds4 --think-max --prompt-file prompt.txt --ctx 393216
+
+Notes:
+  The CLI keeps KV cache state across interactive turns on session backends.
+  CPU mode supports interactive chat too, but it is a slow reference/debug path.
+  Long added input is processed with batched prefill; short continuations use decode.
+  Startup prints the extra context-buffer memory for the selected context size.
+
+  -h, --help
+      Show this help.

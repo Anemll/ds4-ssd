@@ -1,0 +1,7 @@
+Questa è un'ottima domanda, che tocca un concetto fondamentale per l'implementazione efficiente dei modelli di intelligenza artificiale.
+
+Ecco una spiegazione chiara e strutturata di cosa sia una **matrice di importanza** (o *Importance Matrix*) nel contesto della quantizzazione a bassa precision (low-bit).
+
+### Il Problema: Perché non possiamo semplicemente "tagliare" i numeri?
+
+La quantizzazione (es. da 16 bit a 8 bit, o da 8 bit 4 bit) riduce la precisione dei

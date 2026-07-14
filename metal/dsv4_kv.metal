@@ -46,6 +46,18 @@ struct ds4_metal_args_dsv4_compressor_store_one {
     uint32_t ape_type;
 };
 
+struct ds4_metal_args_dsv4_compressor_store_capture_rows {
+    uint32_t width;
+    uint32_t ratio;
+    uint32_t pos0;
+    uint32_t source_row;
+    uint32_t n_rows;
+    uint32_t prefix_base;
+    uint32_t capture_count;
+    uint32_t ape_type;
+    uint32_t state_rows;
+};
+
 static inline float dsv4_e4m3fn_value(int i) {
     const int exp  = (i >> 3) & 0x0f;
     const int mant = i & 0x07;
@@ -299,4 +311,72 @@ kernel void kernel_dsv4_compressor_store_one(
 
     state_kv[dst] = kv[gid];
     state_score[dst] = score[gid] + ape_v;
+}
+
+// Strict-verifier compressor frontier update for a short run that does not
+// cross a compression boundary.  Each state element is independent in such a
+// run, so one dispatch can replay the rows in decode order, write the final
+// live frontier, and materialize every requested prefix snapshot.  The score
+// expression deliberately matches kernel_dsv4_compressor_store_one.
+kernel void kernel_dsv4_compressor_store_capture_rows(
+        constant ds4_metal_args_dsv4_compressor_store_capture_rows & args,
+        device const float * kv,
+        device const float * score,
+        device const char  * ape,
+        device       float * state_kv,
+        device       float * state_score,
+        device       float * capture_kv0,
+        device       float * capture_score0,
+        device       float * capture_kv1,
+        device       float * capture_score1,
+        device       float * capture_kv2,
+        device       float * capture_score2,
+        device       float * capture_kv3,
+        device       float * capture_score3,
+        device       float * capture_kv4,
+        device       float * capture_score4,
+        uint gid [[thread_position_in_grid]]) {
+    const uint state_elems = args.state_rows * args.width;
+    if (gid >= state_elems || args.width == 0 || args.ratio == 0 ||
+        args.n_rows == 0 || args.n_rows > 6) {
+        return;
+    }
+
+    const uint state_row = gid / args.width;
+    const uint col = gid - state_row * args.width;
+    float kv_v = state_kv[gid];
+    float score_v = state_score[gid];
+
+    for (uint j = 0; j < args.n_rows; ++j) {
+        const uint pos = args.pos0 + j;
+        const uint pos_mod = pos % args.ratio;
+        const uint dst_row = args.ratio == 4u ? args.ratio + pos_mod : pos_mod;
+        if (state_row == dst_row) {
+            const uint src = (args.source_row + j) * args.width + col;
+            const uint ape_i = pos_mod * args.width + col;
+            float ape_v;
+            if (args.ape_type == 1u) {
+                ape_v = (float)(((device const half *)ape)[ape_i]);
+            } else {
+                ape_v = ((device const float *)ape)[ape_i];
+            }
+            kv_v = kv[src];
+            score_v = score[src] + ape_v;
+        }
+
+        const uint slot = args.prefix_base + j;
+        if (slot < args.capture_count) {
+            switch (slot) {
+                case 0u: capture_kv0[gid] = kv_v; capture_score0[gid] = score_v; break;
+                case 1u: capture_kv1[gid] = kv_v; capture_score1[gid] = score_v; break;
+                case 2u: capture_kv2[gid] = kv_v; capture_score2[gid] = score_v; break;
+                case 3u: capture_kv3[gid] = kv_v; capture_score3[gid] = score_v; break;
+                case 4u: capture_kv4[gid] = kv_v; capture_score4[gid] = score_v; break;
+                default: break;
+            }
+        }
+    }
+
+    state_kv[gid] = kv_v;
+    state_score[gid] = score_v;
 }

@@ -1,0 +1,22 @@
+I'll create completo Space invaders game using Pygame library. Thisจะเป็นเก Space Invaders completo with player, enemies bullets and scoring system.
+
+```python import pygame import random import math from pygame import mixer
+
+# Initialize pygame pygame.init()
+
+ screen = pygame.display.set_mode((800, 600 sesu) # Set caption pygame.display.set_captionSpace Invaders Attack")
+
+# Background bg_img = pygame.image.load('background.jpg') # Optional: add your own background image
+
+# Load images player_img = pygame.image.load('player ship.png') enemy_img = pygame.image.load('enemy ship.png') bullet_img = pygame.image.load('bullet.png的背景')
+
+# Load sounds # Optional: Uncomment if you have sound files ready # bullet sound = mixer.Sound('激光.wav') explosion_sound mixer.Soundexplosion.wav background_music mixer.music.loadbackground.wav mixer.play(-1 music.play)
+
+# Scoring system.score = _over = 0 font = pygame.font.Font('f.ttf',32)over_font pygame.font.Font('f.ttf hini',64)
+
+class Player def __init__( self): self.image = player_img self.x_change =0 self.y_change =0 self.x_position =370 self.y_position480 self.x_change_speed def move(self direction): self.x_change = direction def updatePosition(self):
+        self.x_position += self.change
+        boundaries
+        if self.x_position <=0:
+            self.x_position =0
+        elif

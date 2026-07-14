@@ -1,0 +1,41 @@
+== fast_default
+status=0
+105:ds4: prefill: 7.03 t/s, generation: 51.82 t/s (1000 tokens in 19.299s)
+106:ds4: dspark perf: draft=463.5 tok/s, verify=73.1 proposed tok/s, verify-accepted=63.3 tok/s, block=81.11 ms (draft=10.76 verify=68.23 overhead=2.12 commit=1.68, tau=4.32, blocks=227)
+108:ds4: dspark draft-overlap upper-bound: 61.4 tok/s (1.15x block decode, hides 10.76 ms/block)
+110:ds4: dspark acceptance: 91.7% (969/1057 draft tokens)
+113:ds4: dspark full-accept: 82.1% (174/212 blocks), first-miss: 1.9% (4/212 blocks)
+114:ds4: dspark avg scheduled: 4.99 draft tokens/block (212 blocks)
+== no_loop_guard
+status=0
+105:ds4: prefill: 7.67 t/s, generation: 54.52 t/s (1000 tokens in 18.341s)
+106:ds4: dspark perf: draft=461.1 tok/s, verify=71.9 proposed tok/s, verify-accepted=65.2 tok/s, block=82.28 ms (draft=10.81 verify=69.31 overhead=2.16 commit=1.73, tau=4.52, blocks=219)
+108:ds4: dspark draft-overlap upper-bound: 63.2 tok/s (1.15x block decode, hides 10.81 ms/block)
+110:ds4: dspark acceptance: 95.4% (989/1037 draft tokens)
+113:ds4: dspark full-accept: 88.5% (184/208 blocks), first-miss: 0.5% (1/208 blocks)
+114:ds4: dspark avg scheduled: 4.99 draft tokens/block (208 blocks)
+== topk128_delta10
+status=0
+105:ds4: prefill: 7.45 t/s, generation: 53.58 t/s (1000 tokens in 18.665s)
+106:ds4: dspark perf: draft=463.3 tok/s, verify=70.3 proposed tok/s, verify-accepted=64.7 tok/s, block=83.85 ms (draft=10.76 verify=70.88 overhead=2.21 commit=1.77, tau=4.58, blocks=216)
+108:ds4: dspark draft-overlap upper-bound: 62.7 tok/s (1.15x block decode, hides 10.76 ms/block)
+110:ds4: dspark acceptance: 93.6% (975/1042 draft tokens)
+113:ds4: dspark full-accept: 87.6% (183/209 blocks), first-miss: 1.4% (3/209 blocks)
+114:ds4: dspark avg scheduled: 4.99 draft tokens/block (209 blocks)
+== full_logits_delta10
+status=0
+105:ds4: prefill: 7.53 t/s, generation: 47.99 t/s (1000 tokens in 20.836s)
+106:ds4: dspark perf: draft=461.8 tok/s, verify=78.2 proposed tok/s, verify-accepted=58.5 tok/s, block=76.61 ms (draft=10.81 verify=63.83 overhead=1.98 commit=1.54, tau=3.73, blocks=260)
+108:ds4: dspark draft-overlap upper-bound: 56.8 tok/s (1.16x block decode, hides 10.81 ms/block)
+110:ds4: dspark acceptance: 83.4% (966/1158 draft tokens)
+113:ds4: dspark full-accept: 65.5% (152/232 blocks), first-miss: 2.6% (6/232 blocks)
+114:ds4: dspark avg scheduled: 4.99 draft tokens/block (232 blocks)
+== cooldown_disabled
+status=0
+105:ds4: prefill: 7.89 t/s, generation: 52.39 t/s (1000 tokens in 19.089s)
+106:ds4: dspark perf: draft=465.1 tok/s, verify=74.1 proposed tok/s, verify-accepted=63.9 tok/s, block=80.37 ms (draft=10.75 verify=67.52 overhead=2.09 commit=1.66, tau=4.31, blocks=227)
+108:ds4: dspark draft-overlap upper-bound: 62.0 tok/s (1.15x block decode, hides 10.75 ms/block)
+110:ds4: dspark acceptance: 91.8% (964/1050 draft tokens)
+113:ds4: dspark full-accept: 80.5% (169/210 blocks), first-miss: 1.9% (4/210 blocks)
+114:ds4: dspark avg scheduled: 5.00 draft tokens/block (210 blocks)
+RUN=dspark_fast_guard_sweep_043848 DIR=bench-results/dspark_fast_guard_sweep_043848

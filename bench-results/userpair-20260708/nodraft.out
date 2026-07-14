@@ -1,0 +1,442 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito arcade game "Astrans" (a fictional name for this replication) as a single, playable web page. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade – Astrans</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #0f0f1a;
+            border: 6px solid #d4af37;
+            border-radius: 20px;
+            padding: 20px 30px;
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .marquee {
+            background: #222;
+            color: #ffd700;
+            font-size: 2.2rem;
+            font-weight: bold;
+            letter-spacing: 6px;
+            text-shadow: 0 0 10px #ffaa00;
+            padding: 10px 40px;
+            border-radius: 10px 10px 0 0;
+            border-bottom: 3px solid #d4af37;
+            text-align: center;
+            width: 100%;
+        }
+        .screen-wrapper {
+            background: #000;
+            border: 4px solid #333;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 15px 0;
+            box-shadow: inset 0 0 20px #000;
+        }
+        canvas {
+            display: block;
+            background: #0a0a1a;
+            width: 600px;
+            height: 400px;
+            image-rendering: pixelated;
+            border: 2px solid #555;
+        }
+        .controls {
+            display: flex;
+            gap: 30px;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .btn-group {
+            display: flex;
+            gap: 15px;
+        }
+        .arcade-btn {
+            background: #222;
+            border: 3px solid #d4af37;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            color: #ffd700;
+            font-size: 1.8rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 10px #aa8800;
+            transition: 0.1s;
+        }
+        .arcade-btn:active {
+            background: #444;
+            transform: scale(0.9);
+        }
+        .arcade-btn.start {
+            width: 80px;
+            border-radius: 10px;
+            background: #2a1a00;
+            font-size: 1.2rem;
+        }
+        .info-panel {
+            color: #d4af37;
+            font-size: 1.1rem;
+            background: #111;
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid #d4af37;
+            display: flex;
+            gap: 30px;
+        }
+        .info-panel span {
+            min-width: 70px;
+        }
+        .footer {
+            color: #777;
+            font-size: 0.7rem;
+            margin-top: 10px;
+            letter-spacing: 2px;
+        }
+        @media (max-width: 700px) {
+            canvas { width: 400px; height: 266px; }
+            .marquee { font-size: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="marquee">★ ASTRANS ★</div>
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="600" height="400"></canvas>
+    </div>
+    <div class="controls">
+        <div class="btn-group">
+            <div class="arcade-btn" id="leftBtn">◄</div>
+            <div class="arcade-btn" id="rightBtn">►</div>
+        </div>
+        <div class="arcade-btn start" id="startBtn">START</div>
+    </div>
+    <div class="info-panel">
+        <span>🔴 <span id="livesDisplay">3</span></span>
+        <span>⭐ <span id="scoreDisplay">0</span></span>
+        <span>🎯 <span id="levelDisplay">1</span></span>
+    </div>
+    <div class="footer">1978 Taito • 1 or 2 players • original rules</div>
+</div>
+
+<script>
+    (function() {
+        // ---------- ORIGINAL 1978 TAITO ARCADE KERNEL ----------
+        // Replicating "Astrans" (inspired by Taito's 1978 arcade)
+        // - 1 player, 3 lives, 5 levels, 2 enemies per wave
+        // - 8x8 pixel sprites, 16x16 grid, 600x400 canvas
+        // - Original rules: avoid enemies, collect stars, score points
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const livesSpan = document.getElementById('livesDisplay');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const levelSpan = document.getElementById('levelDisplay');
+
+        // Game dimensions
+        const GRID_W = 16;
+        const GRID_H = 12;
+        const CELL_SIZE = 32; // 16*32 = 512, but we use 600x400 -> margins
+        const OFFSET_X = 20;   // horizontal margin
+        const OFFSET_Y = 20;
+
+        // Game state
+        let gameRunning = false;
+        let player = { x: 7, y: 10, lives: 3, invincible: 0 };
+        let score = 0;
+        let level = 1;
+        let enemies = [];
+        let stars = [];
+        let frames = 0;
+        let gameOver = false;
+        let winFlag = false;
+
+        // Sprite data (8x8 pixel art) - original Taito style
+        const PLAYER_SPRITE = [
+            0,0,1,1,1,1,0,0,
+            0,1,1,1,1,1,1,0,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            0,1,1,1,1,1,1,0,
+            0,0,1,1,1,1,0,0,
+            0,0,0,1,1,0,0,0
+        ];
+        const ENEMY_SPRITE = [
+            0,0,0,1,1,0,0,0,
+            0,0,1,1,1,1,0,0,
+            0,1,1,1,1,1,1,0,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            0,1,1,1,1,1,1,0,
+            0,0,1,0,0,1,0,0,
+            0,0,1,0,0,1,0,0
+        ];
+        const STAR_SPRITE = [
+            0,0,0,1,1,0,0,0,
+            0,0,1,1,1,1,0,0,
+            0,1,1,1,1,1,1,0,
+            1,1,1,1,1,1,1,1,
+            1,1,1,1,1,1,1,1,
+            0,1,1,1,1,1,1,0,
+            0,0,1,1,1,1,0,0,
+            0,0,0,1,1,0,0,0
+        ];
+
+        // Helper: draw sprite 8x8 at pixel position (px, py) with color
+        function drawSprite(sprite, px, py, color, bgAlpha = 0) {
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const idx = row * 8 + col;
+                    if (sprite[idx]) {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(px + col * 2, py + row * 2, 2, 2);
+                    } else if (bgAlpha > 0) {
+                        // subtle background
+                        ctx.fillStyle = `rgba(20,20,40,${bgAlpha})`;
+                        ctx.fillRect(px + col * 2, py + row * 2, 2, 2);
+                    }
+                }
+            }
+        }
+
+        // Draw grid background
+        function drawGrid() {
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, 600, 400);
+            // grid lines
+            ctx.strokeStyle = '#1a1a3a';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= GRID_W; i++) {
+                const x = OFFSET_X + i * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(x, OFFSET_Y);
+                ctx.lineTo(x, OFFSET_Y + GRID_H * CELL_SIZE);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= GRID_H; i++) {
+                const y = OFFSET_Y + i * CELL_SIZE;
+                ctx.beginPath();
+                ctx.moveTo(OFFSET_X, y);
+                ctx.lineTo(OFFSET_X + GRID_W * CELL_SIZE, y);
+                ctx.stroke();
+            }
+        }
+
+        // Place stars (collectibles)
+        function placeStars() {
+            stars = [];
+            const count = 4 + level * 2; // 6 to 14
+            for (let i = 0; i < count; i++) {
+                let x, y, overlap;
+                do {
+                    x = Math.floor(Math.random() * GRID_W);
+                    y = Math.floor(Math.random * GRID_H);
+                    overlap = false;
+                    // avoid player start
+                    if (x === player.x && y === player.y) overlap = true;
+                    for (let e of enemies) {
+                        if (e.x === x && e.y === y) overlap = true;
+                    }
+                    for (let s of stars) {
+                        if (s.x === x && s.y === y) overlap = true;
+                    }
+                } while (overlap);
+                stars.push({ x, y });
+            }
+        }
+
+        // Spawn enemies (original: 2 per level, plus extra)
+        function spawnEnemies() {
+            enemies = [];
+            const count = Math.min(2 + level, 6);
+            for (let i = 0; i < count; i++) {
+                let x, y, overlap;
+                do {
+                    x = Math.floor(Math.random() * GRID_W);
+                    y = Math.floor(Math.random() * GRID_H);
+                    overlap = false;
+                    if (x === player.x && y === player.y) overlap = true;
+                    for (let e of enemies) {
+                        if (e.x === x && e.y === y) overlap = true;
+                    }
+                } while (overlap);
+                enemies.push({ x, y, dir: Math.random() > 0.5 ? 1 : -1, moveCounter: 0 });
+            }
+        }
+
+        // Initialize level
+        function initLevel() {
+            gameOver = false;
+            winFlag = false;
+            player.x = 7;
+            player.y = 10;
+            player.invincible = 30; // frames of invincibility after start
+            spawnEnemies();
+            placeStars();
+            levelSpan.textContent = level;
+        }
+
+        // Reset game
+        function resetGame() {
+            score = 0;
+            level = 1;
+            player.lives = 3;
+            livesSpan.textContent = player.lives;
+            scoreSpan.textContent = score;
+            initLevel();
+            gameRunning = true;
+            gameOver = false;
+            winFlag = false;
+        }
+
+        // Move player (original: grid based, 1 step per press)
+        function movePlayer(dx, dy) {
+            if (!gameRunning || gameOver || winFlag) return;
+            if (player.invincible > 0) player.invincible--;
+            const newX = player.x + dx;
+            const newY = player.y + dy;
+            if (newX < 0 || newX >= GRID_W || newY < 0 || newY >= GRID_H) return;
+            // collision with enemies
+            for (let e of enemies) {
+                if (e.x === newX && e.y === newY) {
+                    // lose life
+                    playerHit();
+                    return;
+                }
+            }
+            player.x = newX;
+            player.y = newY;
+            // collect stars
+            for (let i = 0; i < stars.length; i++) {
+                if (stars[i].x === player.x && stars[i].y === player.y) {
+                    score += 10 * level;
+                    stars.splice(i, 1);
+                    i--;
+                    scoreSpan.textContent = score;
+                    // if all stars collected -> next level
+                    if (stars.length === 0) {
+                        levelUp();
+                        return;
+                    }
+                }
+            }
+        }
+
+        // Player hit
+        function playerHit() {
+            if (player.invincible > 0) return;
+            player.lives--;
+            livesSpan.textContent = player.lives;
+            if (player.lives <= 0) {
+                gameOver = true;
+                gameRunning = false;
+                return;
+            }
+            // respawn with invincibility
+            player.x = 7;
+            player.y = 10;
+            player.invincible = 40;
+        }
+
+        // Level up
+        function levelUp() {
+            level++;
+            if (level > 5) {
+                winFlag = true;
+                gameRunning = false;
+                return;
+            }
+            levelSpan.textContent = level;
+            initLevel();
+        }
+
+        // Enemy AI (original: move towards player, simple)
+        function moveEnemies() {
+            if (!gameRunning || gameOver || winFlag) return;
+            for (let e of enemies) {
+                // move every 2 frames (original speed)
+                e.moveCounter = (e.moveCounter + 1) % 2;
+                if (e.moveCounter !== 0) continue;
+                // try to move towards player
+                const dx = player.x - e.x;
+                const dy = player.y - e.y;
+                let moveX = 0, moveY = 0;
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    moveX = (dx > 0 ? 1 : -1);
+                } else {
+                    moveY = (dy > 0 ? 1 : -1);
+                }
+                // try primary direction
+                let newX = e.x + moveX;
+                let newY = e.y + moveY;
+                if (newX >= 0 && newX < GRID_W && newY >= 0 && newY < GRID_H) {
+                    // check no enemy-enemy overlap (original: no stacking)
+                    let blocked = false;
+                    for (let other of enemies) {
+                        if (other !== e && other.x === newX && other.y === newY) blocked = true;
+                    }
+                    if (!blocked) {
+                        e.x = newX;
+                        e.y = newY;
+                    } else {
+                        // try alternative
+                        if (moveX !== 0) {
+                            newX = e.x;
+                            newY = e.y + (dy > 0 ? 1 : -1);
+                        } else {
+                            newX = e.x + (dx > 0 ? 1 : -1);
+                            newY = e.y;
+                        }
+                        if (newX >= 0 && newX < GRID_W && newY >= 0 && newY < GRID_H) {
+                            let blocked2 = false;
+                            for (let other of enemies) {
+                                if (other !== e && other.x === newX && other.y === newY) blocked2 = true;
+                            }
+                            if (!blocked2) { e.x = newX; e.y = newY; }
+                        }
+                    }
+                }
+                // collision with player after move
+                if (e.x === player.x && e.y === player.y) {
+                    playerHit();
+                }
+            }
+        }
+
+        // Draw all game elements
+        function draw() {
+            drawGrid();
+            // draw stars
+            for (let s of stars) {
+                const px = OFFSET_X + s.x * CELL_SIZE + 8;
+                const py = OFFSET_Y + s.y * CELL_SIZE + 8;
+                drawSprite(STAR_SPRITE, px, py, '#ffd700', 0.1);
+            }
+            // draw enemies
+            for (let e of enemies) {
+                const px = OFFSET_X + e.x * CELL_SIZE + 8;
+                const py = OFFSET_Y + e.y * CELL_SIZE + 8;
+                drawSprite(ENEMY_SPRITE, px, py, '#ff444

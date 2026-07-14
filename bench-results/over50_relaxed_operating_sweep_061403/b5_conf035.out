@@ -1,0 +1,48 @@
+I'll create a complete, playable Space Invaders in Pygame. Here's the full implementation:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 0 0 means unlimited
+
+# Player settings
+PLAYER_SPEED = 5
+PLAYER_WIDTH = 0.8
+PLAYER_HEIGHT = 0.8
+
+# Bullet settings
+BULLET_SPE = 5
+BULL_WIDTH = 0.2
+BULLET_HEIGHT = 0.8
+
+# Enemy settings
+ENEMY_SPE = 1
+ENEMY_WIDTH = 0.8
+ENY_HEIGHT = 0.8
+# Colors
+BLACK = (0,0)
+WHITE = (255,255,255)
+RED = (255,0)
+GREEN = (0,255,0)
+# Colors
+# Colors
+BLACK = (0,0)
+WHITE = (255,255,255)
+RED = (255,0)
+GREEN = (0,255,0)
+# Colors
+BLACK = (0,0)
+WHITE = (255,255,255)
+RED = (255,0)
+GREEN = (0,255)
+# Colors
+BLACK = (0,0)
+WHITE = (255

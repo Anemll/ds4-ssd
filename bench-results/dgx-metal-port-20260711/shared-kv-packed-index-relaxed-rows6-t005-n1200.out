@@ -1,0 +1,149 @@
+I'll create a faithful reproduction of the classic 1978 Taito arcade game with all the rules, sprites, and mechanics intact.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1978 Taito Arcade - Space Invaders</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        #gameContainer {
+            width: 800px;
+            height: 900px;
+            background: #111;
+            position: relative;
+            border: 4px solid #000;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            background: #000;
+            width: 760px;
+            height: 860px;
+            image-rendering: pixelated;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            color: #0f0;
+            font-size: 14px;
+            text-shadow: 0 0 5px #0f0;
+        }
+        #info span {
+            margin-right: 20px;
+        }
+        #gameOver {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f0f;
+            font-size: 36px;
+            text-shadow: 0 0 20px #f0f;
+            display: none;
+            font-family: 'Courier New', monospace;
+        }
+        #restartBtn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 8px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        #restartBtn:hover {
+            background: #0f0;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="760" height="860"></canvas>
+        <div id="info">
+            <span>SCORE: <span id="scoreDisplay">0</span></span>
+            <span>LIVES: <span id="livesDisplay">3</span></span>
+        </div>
+        <div id="gameOver">GAME OVER</div>
+        <button id="restartBtn">PLAY</button>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreSpan = document.getElementById('scoreDisplay');
+            const livesSpan = document.getElementById('livesDisplay');
+            const gameOverDiv = document.getElementById('gameOver');
+            const restartBtn = document.getElementById('restartBtn');
+
+            // Game constants
+            const W = 760, H = 860;
+            const PLAYER_WIDTH = 28;
+            const PLAYER_HEIGHT = 14;
+            const INVADER_WIDTH = 28;
+            const INVADER_HEIGHT = 18;
+            const INVADER_COLS = 11;
+            const INVADER_ROWS = 6;
+            const INVADER_SPACING_X = 16;
+            const INVADER_SPACING_Y = 8;
+            const INVADER_OFFSET_Y = 40;
+            const PLAYER_Y = H - 60;
+            const PLAYER_SPEED = 2.5;
+            const BULLET_SPEED = 4;
+            const INVADER_BULLET_SPEED = 2.5;
+            const MAX_INVADER_BULLETS = 3;
+
+            // Game state
+            let score = 0;
+            let lives = 3;
+            let playerX = W/2 - PLAYER_WIDTH/2;
+            let playerDir = 0;
+            let bullets = [];
+            let invaderBullets = [];
+            let invaders = [];
+            let invaderDir = -1; // -1 left, 1 right
+            let invaderSpeed = 0.5;
+            let invaderFrames = 0;
+            let frameCount = 0;
+            let gameRunning = false;
+            let gameOver = false;
+            let keys = {};
+            let respawnTimer = 0;
+            let playerRespawned = false;
+            let invaderTimer = 0;
+            let invaderShootInterval = 80;
+            let level = 1;
+            let invaderMoveCount = 0;
+            let invaderRowOffset = 0;
+            let invaderAnim = 0;
+
+            // Touch controls
+            let touchStartX = 0;
+            let touchActive = false;
+
+            // Original sprite data (simplified pixel-based)
+            // Player sprite (14x14 pixels)
+            const playerSprite = [
+                [0,0,0,0,1,1,1,

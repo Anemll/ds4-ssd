@@ -1,0 +1,3 @@
+case	tps	acc	tau	suspect	resident	out	err
+slot128	17.71	77.1%	3.36	0	NA	bench-results/slot128_080449.out	bench-results/slot128_080449.err
+slot64	18.84	77.1%	3.36	0	NA	bench-results/slot64_080449.out	bench-results/slot64_080449.err

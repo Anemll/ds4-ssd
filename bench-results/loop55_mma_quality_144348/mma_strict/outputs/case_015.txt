@@ -1,0 +1,11 @@
+Ecco lo pseudocodice per inserire un elemento in un heap binario (max-heap o min-heap):
+
+```pseudocode
+// Funzione per inserire un elemento in un heap binario
+// Assume che l'heap sia rappresentato come un array
+// Per un max-heap: il genitore è sempre maggiore dei figli
+// Per un min-heap: il genitore è sempre minore dei figli
+
+ALGORITHM insertHeap(heap, size, newElement, isMaxHeap)
+    // INPUT: heap - array che rappresenta l'heap
+    //

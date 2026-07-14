@@ -1,0 +1,23 @@
+Ecco una funzione Python per calcolare la mediana di tre numeri:
+
+```python
+def median_of_three(a, b, c):
+    """
+    Calcola la mediana di tre numeri.
+    
+    Args:
+        a: primo numero
+        b: secondo numero
+        c: terzo numero
+    
+    Returns:
+        Il valore mediana dei tre numeri
+    """
+    # Metodo 1: usando if-else
+    if a >= b:
+        if a >= c:
+            return b if c >= b else c
+        else:
+            return a
+    else:
+        if b

@@ -1,0 +1,17 @@
+Ecco una guida dettagliata su come testare un parser da riga di comando con casi limite, utilizzando un approccio sistematico.
+
+## 1. **Strategia di Test per Casi Limite**
+
+### Categorie di casi limite da considerare:
+
+```python
+# Esempio di struttura di test per un parser CLI
+import pytest
+from your_parser import parse_args
+
+class TestParserEdgeCases:
+    
+    # 1. INPUT VUOTO O NULLO
+    def test_empty_input(self):
+        """Test con stringa vuota"""
+        result = parse_args("")

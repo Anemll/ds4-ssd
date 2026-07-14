@@ -1,0 +1,5 @@
+threshold	out	err	gen_tps	block_ms	draft_ms	verify_ms	tau	acceptance	suspect
+0.70	bench-results/dspark_trust_conf_0.70_n1000_062347.out	bench-results/dspark_trust_conf_0.70_n1000_062347.err	67.61	47.93	10.67	35.19	3.58	91.3%	1
+0.80	bench-results/dspark_trust_conf_0.80_n1000_062347.out	bench-results/dspark_trust_conf_0.80_n1000_062347.err	47.31	77.14	10.67	63.48	4.08	79.5%	1
+0.90	bench-results/dspark_trust_conf_0.90_n1000_062347.out	bench-results/dspark_trust_conf_0.90_n1000_062347.err	54.56	69.08	10.68	56.14	4.29	86.9%	1
+0.95	bench-results/dspark_trust_conf_0.95_n1000_062347.out	bench-results/dspark_trust_conf_0.95_n1000_062347.err	50.29	77.11	10.68	64.41	4.10	84.6%	1

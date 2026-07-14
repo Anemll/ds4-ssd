@@ -1,0 +1,7 @@
+105:ds4: prefill: 21.42 t/s, generation: 37.24 t/s (4000 tokens in 107.418s)
+106:ds4: dspark perf: draft=459.6 tok/s, verify=62.0 proposed tok/s, verify-accepted=46.5 tok/s, block=94.08 ms (draft=10.86 verify=80.48 overhead=2.73 commit=1.55, tau=3.74, blocks=1028)
+109:ds4: dspark acceptance: 78.8% (3678/4666 draft tokens)
+110:ds4: dspark acceptance by position: 1=864/934 2=805/933 3=739/933 4=671/933 5=599/933
+111:ds4: dspark conditional acceptance: 1=92.5% (864/934) 2|1=93.3% (805/863) 3|1-2=91.8% (739/805) 4|1-3=90.8% (671/739) 5|1-4=89.3% (599/671)
+112:ds4: dspark full-accept: 64.2% (600/934 blocks), first-miss: 7.5% (70/934 blocks)
+113:ds4: dspark avg scheduled: 5.00 draft tokens/block (934 blocks)

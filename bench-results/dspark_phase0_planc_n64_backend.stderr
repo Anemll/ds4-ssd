@@ -1,0 +1,12 @@
+dspark phase0: baseline -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/baseline.err
+dspark phase0: baseline_tps=33.47
+dspark phase0: draft budget=2 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_b2.err
+dspark phase0: draft budget=4 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_b4.err
+dspark phase0: draft budget=5 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_b5.err
+dspark phase0: unified backend=batch budget=2 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_batch_b2.err
+dspark phase0: unified backend=batch budget=4 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_batch_b4.err
+dspark phase0: unified backend=batch budget=5 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_batch_b5.err
+dspark phase0: unified backend=strict_v1 budget=2 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_strict_v1_b2.err
+dspark phase0: unified backend=strict_v1 budget=4 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_strict_v1_b4.err
+dspark phase0: unified backend=strict_v1 budget=5 -> bench-results/dspark_phase0_planc_n64_backend_20260628_173006/dspark_unified_strict_v1_b5.err
+dspark phase0: wrote bench-results/dspark_phase0_planc_n64_backend_20260628_173006/summary.tsv

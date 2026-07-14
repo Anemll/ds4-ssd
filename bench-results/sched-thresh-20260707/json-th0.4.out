@@ -1,0 +1,285 @@
+```json
+[
+  {
+    "title": "The Echo of Forgotten Stars",
+    "author": "Elara Voss",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 342,
+    "summary": "A lone astronaut discovers that the stars are singing a message from a long-lost civilization."
+  },
+  {
+    "title": "Whispers in the Marble Hall",
+    "author": "Julian Croft",
+    "year": 2019,
+    "genre": "Mystery",
+    "pages": 288,
+    "summary": "A detective uncovers a series of secrets hidden within an ancient mansion's walls."
+  },
+  {
+    "title": "The Last Ember",
+    "author": "Sofia Reyes",
+    "year": 2020,
+    "genre": "Fantasy",
+    "pages": 415,
+    "summary": "A young mage must find the last ember of a dying sun to save her world from eternal darkness."
+  },
+  {
+    "title": "Beneath the Iron Sky",
+    "author": "Dmitri Volkov",
+    "year": 2018,
+    "genre": "Dystopian",
+    "pages": 367,
+    "summary": "In a world covered by a toxic sky, a scavenger fights to find a mythical garden that can heal the land."
+  },
+  {
+    "title": "The Painted Garden",
+    "author": "Iris Chen",
+    "year": 2022,
+    "genre": "Contemporary Fiction",
+    "pages": 301,
+    "summary": "An artist returns to her hometown to restore a forgotten garden and uncovers her family's hidden past."
+  },
+  {
+    "title": "Clockwork Hearts",
+    "author": "Arthur Pendrake",
+    "year": 2017,
+    "genre": "Steampunk",
+    "pages": 374,
+    "summary": "A clockmaker's daughter builds a mechanical heart to save her father from a mysterious illness."
+  },
+  {
+    "title": "The Silent Tide",
+    "author": "Mira Nakatani",
+    "year": 2023,
+    "genre": "Historical Fiction",
+    "pages": 459,
+    "summary": "Set in feudal Japan, a samurai's daughter must navigate a world of honor and betrayal to protect her clan."
+  },
+  {
+    "title": "Starlight and Shadows",
+    "author": "Liam O'Connor",
+    "year": 2020,
+    "genre": "Romance",
+    "pages": 276,
+    "summary": "Two rival astronomers fall in love while competing to discover a new constellation."
+  },
+  {
+    "title": "The Bone Labyrinth",
+    "author": "Rebecca Frost",
+    "year": 2021,
+    "genre": "Horror",
+    "pages": 398,
+    "summary": "A group of archaeologists uncover a subterranean maze that feeds on their deepest fears."
+  },
+  {
+    "title": "The Velvet Sky",
+    "author": "Catherine Moreau",
+    "year": 2019,
+    "genre": "Literary Fiction",
+    "pages": 334,
+    "summary": "A woman's journey through grief is mirrored by the changing seasons in a small coastal town."
+  },
+  {
+    "title": "Code of the Ancients",
+    "author": "Ethan Blackwood",
+    "year": 2022,
+    "genre": "Thriller",
+    "pages": 412,
+    "summary": "A cryptographer deciphers an ancient code that could unlock a weapon of unimaginable power."
+  },
+  {
+    "title": "The Moon Weaver",
+    "author": "Luna Silver",
+    "year": 2020,
+    "genre": "Fantasy",
+    "pages": 387,
+    "summary": "A young girl discovers she can weave moonlight into threads that can mend broken hearts and minds."
+  },
+  {
+    "title": "Rivers of Rust",
+    "author": "Jasper Hale",
+    "year": 2018,
+    "genre": "Post-Apocalyptic",
+    "pages": 421,
+    "summary": "In a world ravaged by a metallic plague, a lone wanderer searches for a river that still flows with clean water."
+  },
+  {
+    "title": "The Forgotten Symphony",
+    "author": "Amara Singh",
+    "year": 2021,
+    "genre": "Historical Fiction",
+    "pages": 365,
+    "summary": "A composer in 18th-century Vienna discovers a lost symphony that could change the course of music history."
+  },
+  {
+    "title": "Glass Houses",
+    "author": "Nathaniel West",
+    "year": 2019,
+    "genre": "Psychological Thriller",
+    "pages": 299,
+    "summary": "A therapist begins to suspect that her new patient's stories are actually about her own hidden past."
+  },
+  {
+    "title": "The Ember Throne",
+    "author": "Elena Petrova",
+    "year": 2023,
+    "genre": "Epic Fantasy",
+    "pages": 543,
+    "summary": "A deposed prince must reclaim his throne from a usurper who commands the power of living fire."
+  },
+  {
+    "title": "Twilight's Requiem",
+    "author": "Marcus Bell",
+    "year": 2020,
+    "genre": "Gothic Fiction",
+    "pages": 312,
+    "summary": "A young woman inherits a cursed castle where the dead refuse to rest until an ancient pact is fulfilled."
+  },
+  {
+    "title": "The Cartographer's Daughter",
+    "author": "Freya Hart",
+    "year": 2022,
+    "genre": "Adventure",
+    "pages": 378,
+    "summary": "A cartographer's daughter sets sail to map the uncharted islands of a treacherous archipelago."
+  },
+  {
+    "title": "Neon Dreams",
+    "author": "Kai Nakamura",
+    "year": 2021,
+    "genre": "Cyberpunk",
+    "pages": 403,
+    "summary": "A hacker discovers that the virtual reality world she designed is being used to control the waking world."
+  },
+  {
+    "title": "The Salt of the Earth",
+    "author": "Grace Holloway",
+    "year": 2019,
+    "genre": "Contemporary Fiction",
+    "pages": 347,
+    "summary": "A family of farmers must adapt to a changing climate while holding onto their ancestral land."
+  },
+  {
+    "title": "The Obsidian Crown",
+    "author": "Alexander Drake",
+    "year": 2020,
+    "genre": "Fantasy",
+    "pages": 456,
+    "summary": "A blacksmith's apprentice forges a crown that can command the loyalty of any who wear it."
+  },
+  {
+    "title": "Echoes of the Abyss",
+    "author": "Victoria Kane",
+    "year": 2022,
+    "genre": "Horror",
+    "pages": 289,
+    "summary": "A deep-sea explorer discovers a city beneath the waves where the inhabitants have evolved to live in darkness."
+  },
+  {
+    "title": "The Paper Menagerie",
+    "author": "Yuki Tanaka",
+    "year": 2018,
+    "genre": "Magical Realism",
+    "pages": 321,
+    "summary": "A lonely boy discovers that his origami animals come to life and can grant wishes."
+  },
+  {
+    "title": "The Iron Vault",
+    "author": "James Sterling",
+    "year": 2021,
+    "genre": "Thriller",
+    "pages": 434,
+    "summary": "A security expert must stop a group of thieves from breaking into the most secure vault in the world."
+  },
+  {
+    "title": "The Crimson Field",
+    "author": "Olivia Black",
+    "year": 2019,
+    "genre": "Historical Fiction",
+    "pages": 489,
+    "summary": "A nurse on the front lines of World War I must navigate the horrors of war and the fragility of hope."
+  },
+  {
+    "title": "Starborn",
+    "author": "Aria Knight",
+    "year": 2023,
+    "genre": "Science Fiction",
+    "pages": 367,
+    "summary": "A child born on a distant space station discovers she can communicate with a mysterious alien species."
+  },
+  {
+    "title": "The Whispering Gallery",
+    "author": "Henry Ward",
+    "year": 2020,
+    "genre": "Mystery",
+    "pages": 304,
+    "summary": "An art historian uncovers a conspiracy hidden in the whispers of a famous museum's gallery."
+  },
+  {
+    "title": "The Jade Lotus",
+    "author": "Lin Zhang",
+    "year": 2022,
+    "genre": "Fantasy",
+    "pages": 412,
+    "summary": "A martial artist must retrieve a sacred jade lotus from a temple guarded by spirits."
+  },
+  {
+    "title": "The Broken Compass",
+    "author": "Samuel Drake",
+    "year": 2018,
+    "genre": "Adventure",
+    "pages": 398,
+    "summary": "A lost explorer uses a broken compass that points to the heart of a hidden continent."
+  },
+  {
+    "title": "The Velvet Underground",
+    "author": "Zoe Archer",
+    "year": 2021,
+    "genre": "Romance",
+    "pages": 287,
+    "summary": "A musician and a painter fall in love while creating a secret album that defies their era."
+  },
+  {
+    "title": "The Ashen Crown",
+    "author": "William Stone",
+    "year": 2020,
+    "genre": "Epic Fantasy",
+    "pages": 521,
+    "summary": "A reluctant king must unite the fractured kingdoms of a dying world against an ancient evil."
+  },
+  {
+    "title": "The Glass Ocean",
+    "author": "Sophia Lee",
+    "year": 2019,
+    "genre": "Historical Fiction",
+    "pages": 376,
+    "summary": "A young woman aboard a doomed ocean liner discovers a plot that could change the course of the war."
+  },
+  {
+    "title": "The Shadow Weaver",
+    "author": "Morgana Dark",
+    "year": 2022,
+    "genre": "Fantasy",
+    "pages": 345,
+    "summary": "A weaver who can create shadows with her thread must stop a rogue mage from unraveling reality."
+  },
+  {
+    "title": "The Neon Garden",
+    "author": "Ravi Patel",
+    "year": 2023,
+    "genre": "Cyberpunk",
+    "pages": 419,
+    "summary": "In a neon-lit future, a gardener discovers that the city's plants are connected to a hidden AI."
+  },
+  {
+    "title": "The Ivory Tower",
+    "author": "Eleanor Rose",
+    "year": 2020,
+    "genre": "Literary Fiction",
+    "pages": 298,
+    "summary": "A professor at an elite university uncovers a scandal that threatens to bring down the institution."
+  },
+  {
+    "title": "The Rusted Heart",
+    "

@@ -1,0 +1,31 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 0
+BULLET = 5
+BULLET_SPEED = 10
+ENEMY_SIZE = 30
+ENEMY = 5
+ENEMY_BULLET_SPEED = 5
+MAX_BY = 3
+MAX_ENEMY_BULLETS = 5
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255,  255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+class Game:
+    def __initinit__(self, self.screen_width = self.screen_height = self.player_size = self.bullet = self.bullet_speed = self.enemy_size = self.enemy = self.enemy_bullet_speed = self.max_by = self.max_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bulullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bulullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_enemy_bullets = self.max_en

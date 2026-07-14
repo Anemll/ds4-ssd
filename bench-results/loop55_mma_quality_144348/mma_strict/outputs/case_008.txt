@@ -1,0 +1,10 @@
+This is an excellent question that gets to the heart of how modern large language model (LLM) inference engines (like TensorRT-LLM, vLLM, or FlashAttention) optimize performance.
+
+The core reason a **prefill** (processing a long input prompt) can be faster than a **decode** (generating a single token) is **parallelism vs. serial dependency**.
+
+Let's break down the fundamental difference in the computation pattern.
+
+### The Core Difference: Memory Bandwidth Bound vs. Compute Bound
+
+The speed of a GPU operation is limited by one of two factors:
+1.  **Compute Bound:** The

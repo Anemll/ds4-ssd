@@ -1,0 +1,22 @@
+Ecco uno schema JSON minimo per una tool call:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "nome_tool",
+    "arguments": {
+      "parametro1": "valore1",
+      "parametro2": "valore2"
+    }
+  }
+}
+```
+
+**Schema minimo richiesto:**
+
+- `type`: deve essere `"function"` (costante)
+- `function.name`: stringa con il nome della funzione/tool
+- `function.arguments`: oggetto JSON con i parametri della chiamata
+
+**Esempio

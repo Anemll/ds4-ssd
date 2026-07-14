@@ -1,0 +1,3 @@
+dspark phase0: baseline_tps=33.27
+dspark phase0: draft budget=4 -> bench-results/dspark_default_n160_b4_compare/dspark_b4.err
+dspark phase0: wrote bench-results/dspark_default_n160_b4_compare/summary.tsv

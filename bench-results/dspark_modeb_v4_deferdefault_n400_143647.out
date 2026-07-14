@@ -1,0 +1,50 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, screen_width, screen_height):
+        self.width = 50
+        self.height = 40
+        self.x = screen_width // 2 - self.width // 2
+        self.y = screen_height - 100
+        self.speed = 5
+        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        self.bullets = []
+        self.last_shot = 0
+        self.shoot_delay = 250  # milliseconds
+        self.lives = 3
+        self.score = 0
+        
+    def update(self, keys_pressed, dt):
+        # Movement
+        if keys_pressed[pygame.K_LEFT] or keys_pressed[pygame.K_a]:
+            self.x -= self.speed
+        if keys_pressed[pygame.K_RIGHT] or keys_pressed[pygame.K_d]:
+            self.x += self.speed
+            
+        # Keep player on screen
+        self.x = max(0, min(self.x, SCREEN_WIDTH - self.width))
+        self.rect.x = self.x
+        
+        # Shooting
+        if keys_pressed[pygame.K_SPACE

@@ -1,0 +1,269 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 2.331 ms, residency requested in 414.564 ms, warmup 3.408 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 993.88 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=10002)
+ds4: using GPU graph generation with graph prefill
+ds4: using chunked GPU prefill (4096-token chunks for 32767 prompt tokens)
+processing 32767 input tokens: 0/32767 (0.0%)
+processing 32767 input tokens: 4096/32767 (12.5%)
+processing 32767 input tokens: 8192/32767 (25.0%)
+processing 32767 input tokens: 12288/32767 (37.5%)
+processing 32767 input tokens: 16384/32767 (50.0%)
+processing 32767 input tokens: 20480/32767 (62.5%)
+processing 32767 input tokens: 24576/32767 (75.0%)
+processing 32767 input tokens: 28672/32767 (87.5%)
+processing 32767 input tokens: 32767/32767 (100.0%)
+Here's a complete Tetris game implementation in C++ for macOS using SFML:
+
+```cpp
+// Tetris.cpp
+// A complete Tetris game implementation for macOS using SFML
+// Compile with: g++ -std=c++11 Tetris.cpp -o Tetris -lsfml-graphics -lsfml-window -lsfml-system
+
+#include <SFML/Graphics.hpp>
+#include <SFML/Window.hpp>
+#include <SFML/System.hpp>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for next piece display
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+
+// Tetromino shapes (7 standard pieces)
+const std::vector<std::vector<std::vector<int>>> SHAPES = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each piece type
+const sf::Color PIECE_COLORS[] = {
+    sf::Color::Cyan,      // I
+    sf::Color::Yellow,    // O
+    sf::Color::Magenta,   // T
+    sf::Color::Green,     // S
+    sf::Color::Red,       // Z
+    sf::Color::Blue,      // J
+    sf::Color(255,165,0)  // L (Orange)
+};
+
+class Tetris {
+private:
+    sf::RenderWindow window;
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> currentPiece;
+    std::vector<std::vector<int>> nextPiece;
+    int currentX, currentY;
+    int currentType, nextType;
+    int score;
+    int level;
+    int linesCleared;
+    sf::Clock fallTimer;
+    sf::Clock inputTimer;
+    float fallSpeed;
+    bool gameOver;
+    bool paused;
+
+public:
+    Tetris() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "Tetris"),
+               board(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0)),
+               currentX(3), currentY(0), score(0), level(1),
+               linesCleared(0), fallSpeed(0.5f), gameOver(false), paused(false) {
+        std::srand(std::time(nullptr));
+        window.setFramerateLimit(60);
+        
+        // Initialize pieces
+        nextType = rand() % 7;
+        spawnNewPiece();
+        nextPiece = SHAPES[nextType];
+    }
+
+    void run() {
+        while (window.isOpen()) {
+            handleEvents();
+            if (!gameOver && !paused) {
+                update();
+            }
+            render();
+        }
+    }
+
+private:
+    void handleEvents() {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+            
+            if (event.type == sf::Event::KeyPressed) {
+                switch (event.key.code) {
+                    case sf::Keyboard::Left:
+                        if (!gameOver && !paused) movePiece(-1, 0);
+                        break;
+                    case sf::Keyboard::Right:
+                        if (!gameOver && !paused) movePiece(1, 0);
+                        break;
+                    case sf::Keyboard::Down:
+                        if (!gameOver && !paused) movePiece(0, 1);
+                        break;
+                    case sf::Keyboard::Up:
+                        if (!gameOver && !paused) rotatePiece();
+                        break;
+                    case sf::Keyboard::Space:
+                        if (!gameOver && !paused) hardDrop();
+                        break;
+                    case sf::Keyboard::P:
+                        paused = !paused;
+                        break;
+                    case sf::Keyboard::R:
+                        if (gameOver) resetGame();
+                        break;
+                }
+            }
+        }
+    }
+
+    void update() {
+        // Auto-fall
+        if (fallTimer.getElapsedTime().asSeconds() >= fallSpeed) {
+            if (!movePiece(0, 1)) {
+                lockPiece();
+                clearLines();
+                if (!spawnNewPiece()) {
+                    gameOver = true;
+                }
+            }
+            fallTimer.restart();
+        }
+    }
+
+    void render() {
+        window.clear(sf::Color::Black);
+        
+        // Draw board
+        drawBoard();
+        drawCurrentPiece();
+        drawNextPiece();
+        drawScore();
+        drawGameInfo();
+        
+        window.display();
+    }
+
+    void drawBoard() {
+        // Draw grid lines
+        for (int y = 0; y < BOARD_HEIGHT; ++y) {
+            for (int x = 0; x < BOARD_WIDTH; ++x) {
+                sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE-1, BLOCK_SIZE-1));
+                cell.setPosition(x * BLOCK_SIZE, y * BLOCK_SIZE);
+                
+                if (board[y][x] != 0) {
+                    cell.setFillColor(PIECE_COLORS[board[y][x]-1]);
+                } else {
+                    cell.setFillColor(sf::Color(50, 50, 50));
+                }
+                cell.setOutlineColor(sf::Color(100, 100, 100));
+                cell.setOutlineThickness(1);
+                window.draw(cell);
+            }
+        }
+    }
+
+    void drawCurrentPiece() {
+        for (int y = 0; y < currentPiece.size(); ++y) {
+            for (int x = 0; x < currentPiece[y].size(); ++x) {
+                if (currentPiece[y][x] != 0) {
+                    sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE-1, BLOCK_SIZE-1));
+                    cell.setPosition((currentX + x) * BLOCK_SIZE, (currentY + y) * BLOCK_SIZE);
+                    cell.setFillColor(PIECE_COLORS[currentType]);
+                    cell.setOutlineColor(sf::Color::White);
+                    cell.setOutlineThickness(1);
+                    window.draw(cell);
+                }
+            }
+        }
+    }
+
+    void drawNextPiece() {
+        // Draw next piece preview
+        sf::Text nextText;
+        nextText.setFont(sf::Font()); // Will use default font
+        nextText.setString("NEXT");
+        nextText.setCharacterSize(20);
+        nextText.setFillColor(sf::Color::White);
+        nextText.setPosition(BOARD_WIDTH * BLOCK_SIZE + 20, 20);
+        window.draw(nextText);
+        
+        int offsetX = BOARD_WIDTH * BLOCK_SIZE + 40;
+        int offsetY = 60;
+        
+        for (int y = 0; y < nextPiece.size(); ++y) {
+            for (int x = 0; x < nextPiece[y].size(); ++x) {
+                if (nextPiece[y][x] != 0) {
+                    sf::RectangleShape cell(sf::Vector2f(BLOCK_SIZE-1, BLOCK_SIZE-1));
+                    cell.setPosition(offsetX + x * BLOCK_SIZE, offsetY + y * BLOCK_SIZE);
+                    cell.setFillColor(PIECE_COLORS[nextType]);
+                    cell.setOutlineColor(sf::Color::White);
+                    cell.setOutlineThickness(1);
+                    window.draw(cell);
+                }
+            }
+        }
+    }
+
+    void drawScore() {
+        sf::Text scoreText;
+        scoreText.setFont(sf::Font());
+        scoreText.setString("Score: " + std::to_string(score));
+        scoreText.setCharacterSize(20);
+        scoreText.setFillColor(sf::Color::White);
+        scoreText.setPosition(BOARD_WIDTH * BLOCK_SIZE + 20, 200);
+        window.draw(scoreText);
+        
+        sf::Text levelText;
+        levelText.setFont(sf::Font());
+        levelText.setString("Level: " + std::to_string(level));
+        levelText.setCharacterSize(20);
+        levelText.setFillColor(sf::Color::White);
+        levelText.setPosition(BOARD_WIDTH * BLOCK_SIZE + 20, 240);
+        window.draw(levelText);
+    }
+
+    void drawGameInfo() {
+        if (gameOver) {
+            sf::Text gameOverText;
+ds4: prefill: 393.87 t/s, generation: 28.96 t/s

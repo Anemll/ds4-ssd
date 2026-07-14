@@ -1,0 +1,318 @@
+ds4: profile prefill_by_tokens: 99999:nax_int8
+ds4: applied tuning profile [Apple M5 Max] from ds4_profile.json (10 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: Metal model views created in 2.418 ms, residency requested in 5438.794 ms, warmup 7.054 ms (mapped 82697.67 MiB from offset 5.08 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: resident MPP/NAX prewarm: 4.3 ms total (paid before prefill timer)
+ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=5.523s profile=0.000s model=0.010s sidecar=0.000s weights=0.000s dspark=0.000s backend=5.508s prewarm=0.004s
+ds4: using GPU graph generation with layer-major graph prefill
+ds4: metal prefill layer 1/43
+ds4: metal prefill layer 2/43
+ds4: metal prefill layer 3/43
+ds4: metal prefill layer 4/43
+ds4: metal prefill layer 5/43
+ds4: metal prefill layer 6/43
+ds4: metal prefill layer 7/43
+ds4: metal prefill layer 8/43
+ds4: metal prefill layer 9/43
+ds4: metal prefill layer 10/43
+ds4: metal prefill layer 11/43
+ds4: metal prefill layer 12/43
+ds4: metal prefill layer 13/43
+ds4: metal prefill layer 14/43
+ds4: metal prefill layer 15/43
+ds4: metal prefill layer 16/43
+ds4: metal prefill layer 17/43
+ds4: metal prefill layer 18/43
+ds4: metal prefill layer 19/43
+ds4: metal prefill layer 20/43
+ds4: metal prefill layer 21/43
+ds4: metal prefill layer 22/43
+ds4: metal prefill layer 23/43
+ds4: metal prefill layer 24/43
+ds4: metal prefill layer 25/43
+ds4: metal prefill layer 26/43
+ds4: metal prefill layer 27/43
+ds4: metal prefill layer 28/43
+ds4: metal prefill layer 29/43
+ds4: metal prefill layer 30/43
+ds4: metal prefill layer 31/43
+ds4: metal prefill layer 32/43
+ds4: metal prefill layer 33/43
+ds4: metal prefill layer 34/43
+ds4: metal prefill layer 35/43
+ds4: metal prefill layer 36/43
+ds4: metal prefill layer 37/43
+ds4: metal prefill layer 38/43
+ds4: metal prefill layer 39/43
+ds4: metal prefill layer 40/43
+ds4: metal prefill layer 41/43
+ds4: metal prefill layer 42/43
+ds4: metal prefill layer 43/43
+I'll create a complete Tetris game in C++ for macOS. This will be a console-based implementation using standard C++ libraries.
+
+```cpp
+// Tetris Game for macOS
+// Console-based implementation using standard C++ libraries
+
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <algorithm>
+
+using namespace std;
+
+// Game dimensions
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 2; // For visual representation
+
+// Tetromino shapes (7 standard pieces)
+const vector<vector<vector<int>>> TETROMINOS = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+// Colors for each piece (ANSI escape codes)
+const string COLORS[] = {
+    "\033[1;36m", // Cyan - I
+    "\033[1;33m", // Yellow - O
+    "\033[1;35m", // Magenta - T
+    "\033[1;32m", // Green - S
+    "\033[1;31m", // Red - Z
+    "\033[1;34m", // Blue - J
+    "\033[1;37m"  // White - L
+};
+
+class Tetris {
+private:
+    vector<vector<int>> board;
+    vector<vector<int>> currentPiece;
+    vector<vector<int>> nextPiece;
+    int currentX, currentY;
+    int score;
+    int level;
+    int linesCleared;
+    bool gameOver;
+    int pieceType;
+    int nextPieceType;
+
+public:
+    Tetris() : score(0), level(1), linesCleared(0), gameOver(false) {
+        // Initialize empty board
+        board = vector<vector<int>>(BOARD_HEIGHT, vector<int>(BOARD_WIDTH, 0));
+        
+        // Seed random number generator
+        srand(time(nullptr));
+        
+        // Initialize first pieces
+        pieceType = rand() % 7;
+        nextPieceType = rand() % 7;
+        currentPiece = TETROMINOS[pieceType];
+        nextPiece = TETROMINOS[nextPieceType];
+        
+        // Set starting position
+        currentX = BOARD_WIDTH / 2 - 1;
+        currentY = 0;
+    }
+
+    // Draw the game board
+    void draw() {
+        // Clear screen (ANSI escape sequence)
+        cout << "\033[2J\033[1;1H";
+        
+        // Draw top border
+        cout << "\033[0m┌";
+        for (int i = 0; i < BOARD_WIDTH * BLOCK_SIZE; i++) cout << "─";
+        cout << "┐\n";
+
+        // Draw board content
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            cout << "\033[0m│";
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                bool drawPiece = false;
+                
+                // Check if current piece occupies this cell
+                for (int py = 0; py < currentPiece.size(); py++) {
+                    for (int px = 0; px < currentPiece[py].size(); px++) {
+                        if (currentPiece[py][px] && 
+                            (y - currentY) == py && 
+                            (x - currentX) == px) {
+                            drawPiece = true;
+                            break;
+                        }
+                    }
+                    if (drawPiece) break;
+                }
+
+                if (drawPiece) {
+                    cout << COLORS[pieceType] << "██";
+                } else if (board[y][x]) {
+                    // Find which piece type this belongs to (simplified)
+                    cout << "\033[1;37m██";
+                } else {
+                    cout << "\033[0m  ";
+                }
+            }
+            cout << "\033[0m│\n";
+        }
+
+        // Draw bottom border
+        cout << "\033[0m└";
+        for (int i = 0; i < BOARD_WIDTH * BLOCK_SIZE; i++) cout << "─";
+        cout << "┘\n";
+
+        // Draw next piece preview
+        cout << "\n\033[0mNext Piece:\n";
+        cout << "┌";
+        for (int i = 0; i < 4 * BLOCK_SIZE; i++) cout << "─";
+        cout << "┐\n";
+        for (int y = 0; y < 4; y++) {
+            cout << "│";
+            for (int x = 0; x < 4; x++) {
+                if (y < nextPiece.size() && x < nextPiece[y].size() && nextPiece[y][x]) {
+                    cout << COLORS[nextPieceType] << "██";
+                } else {
+                    cout << "\033[0m  ";
+                }
+            }
+            cout << "\033[0m│\n";
+        }
+        cout << "└";
+        for (int i = 0; i < 4 * BLOCK_SIZE; i++) cout << "─";
+        cout << "┘\n";
+
+        // Draw score and level
+        cout << "\n\033[0mScore: " << score;
+        cout << "\nLevel: " << level;
+        cout << "\nLines: " << linesCleared << "\n";
+    }
+
+    // Check if a position is valid
+    bool isValidPosition(const vector<vector<int>>& piece, int x, int y) {
+        for (int py = 0; py < piece.size(); py++) {
+            for (int px = 0; px < piece[py].size(); px++) {
+                if (piece[py][px]) {
+                    int boardX = x + px;
+                    int boardY = y + py;
+                    
+                    // Check boundaries
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                        boardY >= BOARD_HEIGHT) {
+                        return false;
+                    }
+                    
+                    // Check collision with placed pieces
+                    if (boardY >= 0 && board[boardY][boardX]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Rotate piece
+    vector<vector<int>> rotatePiece(const vector<vector<int>>& piece) {
+        vector<vector<int>> rotated;
+        int size = piece.size();
+        rotated.resize(size, vector<int>(size, 0));
+        
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                rotated[j][size - 1 - i] = piece[i][j];
+            }
+        }
+        return rotated;
+    }
+
+    // Lock piece in place
+    void lockPiece() {
+        for (int py = 0; py < currentPiece.size(); py++) {
+            for (int px = 0; px < currentPiece[py].size(); px++) {
+                if (currentPiece[py][px]) {
+                    int boardY = currentY + py;
+                    int boardX = currentX + px;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                        boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = 1;
+                    }
+                }
+            }
+        }
+        
+        // Check for completed lines
+        checkLines();
+        
+        // Spawn next piece
+        spawnPiece();
+    }
+
+    // Check and clear completed lines
+    void checkLines() {
+        int cleared = 0;
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            bool complete = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (!board[y][x]) {
+                    complete = false;
+                    break;
+                }
+            }
+            if (complete) {
+                // Remove the line
+                board.erase(board.begin() + y);
+                board.insert(board.begin(), vector<int>(BOARD_WIDTH, 0));
+                cleared++;
+                y--; // Check the same line again
+            }
+        }
+        
+        // Update score
+        if (cleared > 0) {
+            linesCleared += cleared;
+            score += cleared * 100 * level;
+            
+            // Level up every 10 lines
+            level = 1 + (linesCleared / 10);
+        }
+   
+ds4: ----------------------------------------
+ds4: prefill: 428.65 t/s, generation: 30.45 t/s (2000 tokens in 65.682s)

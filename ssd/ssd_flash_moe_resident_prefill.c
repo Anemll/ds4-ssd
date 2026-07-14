@@ -438,6 +438,143 @@ static bool metal_graph_routed_moe_batch_tiled(
     return ok;
 }
 
+/*
+ * Full prompt prefill for a sidecar whose mixed bank is already resident and
+ * identity-mapped.  Unlike the legacy Flash-MoE executor, this never stages
+ * individual experts into transient banks: each tile feeds the six routed
+ * expert ids straight to the grouped mul_mm_id kernels.
+ *
+ * The caller validates residency/layout and the per-tile minimum before
+ * entering this helper.  That preflight matters: a later small tail cannot
+ * fall back after earlier tiles have been encoded into the live command
+ * buffer.
+ */
+static bool metal_graph_flash_moe_resident_grouped_prefill_tiled(
+        ds4_gpu_graph             *g,
+        const ds4_layer_weights   *layer,
+        uint32_t                   il,
+        uint32_t                   n_tokens,
+        uint32_t                   min_tile_tokens,
+        uint64_t                   gate_expert_bytes,
+        uint64_t                   gate_row_bytes,
+        uint64_t                   down_expert_bytes,
+        uint64_t                   down_row_bytes,
+        uint32_t                   expert_in_dim,
+        uint32_t                   expert_mid_dim,
+        uint32_t                   out_dim,
+        bool                      *mid_is_f16) {
+    if (mid_is_f16) *mid_is_f16 = false;
+    if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+        n_tokens == 0 || n_tokens > g->prefill_cap ||
+        !g->batch_router_selected || !g->batch_router_weights ||
+        !g->batch_ffn_norm || !g->batch_routed_out ||
+        !g->batch_routed_gate || !g->batch_routed_up ||
+        !g->batch_routed_mid || !g->batch_routed_down ||
+        !g->flash_gate_bank[il] || !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il] || min_tile_tokens == 0) {
+        return false;
+    }
+
+    const uint32_t scratch_cap =
+        g->batch_routed_scratch_cap ? g->batch_routed_scratch_cap : g->prefill_cap;
+    if (scratch_cap < min_tile_tokens) return false;
+    for (uint32_t base = 0; base < n_tokens; base += scratch_cap) {
+        const uint32_t nb = n_tokens - base < scratch_cap ?
+            n_tokens - base : scratch_cap;
+        if (nb < min_tile_tokens) return false;
+    }
+
+    const ds4_flash_moe_layer_sidecar *flash_layer = &g->flash_moe->layer[il];
+    const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
+    const uint64_t gate_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : gate_expert_bytes;
+    const uint64_t down_slot_stride = flash_layer->expert_stride ?
+        flash_layer->expert_stride : down_expert_bytes;
+
+    bool ok = true;
+    bool any_mid_f16 = false;
+    for (uint32_t base = 0; ok && base < n_tokens; base += scratch_cap) {
+        const uint32_t nb = n_tokens - base < scratch_cap ?
+            n_tokens - base : scratch_cap;
+        ds4_gpu_tensor *out_view = ds4_gpu_tensor_view(
+            g->batch_routed_out,
+            (uint64_t)base * out_dim * sizeof(float),
+            (uint64_t)nb * out_dim * sizeof(float));
+        ds4_gpu_tensor *selected_view = ds4_gpu_tensor_view(
+            g->batch_router_selected,
+            (uint64_t)base * active_expert_used * sizeof(int32_t),
+            (uint64_t)nb * active_expert_used * sizeof(int32_t));
+        ds4_gpu_tensor *weights_view = ds4_gpu_tensor_view(
+            g->batch_router_weights,
+            (uint64_t)base * active_expert_used * sizeof(float),
+            (uint64_t)nb * active_expert_used * sizeof(float));
+        ds4_gpu_tensor *x_view = ds4_gpu_tensor_view(
+            g->batch_ffn_norm,
+            (uint64_t)base * expert_in_dim * sizeof(float),
+            (uint64_t)nb * expert_in_dim * sizeof(float));
+        ds4_gpu_tensor *gate_view = ds4_gpu_tensor_view(
+            g->batch_routed_gate,
+            0,
+            (uint64_t)nb * active_expert_used * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *up_view = ds4_gpu_tensor_view(
+            g->batch_routed_up,
+            0,
+            (uint64_t)nb * active_expert_used * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *mid_view = ds4_gpu_tensor_view(
+            g->batch_routed_mid,
+            0,
+            (uint64_t)nb * active_expert_used * expert_mid_dim * sizeof(float));
+        ds4_gpu_tensor *down_view = ds4_gpu_tensor_view(
+            g->batch_routed_down,
+            0,
+            (uint64_t)nb * active_expert_used * out_dim * sizeof(float));
+
+        bool tile_mid_f16 = false;
+        ok = out_view && selected_view && weights_view && x_view &&
+             gate_view && up_view && mid_view && down_view &&
+             ds4_gpu_routed_moe_banked_prefill_tensor(
+                 out_view,
+                 gate_view,
+                 up_view,
+                 mid_view,
+                 down_view,
+                 g->flash_gate_bank[il],
+                 g->flash_up_bank[il],
+                 g->flash_down_bank[il],
+                 g->flash_slot_bank,
+                 layer->ffn_gate_exps->type,
+                 layer->ffn_down_exps->type,
+                 gate_expert_bytes,
+                 gate_slot_stride,
+                 gate_row_bytes,
+                 down_expert_bytes,
+                 down_slot_stride,
+                 down_row_bytes,
+                 expert_in_dim,
+                 expert_mid_dim,
+                 out_dim,
+                 selected_view,
+                 weights_view,
+                 active_expert_used,
+                 DS4_SWIGLU_CLAMP_EXP,
+                 x_view,
+                 nb,
+                 &tile_mid_f16) != 0;
+        if (tile_mid_f16) any_mid_f16 = true;
+
+        ds4_gpu_tensor_free(down_view);
+        ds4_gpu_tensor_free(mid_view);
+        ds4_gpu_tensor_free(up_view);
+        ds4_gpu_tensor_free(gate_view);
+        ds4_gpu_tensor_free(x_view);
+        ds4_gpu_tensor_free(weights_view);
+        ds4_gpu_tensor_free(selected_view);
+        ds4_gpu_tensor_free(out_view);
+    }
+    if (mid_is_f16) *mid_is_f16 = any_mid_f16;
+    return ok;
+}
+
 static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
         ds4_gpu_graph       *g,
         const ds4_model     *model,

@@ -1,0 +1,35 @@
+Here is a complete HTML file that recreates the classic 1978 arcade experience as a single-page document. It includes the original sprite, and core gameplay.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1978 Taito – Space Invaders</title>
+  <style>
+    /* Reset & base */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      background-image: radial-gradient(ellipse at 50% 30%, #111 0%, #000 100%);
+    }
+
+    /* 1978 cabinet frame */
+    .cabinet {
+      background: #111;
+      border: 2px solid #000;
+      border-radius: 20px 20px 10px 10px;
+      box-shadow: 0 0 40px rgba(0, 255, 0, 0.2), inset 0 0 30px rgba(0, 0, 0, 0.8);
+      padding: 20px 30px 30px;
+     

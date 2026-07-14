@@ -1,0 +1,7 @@
+Questa è una domanda molto interessante, tipica di chi lavora con database di serie temporali (come InfluxDB, Prometheus, o sistemi di osservabilità) o con sistemi di storage di dati non strutturati.
+
+Ecco la differenza fondamentale tra **righe KV raw** e **righe KV compresse**, spiegata in modo chiaro e con esempi pratici.
+
+### Il concetto di base
+
+In un sistema di archiviazione dati, una "riga KV" (Key-Value) rappresenta una singola osservazione o evento. La differenza tra "raw"

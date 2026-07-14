@@ -1,0 +1,5 @@
+Project notes: the decode pipeline has three stages.
+TODO: profile the draft wall.
+Stage one loads weights, stage two drafts tokens, stage three verifies them.
+TODO: automate the agent benchmark.
+The verifier must remain exact for correctness.

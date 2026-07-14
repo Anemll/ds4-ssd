@@ -1,0 +1,67 @@
+Here's a complete game of Space Invaders in Python using pygame. This version includes the classic shooter, enemies, and a scoring system.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+screen = pygame.display.set_mode((800, 600))
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+
+class Player:
+    def __init__(self):
+        self.rect = pygame.Rect(370, 520, 40, 40)
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+        self.bullets = []
+        self.bullet_speed = 10
+        self.shoot_cooldown = 0
+        self.shoot_delay = 20
+        
+    def move(self, dx):
+        # Move
+        if self.rect.left > 0 and dx < 0:
+            self.rect.x += self.speed
+        if self.rect.right < 800 and dx > 0:
+            self.rect.x -= self.speed
+        
+    def shoot(self):
+        if self.shoot_cooldown == 0:
+            bullet = Bullet(self.rect.centerx, self.rect.top)
+            self.bullets.append(bullet)
+            self.shoot_cooldown = self.shoot_delay
+        else:
+            self.shoot_cooldown -= 1
+        
+    def update(self):
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.y -= 10
+            if bullet.rect.bottom < 0:
+                self.bullets.remove(bullet)
+    
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, self.rect)
+        # Draw bullets
+        for bullet in self.bullets:
+            pygame.draw.rect(screen, RED, bullet.rect)
+
+class Bullet:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x-10, y, 10, 20)
+        self.y = y
+        
+        self.speed = 10
+
+class

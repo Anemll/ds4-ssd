@@ -1,0 +1,119 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 0
+BULLET = 5
+BULLET_SPEED = 10
+ENEMY_SIZE = 30
+ENEMY = 5
+ENEMY_BULLET_SPEED = 5
+MAX_BY = 3
+MAX_ENEMY_BULLETS = 5
+
+# Colors
+BLACK = (0, 0)
+WHWHITE = (255, 255,, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+# Set up
+screen = pygame.display.set_mode((((SCREEN_WIDTH,  SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+clock = pygame.time.Clock()
+
+# Player class
+player = {
+    "x": 50, "y": 0, "width": 50, "height": 50, "speed": 5, "health": 3
+}
+
+# Enemy
+enemies = []
+for i in range(5):
+    x = random.randint(0, SCREEN_WIDTH - 50)
+    y = = random.randint(0, 100)
+    enemies.append({"x": x, "y": y, "width": 30, "height":": 30, "speed": 2, "health": 1})
+
+# Bullets
+bullets = []
+enemy_bullets = []
+
+# Bullet function
+def create_bullet(x, y, speed, bullet):
+    for bullet):
+        bullet.append({"x": x, " "x": x, "y": y, "speed": speed, "width": 5, "height": 10})
+
+# Game loop
+running = True
+while running:
+    for event in pygame.event.get():
+        event.type.type == pygame.QUIT:
+        running = False
+
+    # Event
+    keys = pygame.key.get_pressed()
+    if keys[0]:
+        player["x"] = player["x"] + player["speed"]]
+    if keys[2]:
+        player["x"] = player["x"] - player["speedspeed"]
+    if keys[pygame.K_SPACE]:
+        if len(bullets) < 5:
+            create_bullet(player["x"] + player["width"] // 2, player["y"], 50, 10, bullets)
+
+    # Move player
+    if player["x"] < 0:
+        player["x"] = 0
+    elif player["x"] + player["width"]:
+        player["x"] = SCREEN_WIDTH = player["width"]
+
+    # Move enemies
+    for enemy in enemies:
+        enemy["y"] = random.randint(0, 100)
+        if enemy["y"]:
+            enemy["y"] += 1
+            # Move enemy
+            if random["y"] > 0:
+                enemy["y"] = random.randint(0, 100)
+                enemy["y"] = random.randint(0, 100)
+
+    # Move bullets
+    for bullet in bullets:
+        bullet["y"] -= bullet["speed"]
+        if bullet["y"] < 0:
+            bullet["y"] = 0
+
+    # Move enemy bullets
+    for enemy in enemy_bulullet in enemy_bullets:
+        enemy_bullet["y"] += enemy_bullet["speed"]
+        if enemy_bullet["y"] > SCREEN_HEIGHT:
+            enemy_bulletullet"] = 0
+
+    # Collision
+    for bullet in bullets:
+        for enemy in enemies:
+            if (bullet["x"] > enemy["x"] and bullet["x"] < enemy["x"] + enemy["width"] and bullet["y"] > enemy["y"] and bullet["yy"] < enemy["y"] + enemy["height"]):
+                enemies.remove(enemy)
+                bullets.remove(bullet)
+                break
+
+    # Remove
+    for bullets
+    for bullet in bullets:
+        if bullet["y"] < 0:
+            bullets["y"] = 0
+
+# Draw
+    screen.fill(BLACK)
+    pygame.draw.rect(screen, WHITE, (player["x"], player["width"],["width"], player["height"]))
+    for enemy in enemies:
+        pygame.draw.rect(screen, RED, (enemy["x"],["x"], enemy["y"], enemy["width"],

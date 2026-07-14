@@ -1,0 +1,2 @@
+top64_delta4_tok12_ng3 topk=64 delta=4 tokenmax=12 ngram=3
+status=0

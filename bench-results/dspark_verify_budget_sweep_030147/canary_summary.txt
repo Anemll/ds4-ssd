@@ -1,0 +1,12 @@
+== fast_v3.canary
+bench-results/dspark_verify_budget_sweep_030147/fast_v3.out	2519	76	63	1	0		0		0	0	0	3	3	0
+== fast_v4.canary
+bench-results/dspark_verify_budget_sweep_030147/fast_v4.out	2482	80	66	1	0		0		0	0	0	3	3	0
+== fast_v5.canary
+bench-results/dspark_verify_budget_sweep_030147/fast_v5.out	2381	79	67	1	0		0		0	0	0	3	3	0
+== strict_v3.canary
+bench-results/dspark_verify_budget_sweep_030147/strict_v3.out	2414	78	75	1	0		0		0	0	0	2	2	0
+== strict_v4.canary
+bench-results/dspark_verify_budget_sweep_030147/strict_v4.out	2414	78	75	1	0		0		0	0	0	2	2	0
+== strict_v5.canary
+bench-results/dspark_verify_budget_sweep_030147/strict_v5.out	2414	78	75	1	0		0		0	0	0	2	2	0

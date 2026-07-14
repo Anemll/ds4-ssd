@@ -1,0 +1,415 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=2 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.324 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=29.52 t/s avg=0.53 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.53 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=51.26 t/s avg=1.05 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.04 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.10 t/s avg=1.54 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.53 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.51 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=48.57 t/s avg=1.99 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.97 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=49.20 t/s avg=2.44 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.42 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=53.32 t/s avg=2.88 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.85 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.18 t/s avg=3.30 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.27 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.25 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=52.62 t/s avg=3.68 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.64 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=55.72 t/s avg=4.06 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.02 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=50.39 t/s avg=4.43 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.39 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.19 t/s avg=4.79 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.76 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=4.73 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=50.46 t/s avg=5.11 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=5.07 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=48.03 t/s avg=5.45 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.41 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=53.89 t/s avg=5.78 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=5.74 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=57.28 t/s avg=6.10 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.06 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.01 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=50.46 t/s avg=6.36 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=6.30 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=51.87 t/s avg=6.65 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=6.58 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=44.77 t/s avg=6.91 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=6.85 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=41.30 t/s avg=7.17 t/s
+ds4: prefill full: 19 tokens in 2653.3 ms (7.2 t/s)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=2 rows=2 in 162.1 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: dspark batch audit row=0 token=5922 batch_top=3551 exact_top=3551 batch_margin=2.826 exact_margin=2.623 logits_max=0.533785 logits_rms=0.0911268
+ds4: dspark batch audit row=1 token=3551 batch_top=260 exact_top=260 batch_margin=13.683 exact_margin=13.688 logits_max=0.24579 logits_rms=0.0408828
+ds4: dspark batch audit row=0 token=5553 batch_top=14295 exact_top=14295 batch_margin=10.640 exact_margin=10.638 logits_max=0.0752411 logits_rms=0.0143949
+ds4: dspark batch audit row=1 token=14295 batch_top=32214 exact_top=32214 batch_margin=14.031 exact_margin=14.044 logits_max=0.155062 logits_rms=0.0208796
+ds4: dspark batch audit row=0 token=40856 batch_top=3917 exact_top=3917 batch_margin=7.106 exact_margin=7.116 logits_max=0.1371 logits_rms=0.0199978
+ds4: dspark batch audit row=1 token=3917 batch_top=1812 exact_top=1812 batch_margin=2.098 exact_margin=2.094 logits_max=0.125418 logits_rms=0.0205731
+ds4: dspark batch audit row=0 token=19950 batch_top=29675 exact_top=29675 batch_margin=10.466 exact_margin=10.447 logits_max=0.106273 logits_rms=0.0222922
+ds4: dspark batch audit row=1 token=29675 batch_top=16 exact_top=16 batch_margin=4.909 exact_margin=4.904 logits_max=0.150277 logits_rms=0.025271
+ds4: dspark batch audit row=0 token=759 batch_top=3394 exact_top=3394 batch_margin=0.210 exact_margin=0.212 logits_max=0.0597858 logits_rms=0.00964573
+ds4: dspark batch audit row=1 token=3394 batch_top=260 exact_top=260 batch_margin=1.269 exact_margin=1.269 logits_max=0.116616 logits_rms=0.0201287
+ds4: dspark batch audit row=0 token=8469 batch_top=11319 exact_top=11319 batch_margin=2.246 exact_margin=2.271 logits_max=0.106489 logits_rms=0.0176086
+ds4: dspark batch audit row=0 token=14 batch_top=26217 exact_top=26217 batch_margin=0.847 exact_margin=0.856 logits_max=0.102334 logits_rms=0.0125483
+ds4: dspark batch audit row=1 token=26217 batch_top=14 exact_top=14 batch_margin=0.965 exact_margin=1.066 logits_max=0.8587 logits_rms=0.192837
+ds4: dspark batch audit row=0 token=68546 batch_top=14 exact_top=14 batch_margin=12.290 exact_margin=12.320 logits_max=1.31836 logits_rms=0.255685
+ds4: dspark batch audit row=1 token=14 batch_top=305 exact_top=305 batch_margin=1.336 exact_margin=1.244 logits_max=1.45968 logits_rms=0.241132
+ds4: dspark batch audit row=0 token=25585 batch_top=339 exact_top=339 batch_margin=6.997 exact_margin=6.967 logits_max=0.170079 logits_rms=0.0277003
+ds4: dspark batch audit row=0 token=9854 batch_top=36490 exact_top=36490 batch_margin=14.715 exact_margin=14.711 logits_max=0.907871 logits_rms=0.159375
+ds4: dspark batch audit row=1 token=36490 batch_top=201 exact_top=201 batch_margin=17.659 exact_margin=17.559 logits_max=0.725813 logits_rms=0.131546
+ds4: dspark batch audit row=0 token=1897 batch_top=87579 exact_top=87579 batch_margin=18.764 exact_margin=18.747 logits_max=0.120377 logits_rms=0.0196308
+ds4: dspark batch audit row=1 token=87579 batch_top=201 exact_top=201 batch_margin=12.751 exact_margin=12.838 logits_max=0.844376 logits_rms=0.15768
+ds4: dspark batch audit row=0 token=1897 batch_top=6719 exact_top=6719 batch_margin=6.600 exact_margin=6.603 logits_max=0.0822754 logits_rms=0.0113709
+ds4: dspark batch audit row=1 token=6719 batch_top=201 exact_top=201 batch_margin=1.047 exact_margin=1.164 logits_max=0.445382 logits_rms=0.0770476
+ds4: dspark batch audit row=0 token=1897 batch_top=7704 exact_top=7704 batch_margin=3.439 exact_margin=3.443 logits_max=0.0663643 logits_rms=0.0127252
+ds4: dspark batch audit row=1 token=7704 batch_top=271 exact_top=271 batch_margin=7.262 exact_margin=7.504 logits_max=0.89764 logits_rms=0.163719
+ds4: dspark batch audit row=0 token=5 batch_top=60873 exact_top=60873 batch_margin=13.000 exact_margin=13.025 logits_max=0.0878527 logits_rms=0.0155716
+ds4: dspark batch audit row=1 token=60873 batch_top=19950 exact_top=19950 batch_margin=7.165 exact_margin=7.149 logits_max=0.144831 logits_rms=0.0254649
+ds4: dspark batch audit row=0 token=29675 batch_top=201 exact_top=201 batch_margin=13.050 exact_margin=13.113 logits_max=0.994755 logits_rms=0.205299
+ds4: dspark batch audit row=1 token=201 batch_top=12403 exact_top=12403 batch_margin=16.272 exact_margin=16.127 logits_max=0.380808 logits_rms=0.0730145
+ds4: dspark batch audit row=0 token=57597 batch_top=10414 exact_top=10414 batch_margin=7.666 exact_margin=7.666 logits_max=0.0924501 logits_rms=0.0185815
+ds4: dspark batch audit row=1 token=10414 batch_top=5 exact_top=5 batch_margin=15.042 exact_margin=15.073 logits_max=0.148537 logits_rms=0.0296686
+ds4: dspark batch audit row=0 token=110686 batch_top=201 exact_top=201 batch_margin=13.025 exact_margin=13.024 logits_max=0.102337 logits_rms=0.016735
+ds4: dspark batch audit row=1 token=201 batch_top=5692 exact_top=5692 batch_margin=4.876 exact_margin=4.844 logits_max=0.165416 logits_rms=0.0257761
+ds4: dspark batch audit row=0 token=77533 batch_top=111000 exact_top=111000 batch_margin=10.805 exact_margin=10.819 logits_max=0.0740707 logits_rms=0.0122125
+ds4: dspark batch audit row=1 token=111000 batch_top=438 exact_top=438 batch_margin=14.765 exact_margin=14.757 logits_max=0.112579 logits_rms=0.0176014
+ds4: dspark batch audit row=0 token=223 batch_top=6884 exact_top=6884 batch_margin=9.534 exact_margin=9.532 logits_max=0.0483475 logits_rms=0.00980133
+ds4: dspark batch audit row=1 token=6884 batch_top=201 exact_top=201 batch_margin=16.527 exact_margin=16.519 logits_max=0.0785551 logits_rms=0.0139206
+ds4: dspark batch audit row=0 token=5692 batch_top=77533 exact_top=77533 batch_margin=14.835 exact_margin=14.824 logits_max=0.102428 logits_rms=0.0201329
+ds4: dspark batch audit row=1 token=77533 batch_top=114884 exact_top=114884 batch_margin=12.846 exact_margin=12.804 logits_max=0.446613 logits_rms=0.0827358
+ds4: dspark batch audit row=0 token=23719 batch_top=438 exact_top=438 batch_margin=19.333 exact_margin=19.389 logits_max=1.19694 logits_rms=0.170071
+ds4: dspark batch audit row=1 token=438 batch_top=223 exact_top=223 batch_margin=18.115 exact_margin=18.203 logits_max=0.366491 logits_rms=0.0510595
+ds4: dspark batch audit row=0 token=6391 batch_top=201 exact_top=201 batch_margin=15.473 exact_margin=15.462 logits_max=0.133865 logits_rms=0.0177793
+ds4: dspark batch audit row=1 token=201 batch_top=98585 exact_top=98585 batch_margin=0.755 exact_margin=0.767 logits_max=0.176851 logits_rms=0.031185
+ds4: dspark batch audit row=0 token=39 batch_top=3316 exact_top=3316 batch_margin=16.186 exact_margin=16.136 logits_max=0.133051 logits_rms=0.0182206
+ds4: dspark batch audit row=1 token=3316 batch_top=438 exact_top=438 batch_margin=18.587 exact_margin=18.569 logits_max=0.13862 logits_rms=0.0232027
+ds4: dspark batch audit row=0 token=223 batch_top=23 exact_top=23 batch_margin=5.826 exact_margin=5.836 logits_max=3.94123 logits_rms=0.507306
+ds4: dspark batch audit row=1 token=23 batch_top=201 exact_top=201 batch_margin=14.816 exact_margin=14.864 logits_max=0.418898 logits_rms=0.0718335
+ds4: dspark batch audit row=0 token=2389 batch_top=4846 exact_top=4846 batch_margin=18.715 exact_margin=18.741 logits_max=0.0871143 logits_rms=0.0178133
+ds4: dspark batch audit row=1 token=4846 batch_top=59 exact_top=59 batch_margin=12.002 exact_margin=11.988 logits_max=0.129702 logits_rms=0.0224105
+ds4: dspark batch audit row=0 token=39 batch_top=3316 exact_top=3316 batch_margin=15.879 exact_margin=16.221 logits_max=1.39179 logits_rms=0.242184
+ds4: dspark batch audit row=1 token=3316 batch_top=438 exact_top=438 batch_margin=7.338 exact_margin=6.881 logits_max=1.22737 logits_rms=0.23042
+ds4: dspark batch audit row=0 token=223 batch_top=20 exact_top=20 batch_margin=0.023 exact_margin=0.010 logits_max=1.04749 logits_rms=0.193554
+ds4: dspark batch audit row=0 token=201 batch_top=36 exact_top=36 batch_margin=8.444 exact_margin=8.443 logits_max=0.162271 logits_rms=0.0185389
+ds4: dspark batch audit row=0 token=6552 batch_top=3402 exact_top=3402 batch_margin=13.645 exact_margin=13.654 logits_max=0.0495234 logits_rms=0.00955538
+ds4: dspark batch audit row=1 token=3402 batch_top=108239 exact_top=108239 batch_margin=13.299 exact_margin=13.342 logits_max=0.108358 logits_rms=0.0198934
+ds4: dspark batch audit row=0 token=39 batch_top=3316 exact_top=3316 batch_margin=14.343 exact_margin=14.360 logits_max=0.0988255 logits_rms=0.014039
+ds4: dspark batch audit row=1 token=3316 batch_top=438 exact_top=438 batch_margin=13.687 exact_margin=13.725 logits_max=0.121428 logits_rms=0.0230481
+ds4: dspark batch audit row=0 token=223 batch_top=25 exact_top=25 batch_margin=2.356 exact_margin=2.355 logits_max=0.24398 logits_rms=0.0349014
+ds4: dspark batch audit row=1 token=25 batch_top=201 exact_top=201 batch_margin=4.284 exact_margin=4.142 logits_max=0.966747 logits_rms=0.184415
+ds4: dspark batch audit row=0 token=2389 batch_top=4846 exact_top=4846 batch_margin=16.419 exact_margin=16.436 logits_max=0.110225 logits_rms=0.0216959
+ds4: dspark batch audit row=1 token=4846 batch_top=59 exact_top=59 batch_margin=8.882 exact_margin=8.818 logits_max=0.229977 logits_rms=0.037799
+ds4: dspark batch audit row=0 token=6552 batch_top=3402 exact_top=3402 batch_margin=11.259 exact_margin=11.267 logits_max=0.0926914 logits_rms=0.0157868
+ds4: dspark batch audit row=1 token=3402 batch_top=108239 exact_top=108239 batch_margin=10.637 exact_margin=10.621 logits_max=1.12141 logits_rms=0.22438
+ds4: dspark batch audit row=0 token=39 batch_top=3316 exact_top=3316 batch_margin=14.876 exact_margin=14.901 logits_max=0.109165 logits_rms=0.0185553
+ds4: dspark batch audit row=1 token=3316 batch_top=438 exact_top=438 batch_margin=13.417 exact_margin=13.415 logits_max=0.0930247 logits_rms=0.0204445
+ds4: dspark batch audit row=0 token=223 batch_top=21 exact_top=21 batch_margin=3.370 exact_margin=3.371 logits_max=0.0276775 logits_rms=0.00406016
+ds4: dspark batch audit row=1 token=21 batch_top=271 exact_top=271 batch_margin=0.664 exact_margin=0.666 logits_max=0.107511 logits_rms=0.0237378
+ds4: dspark batch audit row=0 token=5 batch_top=42237 exact_top=42237 batch_margin=11.649 exact_margin=11.649 logits_max=0.140961 logits_rms=0.0243173
+ds4: dspark batch audit row=1 token=42237 batch_top=201 exact_top=201 batch_margin=9.667 exact_margin=9.533 logits_max=1.00965 logits_rms=0.196576
+ds4: dspark batch audit row=0 token=16617 batch_top=438 exact_top=438 batch_margin=17.521 exact_margin=17.594 logits_max=0.838085 logits_rms=0.148552
+ds4: dspark batch audit row=1 token=438 batch_top=343 exact_top=343 batch_margin=15.462 exact_margin=15.463 logits_max=0.638087 logits_rms=0.0931978
+ds4: dspark batch audit row=0 token=18 batch_top=14 exact_top=14 batch_margin=19.997 exact_margin=19.973 logits_max=0.068902 logits_rms=0.0131845
+ds4: dspark batch audit row=1 token=14 batch_top=223 exact_top=223 batch_margin=17.523 exact_margin=17.393 logits_max=0.457511 logits_rms=0.0792943
+ds4: dspark batch audit row=0 token=18 batch_top=14 exact_top=14 batch_margin=17.844 exact_margin=17.906 logits_max=0.445562 logits_rms=0.0846656
+ds4: dspark batch audit row=1 token=14 batch_top=223 exact_top=223 batch_margin=18.284 exact_margin=18.219 logits_max=0.605915 logits_rms=0.083515
+ds4: dspark batch audit row=0 token=18 batch_top=682 exact_top=682 batch_margin=12.421 exact_margin=12.434 logits_max=0.204819 logits_rms=0.0236352
+ds4: dspark batch audit row=1 token=682 batch_top=18089 exact_top=18089 batch_margin=8.938 exact_margin=8.924 logits_max=0.145387 logits_rms=0.0306884
+ds4: dspark batch audit row=0 token=438 batch_top=343 exact_top=343 batch_margin=15.589 exact_margin=15.553 logits_max=1.10197 logits_rms=0.157613
+ds4: dspark batch audit row=1 token=343 batch_top=9489 exact_top=9489 batch_margin=10.761 exact_margin=10.830 logits_max=0.345965 logits_rms=0.064741
+ds4: dspark batch audit row=0 token=14 batch_top=223 exact_top=223 batch_margin=18.922 exact_margin=18.907 logits_max=0.0765266 logits_rms=0.0144598
+ds4: dspark batch audit row=1 token=223 batch_top=9489 exact_top=9489 batch_margin=15.921 exact_margin=15.961 logits_max=0.559424 logits_rms=0.0822516
+ds4: dspark batch audit row=0 token=223 batch_top=9489 exact_top=9489 batch_margin=18.742 exact_margin=19.306 logits_max=1.49585 logits_rms=0.282509
+ds4: dspark batch audit row=1 token=9489 batch_top=682 exact_top=682 batch_margin=14.090 exact_margin=14.215 logits_max=2.11786 logits_rms=0.208828
+ds4: dspark batch audit row=0 token=438 batch_top=343 exact_top=343 batch_margin=12.911 exact_margin=12.903 logits_max=0.102531 logits_rms=0.018737
+ds4: dspark batch audit row=1 token=343 batch_top=9489 exact_top=9489 batch_margin=10.034 exact_margin=10.032 logits_max=0.189797 logits_rms=0.0300142
+ds4: dspark batch audit row=0 token=14 batch_top=223 exact_top=223 batch_margin=19.148 exact_margin=19.073 logits_max=0.536453 logits_rms=0.107917
+ds4: dspark batch audit row=1 token=223 batch_top=18 exact_top=18 batch_margin=5.967 exact_margin=5.970 logits_max=0.273438 logits_rms=0.0312899
+ds4: dspark batch audit row=0 token=223 batch_top=18 exact_top=18 batch_margin=12.893 exact_margin=12.889 logits_max=0.0669041 logits_rms=0.010372
+ds4: dspark batch audit row=1 token=18 batch_top=682 exact_top=682 batch_margin=13.018 exact_margin=12.894 logits_max=1.80646 logits_rms=0.16346
+ds4: dspark batch audit row=0 token=41 batch_top=77533 exact_top=77533 batch_margin=15.838 exact_margin=15.848 logits_max=0.0643406 logits_rms=0.0103193
+ds4: dspark batch audit row=1 token=77533 batch_top=438 exact_top=438 batch_margin=12.091 exact_margin=12.049 logits_max=0.245687 logits_rms=0.034767
+ds4: dspark batch audit row=0 token=343 batch_top=18 exact_top=18 batch_margin=12.088 exact_margin=12.103 logits_max=0.0957355 logits_rms=0.0183099
+ds4: dspark batch audit row=1 token=18 batch_top=14 exact_top=14 batch_margin=18.293 exact_margin=18.230 logits_max=0.197702 logits_rms=0.025556
+ds4: dspark batch audit row=0 token=223 batch_top=9489 exact_top=9489 batch_margin=12.863 exact_margin=12.839 logits_max=0.194458 logits_rms=0.026693
+ds4: dspark batch audit row=1 token=9489 batch_top=14 exact_top=14 batch_margin=18.069 exact_margin=18.295 logits_max=2.21739 logits_rms=0.325698
+ds4: dspark batch audit row=0 token=223 batch_top=18 exact_top=18 batch_margin=12.374 exact_margin=12.368 logits_max=0.30844 logits_rms=0.0609643
+ds4: dspark batch audit row=1 token=18 batch_top=682 exact_top=682 batch_margin=6.410 exact_margin=6.402 logits_max=0.101609 logits_rms=0.0191724
+ds4: dspark batch audit row=0 token=11698 batch_top=438 exact_top=438 batch_margin=14.553 exact_margin=14.640 logits_max=1.22448 logits_rms=0.247415
+ds4: dspark batch audit row=1 token=438 batch_top=343 exact_top=343 batch_margin=13.711 exact_margin=13.961 logits_max=1.75276 logits_rms=0.278007
+ds4: dspark batch audit row=0 token=18 batch_top=14 exact_top=14 batch_margin=18.024 exact_margin=18.027 logits_max=0.0737101 logits_rms=0.0167015
+ds4: dspark batch audit row=1 token=14 batch_top=223 exact_top=223 batch_margin=16.240 exact_margin=16.257 logits_max=0.294926 logits_rms=0.0523355
+ds4: dspark batch audit row=0 token=18 batch_top=14 exact_top=14 batch_margin=16.421 exact_margin=16.499 logits_max=0.542381 logits_rms=0.0979125
+ds4: dspark batch audit row=1 token=14 batch_top=223 exact_top=223 batch_margin=17.340 exact_margin=17.356 logits_max=0.456827 logits_rms=0.0887249
+ds4: dspark batch audit row=0 token=9489 batch_top=682 exact_top=682 batch_margin=3.715 exact_margin=3.777 logits_max=0.346465 logits_rms=0.0479561
+ds4: dspark batch audit row=1 token=682 batch_top=59 exact_top=59 batch_margin=8.400 exact_margin=8.433 logits_max=0.16143 logits_rms=0.0288681
+ds4: dspark batch audit row=0 token=53063 batch_top=8309 exact_top=8309 batch_margin=13.496 exact_margin=13.510 logits_max=0.366357 logits_rms=0.069175
+ds4: dspark batch audit row=1 token=8309 batch_top=438 exact_top=438 batch_margin=11.412 exact_margin=11.506 logits_max=0.452521 logits_rms=0.0977513
+ds4: dspark batch audit row=0 token=343 batch_top=9489 exact_top=9489 batch_margin=14.936 exact_margin=14.936 logits_max=0.0476494 logits_rms=0.00905088
+ds4: dspark batch audit row=1 token=9489 batch_top=14 exact_top=14 batch_margin=18.149 exact_margin=18.173 logits_max=0.111044 logits_rms=0.018846
+ds4: dspark batch audit row=0 token=223 batch_top=9489 exact_top=9489 batch_margin=13.793 exact_margin=13.768 logits_max=0.847008 logits_rms=0.113555
+ds4: dspark batch audit row=1 token=9489 batch_top=14 exact_top=14 batch_margin=17.138 exact_margin=17.097 logits_max=0.15208 logits_rms=0.0254799
+ds4: dspark batch audit row=0 token=223 batch_top=18 exact_top=18 batch_margin=12.209 exact_margin=12.202 logits_max=1.59024 logits_rms=0.165699
+ds4: dspark batch audit row=1 token=18 batch_top=868 exact_top=868 batch_margin=2.540 exact_margin=2.524 logits_max=0.0975609 logits_rms=0.016307
+ds4: dspark batch audit row=0 token=3767 batch_top=27422 exact_top=27422 batch_margin=6.988 exact_margin=6.981 logits_max=0.0884676 logits_rms=0.0139027
+ds4: dspark batch audit row=1 token=27422 batch_top=1137 exact_top=1137 batch_margin=3.270 exact_margin=3.260 logits_max=0.124897 logits_rms=0.0229774
+ds4: dspark batch audit row=0 token=1351 batch_top=7854 exact_top=7854 batch_margin=12.903 exact_margin=12.871 logits_max=0.236668 logits_rms=0.0448252
+ds4: dspark batch audit row=1 token=7854 batch_top=7025 exact_top=7025 batch_margin=16.972 exact_margin=16.756 logits_max=2.4929 logits_rms=0.444035
+ds4: dspark batch audit row=0 token=16797 batch_top=2161 exact_top=2161 batch_margin=19.792 exact_margin=19.971 logits_max=1.19862 logits_rms=0.217339
+ds4: dspark batch audit row=1 token=2161 batch_top=14 exact_top=14 batch_margin=2.537 exact_margin=2.663 logits_max=0.664268 logits_rms=0.129476
+ds4: dspark batch audit row=0 token=1527 batch_top=14 exact_top=14 batch_margin=14.429 exact_margin=14.454 logits_max=0.114407 logits_rms=0.0211974
+ds4: dspark batch audit row=1 token=14 batch_top=383 exact_top=383 batch_margin=16.988 exact_margin=17.004 logits_max=0.569025 logits_rms=0.106022
+ds4: dspark batch audit row=0 token=3395 batch_top=528 exact_top=528 batch_margin=15.518 exact_margin=15.514 logits_max=0.109022 logits_rms=0.0201954
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=11.446 exact_margin=11.515 logits_max=0.465689 logits_rms=0.0930078
+ds4: dspark batch audit row=0 token=10774 batch_top=438 exact_top=438 batch_margin=16.469 exact_margin=16.481 logits_max=0.0964813 logits_rms=0.0175947
+ds4: dspark batch audit row=1 token=438 batch_top=1527 exact_top=1527 batch_margin=16.347 exact_margin=16.359 logits_max=0.184701 logits_rms=0.0321281
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=16.637 exact_margin=16.513 logits_max=0.421799 logits_rms=0.0916657
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=17.743 exact_margin=17.633 logits_max=0.619194 logits_rms=0.119625
+ds4: dspark batch audit row=0 token=13662 batch_top=438 exact_top=438 batch_margin=19.820 exact_margin=19.870 logits_max=0.10198 logits_rms=0.0215104
+ds4: dspark batch audit row=1 token=438 batch_top=383 exact_top=383 batch_margin=13.380 exact_margin=13.385 logits_max=0.674231 logits_rms=0.0993311
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=18.040 exact_margin=17.658 logits_max=0.894115 logits_rms=0.209211
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=14.964 exact_margin=15.130 logits_max=1.00222 logits_rms=0.163352
+ds4: dspark batch audit row=0 token=42529 batch_top=438 exact_top=438 batch_margin=18.556 exact_margin=18.536 logits_max=0.0877781 logits_rms=0.0141139
+ds4: dspark batch audit row=1 token=438 batch_top=223 exact_top=223 batch_margin=15.985 exact_margin=16.001 logits_max=0.119275 logits_rms=0.0226622
+ds4: dspark batch audit row=0 token=1328 batch_top=201 exact_top=201 batch_margin=10.764 exact_margin=10.761 logits_max=0.134645 logits_rms=0.0139907
+ds4: dspark batch audit row=1 token=201 batch_top=528 exact_top=528 batch_margin=17.830 exact_margin=17.858 logits_max=0.119441 logits_rms=0.0180385
+ds4: dspark batch audit row=0 token=2280 batch_top=43427 exact_top=43427 batch_margin=13.418 exact_margin=13.415 logits_max=0.110218 logits_rms=0.0198542
+ds4: dspark batch audit row=1 token=43427 batch_top=438 exact_top=438 batch_margin=18.355 exact_margin=18.383 logits_max=0.140909 logits_rms=0.0243416
+ds4: dspark batch audit row=0 token=223 batch_top=1484 exact_top=1484 batch_margin=1.794 exact_margin=1.798 logits_max=0.161331 logits_rms=0.0168665
+ds4: dspark batch audit row=1 token=1484 batch_top=201 exact_top=201 batch_margin=7.551 exact_margin=7.543 logits_max=0.299892 logits_rms=0.0494125
+ds4: dspark batch audit row=0 token=528 batch_top=2280 exact_top=2280 batch_margin=12.176 exact_margin=12.207 logits_max=0.105392 logits_rms=0.0184471
+ds4: dspark batch audit row=1 token=2280 batch_top=2349 exact_top=2349 batch_margin=2.902 exact_margin=2.903 logits_max=0.102221 logits_rms=0.0159239
+ds4: dspark batch audit row=0 token=18584 batch_top=438 exact_top=438 batch_margin=16.313 exact_margin=16.322 logits_max=0.191614 logits_rms=0.0294361
+ds4: dspark batch audit row=1 token=438 batch_top=92167 exact_top=92167 batch_margin=11.591 exact_margin=11.610 logits_max=0.125694 logits_rms=0.0221267
+ds4: dspark batch audit row=0 token=1647 batch_top=108239 exact_top=108239 batch_margin=18.161 exact_margin=17.604 logits_max=2.30539 logits_rms=0.433395
+ds4: dspark batch audit row=1 token=108239 batch_top=39 exact_top=39 batch_margin=17.064 exact_margin=17.057 logits_max=0.276517 logits_rms=0.0534383
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=11.019 exact_margin=11.115 logits_max=1.11215 logits_rms=0.208548
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=4.108 exact_margin=4.216 logits_max=0.741184 logits_rms=0.131139
+ds4: dspark batch audit row=0 token=6229 batch_top=363 exact_top=363 batch_margin=13.298 exact_margin=13.307 logits_max=0.126672 logits_rms=0.0255392
+ds4: dspark batch audit row=1 token=363 batch_top=14379 exact_top=14379 batch_margin=8.697 exact_margin=8.677 logits_max=0.124447 logits_rms=0.0247593
+ds4: dspark batch audit row=0 token=438 batch_top=16461 exact_top=16461 batch_margin=5.868 exact_margin=5.866 logits_max=0.0831718 logits_rms=0.0125062
+ds4: dspark batch audit row=1 token=16461 batch_top=528 exact_top=528 batch_margin=2.183 exact_margin=2.249 logits_max=0.722084 logits_rms=0.131604
+ds4: dspark batch audit row=0 token=2280 batch_top=3314 exact_top=3314 batch_margin=0.968 exact_margin=0.914 logits_max=0.231454 logits_rms=0.0418883
+ds4: dspark batch audit row=1 token=3314 batch_top=1769 exact_top=1769 batch_margin=11.597 exact_margin=11.577 logits_max=0.192333 logits_rms=0.0340218
+ds4: dspark batch audit row=0 token=438 batch_top=223 exact_top=223 batch_margin=15.231 exact_margin=15.242 logits_max=0.063535 logits_rms=0.0109912
+ds4: dspark batch audit row=1 token=223 batch_top=21 exact_top=21 batch_margin=7.845 exact_margin=7.850 logits_max=0.183052 logits_rms=0.0214314
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=12.794 exact_margin=12.792 logits_max=0.0727005 logits_rms=0.0126138
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=9.445 exact_margin=9.492 logits_max=0.190512 logits_rms=0.0395071
+ds4: dspark batch audit row=0 token=94314 batch_top=438 exact_top=438 batch_margin=13.775 exact_margin=13.776 logits_max=0.0577765 logits_rms=0.0136896
+ds4: dspark batch audit row=1 token=438 batch_top=223 exact_top=223 batch_margin=15.168 exact_margin=15.185 logits_max=0.100914 logits_rms=0.0215962
+ds4: dspark batch audit row=0 token=18 batch_top=42130 exact_top=42130 batch_margin=3.185 exact_margin=3.189 logits_max=0.042075 logits_rms=0.00880459
+ds4: dspark batch audit row=1 token=42130 batch_top=361 exact_top=361 batch_margin=5.770 exact_margin=5.776 logits_max=0.199412 logits_rms=0.0208769
+ds4: dspark batch audit row=0 token=1351 batch_top=5002 exact_top=5002 batch_margin=0.659 exact_margin=0.658 logits_max=0.111136 logits_rms=0.0212115
+ds4: dspark batch audit row=1 token=5002 batch_top=52376 exact_top=52376 batch_margin=1.372 exact_margin=1.352 logits_max=0.11906 logits_rms=0.0175972
+ds4: dspark batch audit row=0 token=6666 batch_top=3395 exact_top=3395 batch_margin=11.574 exact_margin=11.560 logits_max=0.104774 logits_rms=0.0125576
+ds4: dspark batch audit row=1 token=3395 batch_top=528 exact_top=528 batch_margin=14.646 exact_margin=14.659 logits_max=0.178729 logits_rms=0.0203486
+ds4: dspark batch audit row=0 token=2280 batch_top=10774 exact_top=10774 batch_margin=16.608 exact_margin=16.691 logits_max=1.00939 logits_rms=0.208832
+ds4: dspark batch audit row=1 token=10774 batch_top=26310 exact_top=26310 batch_margin=1.002 exact_margin=0.959 logits_max=0.809223 logits_rms=0.14688
+ds4: dspark batch audit row=0 token=2280 batch_top=2349 exact_top=2349 batch_margin=16.978 exact_margin=16.961 logits_max=0.127609 logits_rms=0.0239538
+ds4: dspark batch audit row=1 token=2349 batch_top=18584 exact_top=18584 batch_margin=19.824 exact_margin=19.790 logits_max=0.129566 logits_rms=0.0284972
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=17.511 exact_margin=17.537 logits_max=0.0683899 logits_rms=0.0155665
+ds4: dspark batch audit row=1 token=528 batch_top=855 exact_top=855 batch_margin=7.008 exact_margin=7.005 logits_max=0.131039 logits_rms=0.0229692
+ds4: dspark batch audit row=0 token=2280 batch_top=10774 exact_top=10774 batch_margin=16.889 exact_margin=16.784 logits_max=1.45521 logits_rms=0.247541
+ds4: dspark batch audit row=1 token=10774 batch_top=818 exact_top=818 batch_margin=13.388 exact_margin=13.446 logits_max=0.164052 logits_rms=0.0334753
+ds4: dspark batch audit row=0 token=223 batch_top=18 exact_top=18 batch_margin=7.079 exact_margin=7.069 logits_max=0.1548 logits_rms=0.0148373
+ds4: dspark batch audit row=1 token=18 batch_top=1137 exact_top=1137 batch_margin=11.266 exact_margin=11.261 logits_max=0.099988 logits_rms=0.0169879
+ds4: dspark batch audit row=0 token=775 batch_top=2280 exact_top=2280 batch_margin=15.938 exact_margin=15.966 logits_max=0.0970249 logits_rms=0.0180165
+ds4: dspark batch audit row=1 token=2280 batch_top=10774 exact_top=10774 batch_margin=16.693 exact_margin=16.678 logits_max=0.0947666 logits_rms=0.0180284
+ds4: dspark batch audit row=0 token=438 batch_top=223 exact_top=223 batch_margin=14.901 exact_margin=14.904 logits_max=1.3718 logits_rms=0.271705
+ds4: dspark batch audit row=1 token=223 batch_top=18 exact_top=18 batch_margin=14.377 exact_margin=14.430 logits_max=0.664495 logits_rms=0.108303
+ds4: dspark batch audit row=0 token=87346 batch_top=361 exact_top=361 batch_margin=17.316 exact_margin=17.223 logits_max=0.373754 logits_rms=0.0831245
+ds4: dspark batch audit row=1 token=361 batch_top=1351 exact_top=1351 batch_margin=18.816 exact_margin=18.759 logits_max=0.23778 logits_rms=0.0437176
+ds4: dspark batch audit row=0 token=5002 batch_top=57991 exact_top=57991 batch_margin=15.054 exact_margin=14.557 logits_max=1.15361 logits_rms=0.258178
+ds4: dspark batch audit row=1 token=57991 batch_top=6666 exact_top=6666 batch_margin=14.567 exact_margin=13.600 logits_max=2.11952 logits_rms=0.297383
+ds4: dspark batch audit row=0 token=3395 batch_top=528 exact_top=528 batch_margin=15.819 exact_margin=15.669 logits_max=0.681556 logits_rms=0.141672
+ds4: dspark batch audit row=1 token=528 batch_top=2280 exact_top=2280 batch_margin=15.344 exact_margin=15.507 logits_max=1.11747 logits_rms=0.168201
+ds4: dspark batch audit row=0 token=10774 batch_top=7004 exact_top=7004 batch_margin=16.814 exact_margin=16.795 logits_max=1.39942 logits_rms=0.286986
+ds4: dspark batch audit row=1 token=7004 batch_top=2280 exact_top=2280 batch_margin=18.031 exact_margin=18.099 logits_max=1.40274 logits_rms=0.298791
+ds4: dspark batch audit row=0 token=2349 batch_top=18584 exact_top=18584 batch_margin=24.381 exact_margin=23.845 logits_max=2.24894 logits_rms=0.454475
+ds4: dspark batch audit row=1 token=18584 batch_top=201 exact_top=201 batch_margin=12.828 exact_margin=12.655 logits_max=1.84067 logits_rms=0.347531
+ds4: dspark batch audit row=0 token=528 batch_top=855 exact_top=855 batch_margin=13.704 exact_margin=13.664 logits_max=0.936936 logits_rms=0.182118
+ds4: dspark batch audit row=1 token=855 batch_top=2280 exact_top=2280 batch_margin=17.380 exact_margin=17.423 logits_max=0.207676 logits_rms=0.0338909
+ds4: dspark batch audit row=0 token=10774 batch_top=1955 exact_top=1955 batch_margin=3.794 exact_margin=3.783 logits_max=0.0841637 logits_rms=0.0176865
+ds4: dspark batch audit row=1 token=1955 batch_top=17283 exact_top=17283 batch_margin=18.102 exact_margin=18.147 logits_max=0.638354 logits_rms=0.127284
+ds4: dspark batch audit row=0 token=77533 batch_top=111000 exact_top=111000 batch_margin=16.863 exact_margin=17.089 logits_max=0.534018 logits_rms=0.089963
+ds4: dspark batch audit row=1 token=111000 batch_top=565 exact_top=565 batch_margin=17.618 exact_margin=17.631 logits_max=0.127649 logits_rms=0.0213175
+ds4: dspark batch audit row=0 token=2280 batch_top=42529 exact_top=42529 batch_margin=16.758 exact_margin=16.655 logits_max=0.724112 logits_rms=0.134865
+ds4: dspark batch audit row=1 token=42529 batch_top=1137 exact_top=1137 batch_margin=13.944 exact_margin=13.757 logits_max=1.65683 logits_rms=0.265502
+ds4: dspark batch audit row=0 token=775 batch_top=2280 exact_top=2280 batch_margin=19.612 exact_margin=19.588 logits_max=0.100582 logits_rms=0.0182918
+ds4: dspark batch audit row=1 token=2280 batch_top=10774 exact_top=10774 batch_margin=17.534 exact_margin=17.688 logits_max=0.456122 logits_rms=0.0826064
+ds4: dspark batch audit row=0 token=438 batch_top=17283 exact_top=17283 batch_margin=16.821 exact_margin=16.826 logits_max=0.713028 logits_rms=0.124382
+ds4: dspark batch audit row=1 token=17283 batch_top=77533 exact_top=77533 batch_margin=14.990 exact_margin=14.968 logits_max=0.29178 logits_rms=0.0449908
+ds4: dspark batch audit row=0 token=111000 batch_top=565 exact_top=565 batch_margin=17.581 exact_margin=17.612 logits_max=0.132366 logits_rms=0.0185076
+ds4: dspark batch audit row=1 token=565 batch_top=2280 exact_top=2280 batch_margin=15.488 exact_margin=15.597 logits_max=0.706081 logits_rms=0.113701
+ds4: dspark batch audit row=0 token=42529 batch_top=87346 exact_top=87346 batch_margin=4.016 exact_margin=4.033 logits_max=0.058115 logits_rms=0.0135591
+ds4: dspark batch audit row=1 token=87346 batch_top=361 exact_top=361 batch_margin=18.290 exact_margin=18.361 logits_max=0.605347 logits_rms=0.105328
+ds4: dspark batch audit row=0 token=1351 batch_top=12077 exact_top=12077 batch_margin=7.757 exact_margin=7.760 logits_max=0.0824594 logits_rms=0.0157933
+ds4: dspark batch audit row=0 token=6666 batch_top=3395 exact_top=3395 batch_margin=8.498 exact_margin=8.501 logits_max=0.113582 logits_rms=0.0146247
+ds4: dspark batch audit row=1 token=3395 batch_top=528 exact_top=528 batch_margin=13.116 exact_margin=13.107 logits_max=0.11371 logits_rms=0.0208227
+ds4: dspark batch audit row=0 token=438 batch_top=15272 exact_top=15272 batch_margin=5.937 exact_margin=5.933 logits_max=0.0914764 logits_rms=0.0126808
+ds4: dspark batch audit row=1 token=15272 batch_top=1775 exact_top=1775 batch_margin=18.192 exact_margin=17.846 logits_max=1.76753 logits_rms=0.274578
+ds4: dspark batch audit row=0 token=6666 batch_top=10774 exact_top=10774 batch_margin=19.893 exact_margin=19.922 logits_max=0.1231 logits_rms=0.0216079
+ds4: dspark batch audit row=1 token=10774 batch_top=940 exact_top=940 batch_margin=16.200 exact_margin=16.177 logits_max=0.154644 logits_rms=0.0272927
+ds4: dspark batch audit row=0 token=2280 batch_top=42529 exact_top=42529 batch_margin=18.770 exact_margin=18.768 logits_max=0.0898476 logits_rms=0.0181646
+ds4: dspark batch audit row=1 token=42529 batch_top=835 exact_top=835 batch_margin=0.847 exact_margin=0.870 logits_max=0.0938282 logits_rms=0.0127639
+ds4: dspark batch audit row=0 token=20 batch_top=565 exact_top=565 batch_margin=1.140 exact_margin=1.152 logits_max=0.0666275 logits_rms=0.0125108
+ds4: dspark batch audit row=1 token=565 batch_top=223 exact_top=223 batch_margin=11.574 exact_margin=11.597 logits_max=0.59306 logits_rms=0.0761632
+ds4: dspark batch audit row=0 token=20 batch_top=14 exact_top=14 batch_margin=7.507 exact_margin=7.523 logits_max=0.0816536 logits_rms=0.0148457
+ds4: dspark batch audit row=1 token=14 batch_top=2280 exact_top=2280 batch_margin=12.375 exact_margin=12.374 logits_max=0.122608 logits_rms=0.015252
+ds4: dspark batch audit row=0 token=13662 batch_top=14 exact_top=14 batch_margin=1.818 exact_margin=1.818 logits_max=0.0731411 logits_rms=0.0151019
+ds4: dspark batch audit row=0 token=6552 batch_top=3402 exact_top=3402 batch_margin=21.433 exact_margin=21.359 logits_max=0.173084 logits_rms=0.0293675
+ds4: dspark batch audit row=1 token=3402 batch_top=108239 exact_top=108239 batch_margin=15.831 exact_margin=16.064 logits_max=1.2386 logits_rms=0.22341
+ds4: dspark batch audit row=0 token=39 batch_top=3316 exact_top=3316 batch_margin=19.587 exact_margin=19.573 logits_max=0.122521 logits_rms=0.0216451
+ds4: dspark batch audit row=1 token=3316 batch_top=682 exact_top=682 batch_margin=1.540 exact_margin=1.460 logits_max=0.348063 logits_rms=0.0615926
+ds4: dspark batch audit row=0 token=528 batch_top=2280 exact_top=2280 batch_margin=8.403 exact_margin=8.265 logits_max=0.709171 logits_rms=0.121989
+ds4: dspark batch audit row=1 token=2280 batch_top=6229 exact_top=6229 batch_margin=16.745 exact_margin=16.636 logits_max=0.765297 logits_rms=0.117084
+ds4: dspark batch audit row=0 token=363 batch_top=14379 exact_top=14379 batch_margin=18.692 exact_margin=18.958 logits_max=1.29007 logits_rms=0.229275
+ds4: dspark batch audit row=1 token=14379 batch_top=10108 exact_top=10108 batch_margin=14.608 exact_margin=14.611 logits_max=1.62907 logits_rms=0.280966
+ds4: dspark batch audit row=0 token=7011 batch_top=363 exact_top=363 batch_margin=18.654 exact_margin=18.564 logits_max=0.230585 logits_rms=0.0441093
+ds4: dspark batch audit row=1 token=363 batch_top=1775 exact_top=1775 batch_margin=13.673 exact_margin=13.688 logits_max=0.126116 logits_rms=0.0235684
+ds4: dspark batch audit row=0 token=682 batch_top=9970 exact_top=9970 batch_margin=4.224 exact_margin=4.215 logits_max=0.0641935 logits_rms=0.0128901
+ds4: dspark batch audit row=1 token=9970 batch_top=361 exact_top=361 batch_margin=11.470 exact_margin=11.463 logits_max=0.392657 logits_rms=0.0694303
+ds4: dspark batch audit row=0 token=1351 batch_top=5140 exact_top=5140 batch_margin=1.032 exact_margin=1.036 logits_max=0.0857372 logits_rms=0.0163032
+ds4: dspark batch audit row=1 token=5140 batch_top=6666 exact_top=6666 batch_margin=14.412 exact_margin=14.417 logits_max=0.128115 logits_rms=0.0241489
+ds4: dspark batch audit row=0 token=14 batch_top=9421 exact_top=9421 batch_margin=9.284 exact_margin=9.279 logits_max=0.105331 logits_rms=0.0227771
+ds4: dspark batch audit row=1 token=9421 batch_top=3395 exact_top=3395 batch_margin=8.459 exact_margin=8.392 logits_max=1.46528 logits_rms=0.219872
+ds4: dspark batch audit row=0 token=528 batch_top=1823 exact_top=1823 batch_margin=2.261 exact_margin=2.424 logits_max=1.21877 logits_rms=0.221439
+ds4: dspark batch audit row=1 token=1823 batch_top=17274 exact_top=17274 batch_margin=11.506 exact_margin=11.461 logits_max=0.374145 logits_rms=0.0704076
+ds4: dspark batch audit row=0 token=8469 batch_top=11319 exact_top=11319 batch_margin=1.879 exact_margin=1.903 logits_max=0.0964336 logits_rms=0.0158987
+ds4: dspark batch audit row=0 token=87411 batch_top=7633 exact_top=7633 batch_margin=1.304 exact_margin=1.581 logits_max=1.23984 logits_rms=0.213855
+ds4: dspark batch audit row=0 token=682 batch_top=528 exact_top=528 batch_margin=14.356 exact_margin=14.391 logits_max=0.129646 logits_rms=0.0233772
+ds4: dspark batch audit row=1 token=528 batch_top=4365 exact_top=4365 batch_margin=5.346 exact_margin=5.372 logits_max=0.154903 logits_rms=0.0299975
+ds4: dspark batch audit row=0 token=438 batch_top=10606 exact_top=10606 batch_margin=6.216 exact_margin=6.179 logits_max=0.983927 logits_rms=0.1119
+ds4: dspark batch audit row=1 token=10606 batch_top=775 exact_top=775 batch_margin=15.788 exact_margin=15.844 logits_max=0.174694 logits_rms=0.0289001
+ds4: dspark batch audit row=0 token=343 batch_top=2161 exact_top=2161 batch_margin=14.934 exact_margin=14.766 logits_max=0.72385 logits_rms=0.147399
+ds4: dspark batch audit row=1 token=2161 batch_top=10774 exact_top=10774 batch_margin=18.184 exact_margin=18.200 logits_max=0.508694 logits_rms=0.0972012
+ds4: dspark batch audit row=0 token=940 batch_top=2280 exact_top=2280 batch_margin=10.070 exact_margin=10.067 logits_max=0.0711651 logits_rms=0.0123128
+ds4: dspark batch audit row=1 token=2280 batch_top=42529 exact_top=42529 batch_margin=18.190 exact_margin=18.036 logits_max=1.25194 logits_rms=0.196404
+ds4: dspark batch audit row=0 token=835 batch_top=20 exact_top=20 batch_margin=13.040 exact_margin=12.713 logits_max=1.27389 logits_rms=0.200654
+ds4: dspark batch audit row=1 token=20 batch_top=14 exact_top=14 batch_margin=15.055 exact_margin=15.105 logits_max=0.860239 logits_rms=0.156329
+ds4: dspark batch audit row=0 token=2280 batch_top=13662 exact_top=13662 batch_margin=18.129 exact_margin=18.329 logits_max=0.97406 logits_rms=0.197155
+ds4: dspark batch audit row=1 token=13662 batch_top=3872 exact_top=3872 batch_margin=3.038 exact_margin=3.087 logits_max=0.185397 logits_rms=0.0431305
+ds4: dspark batch audit row=0 token=775 batch_top=343 exact_top=343 batch_margin=19.413 exact_margin=19.300 logits_max=0.50942 logits_rms=0.0869646
+ds4: dspark batch audit row=1 token=343 batch_top=2161 exact_top=2161 batch_margin=18.145 exact_margin=18.133 logits_max=0.61091 logits_rms=0.124007
+ds4: dspark batch audit row=0 token=10774 batch_top=14 exact_top=14 batch_margin=1.517 exact_margin=1.478 logits_max=0.5688 logits_rms=0.0924156
+ds4: dspark batch audit row=1 token=14 batch_top=2280 exact_top=2280 batch_margin=17.002 exact_margin=17.304 logits_max=1.13314 logits_rms=0.200996
+ds4: dspark batch audit row=0 token=13662 batch_top=940 exact_top=940 batch_margin=15.338 exact_margin=15.347 logits_max=0.0965199 logits_rms=0.0201107
+ds4: dspark batch audit row=1 token=940 batch_top=2280 exact_top=2280 batch_margin=12.360 exact_margin=12.303 logits_max=0.507547 logits_rms=0.0956529
+ds4: dspark batch audit row=0 token=43427 batch_top=3872 exact_top=3872 batch_margin=10.782 exact_margin=10.781 logits_max=0.0680962 logits_rms=0.0122712
+ds4: dspark batch audit row=1 token=3872 batch_top=775 exact_top=775 batch_margin=16.081 exact_margin=16.203 logits_max=1.07899 logits_rms=0.160503
+ds4: dspark batch audit row=0 token=343 batch_top=2161 exact_top=2161 batch_margin=17.746 exact_margin=17.755 logits_max=0.132689 logits_rms=0.0233769
+ds4: dspark batch audit row=1 token=2161 batch_top=10774 exact_top=10774 batch_margin=13.649 exact_margin=13.682 logits_max=0.119398 logits_rms=0.0212133
+ds4: dspark batch audit row=0 token=940 batch_top=2280 exact_top=2280 batch_margin=15.497 exact_margin=15.106 logits_max=1.48622 logits_rms=0.317864
+ds4: dspark batch audit row=1 token=2280 batch_top=42529 exact_top=42529 batch_margin=16.284 exact_margin=15.548 logits_max=2.51181 logits_rms=0.465921
+ds4: dspark batch audit row=0 token=14 batch_top=2280 exact_top=2280 batch_margin=16.805 exact_margin=16.783 logits_max=0.225807 logits_rms=0.0269071
+ds4: dspark batch audit row=1 token=2280 batch_top=13662 exact_top=13662 batch_margin=12.592 exact_margin=12.690 logits_max=0.47279 logits_rms=0.0932863
+ds4: dspark batch audit row=0 token=940 batch_top=2280 exact_top=2280 batch_margin=16.461 exact_margin=16.197 logits_max=0.650562 logits_rms=0.130713
+ds4: dspark batch audit row=1 token=2280 batch_top=43427 exact_top=43427 batch_margin=16.910 exact_margin=16.957 logits_max=0.337358 logits_rms=0.0731481
+ds4: dspark batch audit row=0 token=682 batch_top=528 exact_top=528 batch_margin=12.900 exact_margin=13.050 logits_max=1.51516 logits_rms=0.187122
+ds4: dspark batch audit row=1 token=528 batch_top=20319 exact_top=20319 batch_margin=15.087 exact_margin=15.041 logits_max=1.07724 logits_rms=0.207145
+ds4: dspark batch audit row=0 token=528 batch_top=87579 exact_top=87579 batch_margin=12.770 exact_margin=12.753 logits_max=0.110775 logits_rms=0.0212339
+ds4: dspark batch audit row=1 token=87579 batch_top=60507 exact_top=60507 batch_margin=17.319 exact_margin=17.293 logits_max=0.134668 logits_rms=0.0251642
+ds4: dspark batch audit row=0 token=3225 batch_top=6357 exact_top=6357 batch_margin=23.737 exact_margin=23.751 logits_max=0.211882 logits_rms=0.0408155
+ds4: dspark batch audit row=1 token=6357 batch_top=22115 exact_top=22115 batch_margin=19.300 exact_margin=19.229 logits_max=0.97783 logits_rms=0.162246
+ds4: dspark batch audit row=0 token=3982 batch_top=13592 exact_top=13592 batch_margin=20.972 exact_margin=20.988 logits_max=0.139288 logits_rms=0.0232689
+ds4: dspark batch audit row=1 token=13592 batch_top=14 exact_top=14 batch_margin=16.971 exact_margin=17.079 logits_max=0.524128 logits_rms=0.0701856
+ds4: dspark batch audit row=0 token=124400 batch_top=14 exact_top=14 batch_margin=9.027 exact_margin=9.029 logits_max=0.108815 logits_rms=0.0222927
+ds4: dspark batch audit row=1 token=14 batch_top=4365 exact_top=4365 batch_margin=15.160 exact_margin=15.178 logits_max=0.152843 logits_rms=0.0262219
+ds4: dspark batch audit row=0 token=682 batch_top=9970 exact_top=9970 batch_margin=2.368 exact_margin=2.373 logits_max=0.125212 logits_rms=0.0197354
+ds4: dspark batch audit row=1 token=9970 batch_top=528 exact_top=528 batch_margin=4.175 exact_margin=4.187 logits_max=0.0995407 logits_rms=0.0210377
+ds4: dspark batch audit row=0 token=1823 batch_top=17274 exact_top=17274 batch_margin=4.028 exact_margin=4.197 logits_max=0.691254 logits_rms=0.136178
+ds4: dspark batch audit row=1 token=17274 batch_top=68546 exact_top=68546 batch_margin=2.890 exact_margin=2.704 logits_max=0.405994 logits_rms=0.0688611
+ds4: dspark batch audit row=0 token=201 batch_top=528 exact_top=528 batch_margin=17.257 exact_margin=17.106 logits_max=0.791121 logits_rms=0.176536
+ds4: dspark batch audit row=1 token=528 batch_top=362 exact_top=362 batch_margin=9.866 exact_margin=9.633 logits_max=0.663892 logits_rms=0.127859
+ds4: dspark batch audit row=0 token=37561 batch_top=295 exact_top=295 batch_margin=18.415 exact_margin=18.528 logits_max=0.341687 logits_rms=0.0706373
+ds4: dspark batch audit row=1 token=295 batch_top=2280 exact_top=2280 batch_margin=16.698 exact_margin=16.593 logits_max=0.506258 logits_rms=0.10999
+ds4: dspark batch audit row=0 token=6229 batch_top=363 exact_top=363 batch_margin=14.904 exact_margin=14.892 logits_max=1.44248 logits_rms=0.242981
+ds4: dspark batch audit row=1 token=363 batch_top=14379 exact_top=14379 batch_margin=12.850 exact_margin=12.760 logits_max=0.138624 logits_rms=0.0255739
+ds4: dspark batch audit row=0 token=1137 batch_top=775 exact_top=775 batch_margin=13.097 exact_margin=13.264 logits_max=1.09129 logits_rms=0.209932
+ds4: dspark batch audit row=1 token=775 batch_top=37561 exact_top=37561 batch_margin=7.493 exact_margin=7.498 logits_max=0.419334 logits_rms=0.0840391
+ds4: dspark batch audit row=0 token=60507 batch_top=3982 exact_top=3982 batch_margin=13.315 exact_margin=13.315 logits_max=0.157703 logits_rms=0.0259704
+ds4: dspark batch audit row=1 token=3982 batch_top=13592 exact_top=13592 batch_margin=18.385 exact_margin=18.585 logits_max=1.09909 logits_rms=0.227729
+ds4: dspark batch audit row=0 token=682 batch_top=20256 exact_top=20256 batch_margin=3.560 exact_margin=3.554 logits_max=0.0478489 logits_rms=0.0100682
+ds4: dspark batch audit row=1 token=20256 batch_top=361 exact_top=361 batch_margin=6.036 exact_margin=6.083 logits_max=0.100061 logits_rms=0.0173087
+ds4: dspark batch audit row=0 token=9502 batch_top=6666 exact_top=6666 batch_margin=2.772 exact_margin=2.762 logits_max=0.100208 logits_rms=0.0134955
+ds4: dspark batch audit row=1 token=6666 batch_top=3395 exact_top=3395 batch_margin=4.632 exact_margin=4.602 logits_max=0.841469 logits_rms=0.169057
+ds4: dspark batch audit row=0 token=528 batch_top=1823 exact_top=1823 batch_margin=4.427 exact_margin=4.427 logits_max=0.0695553 logits_rms=0.0149277
+ds4: dspark batch audit row=1 token=1823 batch_top=18238 exact_top=18238 batch_margin=4.585 exact_margin=4.608 logits_max=0.196057 logits_rms=0.0351174
+ds4: dspark batch audit row=0 token=68546 batch_top=201 exact_top=201 batch_margin=7.192 exact_margin=7.209 logits_max=0.487683 logits_rms=0.0825692
+ds4: dspark batch audit row=1 token=201 batch_top=528 exact_top=528 batch_margin=15.603 exact_margin=15.560 logits_max=0.291622 logits_rms=0.0521159
+ds4: dspark batch audit row=0 token=362 batch_top=37561 exact_top=37561 batch_margin=14.306 exact_margin=14.303 logits_max=0.0565696 logits_rms=0.0106872
+ds4: dspark batch audit row=1 token=37561 batch_top=295 exact_top=295 batch_margin=19.845 exact_margin=19.763 logits_max=0.560665 logits_rms=0.095188
+ds4: dspark batch audit row=0 token=2280 batch_top=6229 exact_top=6229 batch_margin=18.585 exact_margin=18.741 logits_max=1.341 logits_rms=0.237717
+ds4: dspark batch audit row=1 token=6229 batch_top=363 exact_top=363 batch_margin=17.375 exact_margin=17.163 logits_max=0.691218 logits_rms=0.124588
+ds4: dspark batch audit row=0 token=14379 batch_top=20926 exact_top=20926 batch_margin=8.240 exact_margin=8.254 logits_max=0.0783806 logits_rms=0.0147002
+ds4: dspark batch audit row=1 token=20926 batch_top=23902 exact_top=23902 batch_margin=9.507 exact_margin=9.485 logits_max=0.120048 logits_rms=0.019849
+ds4: dspark batch audit row=0 token=37561 batch_top=35974 exact_top=35974 batch_margin=1.963 exact_margin=2.324 logits_max=1.29219 logits_rms=0.20707
+ds4: dspark batch audit row=1 token=35974 batch_top=3390 exact_top=3390 batch_margin=14.132 exact_margin=14.258 logits_max=1.75582 logits_rms=0.254005
+ds4: dspark batch audit row=0 token=775 batch_top=855 exact_top=855 batch_margin=8.826 exact_margin=8.819 logits_max=0.0715065 logits_rms=0.0128186
+ds4: dspark batch audit row=1 token=855 batch_top=37561 exact_top=37561 batch_margin=13.512 exact_margin=13.514 logits_max=0.132584 logits_rms=0.0286612
+ds4: dspark batch audit row=0 token=818 batch_top=223 exact_top=223 batch_margin=13.322 exact_margin=13.332 logits_max=0.103801 logits_rms=0.0165902
+ds4: dspark batch audit row=1 token=223 batch_top=18 exact_top=18 batch_margin=16.210 exact_margin=16.200 logits_max=2.29453 logits_rms=0.329024
+ds4: dspark batch audit row=0 token=1137 batch_top=1507 exact_top=1507 batch_margin=16.448 exact_margin=16.488 logits_max=0.122961 logits_rms=0.0313827
+ds4: dspark batch audit row=1 token=1507 batch_top=2280 exact_top=2280 batch_margin=14.911 exact_margin=14.796 logits_max=1.01248 logits_rms=0.174669
+ds4: dspark batch audit row=0 token=6229 batch_top=363 exact_top=363 batch_margin=19.206 exact_margin=19.186 logits_max=0.112491 logits_rms=0.0228714
+ds4: dspark batch audit row=1 token=363 batch_top=14379 exact_top=14379 batch_margin=15.427 exact_margin=15.660 logits_max=2.35768 logits_rms=0.375755
+ds4: dspark batch audit row=0 token=29864 batch_top=7011 exact_top=7011 batch_margin=18.120 exact_margin=18.122 logits_max=0.159191 logits_rms=0.0288763
+ds4: dspark batch audit row=1 token=7011 batch_top=363 exact_top=363 batch_margin=16.474 exact_margin=16.441 logits_max=0.238506 logits_rms=0.0483457
+ds4: dspark batch audit row=0 token=3767 batch_top=103859 exact_top=103859 batch_margin=5.775 exact_margin=5.795 logits_max=0.172416 logits_rms=0.0210789
+ds4: dspark batch audit row=1 token=103859 batch_top=1137 exact_top=1137 batch_margin=11.657 exact_margin=11.665 logits_max=0.221785 logits_rms=0.0345827
+ds4: dspark batch audit row=0 token=361 batch_top=1351 exact_top=1351 batch_margin=14.798 exact_margin=14.779 logits_max=0.110609 logits_rms=0.0198328
+ds4: dspark batch audit row=1 token=1351 batch_top=7854 exact_top=7854 batch_margin=15.644 exact_margin=15.426 logits_max=1.14269 logits_rms=0.198535
+ds4: dspark batch audit row=0 token=7025 batch_top=16797 exact_top=16797 batch_margin=16.513 exact_margin=16.553 logits_max=0.141131 logits_rms=0.0244239
+ds4: dspark batch audit row=1 token=16797 batch_top=2161 exact_top=2161 batch_margin=17.433 exact_margin=17.092 logits_max=1.60563 logits_rms=0.224652
+ds4: dspark batch audit row=0 token=14 batch_top=1527 exact_top=1527 batch_margin=15.416 exact_margin=15.416 logits_max=0 logits_rms=0
+ds4: ----------------------------------------
+ds4: prefill: 6.68 t/s, generation: 21.38 t/s (512 tokens in 23.948s)
+ds4: dspark acceptance: 85.7% (323/377 draft tokens)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

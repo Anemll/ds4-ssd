@@ -1,0 +1,40 @@
+2026-07-01 14:24:45.853 agent worker start ctx=8192 backend=metal model=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf trace=/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/agent_ab_20260701_142125/dynamic.trace
+2026-07-01 14:24:45.877 sysprompt kv hit file=/Users/anemll/.ds4/kvcache/sysprompt.kv tokens=1384
+2026-07-01 14:24:45.877 tokens label=initial_system_prompt start=0 len=1384
+2026-07-01 14:24:45.877 user="Use local tools only, one tool call at a time, with no narration before tool calls: list the current directory, read notes.txt, search for TODO in the directory, create summary.txt containing a one-paragraph summary of notes.txt, then write a complete single-file Space Invaders game in pygame to game.py, then stop."
+2026-07-01 14:24:45.877 prefill tool_round=0 transcript=1454 prompt=1454 cached=1384 suffix=70 think=none
+2026-07-01 14:24:45.877 tokens label=prefill_suffix start=1384 len=1454
+2026-07-01 14:24:49.553 dsml start detected
+2026-07-01 14:24:50.404 dsml done calls=1
+2026-07-01 14:24:50.404 tool_call index=1/1 name="list" argc=1 arg0.path="."
+2026-07-01 14:24:50.404 tool_result index=1/1 name="list" seconds=0.000 bytes=48 text=".:\n-        244 notes.txt\n-         12 data.txt\n"
+2026-07-01 14:24:50.404 prefill tool_round=1 transcript=1523 prompt=1523 cached=1496 suffix=27 think=none
+2026-07-01 14:24:50.404 tokens label=prefill_suffix start=1496 len=1523
+2026-07-01 14:24:51.365 dsml start detected
+2026-07-01 14:24:52.193 dsml done calls=1
+2026-07-01 14:24:52.193 tool_call index=1/1 name="read" argc=1 arg0.path="notes.txt"
+2026-07-01 14:24:52.193 tool_result index=1/1 name="read" seconds=0.000 bytes=280 text="notes.txt: lines 1-5 of 5\n1 Project notes: the decode pipeline has three stages.\n2 TODO: profile the draft wall.\n3 Stage one loads weights, stage two drafts tokens, stage three verifies them.\n4 TODO: automate the agent benchmark.\n5 The verifier must remain exact for correctness.\n"
+2026-07-01 14:24:52.193 prefill tool_round=2 transcript=1646 prompt=1646 cached=1567 suffix=79 think=none
+2026-07-01 14:24:52.194 tokens label=prefill_suffix start=1567 len=1646
+2026-07-01 14:24:54.573 dsml start detected
+2026-07-01 14:24:55.730 dsml done calls=1
+2026-07-01 14:24:55.730 tool_call index=1/1 name="search" argc=2 arg0.path="." arg1.query="TODO"
+2026-07-01 14:24:55.731 tool_result index=1/1 name="search" seconds=0.000 bytes=104 text="2 matches shown\n\n./notes.txt\n  2 TODO: profile the draft wall.\n  4 TODO: automate the agent benchmark.\n\n"
+2026-07-01 14:24:55.731 prefill tool_round=3 transcript=1743 prompt=1743 cached=1704 suffix=39 think=none
+2026-07-01 14:24:55.731 tokens label=prefill_suffix start=1704 len=1743
+2026-07-01 14:24:57.026 dsml start detected
+2026-07-01 14:24:57.861 write staging start path=summary.txt.part
+2026-07-01 14:24:59.296 write staging end path=summary.txt.part bytes=249 error=0
+2026-07-01 14:24:59.508 dsml done calls=1
+2026-07-01 14:24:59.508 tool_call index=1/1 name="write" argc=2 arg0.path="summary.txt" arg1.content="The project notes describe a decode pipeline with three stages: loading weights, drafting tokens, and verifying them. Two tasks remain open: profiling the draft wall and automating the agent benchmark. The verifier must remain exact for correctness."
+2026-07-01 14:24:59.508 tool_result index=1/1 name="write" seconds=0.000 bytes=31 text="Wrote 249 bytes to summary.txt\n"
+2026-07-01 14:24:59.508 prefill tool_round=4 transcript=1868 prompt=1868 cached=1846 suffix=22 think=none
+2026-07-01 14:24:59.508 tokens label=prefill_suffix start=1846 len=1868
+2026-07-01 14:25:00.347 dsml start detected
+2026-07-01 14:25:01.191 write staging start path=game.py.part
+2026-07-01 14:25:49.909 write staging end path=game.py.part bytes=5585 error=0
+2026-07-01 14:25:50.260 dsml done calls=1
+2026-07-01 14:25:50.261 tool_call index=1/1 name="write" argc=2 arg0.path="game.py" arg1.content="import pygame\nimport random\n\n# ---------- constants ----------\nSCREEN_W = 800\nSCREEN_H = 600\nPLAYER_W = 50\nPLAYER_H = 30\nBULLET_W = 6\nBULLET_H = 14\nENEMY_W = 40\nENEMY_H = 30\nENEMY_BULLET_W = 6\nENEMY_BULLET_H = 14\nPLAYER_SPEED = 5\nBULLET_SPEED = 10\nENEMY_BULLET_SPEED = 6\nENEMY_SPEED_X = 2\nENEMY_DROP = 20\nMAX_ENEMY_BULLETS = 3\nENEMY_SHOOT_DELAY = 600  # ms\n\n# colours\nBLACK = (0, 0, 0)\nWHITE = (255, 255, 255)\nGREEN = (0, 255, 0)\nRED   = (255, 0, 0)\n\n# ---------- classes ----------\nclass Player(pygame.sprite.Sprite):\n    def __init__(self):\n        super().__init__()\n        self.image = pygame.Surface((PLAYER_W, PLAYER_H))\n        self.image.fill(GREEN)\n        self.rect = self.image.get_rect()\n        self.rect.centerx = SCREEN_W // 2\n        self.rect.bottom = SCREEN_H - 10\n        self.speed = PLAYER_SPEED\n        self.shoot_cooldown = 0\n\n    def update(self, keys_pressed):\n        if keys_pressed[pygame.K_LEFT]:\n            self.rect.x -= self.speed\n        if keys_pressed[pygame.K_RIGHT]:\n            self.rect.x += self.speed\n        # clamp\n        if self.rect.left < 0:\n            self.rect.left = 0\n        if self.rect.right > SCREEN_W:\n            self.rect.right = SCREEN_W\n\n    def shoot(self, group):\n        if self.shoot_cooldown <= 0:\n            b = Bullet(self.rect.centerx, self.rect.top)\n            group.add(b)\n            self.shoot_cooldown = 15\n\n    def update_cooldown(self):\n        if self.shoot_cooldown > 0:\n            self.shoot_cooldown -= 1\n\n\nclass Bullet(pygame.sprite.Sprite):\n    def __init__(self, x, y):\n        super().__init__()\n        self.image = pygame.Surface((BULLET_W, BULLET_H))\n        self.image.fill(WHITE)\n        self.rect = self.image.get_rect()\n        self.rect.centerx = x\n        self.rect.bottom = y\n\n    def update(self):\n        self.rect.y -= BULLET_SPEED\n        if self.rect.bottom < 0:\n            self.kill()\n\n\nclass EnemyBullet(pygame.sprite.Sprite):\n    def __init__(self, x, y):\n        super().__init__()\n        self.image = pygame.Surface((ENEMY_BULLET_W, ENEM...<truncated:3537>"
+2026-07-01 14:25:50.261 tool_result index=1/1 name="write" seconds=0.000 bytes=28 text="Wrote 5585 bytes to game.py\n"
+2026-07-01 14:25:50.261 prefill tool_round=5 transcript=3558 prompt=3558 cached=3535 suffix=23 think=none
+2026-07-01 14:25:50.261 tokens label=prefill_suffix start=3535 len=3558

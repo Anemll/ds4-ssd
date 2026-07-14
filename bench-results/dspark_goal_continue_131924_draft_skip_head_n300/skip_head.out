@@ -1,0 +1,41 @@
+I'll create a complete Space Invaders game using Pygame. This is a classic arcade game where you control a spaceship and shoot at invading aliens.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.vel = 5
+        self.lives = 3
+        self.score = 0
+        
+        # Create player's spaceship shape
+        self.shape = []
+        # Main body
+        self.shape.append((0, 20))  # top
+        self.shape.append((20, 40))  # right
+        self.shape.append((40, 20))  # bottom right
+        self.shape.append((40, 0))  # bottom
+        self.shape.append((20, -20

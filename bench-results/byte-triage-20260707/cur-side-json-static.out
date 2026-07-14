@@ -1,0 +1,36 @@
+```json
+[
+  {
+    "title": "The Echo of Forgotten Stars",
+    "author": "Elara Voss",
+    "year": 2021,
+    "genre": "Science Fiction",
+    "pages": 342,
+    "summary": "A lone astronaut discovers that the stars are singing a message from a long-lost civilization."
+  },
+  {
+    "title": "Whispers in the Marble",
+    "author": "Julian Croft",
+    "year": 2019,
+    "genre": "Mystery",
+    "pages": 288,
+    "summary": "A detective uncovers a series of murders linked to a centuries-old statue in a museum."
+  },
+  {
+    "title": "The Last Garden",
+    "author": "Mira Chen",
+    "year": 2020,
+    "genre": "Literary Fiction",
+    "pages": 310,
+    "summary": "In a post-apocalyptic world, a botanist struggles to preserve the last seeds of Earth's flowers."
+  },
+  {
+    "title": "Shadow of the Crimson Sun",
+    "author": "Dorian Blackwood",
+    "year": 2018,
+    "genre": "Fantasy",
+    "pages": 415,
+    "summary": "A young mage must navigate a world of political intrigue to stop a dark prophecy."
+  },
+  {
+    "title": "The Clock

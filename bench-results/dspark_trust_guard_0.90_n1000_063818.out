@@ -1,0 +1,136 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+# Colors
+BLACK = (0, 0,, 0, 0)
+WHITE = ( (0, 0, 0))
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __initinit__(self):
+    # Set up
+        self.screen = None
+        self.clock = None
+        self.running = True
+        self.font = None
+        self.player = None
+        self.enemies = None
+        self.bullets = None
+        self.score = None
+        self.lives = None
+        self.game_over = None
+        self.enemy_direction = None
+        self.enemy_speed = None
+        self.enemy_move_down = None
+        self.enemy_shot_timer = None
+        self.enemy_shot_cooldown = None
+        self.enemy_bullets = None
+
+    def setup(self):
+        """Initialize the game state"""
+        # Initialize screen
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
+        
+        # Player setup
+        self.player = pygame.Rect(
+            SCREEN_WIDTH // 2 - PLAYER_WIDTH // 2,
+            SCREEN_HEIGHT - PLAYER_HEIGHT - 20,
+            PLAYER_WIDTH,
+            PLAYER_HEIGHT
+        )
+        
+        # Game
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        
+        # Enemy bullets
+        self.enemy_bullets = []
+        
+        # Enemy setup
+        self.enemies = []
+        self.create_enemies()
+        
+        # Bullets
+        self.bullets = []
+        
+        # Enemy movement
+        self.enemy_direction = 1  # Right
+        self.enemy_speed = 2
+        self.enemy_move_down =   # Time since last move
+        self.enemy_move = 0
+        self.enemy_shot_delay = 0
+        self.enemy_shot_cooldown = 1000  # milliseconds
+        self.enemy_shot_timer = 0
+
+    def create_enemies(self):
+        """Create enemies of enemies"""
+        for i in range(5)):  # rows
+            for j in range(10)):  # columns
+                enemy = pygame.Rect(
+                    50 + j * 50,
+                    50 + i * 40,
+                    ENEMY_WIDTH,
+                    ENEM_HEIGHT
+                )
+                self.enemies.append(enemy)
+
+    def handle_events(self):
+        """Handle game events"""
+        for event in pygame.event.get():
+            if event.type == self._handle_events():
+            if event.type == ":
+                if self.type == pygame.K.QUIT:
+                    return False
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT and self.key == pygame.K_LEFT:
+                            pass
+                    if event.key == pygame.K_RIGHT:
+                            pass
+                    if event.key == pygame.K_SPACE:
+                            if self.bullets:
+                            self.bullets.append((self.player.x, self.player.y))
+        return True
+
+    def _handle_events(self, event):
+        """Handle individual events"""
+        if event.type == pygame.QUIT:
+            self.running = False
+            return False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_LEFT:
+                self.player.move_left()
+            elif event.key == pygame.K_RIGHT:
+                self.player.move_right()
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_LEFT

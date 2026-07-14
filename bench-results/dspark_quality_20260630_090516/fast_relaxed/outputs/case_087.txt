@@ -1,0 +1,8 @@
+Here are three essential server metrics, along with explanations of why they are useful for monitoring and maintaining a healthy system:
+
+### 1. CPU Utilization (Percentage)
+**What it is:** The percentage of time the CPU is busy processing instructions (as opposed to being idle).
+
+**Why it's useful:**
+- **Capacity Planning:** If CPU consistently exceeds 80-90%, it indicates the server is under-provisioned for its workload. This helps you decide whether to scale up (more CPU cores) or scale out (more servers).
+- **Bottleneck Detection:** A sudden spike in CPU usage (e.g., from 20

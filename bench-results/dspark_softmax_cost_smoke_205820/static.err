@@ -1,0 +1,1 @@
+env: ./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft --draft-verify 5 --temp 0 --nothink -n 300 -p Make a game of Space Invader in Pygame --resident -c 4096: No such file or directory

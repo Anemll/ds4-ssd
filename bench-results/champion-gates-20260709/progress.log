@@ -1,0 +1,114 @@
+===== par-nodraft Thu Jul  9 06:53:49 PDT 2026
+ds4: prefill: 20.96 t/s, generation: 38.74 t/s (300 tokens in 7.744s)
+===== par-champ Thu Jul  9 06:54:27 PDT 2026
+ds4: prefill: 20.08 t/s, generation: 40.02 t/s (300 tokens in 7.497s)
+ds4: dspark acceptance: 83.2% (227/273 draft tokens)
+ds4: dspark full-accept: 75.3% (55/73 blocks), first-miss: 0.0% (0/73 blocks)
+ds4: dspark avg scheduled: 3.74 draft tokens/block (73 blocks)
+GATE1 PARITY: OK
+===== json-champ Thu Jul  9 06:55:00 PDT 2026
+ds4: decode-progress: tokens=1000 window=40.43 t/s (1000 tokens in 24.736s) cumulative=40.43 t/s elapsed=24.736s
+ds4: decode-progress: tokens=2000 window=39.25 t/s (1000 tokens in 25.480s) cumulative=39.83 t/s elapsed=50.216s
+ds4: prefill: 7.17 t/s, generation: 39.00 t/s (2500 tokens in 64.099s)
+ds4: dspark perf: draft=294.6 tok/s, verify=51.3 proposed tok/s, verify-accepted=47.6 tok/s, block=70.96 ms (draft=10.33 verify=59.35 overhead=1.28 commit=0.95, tau=2.82, blocks=654, skip-pre=0, skip-verify=0)
+ds4: dspark acceptance: 92.7% (1846/1991 draft tokens)
+ds4: dspark full-accept: 90.7% (593/654 blocks), first-miss: 0.0% (0/654 blocks)
+ds4: dspark avg scheduled: 3.04 draft tokens/block (654 blocks)
+===== json-nodraft Thu Jul  9 06:57:22 PDT 2026
+ds4: decode-progress: tokens=1000 window=38.62 t/s (1000 tokens in 25.895s) cumulative=38.62 t/s elapsed=25.895s
+ds4: decode-progress: tokens=2000 window=38.14 t/s (1000 tokens in 26.220s) cumulative=38.38 t/s elapsed=52.116s
+ds4: prefill: 9.71 t/s, generation: 38.17 t/s (2500 tokens in 65.492s)
+===== prose-champ Thu Jul  9 06:59:09 PDT 2026
+ds4: decode-progress: tokens=1000 window=33.59 t/s (1000 tokens in 29.770s) cumulative=33.59 t/s elapsed=29.770s
+ds4: decode-progress: tokens=2000 window=33.01 t/s (1000 tokens in 30.297s) cumulative=33.30 t/s elapsed=60.067s
+ds4: prefill: 8.44 t/s, generation: 32.98 t/s (2500 tokens in 75.813s)
+ds4: dspark perf: draft=161.5 tok/s, verify=43.4 proposed tok/s, verify-accepted=39.5 tok/s, block=50.11 ms (draft=10.44 verify=38.89 overhead=0.78 commit=0.52, tau=1.54, blocks=986, skip-pre=0, skip-verify=0)
+ds4: dspark acceptance: 91.0% (1514/1663 draft tokens)
+ds4: dspark full-accept: 89.0% (878/986 blocks), first-miss: 0.0% (0/986 blocks)
+ds4: dspark avg scheduled: 1.69 draft tokens/block (986 blocks)
+===== prose-nodraft Thu Jul  9 07:01:33 PDT 2026
+ds4: decode-progress: tokens=1000 window=38.65 t/s (1000 tokens in 25.876s) cumulative=38.65 t/s elapsed=25.876s
+ds4: decode-progress: tokens=2000 window=38.11 t/s (1000 tokens in 26.241s) cumulative=38.37 t/s elapsed=52.117s
+ds4: prefill: 10.54 t/s, generation: 38.23 t/s (2500 tokens in 65.400s)
+ALL DONE Thu Jul  9 07:03:20 PDT 2026
+===== prose-force-rate Thu Jul  9 07:04:16 PDT 2026
+ds4: prefill: 9.17 t/s, generation: 32.59 t/s (2500 tokens in 76.701s)
+ds4: dspark perf: draft=145.6 tok/s, verify=43.3 proposed tok/s, verify-accepted=39.3 tok/s, block=46.04 ms (draft=10.44 verify=35.08 overhead=0.52 commit=0.31, tau=1.38, blocks=1051, skip-pre=0, skip-verify=0)
+ds4: dspark full-accept: 92.7% (974/1051 blocks), first-miss: 0.0% (0/1051 blocks)
+===== json-force-rate Thu Jul  9 07:06:32 PDT 2026
+ds4: prefill: 8.34 t/s, generation: 37.53 t/s (2500 tokens in 66.612s)
+ds4: dspark perf: draft=301.4 tok/s, verify=52.4 proposed tok/s, verify-accepted=44.8 tok/s, block=71.11 ms (draft=10.35 verify=59.56 overhead=1.19 commit=0.88, tau=2.67, blocks=681, skip-pre=0, skip-verify=0)
+ds4: dspark full-accept: 86.5% (589/681 blocks), first-miss: 0.0% (0/681 blocks)
+===== arc-force-rate Thu Jul  9 07:08:22 PDT 2026
+ds4: decode-progress: tokens=1000 window=41.06 t/s (1000 tokens in 24.358s) cumulative=41.06 t/s elapsed=24.358s
+ds4: decode-progress: tokens=2000 window=37.46 t/s (1000 tokens in 26.698s) cumulative=39.17 t/s elapsed=51.056s
+ds4: decode-progress: tokens=3000 window=34.71 t/s (1000 tokens in 28.811s) cumulative=37.56 t/s elapsed=79.866s
+ds4: decode-progress: tokens=4000 window=36.07 t/s (1000 tokens in 27.727s) cumulative=37.18 t/s elapsed=107.594s
+ds4: prefill: 8.75 t/s, generation: 37.18 t/s (4000 tokens in 107.594s)
+ds4: dspark perf: draft=313.3 tok/s, verify=50.0 proposed tok/s, verify-accepted=43.9 tok/s, block=76.14 ms (draft=10.30 verify=64.54 overhead=1.30 commit=0.96, tau=2.83, blocks=1043, skip-pre=0, skip-verify=0)
+ds4: dspark full-accept: 84.8% (884/1043 blocks), first-miss: 0.0% (0/1043 blocks)
+===== prose-force-rate-v2 Thu Jul  9 07:14:57 PDT 2026
+ds4: prefill: 9.29 t/s, generation: 35.98 t/s (2500 tokens in 69.484s)
+ds4: dspark perf: draft=297.4 tok/s, verify=102.8 proposed tok/s, verify-accepted=39.3 tok/s, block=42.17 ms (draft=10.66 verify=30.84 overhead=0.67 commit=0.46, tau=1.21, blocks=213, skip-pre=2028, skip-verify=70)
+ds4: dspark full-accept: 53.1% (113/213 blocks), first-miss: 32.9% (70/213 blocks)
+===== json-force-rate-v2 Thu Jul  9 07:16:53 PDT 2026
+ds4: prefill: 8.01 t/s, generation: 36.96 t/s (2500 tokens in 67.640s)
+ds4: dspark perf: draft=402.6 tok/s, verify=96.8 proposed tok/s, verify-accepted=46.2 tok/s, block=55.84 ms (draft=10.61 verify=44.11 overhead=1.13 commit=0.83, tau=2.04, blocks=218, skip-pre=1837, skip-verify=76)
+ds4: dspark full-accept: 47.7% (104/218 blocks), first-miss: 34.9% (76/218 blocks)
+===== arc-force-rate-v2 Thu Jul  9 07:18:46 PDT 2026
+ds4: decode-progress: tokens=1000 window=40.87 t/s (1000 tokens in 24.465s) cumulative=40.87 t/s elapsed=24.465s
+ds4: decode-progress: tokens=2000 window=37.40 t/s (1000 tokens in 26.739s) cumulative=39.06 t/s elapsed=51.205s
+ds4: decode-progress: tokens=3000 window=36.46 t/s (1000 tokens in 27.425s) cumulative=38.15 t/s elapsed=78.630s
+ds4: decode-progress: tokens=4000 window=36.00 t/s (1000 tokens in 27.781s) cumulative=37.59 t/s elapsed=106.411s
+ds4: prefill: 8.16 t/s, generation: 37.59 t/s (4000 tokens in 106.411s)
+ds4: dspark perf: draft=414.7 tok/s, verify=68.9 proposed tok/s, verify-accepted=46.3 tok/s, block=74.62 ms (draft=10.42 verify=62.71 overhead=1.50 commit=1.12, tau=2.90, blocks=537, skip-pre=1903, skip-verify=96)
+ds4: dspark full-accept: 60.1% (323/537 blocks), first-miss: 17.9% (96/537 blocks)
+===== prose-champ-margin Thu Jul  9 07:24:08 PDT 2026
+ds4: prefill: 9.13 t/s, generation: 35.11 t/s (2500 tokens in 71.202s)
+ds4: dspark perf: draft=193.2 tok/s, verify=45.3 proposed tok/s, verify-accepted=40.2 tok/s, block=56.07 ms (draft=10.46 verify=44.61 overhead=0.99 commit=0.68, tau=1.79, blocks=486, skip-pre=1142, skip-verify=0)
+ds4: dspark full-accept: 85.8% (417/486 blocks), first-miss: 0.0% (0/486 blocks)
+===== json-champ-margin Thu Jul  9 07:26:13 PDT 2026
+ds4: prefill: 8.35 t/s, generation: 40.77 t/s (2500 tokens in 61.323s)
+ds4: dspark perf: draft=345.8 tok/s, verify=52.8 proposed tok/s, verify-accepted=50.7 tok/s, block=79.83 ms (draft=10.37 verify=67.92 overhead=1.54 commit=1.16, tau=3.44, blocks=467, skip-pre=425, skip-verify=0)
+ds4: dspark full-accept: 93.8% (438/467 blocks), first-miss: 0.0% (0/467 blocks)
+===== arc-champ-margin Thu Jul  9 07:27:59 PDT 2026
+ds4: decode-progress: tokens=1000 window=42.25 t/s (1000 tokens in 23.667s) cumulative=42.25 t/s elapsed=23.667s
+ds4: decode-progress: tokens=2000 window=39.07 t/s (1000 tokens in 25.592s) cumulative=40.60 t/s elapsed=49.259s
+ds4: decode-progress: tokens=3000 window=34.56 t/s (1000 tokens in 28.936s) cumulative=38.37 t/s elapsed=78.195s
+ds4: decode-progress: tokens=4000 window=35.45 t/s (1000 tokens in 28.209s) cumulative=37.59 t/s elapsed=106.403s
+ds4: prefill: 8.23 t/s, generation: 37.59 t/s (4000 tokens in 106.403s)
+ds4: dspark perf: draft=382.3 tok/s, verify=50.1 proposed tok/s, verify-accepted=43.8 tok/s, block=90.80 ms (draft=10.32 verify=78.71 overhead=1.76 commit=1.33, tau=3.45, blocks=826, skip-pre=324, skip-verify=0)
+ds4: dspark full-accept: 77.8% (643/826 blocks), first-miss: 0.0% (0/826 blocks)
+===== prose-champ-margin6 Thu Jul  9 07:30:54 PDT 2026
+ds4: prefill: 9.02 t/s, generation: 35.85 t/s (2500 tokens in 69.741s)
+ds4: dspark perf: draft=204.0 tok/s, verify=45.8 proposed tok/s, verify-accepted=40.9 tok/s, block=57.38 ms (draft=10.32 verify=46.02 overhead=1.04 commit=0.72, tau=1.88, blocks=388, skip-pre=1380, skip-verify=0)
+===== prose-champ-margin8 Thu Jul  9 07:32:57 PDT 2026
+ds4: prefill: 8.94 t/s, generation: 35.99 t/s (2500 tokens in 69.462s)
+ds4: dspark perf: draft=214.3 tok/s, verify=46.0 proposed tok/s, verify-accepted=40.0 tok/s, block=59.85 ms (draft=10.38 verify=48.36 overhead=1.11 commit=0.77, tau=1.93, blocks=298, skip-pre=1626, skip-verify=0)
+===== json-champ-margin6 Thu Jul  9 07:34:52 PDT 2026
+ds4: prefill: 7.86 t/s, generation: 40.94 t/s (2500 tokens in 61.067s)
+ds4: dspark perf: draft=350.8 tok/s, verify=52.8 proposed tok/s, verify-accepted=51.2 tok/s, block=80.63 ms (draft=10.34 verify=68.72 overhead=1.57 commit=1.18, tau=3.52, blocks=441, skip-pre=507, skip-verify=0)
+===== json-champ-margin8 Thu Jul  9 07:36:43 PDT 2026
+ds4: prefill: 7.64 t/s, generation: 41.08 t/s (2500 tokens in 60.864s)
+ds4: dspark perf: draft=364.4 tok/s, verify=53.2 proposed tok/s, verify-accepted=51.9 tok/s, block=82.82 ms (draft=10.35 verify=70.84 overhead=1.63 commit=1.23, tau=3.67, blocks=404, skip-pre=611, skip-verify=0)
+===== arc-champ-margin6 Thu Jul  9 07:39:28 PDT 2026
+ds4: prefill: 7.98 t/s, generation: 38.47 t/s (4000 tokens in 103.973s)
+ds4: dspark perf: draft=386.0 tok/s, verify=50.2 proposed tok/s, verify-accepted=45.2 tok/s, block=91.47 ms (draft=10.33 verify=79.36 overhead=1.79 commit=1.34, tau=3.59, blocks=779, skip-pre=425, skip-verify=0)
+===== arc-champ-margin8 Thu Jul  9 07:42:06 PDT 2026
+ds4: prefill: 8.17 t/s, generation: 38.04 t/s (4000 tokens in 105.155s)
+ds4: dspark perf: draft=385.0 tok/s, verify=50.3 proposed tok/s, verify-accepted=44.5 tok/s, block=91.17 ms (draft=10.33 verify=79.07 overhead=1.78 commit=1.34, tau=3.52, blocks=776, skip-pre=492, skip-verify=0)
+===== arc-champ-margin6-rep2 Thu Jul  9 07:45:56 PDT 2026
+===== arc-champ-m6-newtree Fri Jul 10 04:07:33 PDT 2026
+ds4: prefill: 8.58 t/s, generation: 38.18 t/s (4000 tokens in 104.772s)
+ds4: dspark perf: draft=417.2 tok/s, verify=49.6 proposed tok/s, verify-accepted=44.3 tok/s, block=96.66 ms (draft=10.07 verify=84.72 overhead=1.88 commit=1.42, tau=3.75, blocks=751, skip-pre=432, skip-verify=0)
+===== arc-nodraft-newtree Fri Jul 10 04:10:02 PDT 2026
+ds4: prefill: 10.36 t/s, generation: 37.73 t/s (4000 tokens in 106.022s)
+===== arc-modeb Fri Jul 10 04:12:52 PDT 2026
+,ds4: prefill: 8.39 t/s, generation: 37.21 t/s (4000 tokens in 107.497s)
+ds4: dspark perf: draft=532.3 tok/s, verify=54.7 proposed tok/s, verify-accepted=42.5 tok/s, block=123.79 ms (draft=11.27 verify=109.61 overhead=2.91 commit=2.45, tau=4.66, blocks=281, skip-pre=2691, skip-verify=0)
+===== prose-modeb Fri Jul 10 04:16:44 PDT 2026
+ds4: prefill: 9.36 t/s, generation: 36.26 t/s (2500 tokens in 68.951s)
+ds4: dspark perf: draft=368.9 tok/s, verify=56.6 proposed tok/s, verify-accepted=23.0 tok/s, block=124.37 ms (draft=16.27 verify=105.97 overhead=2.13 commit=1.62, tau=2.44, blocks=43, skip-pre=2395, skip-verify=0)
+===== arc-rows6cost Fri Jul 10 04:18:37 PDT 2026
+ds4: prefill: 8.70 t/s, generation: 35.57 t/s (4000 tokens in 112.439s)
+ds4: dspark perf: draft=585.6 tok/s, verify=52.0 proposed tok/s, verify-accepted=39.6 tok/s, block=128.47 ms (draft=10.25 verify=115.44 overhead=2.78 commit=2.36, tau=4.58, blocks=874, skip-pre=0, skip-verify=0)

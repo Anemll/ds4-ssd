@@ -1,0 +1,13 @@
+## Role of Calibration Data in Neural Network Quantization
+
+Calibration data plays a critical role in the quantization process, particularly for **post-training quantization (PTQ)** methods. Here's a detailed breakdown:
+
+### Core Purpose
+
+Calibration data is used to **determine the optimal range (min/max values)** for weights and activations before converting them from floating-point (FP32) to lower-precision formats (INT8, INT4, etc.). This ensures minimal accuracy loss during quantization.
+
+### Key Functions
+
+#### 1. **Determining Scale Factors and Zero Points**
+
+For each layer/tensor, calibration data helps compute

@@ -1,0 +1,15 @@
+Ecco una breve funzione C che limita un intero a un intervallo:
+
+```c
+int limit(int value, int min, int max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+```
+
+**Spiegazione:**
+- La funzione prende un valore e due estremi (min e max)
+- Se il valore è inferiore al minimo, restituisce il minimo
+- Se il valore è superiore al massimo, restituisce il massimo
+- Altrimenti, restituisce il valore originale

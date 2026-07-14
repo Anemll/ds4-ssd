@@ -1,0 +1,13 @@
+kind,ctx,target_prefix_tokens,input_tokens_reported,decode_target_tokens,generated_tokens,generation_tps,decode_s,prefill_tps,prefill_s,first_output_s,total_s,engine_s,session_s,wall_s,dspark_draft_tps,dspark_verify_proposed_tps,dspark_verify_accepted_tps,dspark_block_ms,dspark_tau,dspark_blocks,returncode,log
+baseline,40000,1024,1023,2000,2000,29.96,66.757,225.95,4.527,20.600,87.318,0.060,15.952,89.148,,,,,,,0,bench-results/context-decode-dspark/baseline-p1024-d2000-ctx40000.log
+dspark,40000,1024,1023,2000,2000,32.51,61.525,145.20,7.046,46.513,107.827,5.683,33.552,109.140,390.1,62.5,38.8,88.11,2.89,641,0,bench-results/context-decode-dspark/dspark-p1024-d2000-ctx40000.log
+baseline,40000,2048,2047,2000,2000,27.30,73.270,284.60,7.193,21.425,94.656,0.055,14.117,96.698,,,,,,,0,bench-results/context-decode-dspark/baseline-p2048-d2000-ctx40000.log
+dspark,40000,2048,2047,2000,2000,30.37,65.863,239.49,8.547,48.364,114.022,5.675,33.916,115.251,393.2,54.7,35.6,99.01,3.05,615,0,bench-results/context-decode-dspark/dspark-p2048-d2000-ctx40000.log
+baseline,40000,4096,4095,2000,2000,29.59,67.583,340.89,12.013,26.374,93.912,0.055,14.240,95.894,,,,,,,0,bench-results/context-decode-dspark/baseline-p4096-d2000-ctx40000.log
+dspark,40000,4096,4095,2000,2000,30.20,66.219,289.38,14.151,52.518,118.518,5.655,32.473,119.676,395.6,55.1,35.4,97.52,2.98,624,0,bench-results/context-decode-dspark/dspark-p4096-d2000-ctx40000.log
+baseline,40000,8192,8191,2000,2000,26.85,74.484,343.63,23.837,38.181,112.617,0.062,14.212,114.640,,,,,,,0,bench-results/context-decode-dspark/baseline-p8192-d2000-ctx40000.log
+dspark,40000,8192,8191,2000,2000,28.31,70.650,324.12,25.271,66.327,136.702,5.845,34.913,137.829,394.2,57.4,33.3,94.80,2.71,672,0,bench-results/context-decode-dspark/dspark-p8192-d2000-ctx40000.log
+baseline,40000,16384,16383,2000,2000,26.41,75.719,336.56,48.677,63.294,138.961,0.057,14.484,140.992,,,,,,,0,bench-results/context-decode-dspark/baseline-p16384-d2000-ctx40000.log
+dspark,40000,16384,16383,2000,2000,28.49,70.197,316.98,51.685,75.967,145.794,5.876,18.014,147.747,406.9,50.1,32.8,109.57,3.15,597,0,bench-results/context-decode-dspark/dspark-p16384-d2000-ctx40000.log
+baseline,40000,32768,32767,2000,2000,25.38,78.815,307.10,106.697,121.175,199.937,0.071,14.323,201.977,,,,,,,0,bench-results/context-decode-dspark/baseline-p32768-d2000-ctx40000.log
+dspark,40000,32768,32767,2000,2000,26.05,76.782,291.93,112.243,135.815,212.306,5.956,17.296,214.296,393.5,46.7,29.8,113.56,2.98,626,0,bench-results/context-decode-dspark/dspark-p32768-d2000-ctx40000.log

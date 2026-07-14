@@ -1,0 +1,7 @@
+dspark phase0: baseline -> bench-results/dspark_phase0_planc_n64_strictv1_after_perf/baseline.err
+dspark phase0: baseline_tps=33.41
+dspark phase0: draft budget=4 -> bench-results/dspark_phase0_planc_n64_strictv1_after_perf/dspark_b4.err
+dspark phase0: draft budget=5 -> bench-results/dspark_phase0_planc_n64_strictv1_after_perf/dspark_b5.err
+dspark phase0: unified backend=strict_v1 budget=4 -> bench-results/dspark_phase0_planc_n64_strictv1_after_perf/dspark_unified_strict_v1_b4.err
+dspark phase0: unified backend=strict_v1 budget=5 -> bench-results/dspark_phase0_planc_n64_strictv1_after_perf/dspark_unified_strict_v1_b5.err
+dspark phase0: wrote bench-results/dspark_phase0_planc_n64_strictv1_after_perf/summary.tsv

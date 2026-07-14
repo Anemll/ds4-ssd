@@ -1,0 +1,73 @@
+DSpark eval-margin + rate combined gate (2026-07-09)
+====================================================
+
+Env vars (all default-off / opt-in):
+  DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=<float>
+    Simple pre-draft margin-only gate (existing). Skips draft+verify when
+    target eval margin < threshold. Best safe gate on this prompt: 4.5.
+
+  DS4_DSPARK_EVAL_MARGIN_RATE_GATE=1
+    Combined two-stage gate (NEW, default off):
+      1) pre-draft: same margin threshold check
+      2) post-draft: conf-truncated (default conf=0.4) then rate economics
+         with allow_skip (k=0) using:
+           eval_seconds_ema, draft_seconds_ema, dynamic_cost_ema[k],
+           ds4_dspark_conf_calib_lookup()
+    Alias: DS4_DSPARK_MARGIN_RATE_GATE=1
+
+Stats:
+  skip-pre    = pre-draft skips (margin / dormant)
+  skip-verify = drafted but verify skipped (k=0)
+  debug-status: skip:N vskip:M
+
+Byte safety:
+  cmp=0 for ungated vs margin vs combined at n=300/500/1000 (temp 0).
+
+Measured (arcade HTML prompt, resident IQ2XXS, -c 20000, single process):
+
+n=500:
+  ungated     40.06 t/s  tau=2.73  first-miss=23.9%  skip-pre=0   skip-v=5
+  margin=4.5  40.70 t/s  tau=3.26  first-miss=11.7%  skip-pre=61  skip-v=0
+  combined    40.42 t/s  tau=2.98  first-miss=22.2%  skip-pre=69  skip-v=13
+  (early combined w/ conf-replace, before conf-stack fix)
+
+n=1000 (correct envs, conf-stack + rate k=0):
+  ungated     39.75 t/s  tau=2.91  first-miss=22.3%  skip-pre=0   skip-v=6
+  margin=4.5  38.97 t/s  tau=3.25  first-miss=13.6%  skip-pre=95  skip-v=0
+  combined    39.48 t/s  tau=2.81  first-miss=27.7%  skip-pre=119 skip-v=38
+
+n=1000 (post-draft force k>=1 experiment — REJECTED):
+  margin=4.5  39.52 t/s  tau=3.25  avg_sched=4.58
+  combined    31.84 t/s  tau=0.97  avg_sched=1.17   (rate collapsed to k=1)
+
+Conclusion (negative for combined gate vs margin-only):
+  - Pre-draft margin threshold=4.5 remains the best SAFE opt-in gate.
+  - Post-draft rate k=0 after a margin pass often wastes the already-paid
+    draft (~10ms) on high-margin blocks (38 verify-skips @ n1000) and
+    drops tau (3.25 -> 2.81). Net t/s is near-neutral / within noise,
+    not the +0.5..+1.5 target over margin-only.
+  - Forcing k>=1 after draft makes rate pick k=1 almost always (avg 1.17)
+    and is a large regression.
+  - Root cause: once draft is sunk, rate economics that can decline verify
+    do not recover draft cost; conf-head calibration + cost EMAs are too
+    aggressive at skipping high-margin opportunities that margin-only
+    would verify profitably.
+  - Keep combined gate default-OFF for further experiments; recommend
+    DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=4.5 for production trials.
+  - User should re-run -n 4000 locally for a less noisy long-ctx read.
+
+Suggested local -n 4000 commands:
+  PROMPT='aders arcade game in a single self-contained HTML file with inline CSS and JS. Replicate the original 1978 Taito arcade cabinet experience with full fidelity to the original rules, sprite designs, and mechanics.'
+
+  # margin-only (current best safe)
+  env DS4_DSPARK_PERF=1 DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=4.5 \
+    ./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+    --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+    --draft-verify 5 --nothink --temp 0 --resident -c 20000 -n 4000 -p "$PROMPT"
+
+  # combined (experimental)
+  env DS4_DSPARK_PERF=1 DS4_DSPARK_EVAL_MARGIN_RATE_GATE=1 \
+    DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=4.5 \
+    ./ds4 -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major \
+    --draft dspark --draft-path /Users/anemll/Models/DSv4-Flash-DSpark-draft \
+    --draft-verify 5 --nothink --temp 0 --resident -c 20000 -n 4000 -p "$PROMPT"

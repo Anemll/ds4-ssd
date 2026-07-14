@@ -1,0 +1,7 @@
+Questa è un'ottima domanda che tocca un concetto fondamentale della memoria virtuale.
+
+La differenza tra la dimensione della residenza (resident set size, RSS) e la dimensione virtuale (virtual size, VSIZE) di una regione di memoria mappata con `mmap` è la norma, non un'anomalia. Ecco le ragioni principali, spiegate in dettaglio:
+
+### Il Principio Fondamentale: Memoria Virtuale vs. Fisica
+
+La memoria virtuale è un livello di astrazione. Ogni processo ha il suo spazio di indirizzi

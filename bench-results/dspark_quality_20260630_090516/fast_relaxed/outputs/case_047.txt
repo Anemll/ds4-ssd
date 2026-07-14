@@ -1,0 +1,15 @@
+## Raw KV Rows vs. Compressed KV Rows
+
+**Raw KV Rows** and **Compressed KV Rows** are two different storage formats for key-value data, primarily used in databases and storage systems. Here's a detailed comparison:
+
+### Raw KV Rows
+
+**Characteristics:**
+- **Uncompressed format** - Data is stored as-is without any compression
+- **Full key-value pairs** - Each row stores the complete key and value
+- **Direct access** - No decompression overhead when reading
+- **Higher storage footprint** - Takes more disk space
+
+**Example:**
+```text
+Key

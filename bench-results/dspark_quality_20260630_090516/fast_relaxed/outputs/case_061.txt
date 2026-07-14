@@ -1,0 +1,16 @@
+## Binary Search on Sorted Arrays
+
+The key insight is that **binary search exploits the sorted structure** to eliminate half the search space at each step, unlike linear search which must check every element.
+
+### How Binary Search Works
+
+1. Start with the middle element
+2. Compare with target value
+3. If target > middle → search right half (since sorted, all left elements are smaller)
+4 If target < middle → search left half
+5. Repeat until element is found
+
+### Why It's Faster
+
+**Sorted arrays provide ordering information** that allows:
+- **O(log n)** time vs O(n) for linear

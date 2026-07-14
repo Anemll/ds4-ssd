@@ -1,0 +1,3 @@
+generate_samples: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (50 env defaults set, 1 kept from environment)
+ds4: another ds4 process is already running (pid 65764); refusing to start

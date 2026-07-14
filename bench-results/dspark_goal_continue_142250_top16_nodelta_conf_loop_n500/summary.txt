@@ -1,0 +1,20 @@
+89:ds4: dspark relaxed accept enabled (target top-16 gate; non-target-greedy)
+104:ds4: dspark relaxed loop guard rejected non-argmax token=18953 target=9491 ngram=3 token_count_guard=0 accepted_prefix=4
+105:ds4: dspark relaxed loop guard rejected non-argmax token=18 target=736 ngram=3 token_count_guard=0 accepted_prefix=5
+106:ds4: dspark relaxed loop guard rejected non-argmax token=510 target=223 ngram=3 token_count_guard=1 accepted_prefix=1
+107:ds4: dspark relaxed loop guard rejected non-argmax token=775 target=528 ngram=3 token_count_guard=1 accepted_prefix=5
+108:ds4: dspark relaxed loop guard rejected non-argmax token=29675 target=112106 ngram=3 token_count_guard=0 accepted_prefix=5
+109:ds4: dspark relaxed loop guard rejected non-argmax token=1204 target=33578 ngram=3 token_count_guard=0 accepted_prefix=4
+110:ds4: dspark relaxed loop guard rejected non-argmax token=6951 target=11624 ngram=3 token_count_guard=0 accepted_prefix=4
+111:ds4: dspark relaxed loop guard rejected non-argmax token=6951 target=11624 ngram=3 token_count_guard=0 accepted_prefix=1
+112:ds4: dspark relaxed loop guard rejected non-argmax token=397 target=553 ngram=3 token_count_guard=0 accepted_prefix=3
+113:ds4: dspark relaxed loop guard rejected non-argmax token=1320 target=18 ngram=3 token_count_guard=0 accepted_prefix=4
+114:ds4: dspark relaxed loop guard rejected non-argmax token=510 target=14 ngram=3 token_count_guard=1 accepted_prefix=4
+115:ds4: dspark relaxed loop guard rejected non-argmax token=510 target=18 ngram=3 token_count_guard=1 accepted_prefix=1
+116:ds4: dspark relaxed loop guard rejected non-argmax token=775 target=528 ngram=3 token_count_guard=1 accepted_prefix=2
+118:ds4: prefill: 15.73 t/s, generation: 45.14 t/s (500 tokens in 11.077s)
+119:ds4: dspark perf: draft=394.6 tok/s, verify=62.9 proposed tok/s, verify-accepted=55.6 tok/s, block=94.23 ms (draft=12.62 verify=79.18 overhead=2.43 commit=1.93, tau=4.40, blocks=112)
+122:ds4: dspark acceptance: 88.8% (482/543 draft tokens)
+124:ds4: dspark conditional acceptance: 1=97.2% (106/109) 2|1=98.1% (104/106) 3|1-2=95.2% (99/104) 4|1-3=93.9% (93/99) 5|1-4=87.9% (80/91)
+125:ds4: dspark full-accept: 75.2% (82/109 blocks), first-miss: 2.8% (3/109 blocks)
+126:ds4: dspark avg scheduled: 4.98 draft tokens/block (109 blocks)

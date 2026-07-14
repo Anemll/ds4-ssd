@@ -1,0 +1,44 @@
+I'll create a faithful reproduction of the 1978 Taito arcade classic "Asteroids" as a single self-contained HTML file with inline CSS and JS.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroids (1978 Taito Arcade)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #000;
+            border: 3px solid #333;
+            box-shadow: 0 0 20px rgba(0, 150, 255, 0.3);
+        }
+        canvas {
+            display: block;
+            background: #000;
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0f0;
+            font-size: 14px;
+            text-shadow: 0 0 5px #0f0;
+            z-index: 10;
+            pointer-events: none;
+        }
+        #hud span {
+            margin

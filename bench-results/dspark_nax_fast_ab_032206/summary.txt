@@ -1,0 +1,33 @@
+== baseline.err
+33:ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+38:ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+99:ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+100:ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+101:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+105:ds4: prefill: 6.72 t/s, generation: 51.97 t/s (700 tokens in 13.468s)
+106:ds4: dspark perf: draft=464.0 tok/s, verify=72.6 proposed tok/s, verify-accepted=63.5 tok/s, block=81.43 ms (draft=10.74 verify=68.57 overhead=2.12 commit=1.68, tau=4.35, blocks=158)
+109:ds4: dspark acceptance: 91.4% (678/742 draft tokens)
+112:ds4: dspark full-accept: 81.9% (122/149 blocks), first-miss: 2.0% (3/149 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (149 blocks)
+== nax.err
+33:ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+38:ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+99:ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+100:ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+101:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+105:ds4: prefill: 6.86 t/s, generation: 48.59 t/s (700 tokens in 14.405s)
+106:ds4: dspark perf: draft=463.2 tok/s, verify=68.4 proposed tok/s, verify-accepted=57.6 tok/s, block=85.73 ms (draft=10.77 verify=72.90 overhead=2.06 commit=1.62, tau=4.20, blocks=163)
+109:ds4: dspark acceptance: 92.8% (685/738 draft tokens)
+112:ds4: dspark full-accept: 80.4% (119/148 blocks), first-miss: 0.0% (0/148 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (148 blocks)
+== nax_topk.err
+33:ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+38:ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+99:ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+100:ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+101:ds4: dspark hybrid verifier deferring plain attention heads to MMA batch call
+105:ds4: prefill: 7.62 t/s, generation: 48.63 t/s (700 tokens in 14.393s)
+106:ds4: dspark perf: draft=464.6 tok/s, verify=68.5 proposed tok/s, verify-accepted=57.7 tok/s, block=85.65 ms (draft=10.73 verify=72.85 overhead=2.07 commit=1.63, tau=4.20, blocks=163)
+109:ds4: dspark acceptance: 92.8% (685/738 draft tokens)
+112:ds4: dspark full-accept: 80.4% (119/148 blocks), first-miss: 0.0% (0/148 blocks)
+113:ds4: dspark avg scheduled: 4.99 draft tokens/block (148 blocks)

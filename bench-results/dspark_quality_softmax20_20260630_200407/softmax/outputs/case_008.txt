@@ -1,0 +1,9 @@
+This is an excellent question that gets to the heart of how modern LLM inference engines (like vLLM, TensorRT-LLM, or FlashAttention) achieve high performance.
+
+The core reason a **prefill** (processing a long input prompt) can be faster than **decode** (generating a single token) is **parallelism vs. serial dependency**.
+
+Here is the breakdown of why a GPU is much more efficient at processing many tokens at once than processing just one.
+
+### The Fundamental Difference: Compute vs. Memory Bound
+
+- **Prefill (Multi-Token):** **Compute-bound.** The GPU has to do

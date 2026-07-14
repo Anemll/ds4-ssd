@@ -1,0 +1,39 @@
+== baseline.err
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+96:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+105:ds4: prefill: 7.62 t/s, generation: 55.16 t/s (300 tokens in 5.439s)
+106:ds4: dspark perf: draft=467.1 tok/s, verify=73.5 proposed tok/s, verify-accepted=66.1 tok/s, block=80.64 ms (draft=10.67 verify=67.86 overhead=2.11 commit=1.69, tau=4.48, blocks=66)
+109:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+112:ds4: dspark full-accept: 90.3% (56/62 blocks), first-miss: 0.0% (0/62 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+== grouped_iq2.err
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed direct Q2 down unordered sum6 enabled (non-byte diagnostic)
+96:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+105:ds4: prefill: 7.16 t/s, generation: 54.98 t/s (300 tokens in 5.457s)
+106:ds4: dspark perf: draft=467.1 tok/s, verify=73.2 proposed tok/s, verify-accepted=65.9 tok/s, block=80.90 ms (draft=10.67 verify=68.10 overhead=2.13 commit=1.70, tau=4.48, blocks=66)
+109:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+112:ds4: dspark full-accept: 90.3% (56/62 blocks), first-miss: 0.0% (0/62 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+== grouped_iq2_q2safe.err
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+96:ds4: dspark row-routed grouped exact IQ2 gate/up+SwiGLU enabled
+98:ds4: dspark row-routed grouped Q2 down materialization diagnostic enabled (safe exact wrapper)
+99:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+108:ds4: prefill: 6.58 t/s, generation: 43.67 t/s (300 tokens in 6.870s)
+109:ds4: dspark perf: draft=464.2 tok/s, verify=57.4 proposed tok/s, verify-accepted=50.4 tok/s, block=99.13 ms (draft=10.68 verify=86.33 overhead=2.12 commit=1.68, tau=4.35, blocks=68)
+112:ds4: dspark acceptance: 93.1% (296/318 draft tokens)
+115:ds4: dspark full-accept: 84.4% (54/64 blocks), first-miss: 0.0% (0/64 blocks)
+116:ds4: dspark avg scheduled: 4.97 draft tokens/block (64 blocks)
+== grouped_q2_safe.err
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+95:ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+97:ds4: dspark row-routed grouped Q2 down materialization diagnostic enabled (safe exact wrapper)
+98:ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+107:ds4: prefill: 7.49 t/s, generation: 51.57 t/s (300 tokens in 5.817s)
+108:ds4: dspark perf: draft=464.5 tok/s, verify=69.9 proposed tok/s, verify-accepted=61.4 tok/s, block=83.68 ms (draft=10.67 verify=70.90 overhead=2.12 commit=1.68, tau=4.35, blocks=68)
+111:ds4: dspark acceptance: 93.1% (296/318 draft tokens)
+114:ds4: dspark full-accept: 84.4% (54/64 blocks), first-miss: 0.0% (0/64 blocks)
+115:ds4: dspark avg scheduled: 4.97 draft tokens/block (64 blocks)

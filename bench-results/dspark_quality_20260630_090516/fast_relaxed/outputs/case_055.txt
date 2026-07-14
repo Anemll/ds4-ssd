@@ -1,0 +1,10 @@
+Questa è una domanda interessante che tocca un aspetto fondamentale dell'architettura delle applicazioni Metal. Ecco perché un grande buffer può essere peggiore di più viste (o frammenti) sovrapposti.
+
+### Perché un grande buffer può essere peggiore
+
+Il problema principale riguarda **la coerenza e la competenza della memoria (memory coherence)** e la **pipeline di rendering**.
+
+Ecco i punti chiave:
+
+1.  **Dipendenze e Stalli (Stall):**
+    - **Grande Buffer:** Se hai un grande buffer che viene scritto da

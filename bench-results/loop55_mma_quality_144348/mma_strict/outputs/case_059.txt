@@ -1,0 +1,7 @@
+Questa è un'ottima domanda. Valutare 50 prompt (o un numero elevato di essi) è più utile che affidarsi a un singolo prompt "preferito" per diversi motivi fondamentali, legati alla natura dei modelli linguistici di grandi dimensioni (LLM) e al processo di sviluppo.
+
+Ecco le ragioni principali:
+
+### 1. Scoperta della Variabilità e della Robustezza
+
+Un singolo prompt può funzionare meravigliosamente una volta, ma fallire miseramente con un leggero cambio di formulazione o con un input divers

@@ -1,0 +1,9 @@
+This is an excellent question that gets at a core challenge in making neural networks efficient.
+
+The term "importance matrix" isn't a single, universally defined mathematical object like a "Hessian matrix." Instead, it's a **conceptual tool** used in advanced quantization techniques to guide how precision is distributed across the weights of a model.
+
+Here is the breakdown of what an "importance matrix" means in the context of low-bit quantization.
+
+### The Core Problem: Quantization is a Lossy Process
+
+When you quantize a model (e.g., from FP16 to INT4), you are rounding or clipping values. This introduces errors

@@ -1,0 +1,3 @@
+Ti spiego il meccanismo di **softmax nell'attenzione** in modo semplice e intuitivo.
+
+##

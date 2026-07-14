@@ -1,0 +1,7 @@
+When quantizing a neural network, calibration data plays a critical role in determining the optimal scaling parameters (scale factors and zero-points) that map the continuous floating-point values to discrete integer values.
+
+Here is a detailed breakdown of its role:
+
+### 1. Determining the Dynamic Range
+
+The primary goal of quantization is to represent a range of floating-point values (e.g., `[-1.5, 3.7]`) using a limited set of integer values (e.g., 0 to 255 for 8-bit). The calibration data is used to **observe the actual statistical distribution** of activations and weights across

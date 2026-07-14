@@ -1,0 +1,14 @@
+Here's pseudocode for a binary heap push operation (also called insert or add):
+
+```pseudocode
+// Binary Heap Push (Min-Heap)
+// Assumes heap is stored as an array where:
+// - parent(i) = i/2 (floor)
+// - left_child(i) = 2*i
+// - right_child(i) = 2*i + 1
+
+function push(heap, value, heapSize):
+    // Step 1: Add the new element to the end
+    heap[heapSize] = value
+    currentIndex = heapSize
+    heapSize = heapSize + 1

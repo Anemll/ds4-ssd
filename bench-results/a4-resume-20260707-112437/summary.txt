@@ -1,0 +1,20 @@
+cmp: MATCH
+bench-results/a4-resume-20260707-112437/off.log:ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+bench-results/a4-resume-20260707-112437/off.log:ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+bench-results/a4-resume-20260707-112437/off.log:ds4: prefill ctx-grow: on, block=2048 tokens
+bench-results/a4-resume-20260707-112437/off.log:ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+bench-results/a4-resume-20260707-112437/off.log:ds4: prefill: 20.11 t/s, generation: 37.15 t/s (400 tokens in 10.768s)
+bench-results/a4-resume-20260707-112437/off.log:ds4: ttf: first-output=26.827s total=37.453s (engine=23.800s session=0.004s prompt=0.001s prefill=2.835s decode=10.768s)
+bench-results/a4-resume-20260707-112437/off.log:ds4: dspark perf: draft=410.3 tok/s, verify=82.3 proposed tok/s, verify-accepted=46.1 tok/s, block=68.06 ms (draft=11.14 verify=55.50 overhead=1.42 commit=1.11, tau=2.56, blocks=142)
+bench-results/a4-resume-20260707-112437/off.log:ds4: dspark acceptance: 74.8% (363/485 draft tokens)
+bench-results/a4-resume-20260707-112437/off.log:ds4: dspark acceptance by position: 1=98/107 2=86/103 3=72/101 4=58/90 5=49/84
+bench-results/a4-resume-20260707-112437/on.log:ds4: prefill routed-MoE (requested): int8 matmul2d (compact-bridge fused-dequant)  [grouped path]
+bench-results/a4-resume-20260707-112437/on.log:ds4: prefill quant scales (MPP/NAX env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+bench-results/a4-resume-20260707-112437/on.log:ds4: prefill ctx-grow: on, block=2048 tokens
+bench-results/a4-resume-20260707-112437/on.log:ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+bench-results/a4-resume-20260707-112437/on.log:ds4: prefill: 19.03 t/s, generation: 38.05 t/s (400 tokens in 10.514s)
+bench-results/a4-resume-20260707-112437/on.log:ds4: ttf: first-output=6.204s total=16.579s (engine=2.627s session=0.005s prompt=0.000s prefill=2.996s decode=10.514s)
+bench-results/a4-resume-20260707-112437/on.log:ds4: dspark perf: draft=562.0 tok/s, verify=84.6 proposed tok/s, verify-accepted=47.3 tok/s, block=63.59 ms (draft=8.13 verify=54.05 overhead=1.40 commit=1.09, tau=2.56, blocks=142)
+bench-results/a4-resume-20260707-112437/on.log:ds4: dspark acceptance: 74.8% (363/485 draft tokens)
+bench-results/a4-resume-20260707-112437/on.log:ds4: dspark acceptance by position: 1=98/107 2=86/103 3=72/101 4=58/90 5=49/84
+bench-results/a4-resume-20260707-112437/on.log:ds4: dspark overlap-draft: launched=37 hits=37 fallbacks=0

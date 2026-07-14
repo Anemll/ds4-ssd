@@ -1,0 +1,5 @@
+Non esiste un metodo unico e infallibile per confrontare due quantizzazioni, perché la scelta dipende fortemente dal contesto (hardware, tipo di rete, obiettivo della compressione vs. accuratezza). Tuttavia, ecco una procedura sistematica per confrontarle in modo obiettivo e robusto, senza basarsi su una singola risposta o metrica.
+
+### 1. Definire il criterio di confronto (non fermarsi a una sola metrica)
+
+Prima di tutto, devi stabilire cosa significa "migliore" per il tuo caso specifico.

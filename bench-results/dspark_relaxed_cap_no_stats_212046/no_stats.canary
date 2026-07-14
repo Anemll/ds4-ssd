@@ -1,0 +1,2 @@
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_relaxed_cap_no_stats_212046/no_stats.out	3831	117	94	1	2	player:2,bullets:2,enemy_bullets:2,enemies:2,x:2,y:2,running:2,game_over:2	0		0	0	0	4	2	0

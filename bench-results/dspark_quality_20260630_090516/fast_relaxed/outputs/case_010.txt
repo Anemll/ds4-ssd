@@ -1,0 +1,5 @@
+Ecco una spiegazione dettagliata del funzionamento dell'inserimento in un B-tree, con particolare attenzione agli split e alla crescita della radice.
+
+## Concetti fondamentali
+
+Un **B-tree** è un albero bilanciato che mantiene i dati ordinati e permette operazioni efficienti (O(log n)) anche con grandi quantità di dati. Ogni nodo può contenere più chiave e ogni nodo (tranne le radice) ha un numero di chiave tra `ceil(m/2)-1` e `m-1` dove m è il grado dell

@@ -1,0 +1,9 @@
+Questa è una spiegazione della ricerca binaria del punto di inserimento in una lista ordinata.
+
+## Cos'è il punto di inserimento?
+
+Il punto di inserimento in una lista ordinata è la posizione (indice) dove un nuovo valore dovrebbe essere inserito per mantenere l'ordine della lista. Se il valore è già presente, il punto di inserito è tipicamente la prima posizione dove il valore appare (o l'ultimo, a seconda della definizione).
+
+## Ricerca binaria del punto di inserimento
+
+La ricerca binaria standard può essere modificata per trovare il punto

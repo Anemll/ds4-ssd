@@ -1,0 +1,51 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+BULLET_SPEED = 7
+ENEMY_SPEED = 1
+BULLET_COOLDOWN = 250  # milliseconds
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+    def draw(self, screen):
+        # Draw a simple spaceship
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x + self.width, self.y + self.height//2),
+            (self.x + self.width - 10, self.y + self.height//2),
+            (self.x + self.width - 10, self.y + self.height),
+            (self.x + 10, self.y + self.height),
+            (self.x + 10, self.y + self.height//2),
+            (self.x, self.y + self.height//2)
+        ]
+        pygame.draw.polygon(screen, GREEN, points)
+        
+    def move_left(self):
+        self.x -= self

@@ -1,0 +1,5 @@
+Questa è una domanda interessante che riguarda due parametri fondamentali per controllare la generazione di testo nei modelli linguistici (come GPT).
+
+È importante fare una premessa: **temperatura zero** e **top-p** non sono parametri mutualmente esclusivi; anzi, spesso vengono usati insieme. Tuttavia, la tua domanda chiede un confronto diretto, quindi la analizzerò come due strategie diverse per selezionare la prossima parola.
+
+Ecco i pro e contro di **top-p (nucleus sampling)** rispetto a **temper

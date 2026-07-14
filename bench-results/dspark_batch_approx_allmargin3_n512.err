@@ -1,0 +1,256 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.292 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=30.25 t/s avg=0.58 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.57 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=53.39 t/s avg=1.13 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.12 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=52.64 t/s avg=1.67 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.65 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.63 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=49.21 t/s avg=2.15 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.13 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=49.15 t/s avg=2.63 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.60 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.12 t/s avg=3.10 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=3.07 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=60.17 t/s avg=3.55 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.52 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.49 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=54.91 t/s avg=3.95 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.91 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=55.62 t/s avg=4.36 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.32 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.47 t/s avg=4.75 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.71 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=58.23 t/s avg=5.14 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.09 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.06 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=51.82 t/s avg=5.47 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=5.42 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.86 t/s avg=5.82 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.77 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=51.95 t/s avg=6.17 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=6.12 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=55.59 t/s avg=6.51 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.45 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.40 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=51.20 t/s avg=6.77 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=6.71 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=54.45 t/s avg=7.07 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=7.01 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=51.78 t/s avg=7.37 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=7.31 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.16 t/s avg=7.65 t/s
+ds4: prefill full: 19 tokens in 2487.4 ms (7.6 t/s)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=5 rows=5 in 194.7 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.617 threshold=3.000 draft=18.470 ms snapshot=1.139 ms verify=73.473 ms exact_replay=54.824 ms total=148.271 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.428 ms snapshot=0.369 ms verify=74.898 ms replay=57.473 ms total=151.232 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=2.094 threshold=3.000 draft=18.415 ms snapshot=0.377 ms verify=73.712 ms exact_replay=57.934 ms total=150.790 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.482 ms snapshot=0.419 ms verify=74.986 ms replay=55.013 ms total=149.025 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=2.661 threshold=3.000 draft=19.066 ms snapshot=0.374 ms verify=73.113 ms exact_replay=28.502 ms total=121.277 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=2.228 threshold=3.000 draft=18.342 ms snapshot=0.374 ms verify=73.043 ms exact_replay=27.556 ms total=119.522 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=0.854 threshold=3.000 draft=19.272 ms snapshot=0.378 ms verify=72.653 ms exact_replay=56.058 ms total=148.717 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=3 replayed=3 min_row=2 min_margin=0.873 threshold=3.000 draft=18.302 ms snapshot=0.367 ms verify=73.355 ms exact_replay=81.873 ms total=174.352 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.414 ms snapshot=0.384 ms verify=75.827 ms replay=57.789 ms total=152.484 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.117 ms snapshot=0.363 ms verify=75.784 ms replay=57.872 ms total=153.197 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.608 ms snapshot=0.369 ms verify=77.878 ms replay=58.542 ms total=156.470 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.961 ms snapshot=0.375 ms verify=76.759 ms replay=60.088 ms total=156.246 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.977 ms snapshot=0.423 ms verify=76.137 ms replay=58.155 ms total=153.764 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.434 ms snapshot=0.369 ms verify=73.416 ms replay=55.093 ms total=147.381 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.957 ms snapshot=0.374 ms verify=72.637 ms replay=56.065 ms total=148.096 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=0.912 threshold=3.000 draft=18.453 ms snapshot=0.366 ms verify=74.936 ms exact_replay=56.926 ms total=151.003 ms
+ds4: dspark timing batch-partial drafted=5 committed=3 exact_replayed=3 draft=18.405 ms snapshot=0.404 ms verify=73.807 ms replay=85.112 ms total=177.798 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.490 ms snapshot=0.363 ms verify=72.982 ms replay=56.750 ms total=148.658 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.420 ms snapshot=0.361 ms verify=73.570 ms replay=54.877 ms total=147.300 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.478 ms snapshot=0.352 ms verify=74.154 ms replay=55.422 ms total=148.522 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.788 threshold=3.000 draft=18.494 ms snapshot=0.847 ms verify=74.621 ms exact_replay=56.056 ms total=150.382 ms
+ds4: dspark timing batch-partial drafted=5 committed=3 exact_replayed=3 draft=18.413 ms snapshot=0.381 ms verify=74.296 ms replay=83.519 ms total=176.670 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.678 threshold=3.000 draft=18.491 ms snapshot=0.359 ms verify=73.788 ms exact_replay=54.680 ms total=147.643 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.556 ms snapshot=0.372 ms verify=72.411 ms replay=56.374 ms total=147.807 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=0.009 threshold=3.000 draft=18.469 ms snapshot=0.438 ms verify=74.063 ms exact_replay=27.458 ms total=120.631 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.536 ms snapshot=0.365 ms verify=75.209 ms replay=57.554 ms total=151.780 ms
+ds4: dspark timing batch-partial drafted=5 committed=3 exact_replayed=3 draft=18.444 ms snapshot=0.420 ms verify=75.054 ms replay=85.777 ms total=179.767 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.354 threshold=3.000 draft=18.557 ms snapshot=0.359 ms verify=75.333 ms exact_replay=55.068 ms total=149.661 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.507 ms snapshot=0.354 ms verify=72.905 ms replay=59.006 ms total=150.864 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.215 ms snapshot=0.401 ms verify=77.582 ms replay=59.253 ms total=156.519 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.055 ms snapshot=0.359 ms verify=77.724 ms replay=57.218 ms total=154.440 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.671 threshold=3.000 draft=19.269 ms snapshot=0.422 ms verify=76.268 ms exact_replay=56.472 ms total=152.770 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.503 threshold=3.000 draft=19.172 ms snapshot=0.345 ms verify=77.756 ms exact_replay=56.041 ms total=153.654 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.549 ms snapshot=0.361 ms verify=76.410 ms replay=57.176 ms total=152.612 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.583 ms snapshot=0.353 ms verify=74.623 ms replay=58.126 ms total=151.761 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.297 ms snapshot=0.368 ms verify=74.699 ms replay=56.777 ms total=151.214 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.541 ms snapshot=0.406 ms verify=75.167 ms replay=58.303 ms total=152.501 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.675 ms snapshot=0.400 ms verify=77.157 ms replay=58.276 ms total=154.583 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.600 ms snapshot=0.364 ms verify=75.401 ms replay=57.176 ms total=151.619 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.778 ms snapshot=0.360 ms verify=74.486 ms replay=56.799 ms total=150.504 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.194 threshold=3.000 draft=19.159 ms snapshot=0.373 ms verify=74.748 ms exact_replay=55.283 ms total=149.900 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.315 ms snapshot=0.363 ms verify=76.705 ms replay=58.530 ms total=154.995 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.474 ms snapshot=0.359 ms verify=75.627 ms replay=57.303 ms total=151.875 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.522 ms snapshot=0.355 ms verify=73.993 ms replay=60.194 ms total=153.128 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.677 ms snapshot=0.490 ms verify=76.047 ms replay=58.423 ms total=153.712 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.534 ms snapshot=0.409 ms verify=75.435 ms replay=55.840 ms total=150.285 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.437 ms snapshot=0.411 ms verify=77.347 ms replay=57.276 ms total=153.583 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.411 ms snapshot=0.372 ms verify=74.247 ms replay=58.138 ms total=151.240 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.553 ms snapshot=0.362 ms verify=75.577 ms replay=57.072 ms total=151.654 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.441 ms snapshot=0.353 ms verify=74.337 ms replay=58.832 ms total=152.052 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.235 ms snapshot=0.361 ms verify=77.238 ms replay=59.242 ms total=156.147 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.895 ms snapshot=0.360 ms verify=79.186 ms replay=61.012 ms total=159.525 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.644 ms snapshot=0.634 ms verify=77.704 ms replay=60.749 ms total=157.827 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.199 ms snapshot=0.437 ms verify=76.886 ms replay=59.120 ms total=155.706 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.458 ms snapshot=0.360 ms verify=75.861 ms replay=56.010 ms total=150.802 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=2.534 threshold=3.000 draft=18.618 ms snapshot=0.384 ms verify=77.464 ms exact_replay=55.698 ms total=152.480 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.292 ms snapshot=0.359 ms verify=74.407 ms replay=59.184 ms total=153.306 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.874 ms snapshot=0.351 ms verify=76.433 ms replay=65.221 ms total=160.945 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=2.536 threshold=3.000 draft=18.688 ms snapshot=0.414 ms verify=75.796 ms exact_replay=55.511 ms total=150.934 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.300 ms snapshot=0.384 ms verify=74.448 ms replay=56.803 ms total=151.026 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.528 ms snapshot=0.398 ms verify=76.353 ms replay=58.075 ms total=153.414 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.231 ms snapshot=0.370 ms verify=75.716 ms replay=59.267 ms total=154.652 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.877 ms snapshot=0.464 ms verify=78.908 ms replay=58.580 ms total=156.932 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.738 ms snapshot=0.489 ms verify=77.500 ms replay=55.928 ms total=152.769 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.531 ms snapshot=0.428 ms verify=76.063 ms replay=58.236 ms total=153.320 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=3 replayed=3 min_row=2 min_margin=1.037 threshold=3.000 draft=19.226 ms snapshot=0.378 ms verify=74.877 ms exact_replay=83.353 ms total=178.246 ms
+ds4: dspark timing batch-partial drafted=5 committed=3 exact_replayed=3 draft=19.203 ms snapshot=0.358 ms verify=74.449 ms replay=86.601 ms total=180.681 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.797 threshold=3.000 draft=19.266 ms snapshot=0.351 ms verify=76.104 ms exact_replay=55.940 ms total=152.040 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.733 ms snapshot=0.429 ms verify=75.018 ms replay=56.769 ms total=151.037 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.542 ms snapshot=0.365 ms verify=75.434 ms replay=56.714 ms total=151.172 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.414 ms snapshot=0.376 ms verify=76.290 ms replay=57.374 ms total=152.547 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.309 ms snapshot=0.369 ms verify=77.191 ms replay=60.084 ms total=157.033 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.987 threshold=3.000 draft=20.051 ms snapshot=0.368 ms verify=78.262 ms exact_replay=57.861 ms total=156.885 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.632 ms snapshot=0.371 ms verify=76.140 ms replay=58.766 ms total=154.977 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.153 threshold=3.000 draft=19.105 ms snapshot=0.366 ms verify=78.192 ms exact_replay=59.461 ms total=157.466 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.181 ms snapshot=0.366 ms verify=78.507 ms replay=58.131 ms total=156.257 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.675 threshold=3.000 draft=18.496 ms snapshot=0.362 ms verify=75.495 ms exact_replay=54.490 ms total=149.179 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=1.233 threshold=3.000 draft=18.569 ms snapshot=0.367 ms verify=75.624 ms exact_replay=55.879 ms total=150.807 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.679 ms snapshot=0.414 ms verify=77.069 ms replay=58.382 ms total=154.619 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.622 threshold=3.000 draft=18.669 ms snapshot=0.381 ms verify=76.740 ms exact_replay=59.390 ms total=155.514 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=21.388 ms snapshot=0.489 ms verify=82.701 ms replay=66.653 ms total=171.297 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=2.341 threshold=3.000 draft=20.111 ms snapshot=0.381 ms verify=82.670 ms exact_replay=31.888 ms total=135.266 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=0.963 threshold=3.000 draft=20.634 ms snapshot=0.383 ms verify=84.252 ms exact_replay=32.938 ms total=138.420 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.835 ms snapshot=0.374 ms verify=81.562 ms replay=63.182 ms total=165.019 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.753 ms snapshot=0.449 ms verify=81.685 ms replay=61.958 ms total=164.912 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.834 ms snapshot=0.472 ms verify=83.565 ms replay=64.405 ms total=168.342 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.611 ms snapshot=0.476 ms verify=78.176 ms replay=61.181 ms total=158.526 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.003 ms snapshot=0.437 ms verify=78.074 ms replay=59.982 ms total=158.570 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.368 ms snapshot=0.379 ms verify=78.397 ms replay=58.834 ms total=157.054 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.340 ms snapshot=0.431 ms verify=76.832 ms replay=57.240 ms total=153.931 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.601 ms snapshot=0.365 ms verify=76.494 ms replay=58.496 ms total=154.046 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.231 ms snapshot=0.363 ms verify=75.243 ms replay=55.657 ms total=150.553 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.525 ms snapshot=0.405 ms verify=75.627 ms replay=56.778 ms total=151.404 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.598 ms snapshot=0.382 ms verify=77.256 ms replay=57.520 ms total=153.829 ms
+ds4: dspark timing batch-partial drafted=5 committed=3 exact_replayed=3 draft=18.526 ms snapshot=0.351 ms verify=75.407 ms replay=85.609 ms total=179.984 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.586 ms snapshot=0.367 ms verify=75.209 ms replay=58.503 ms total=152.736 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.535 ms snapshot=0.377 ms verify=76.160 ms replay=56.018 ms total=151.204 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.130 ms snapshot=0.366 ms verify=74.880 ms replay=56.903 ms total=151.351 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.581 ms snapshot=0.370 ms verify=76.103 ms replay=58.476 ms total=153.593 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.527 ms snapshot=0.375 ms verify=75.961 ms replay=59.641 ms total=154.584 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.665 ms snapshot=0.370 ms verify=75.694 ms replay=56.080 ms total=150.899 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.643 ms snapshot=0.365 ms verify=76.081 ms replay=56.050 ms total=151.220 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.242 ms snapshot=0.383 ms verify=76.640 ms replay=58.165 ms total=154.498 ms
+ds4: dspark timing batch-partial drafted=5 committed=1 exact_replayed=1 draft=18.597 ms snapshot=0.361 ms verify=74.820 ms replay=28.205 ms total=122.095 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.532 ms snapshot=0.394 ms verify=75.692 ms replay=56.217 ms total=150.902 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.207 ms snapshot=0.361 ms verify=77.065 ms replay=60.261 ms total=156.987 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=0.864 threshold=3.000 draft=19.263 ms snapshot=0.406 ms verify=77.476 ms exact_replay=58.577 ms total=156.018 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=1.125 threshold=3.000 draft=19.387 ms snapshot=0.365 ms verify=77.023 ms exact_replay=58.203 ms total=155.299 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.323 ms snapshot=0.359 ms verify=77.451 ms replay=58.753 ms total=155.959 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=1.810 threshold=3.000 draft=18.439 ms snapshot=0.365 ms verify=79.311 ms exact_replay=31.145 ms total=129.490 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.197 ms snapshot=0.413 ms verify=78.184 ms replay=58.744 ms total=156.611 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.538 threshold=3.000 draft=19.373 ms snapshot=0.356 ms verify=74.814 ms exact_replay=56.749 ms total=151.655 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.605 ms snapshot=0.449 ms verify=75.920 ms replay=56.804 ms total=151.845 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.452 ms snapshot=0.365 ms verify=75.452 ms replay=56.898 ms total=151.285 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.480 ms snapshot=0.355 ms verify=78.637 ms replay=57.820 ms total=155.356 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.531 ms snapshot=0.403 ms verify=75.139 ms replay=58.968 ms total=153.123 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=1.040 threshold=3.000 draft=19.124 ms snapshot=0.422 ms verify=74.462 ms exact_replay=54.888 ms total=149.213 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.501 ms snapshot=0.361 ms verify=75.730 ms replay=56.754 ms total=151.461 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.214 threshold=3.000 draft=18.593 ms snapshot=0.372 ms verify=76.348 ms exact_replay=56.126 ms total=151.781 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=1.897 threshold=3.000 draft=18.469 ms snapshot=0.392 ms verify=75.342 ms exact_replay=27.894 ms total=122.325 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=1.566 threshold=3.000 draft=19.128 ms snapshot=0.354 ms verify=75.860 ms exact_replay=28.123 ms total=123.684 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.524 ms snapshot=0.364 ms verify=75.314 ms replay=59.193 ms total=153.468 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.554 ms snapshot=0.370 ms verify=75.528 ms replay=58.306 ms total=152.830 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.577 ms snapshot=0.863 ms verify=74.980 ms replay=56.350 ms total=150.859 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.565 ms snapshot=0.374 ms verify=75.315 ms replay=55.761 ms total=150.130 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.442 ms snapshot=0.380 ms verify=76.965 ms replay=57.549 ms total=154.404 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.611 ms snapshot=0.409 ms verify=76.057 ms replay=58.308 ms total=153.469 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.223 ms snapshot=0.406 ms verify=76.221 ms replay=59.928 ms total=155.850 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=1.527 threshold=3.000 draft=20.006 ms snapshot=0.356 ms verify=78.111 ms exact_replay=57.775 ms total=156.579 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.831 ms snapshot=0.525 ms verify=79.858 ms replay=60.460 ms total=159.740 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.552 ms snapshot=0.352 ms verify=78.071 ms replay=60.140 ms total=157.184 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.002 ms snapshot=0.409 ms verify=82.598 ms replay=62.245 ms total=165.365 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.083 ms snapshot=0.446 ms verify=82.073 ms replay=62.947 ms total=165.631 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.078 ms snapshot=0.367 ms verify=82.770 ms replay=64.464 ms total=167.765 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.143 ms snapshot=0.366 ms verify=82.928 ms replay=63.284 ms total=166.783 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.606 ms snapshot=0.369 ms verify=74.379 ms replay=55.976 ms total=149.445 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.570 ms snapshot=0.421 ms verify=74.838 ms replay=57.261 ms total=151.180 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.556 ms snapshot=0.354 ms verify=76.922 ms replay=59.384 ms total=155.298 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.116 ms snapshot=0.534 ms verify=77.454 ms replay=58.917 ms total=156.086 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.305 ms snapshot=0.355 ms verify=74.988 ms replay=58.195 ms total=152.933 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.471 ms snapshot=0.391 ms verify=76.392 ms replay=56.909 ms total=152.279 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=1 replayed=1 min_row=0 min_margin=2.701 threshold=3.000 draft=18.534 ms snapshot=0.370 ms verify=75.442 ms exact_replay=27.981 ms total=122.552 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.536 ms snapshot=0.405 ms verify=74.854 ms replay=58.124 ms total=152.011 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.310 ms snapshot=0.383 ms verify=75.474 ms replay=57.028 ms total=152.258 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.539 ms snapshot=0.371 ms verify=75.853 ms replay=58.127 ms total=152.958 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.457 ms snapshot=0.354 ms verify=77.018 ms replay=57.355 ms total=153.274 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.595 ms snapshot=0.384 ms verify=75.797 ms replay=57.393 ms total=152.277 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.196 ms snapshot=0.423 ms verify=74.613 ms replay=57.152 ms total=151.477 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.772 threshold=3.000 draft=18.507 ms snapshot=0.357 ms verify=76.207 ms exact_replay=57.394 ms total=152.830 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.570 ms snapshot=0.368 ms verify=78.635 ms replay=59.297 ms total=156.953 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=20.071 ms snapshot=0.354 ms verify=78.739 ms replay=59.984 ms total=159.209 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.582 ms snapshot=0.499 ms verify=77.809 ms replay=60.148 ms total=157.099 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.225 ms snapshot=0.356 ms verify=77.347 ms replay=58.915 ms total=155.922 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.210 ms snapshot=0.411 ms verify=77.787 ms replay=59.013 ms total=156.491 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=1.957 threshold=3.000 draft=19.253 ms snapshot=0.363 ms verify=74.835 ms exact_replay=55.563 ms total=150.329 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.557 ms snapshot=0.429 ms verify=77.701 ms replay=58.288 ms total=155.055 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.386 ms snapshot=0.349 ms verify=75.760 ms replay=57.462 ms total=152.031 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=0 min_margin=2.601 threshold=3.000 draft=18.542 ms snapshot=0.360 ms verify=76.466 ms exact_replay=54.778 ms total=150.503 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.550 ms snapshot=0.433 ms verify=74.610 ms replay=57.241 ms total=150.906 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=19.454 ms snapshot=0.366 ms verify=76.211 ms replay=58.376 ms total=154.487 ms
+ds4: dspark timing batch-margin-all-exact drafted=5 committed=2 replayed=2 min_row=1 min_margin=1.431 threshold=3.000 draft=18.545 ms snapshot=0.361 ms verify=76.220 ms exact_replay=55.943 ms total=151.407 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.528 ms snapshot=0.416 ms verify=75.588 ms replay=56.656 ms total=151.278 ms
+ds4: dspark timing batch-partial drafted=5 committed=2 exact_replayed=2 draft=18.608 ms snapshot=0.367 ms verify=75.602 ms replay=56.811 ms total=151.482 ms
+ds4: dspark timing batch-partial drafted=3 committed=2 exact_replayed=2 draft=12.498 ms snapshot=0.363 ms verify=55.458 ms replay=55.983 ms total=124.384 ms
+ds4: ----------------------------------------
+ds4: prefill: 7.01 t/s, generation: 16.59 t/s (512 tokens in 30.860s)
+ds4: dspark acceptance: 35.0% (325/928 draft tokens)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

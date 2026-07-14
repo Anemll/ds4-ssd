@@ -1,0 +1,76 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame.sprite
+import pygame
+import random
+import random
+
+# Initialize Pygame
+pygame.init()
+screen = pygame.display = pygame.display.set_mode((800, 600), (0, 0))
+pygame.display = pygame.display = 0
+pygame.display = True
+
+#game.display = True
+pygame.display = True
+
+# Initialize
+pygame.init()
+screen = pygame.display = pygame.display = 600
+pygame.display = True
+
+# Game
+class Player(pygame.sprite):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 100
+        self.height = 100
+        self.speed = 0
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+        self.rect = pygame
+class Enemy = 0
+class Enemy = 0
+class Enemy = 0
+
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 100
+        self.height = 100
+        self.speed = 0
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 10
+        self.height = 10
+        self.speed = 0
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+
+class Game:
+    def __init__(self):
+        self.player = pygame
+        self.enemies = []
+        self.bullets = []
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.win = True
+
+    def update(self):
+        self.player = pygame
+        self.player.x = self.player
+        self.player.y = self.player
+        self.player.rect = self.player.x, self.player.y
+    def update
+        self.player.x = self.player
+    def update(self, dt):
+        self.player = pygame
+        self.player.x = self.player
+        self.player.y = self.player
+        self.player.rect = self.player.x, self.player.y

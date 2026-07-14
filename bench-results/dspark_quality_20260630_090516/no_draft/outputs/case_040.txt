@@ -1,0 +1,5 @@
+Here are the first five measurements to take when diagnosing generation slowdowns at long context lengths:
+
+1.  **Time-Per-Token (TPT) vs. Context Length:** Measure the latency per generated token as a function of the input sequence length (e.g., 1k, 4k, 8k, 16k, 32k tokens). This isolates whether the slowdown is linear (expected) or quadratic/exponential (indicating an attention or cache issue).
+
+2.  **KV Cache Hit Rate & Size:** Measure the actual memory usage of the Key-Value cache versus the theoretical maximum. Check for cache thr

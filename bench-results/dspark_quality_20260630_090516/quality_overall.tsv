@@ -1,0 +1,4 @@
+mode	cases	tokens	decode_s	effective_tps	draft_slots	draft_accepted	acceptance_pct	speedup_vs_no_draft
+no_draft	100	11754	369.976979	31.769544	0	0	0.000000	1.000000
+strict_byte	100	11754	415.643819	28.279020	18533	7963	42.966600	0.890130
+fast_relaxed	100	11825	358.960397	32.942353	15287	10262	67.128933	1.036916

@@ -1,0 +1,154 @@
+I'll create a self-contained HTML file that replicates the classic 1978 Taito arcade game "Aster" with full fidelity to the original rules, sprite designs, and mechanics.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroids - 1978 Taito Arcade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .game-container {
+            position: relative;
+            border: 3px solid #000;
+            background: #000;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.3);
+        }
+        canvas {
+            display: block;
+            background: #000;
+            image-rendering: pixelated;
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-size: 14px;
+            text-shadow: 0 0 5px #0ff;
+        }
+        .info span {
+            color: #0f0;
+        }
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: #555;
+            font-size: 11px;
+        }
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.7);
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+        }
+        .overlay h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            letter-spacing: 4px;
+        }
+        .overlay p {
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        .overlay .highlight {
+            color: #fff;
+            text-shadow: 0 0 10px #fff;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div id="overlay" class="overlay">
+            <h1>ASTEROIDS</h1>
+            <p>© 1978 TAIYO</p>
+            <p class="highlight">PRESS SPACE TO START</p>
+            <p style="font-size:12px; color:#555;">↑↓←→  move | SPACE  fire</p>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="info" id="info">SCORE: <span id="score">0</span>  HIGH: <span id="highScore">0</span></div>
+        <div class="controls">LIVES: <span id="lives">3</span></div>
+    </div>
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const overlay = document.getElementById('overlay');
+            const scoreSpan = document.getElementById('score');
+            const highSpan = document.getElementById('highScore');
+            const livesSpan = document.getElementById('lives');
+
+            // Game constants
+            const W = 800, H = 600;
+            const ASTEROID_COUNT = 5;
+            const MAX_LEVELS = 3;
+            const SHIP_RADIUS = 20;
+            const BULLET_SPEED = 400;
+            const ASTEROID_RADIUS = [30, 20, 15]; // large, medium, small
+
+            // Game state
+            let gameRunning = false;
+            let score = 0;
+            let highScore = parseInt(localStorage.getItem('asteroidsHigh') || '0');
+            let lives = 3;
+            let level = 1;
+            let ship = null;
+            let asteroids = [];
+            let bullets = [];
+            let particles = [];
+            let keys = {};
+            let gameOver = false;
+            let startScreen = true;
+
+            // Ship class
+            class Ship {
+                constructor() {
+                    this.x = W / 2;
+                    this.y = H / 2;
+                    this.angle = -Math.PI / 2; // up
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.radius = SHIP_RADIUS;
+                    this.alive = true;
+                    this.invincible = 0;
+                    this.thrust = false;
+                    this.rotateLeft = false;
+                    this.rotateRight = false;
+                }
+
+                update(dt) {
+                    if (!this.alive) return;
+                    // Rotation
+                    if (this.rotateLeft) {
+                        this.angle -= 0.1 * dt * 60;
+                    } else if (this.rotateRight) {
+                        this.angle += 0.1 * dt * 60;
+                    }
+                    // Thrust
+                    if (this.thrust) {
+                        const thrust =

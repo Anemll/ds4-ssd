@@ -1,0 +1,11 @@
+This is an excellent question that gets to the heart of how virtual memory works in modern operating systems.
+
+The core reason is that **mmap creates a *mapping* in the virtual address space, but it does not automatically allocate physical memory (RAM) for every part of that mapping.** The virtual address space size and the actual page residency (the number of pages backed by physical RAM) are two completely different concepts.
+
+Let's break down the key reasons why they can differ.
+
+### 1. The Fundamental Principle: Demand Paging
+
+This is the most common and important reason.
+
+- **Virtual Address Space Size:** This is the total

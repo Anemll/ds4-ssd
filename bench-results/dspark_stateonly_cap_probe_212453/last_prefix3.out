@@ -1,0 +1,79 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAY_WIDTH = 600
+PLAY_HEIGHT = 60
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 5
+BULLET_HEIGHT = 10
+ENEMY_BULLET_WIDTH = 5
+ENEMY_BULLET_HEIGHT = 10
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+# Player
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = PLAYER_WIDTH
+        self.height = PLAYER_HEIGHT
+        self.speed = 5
+        self.ives = 3
+        self.score = 0
+        
+        # Bullet
+        self.bullet_x = 0
+        self.bullet_y = 0
+        self.bullet_width = BULLET_WIDTH
+        self.bullet_height = BULLET_HEIGHT
+        self.bullet_speed = 10
+        self.bullet = False
+        
+        self.rect = pygame.draw.rect(screen, (0,0,0), (0,0,0,0))
+    
+    def draw(self, screen):
+        # Draw player
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+        
+        # Bullet's
+        if self.bullet:
+            self.bullet_y += 10
+            self.bullet_rect = pygame.draw.rect(screen, GREEN, (self.bullet_x, self.bullet_y, self.bullet_width, self.bullet_height))
+            if self.bullet_y > 500:
+                self.bullet = False
+        else:
+            self.bullet_rect = None
+    
+    def move(self, dx, dy):
+        self.x += dx
+        self.y += dy
+    
+    def shoot(self):
+        if self.bullet == False:
+            self.bullet_x = self.x + self.width // 2 - self.bullet_width // 2
+            self.bullet_y = self.y
+            self.bullet = True
+
+# Enemy class
+class Enemy:
+   

@@ -1,0 +1,47 @@
+Here's a complete Space Invaders game implementation using Pygame:
+
+```pythonimport pygame
+import pygame.mixer
+import random
+import math
+
+# Initialize Pygame modules
+pygame.init()
+pygame.mixer.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT =六百
+PLAYER_WIDTH =60
+PLAYER_HEIGHT =40 INVADER_WIDTH =50 INVader_HEIGHT = invader_height =40
+# Define colors BLACK = (0,0,0 WHITE =255,255 RED = (255 GREEN = (0 GREEN = (255,0 BLUE =0,255 YELLOW =255,255,0 CYAN = (0 MAGENTA =255 PURPLE =128,0 ORANGE = (255165,0 WHITE SMOKE245,245245,255 SILVER =192,192 GRAY =128,128 NAVY =0,128 OLIVE128,128 TEAL128,128 MAROON128,0 FUCSIA255,0,255 lime = 0xFF00 = 255,255 = pygame.time.Clock().tick(60 fps =60 clock = pygame.time.Clock()
+
+class Player(pygame sprite):
+    def __init__(self,x):
+        super().__init__()
+        self.image = pygame.Surface([PLAYER_WIDTH, PLAYER_HEIGHT])
+        self.image.fill(BLUE)
+        self rect = self.image.get_rect()
+        self.x = x起始位置 def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT or keys ord('a')]:
+            self.x -=5
+        elif keys ord('d') or keys[pygame.K_RIGHT]:
+            self.x +=5 def shoot(self):
+子弹 = Bullet(self.x +20, self.y -10子弹组.add(子弹 class Bullet(pygame sprite Sprite def __init__(self,x,y):
+        super().__init__()
+        self.image pygame.Surface([10,20 fillcolor RED self.rect.x = x,y = y update(self):
+        self.y -=10 if self.y <0 kill()
+
+class Invader(pygame sprite Sprite def __init__(self,x,y):
+        super().__init__(), self.image.fill(GREEN rect = self.image.get_rect().x = x,y=y update(self):
+ global 方向 self.x += direction * speed if self.x > SCREEN_WIDTH -50 or self.x <0:
+        direction *= -1 def draw(self screen):
+        screen.blit(self.image(self.rect.x, self.y
+
+class Explosion(pygame sprite Sprite def __init__(self.x,y爆炸组):
+        super().__init__ self.image = pygame.Surface([40,40 fillcolor YELLOW持续时间=0 def update(self):
+ global 爆炸组 if self.duration >30:
+        self.kill()
+
+class Game

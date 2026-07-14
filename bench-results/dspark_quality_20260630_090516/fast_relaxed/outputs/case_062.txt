@@ -1,0 +1,16 @@
+## Eventual Consistency
+
+**Eventual consistency** is a consistency model in distributed databases where, after a write, all nodes will eventually see the updated data, but not immediately. It's a "weak" consistency guarantee compared to **strong consistency**.
+
+### Key Characteristics
+
+1. **No immediate guarantee**: After a write, reads may return stale data for a period
+2. **Eventually**: All replicas will converge to the same state, given no new writes
+3. **Temporal delay**: The "eventual" period can be milliseconds or longer
+
+### How It Works
+
+```
+Write to Node A
+    ↓
+Node

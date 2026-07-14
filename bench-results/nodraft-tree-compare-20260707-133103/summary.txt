@@ -1,0 +1,18 @@
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:ds4: startup timing: engine=0.498s profile=0.000s model=0.005s sidecar=0.000s weights=0.000s dspark=0.000s backend=0.487s prewarm=0.006s
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:ds4: using GPU graph generation with layer-major graph prefill
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:ds4: prefill: 20.58 t/s, generation: 33.86 t/s (4725 tokens in 139.559s)
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:real 142.93
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:user 7.03
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:sys 1.81
+bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.err:            83525632  maximum resident set size
+bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.err:ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.err:real 0.39
+bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.err:user 0.01
+bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.err:sys 0.01
+bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.err:            36519936  maximum resident set size
+   15580 bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.out
+       0 bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.out
+   15580 total
+d6a7c1d5304eb56b7edcc490cbf13f98df92530b8f4a6c4750f86bcaa3bf6613  bench-results/nodraft-tree-compare-20260707-133103/ds4-ssd.out
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  bench-results/nodraft-tree-compare-20260707-133103/upstream-ds4.out

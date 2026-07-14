@@ -1,0 +1,146 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: MTP support model loaded: /Users/anemll/Models/antirez/DeepSeek-V4-Flash-MTP-Q4K-Q8_0-F32.gguf (draft=2)
+ds4: MTP sidecar verifier: batch verifier requested (resident all-expert sidecar, draft<=5)
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.360 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: Metal model views created in 0.121 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 3631.22 MiB from offset 0.00 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=28.62 t/s avg=2.01 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=1.92 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=50.44 t/s avg=3.70 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=3.58 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=47.83 t/s avg=5.18 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=4.99 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=4.82 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=44.93 t/s avg=6.21 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=6.01 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=46.44 t/s avg=7.27 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=7.06 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=49.57 t/s avg=8.24 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=8.03 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=56.19 t/s avg=9.15 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=8.91 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=8.73 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=51.21 t/s avg=9.74 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=9.44 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=54.05 t/s avg=10.39 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=10.15 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=48.07 t/s avg=11.02 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=10.76 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=56.50 t/s avg=11.61 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=11.38 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=11.18 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=48.89 t/s avg=11.94 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=11.71 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=45.10 t/s avg=12.42 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=12.19 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=49.22 t/s avg=12.88 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=12.66 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=49.34 t/s avg=13.32 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=13.08 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=12.84 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=47.97 t/s avg=13.45 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=13.21 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=49.50 t/s avg=13.80 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=13.55 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=48.71 t/s avg=14.12 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=13.88 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=42.46 t/s avg=14.39 t/s
+ds4: prefill full: 19 tokens in 1322.2 ms (14.4 t/s)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: speculative sidecar verifier: resident slot-bank tiny batch path engaged (n_tokens<=5, slot id == expert id)
+ds4: mtp timing micro drafted=2 committed=1 draft=2.779 ms snapshot=0.000 ms verify=57.233 ms prefix=0.391 ms total=60.480 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.277 ms snapshot=0.000 ms verify=46.018 ms prefix=0.442 ms total=48.760 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.888 ms snapshot=0.000 ms verify=43.804 ms total=46.761 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.249 ms snapshot=0.000 ms verify=44.376 ms total=46.656 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.316 ms snapshot=0.000 ms verify=44.949 ms total=47.311 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.265 ms snapshot=0.000 ms verify=43.705 ms prefix=0.390 ms total=46.382 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=1 draft=2.898 ms snapshot=0.000 ms verify=44.227 ms prefix=0.355 ms total=47.501 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.284 ms snapshot=0.000 ms verify=44.671 ms total=46.982 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.226 ms snapshot=0.000 ms verify=45.772 ms total=48.016 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.282 ms snapshot=0.000 ms verify=44.021 ms prefix=0.397 ms total=46.724 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.333 ms snapshot=0.000 ms verify=45.111 ms total=47.483 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.513 ms snapshot=0.000 ms verify=45.737 ms total=48.275 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.040 ms snapshot=0.000 ms verify=44.889 ms total=47.977 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.258 ms snapshot=0.000 ms verify=43.965 ms total=46.245 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.259 ms snapshot=0.000 ms verify=45.949 ms total=48.231 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.193 ms snapshot=0.000 ms verify=45.292 ms total=47.518 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.188 ms snapshot=0.000 ms verify=44.378 ms total=46.592 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.939 ms snapshot=0.000 ms verify=44.531 ms total=47.496 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.172 ms snapshot=0.000 ms verify=45.661 ms total=47.856 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.940 ms snapshot=0.000 ms verify=45.803 ms total=48.764 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.184 ms snapshot=0.000 ms verify=43.868 ms total=46.071 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.275 ms snapshot=0.000 ms verify=44.469 ms total=46.767 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.238 ms snapshot=0.000 ms verify=45.477 ms total=47.735 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.234 ms snapshot=0.000 ms verify=45.918 ms total=48.178 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.023 ms snapshot=0.000 ms verify=44.116 ms total=47.161 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.181 ms snapshot=0.000 ms verify=43.597 ms total=45.799 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.870 ms snapshot=0.000 ms verify=46.433 ms total=49.329 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.200 ms snapshot=0.000 ms verify=45.061 ms total=47.282 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.920 ms snapshot=0.000 ms verify=45.049 ms total=47.990 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.360 ms snapshot=0.000 ms verify=43.687 ms total=46.092 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.236 ms snapshot=0.000 ms verify=46.234 ms total=48.491 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.207 ms snapshot=0.000 ms verify=46.141 ms total=48.409 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.246 ms snapshot=0.000 ms verify=43.377 ms prefix=0.390 ms total=46.038 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.207 ms snapshot=0.000 ms verify=45.851 ms total=48.113 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.198 ms snapshot=0.000 ms verify=45.214 ms total=47.442 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=3.007 ms snapshot=0.000 ms verify=44.757 ms total=47.784 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.196 ms snapshot=0.000 ms verify=43.452 ms total=45.673 ms
+ds4: mtp timing micro drafted=2 committed=1 draft=2.994 ms snapshot=0.000 ms verify=45.107 ms prefix=0.408 ms total=48.532 ms noreplay=1
+ds4: mtp timing micro drafted=2 committed=2 draft=2.139 ms snapshot=0.000 ms verify=46.169 ms total=48.328 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.178 ms snapshot=0.000 ms verify=45.135 ms total=47.334 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.903 ms snapshot=0.000 ms verify=45.336 ms total=48.261 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.172 ms snapshot=0.000 ms verify=46.757 ms total=48.955 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.239 ms snapshot=0.000 ms verify=45.865 ms total=48.128 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.857 ms snapshot=0.000 ms verify=45.271 ms total=48.153 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.724 ms snapshot=0.000 ms verify=45.161 ms total=47.923 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.148 ms snapshot=0.000 ms verify=47.789 ms total=49.961 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.224 ms snapshot=0.000 ms verify=46.787 ms total=49.036 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.306 ms snapshot=0.000 ms verify=46.423 ms total=48.751 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.230 ms snapshot=0.000 ms verify=44.518 ms total=46.770 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.238 ms snapshot=0.000 ms verify=45.129 ms total=47.394 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.151 ms snapshot=0.000 ms verify=46.715 ms total=48.891 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.153 ms snapshot=0.000 ms verify=46.022 ms total=48.213 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.203 ms snapshot=0.000 ms verify=45.079 ms total=47.309 ms
+ds4: mtp timing micro drafted=2 committed=2 draft=2.946 ms snapshot=0.000 ms verify=45.687 ms total=48.695 ms
+ds4: ----------------------------------------
+ds4: prefill: 14.37 t/s, generation: 35.43 t/s (160 tokens in 4.516s)
+ds4: vm pressure: app=76.96 GiB resident=54.46 GiB wired=93.47 GiB compressed=1.91 GiB logical=3.45 GiB swap=2.10/3.00 GiB pressure=80% free=0.16 GiB gpu=76.89 GiB gpu-compressed=0.00 GiB task-compressed=18.18 GiB decompressions=3213472
+ds4: mtp acceptance: 90.2% (101/112 draft tokens)
+ds4: mtp acceptance by position: 1=54/58 2=47/54
+ds4: mtp avg scheduled: 1.93 draft tokens/block (58 blocks)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

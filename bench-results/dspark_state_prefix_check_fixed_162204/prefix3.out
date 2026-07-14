@@ -1,0 +1,68 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame.sprite
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+pygame.font()
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 800
+FPS = 0
+COLORS = {
+    "BLACK": (0, 0, 0),
+    "WHITE": (255, 255),
+    "RED),
+    "GREEN": (0, 0, 255),
+    "BLUE": (0, 0, 255),
+    "YELLOW": (255, 255, 0),
+    "POWER": (255, 0, 255)
+}
+
+# Player class
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = 0
+        self.width = 50
+        self.height = 50
+        self.vel = 5
+        self.speed = 5
+        self.health = 100
+        self.shoot_cooldown = 0
+        self.lives = 3
+    def move(self, direction):
+        if self.x > 0:
+            self.x += self.vel * direction
+    def shoot(self):
+        if self.shoot_coold == 0:
+            self.shoot = 0
+            self.shoot_cooldown = 0
+    def draw(self, screen):
+        self.screen = pygame.draw.rect(screen, self.x, self.y, self.width, self.height)
+
+# Enemy class
+class Enemy:
+        self.x = 0
+        self.y = 0
+        self.width = 40
+        self.height = 40
+        self.vel = 2
+        self.speed = 2
+        self.direction = 1
+    def(self):
+        self.x = random.randint(0, SCREEN_WIDTH - 40)
+        self.y = random.randint(0, 100)
+    def move(self):
+        self.x += self.x * self.direction
+        self.x += 10
+    def draw(self, screen):
+        self.screen = pygame.draw(screen, self.x, self.y, self.width, self.height)
+
+# Bullet class
+class Bullet:
+        self.x = 0
+        self.y = 0       

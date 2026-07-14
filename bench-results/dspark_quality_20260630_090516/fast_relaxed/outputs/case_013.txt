@@ -1,0 +1,9 @@
+Questa è una eccellente domanda che tocca il cuore della progettazione delle moderne architetture neurali.
+
+La scelta di RMSNorm (Root Mean Square Normalization) rispetto a LayerNorm (Layer Normalization) non è un caso, ma una risposta a specifici problemi di efficienza e performance. Analizziamo punto per punto perché RMSNorm usa la somma dei quadrati (RMS) e il riscalamento.
+
+### Il Problema di LayerNorm che RMSNorm Risolve
+
+Perché LayerNorm è "costosa" e a volte problematica?
+
+1.  **Costo Comput

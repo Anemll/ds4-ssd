@@ -1,0 +1,9 @@
+Questa è un'ottima domanda, perché tocca un punto cruciale e spesso frainteso nel mondo dell'audio digitale.
+
+La risposta breve è: **perché gli esperti rari (o "audiophile") ascoltano in modo diverso e hanno un sistema di riproduzione che svela i difetti che altri sistemi nascondono.**
+
+Ecco la spiegazione dettagliata, passo dopo passo.
+
+### 1. Cos'è l'errore di quantizzazione?
+
+Prima di tutto, un ripasso veloce. L'audio digitale non è una registrazione

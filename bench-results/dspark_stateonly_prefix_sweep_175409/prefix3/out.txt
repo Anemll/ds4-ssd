@@ -1,0 +1,67 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAY_WIDTH = 600
+PLAY_HEIGHT = 60
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 5
+BULLET_HEIGHT = 10
+ENEMY_BULLET_WIDTH = 5
+ENEMY_BULLET_HEIGHT = 10
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+# Player
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = PLAYER_WIDTH
+        self.height = PLAYER_HEIGHT
+        self.speed = 5
+        self.ives = 3
+        self.score = 0
+        
+        self.rect = pygame.Rect(self.x - self.width/2, self.y - self.height/2, 
+                                self.width, self.height)
+    
+    def update(self):
+        # Update rect
+        self.x = self.width/2
+        self.rect.x = self.x - self.width/2
+        self.rect.y = self.y - self.height/2
+    
+    def draw(self, dx, dy):
+        pygame.draw.rect(self, self.rect, self.rect.width/2, self.rect.height/2)
+    
+    def move(self, dx):
+        self.x += dx
+        self.x = max(PLAY_WIDTH, min(PLAY_WIDTH + PLAY_WIDTH, self.x))
+        self.rect.x = self.x - self.width/2
+    
+    def shoot(self):
+        if len(self.bullets) > 0:
+            self.bullets[-1].y += 10
+            if self.bullets[-1].y > SCREEN_HEIGHT:
+                self.bullets.pop()
+    
+   

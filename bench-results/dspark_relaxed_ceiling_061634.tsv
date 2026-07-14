@@ -1,0 +1,4 @@
+case	out	err	gen_tps	block_ms	draft_ms	verify_ms	tau	acceptance	suspect
+loopguard_off	bench-results/dspark_loopguard_off_n1000_061634.out	bench-results/dspark_loopguard_off_n1000_061634.err	57.44	83.44	10.09	71.15	4.83	98.5%	1
+unbounded	bench-results/dspark_unbounded_n1000_061634.out	bench-results/dspark_unbounded_n1000_061634.err	58.88	84.54	10.08	72.31	5.00	100.0%	1
+top512_delta20	bench-results/dspark_top512_delta20_n1000_061634.out	bench-results/dspark_top512_delta20_n1000_061634.err	57.58	84.76	10.04	72.46	4.90	98.2%	1

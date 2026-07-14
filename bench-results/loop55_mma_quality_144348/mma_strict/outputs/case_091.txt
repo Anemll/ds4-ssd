@@ -1,0 +1,5 @@
+A confidence interval is a range of numbers that likely contains the true value you're trying to measure.
+
+Think of it like this: If you're trying to guess the exact number of jelly beans in a giant jar, you probably won't get it right on the first try. Instead, you might say, "I'm pretty sure there are between 1,000 and 1,200 jelly beans."
+
+That range—1,000 to 1,200—is your confidence interval. It's a way of saying, "I'm not 100% certain of the exact number, but I'm confident the real number falls somewhere in

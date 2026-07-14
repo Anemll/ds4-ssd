@@ -1,0 +1,159 @@
+I'll create a self-contained HTML file that replicates the classic 1978 Taito arcade game "Aster" (note: the original request mentions "aders" which appears to be a typo for "Asteroids" - but I'll create a faithful recreation of the classic Taito arcade experience with Space Invaders-inspired mechanics).
+
+Let me build a complete Space Invaders game in a single HTML file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders - 1978 Taito Arcade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        .arcade {
+            background: #111;
+            border: 4px solid #333;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #000;
+            image-rendering: pixelated;
+        }
+        
+        .scoreboard {
+            color: #0f0;
+            font-size: 24px;
+            text-align: center;
+            padding: 10px;
+            letter-spacing: 4px;
+            text-shadow: 0 0 10px #0f0;
+        }
+        
+        .controls {
+            color: #555;
+            font-size: 12px;
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .controls span {
+            color: #0f0;
+        }
+        
+        @media (max-width: 600px) {
+            .arcade {
+                padding: 5px;
+                border-width: 2px;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="arcade">
+        <div class="scoreboard">
+            <span>SCORE</span>
+            <span id="scoreDisplay">0000000</span>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <span>← →</span> MOVE &nbsp; <span>SPACE</span> FIRE &nbsp; <span>R</span> RESTART
+        </div>
+    </div>
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            
+            // Game constants
+            const PLAYER_WIDTH = 40;
+            const PLAYER_HEIGHT = 20;
+            const INVADER_WIDTH = 40;
+            const INVADER_HEIGHT = 30;
+            const INVADER_COLS = 11;
+            const INVADER_ROWS = 5;
+            const INVADER_SPACING = 60;
+            const INVADER_OFFSET_Y = 50;
+            const BULLET_WIDTH = 4;
+            const BULLET_HEIGHT = 12;
+            const INVADER_BULLET_WIDTH = 6;
+            const INVADER_BULLET_HEIGHT = 8;
+            
+            // Game state
+            let playerX = 380;
+            let playerY = 560;
+            let playerLives = 3;
+            let score = 0;
+            let level = 1;
+            let gameOver = false;
+            let gameStarted = false;
+            let invaderDirection = 1;
+            let invaderSpeed = 1;
+            let invaderStepCounter = 0;
+            let invaderStepMax = 20;
+            let invaderDownCounter = 0;
+            let invaderDownMax = 10;
+            let invaderAnimFrame = 0;
+            let invaderAnimTimer = 0;
+            let invaderAnimSpeed = 10;
+            
+            // Arrays
+            let invaders = [];
+            let bullets = [];
+            let invaderBullets = [];
+            let shields = [];
+            let explosions = [];
+            
+            // Input
+            const keys = {};
+            let keyJustPressed = false;
+            
+            // Initialize
+            function init() {
+                createInvaders();
+                createShields();
+                playerX = 380;
+                playerY = 560;
+                playerLives = 3;
+                score = 0;
+                level = 1;
+                gameOver = false;
+                gameStarted = true;
+                invaderSpeed = 1.5 + (level - 1) * 0.5;
+                invaderStepMax = Math.max(10, 20 - level * 2);
+                bullets = [];
+                invaderBullets = [];
+                explosions = [];
+                scoreDisplay.textContent = '0';
+                document.addEventListener('keydown', handleKeyDown);
+                document.addEventListener('keyup', handleKeyUp);
+            }
+            
+            function createInvaders() {
+                invaders = [];
+                for (let row = 0; row < INVADER_ROWS;

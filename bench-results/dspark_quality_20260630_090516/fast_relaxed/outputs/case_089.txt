@@ -1,0 +1,14 @@
+A hash table handles collisions (when two different keys produce the same hash index) using two main strategies:
+
+## 1. **Separate Chaining (Open hashing)**
+
+Each slot in the hash table points to a linked list (or other data structure) that stores all keys hashing to that index.
+
+**How it works:**
+- Hash function gives index `i` for key `k`
+- If `table[i]` is empty, insert `k` directly
+- If `table[i]` already has entries, append `k` to the linked list at `i`
+
+**Example:**
+```
+Index 0

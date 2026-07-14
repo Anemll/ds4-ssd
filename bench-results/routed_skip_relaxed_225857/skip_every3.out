@@ -1,0 +1,80 @@
+I'll create a complete Space Invaders game with Pygame. This includes the player's ship, enemies, and basic game mechanics.
+
+```python
+import pygame
+import math
+import random
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+PLAYER_SIZE = 40
+ENEMY_SIZE = 30
+ENEMY_COUNT = 10
+BULLET_SPEED = 7
+BULLET_SIZE = 5
+
+# Initialize Pygame
+pygame.init()
+
+# Set up the screen
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT - 50
+        self.speed = PLAYER_SPEED
+        self.image = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE))
+        self.image.fill(GREEN)
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.x, self.y)
+
+class Enemy:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = 2
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.x, self.y)
+
+class Bullet:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.speed = BULLET_SPEED
+        self.image = pygame.Surface((BULLET_SIZE, BULLET_SIZE))
+        self.image.fill(YELLOW)
+        self.rect = self.image.get_rect()
+        self.rect.center = (self.x, self.y)
+
+def create_initial_enemies():
+    enemies = []
+    for _ in range(ENEMY_COUNT):
+        x = random.randint(0, SCREEN_WIDTH - ENEMY_SIZE)
+        y = random.randint(0, 100)
+        enemies.append(Enemy(x, y))
+    return enemies
+
+def draw_background():
+    pygame.draw.rect(screen, WHITE, (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT))
+
+def draw_player():
+    player.draw(screen)
+
+def draw_enemies():
+    for enemy in enemies:
+        enemy.draw(screen)
+
+def

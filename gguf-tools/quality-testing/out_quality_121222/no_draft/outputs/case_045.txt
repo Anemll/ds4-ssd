@@ -1,0 +1,1 @@
+This is a great question that gets to the heart of a common performance anti-pattern in computer graphics and real-time rendering

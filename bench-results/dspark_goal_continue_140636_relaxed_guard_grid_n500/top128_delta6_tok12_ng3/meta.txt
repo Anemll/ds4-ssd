@@ -1,0 +1,1 @@
+top128_delta6_tok12_ng3 topk=128 delta=6 tokenmax=12 ngram=3

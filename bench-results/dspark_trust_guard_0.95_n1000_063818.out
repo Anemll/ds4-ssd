@@ -1,0 +1,138 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+# Colors
+BLACK = (0, 0,, 0, 0)
+WHITE = (255, 255,, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set((GREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
+        self.running = True
+        self.game_over = False
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        
+        # Game objects
+        self.player = Player()
+        self.enemies = []
+        self.bullets = []
+        self.enemy_bullets = []
+        self.shoot_enemies()
+        
+        # Enemy movement
+        self.enemy_direction = -1  # Move
+        self.enemy_speed = 2
+        self.enemy_move_down = False
+        self.enemy_move_timer = 0
+        
+        # Bullet cooldown
+        self.bullet_timer = 0
+        self.bullet_cooldown = 500
+        
+    def shoot_enemies(self):
+        """Create enemies for enemies"""
+        # Create a range of enemies
+        for _ in range(5):
+            for _ in range(3):
+                x = random.randint(EN_WIDTH, SCREEN_WIDTH - ENEM_WIDTH)
+                y = random.randint(50, 200)
+                self.enemies.append(Enemy(x, y, self.level))
+    
+    def handle_event(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    self.running = False
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self.bulletimer.append(0)
+                    if self.bullet_timer >= self.bullet_cooldown:
+                        self.bullets.append(Bullet(self.player.x + self.player_WIDTH // 2, self.player.y))
+                        self.bullet_timer = 0
+                if event.key == pygame.K_r and self.game_over:
+                    self.game_over = False
+    
+    def update(self):
+        if self.game_over:
+            return
+        
+        # Handle
+        player = self.player
+        # Update
+        if player.x == 0:
+            pass
+        # Move player
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            player.x -= 0
+        if keys[pygame.K_RIGHT]:
+            player.x += 0
+        
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+            else:
+                # Check collision with enemies
+                for enemy in self.enemies[:]:
+                    if bullet.rect.collider(enemy):
+                        self.bullets.remove(bullet)
+                        self.enemies.remove(enemy)
+                        self.score += 10
+                        break
+        
+        # Update enemies
+        for enemy in self.enemies:
+                enemy.update()
+                if enemy.y > SCREEN_HEIGHT:
+                        self.enemies.append(Enemy)
+                    self.enemies.remove(enemy)
+        
+        # Enemy movement
+        if enemy:
+            self.move_to_enemy()
+        
+        # Check enemy
+        for enemy in self.enemies:
+            if enemy.y > SCREEN_HEIGHT - 50:
+                self.game_over = True
+        
+        # Check if player is destroyed
+        if self.player.get('):
+            if self.player.x == 0:
+                self.game_over = True
+        
+        # Update enemy bullets
+        for bullet in self.enemy_bullets[:]:
+            bullet.update()
+            if bullet.y > SCREEN_HEIGHT:
+                self.enemy_bullet.remove(bullet)
+            elif bullet:
+                if bullet.rect.collider(self.player):
+                    self.lives -=

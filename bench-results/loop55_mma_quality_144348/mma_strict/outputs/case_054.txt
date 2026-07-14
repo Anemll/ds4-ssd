@@ -1,0 +1,10 @@
+Questa è un'ottima domanda che tocca un aspetto critico delle performance con `mmap`. Il problema dei "rimappi ripetuti" (o *remapping thrashing*) può causare un degrado significativo delle prestazioni.
+
+Ecco come testerei e diagnosticherei questo problema:
+
+## 1. **Test con strumenti di sistema**
+
+### Usando `strace` per tracciare le syscall
+```bash
+# Traccia solo le syscall mmap e munmap
+strace -e trace=mmap,munmap,mmap2 -p <PID

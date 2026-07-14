@@ -1,0 +1,6 @@
+== baseline.canary
+bench-results/dspark_nax_fast_ab_032206/baseline.out	2381	79	67	1	0		0		0	0	0	3	3	0
+== nax.canary
+bench-results/dspark_nax_fast_ab_032206/nax.out	2426	74	69	1	0		0		0	0	0	2	1	0
+== nax_topk.canary
+bench-results/dspark_nax_fast_ab_032206/nax_topk.out	2426	74	69	1	0		0		0	0	0	2	1	0

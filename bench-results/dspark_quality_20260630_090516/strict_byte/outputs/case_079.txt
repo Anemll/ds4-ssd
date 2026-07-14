@@ -1,0 +1,11 @@
+Ecco una checklist per revisionare la gestione della memoria (lifetime) in una Pull Request:
+
+## ✅ Checklist Lifetime di Memoria
+
+### 1. **Ownership e Borrowing**
+- [ ] I prestiti (`&`) hanno lifetime esplicite o implicite corrette
+- [ ] I riferimenti non sopravvivono al dato che referenziano (nessun *dangling pointer*)
+- [ ] I `&mut` non creano conflitti di aliasing
+
+### 2. **Lifetime nei Generics**
+- [ ] I lifetime nei generics sono specificati corrett

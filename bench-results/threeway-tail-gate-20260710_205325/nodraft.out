@@ -1,0 +1,459 @@
+
+
+I'll start by writing the complete Pygame Space Invaders game.
+
+🛠️ write  path=game.py
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+PLAYER_SPEED = 5
+BULLET_SPEED = 10
+ENEMY_BULLET_SPEED = 5
+ENEMY_SPEED = 1
+ENEMY_DROP = 20
+ENEMY_SHOOT_COOLDOWN = 600  # milliseconds
+PLAYER_SHOOT_COOLDOWN = 250  # milliseconds
+ENEMY_COLS = 10
+ENEMY_ROWS = 5
+ENEMY_GAP = 60
+ENEMY_OFFSET_X = 50
+ENEMY_OFFSET_Y = 40
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 100, 255)
+YELLOW = (255, 255, 0)
+PURPLE = (200, 0, 200)
+CYAN = (0, 255, 255)
+
+# Screen setup
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Space Invaders")
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
+small_font = pygame.font.Font(None, 24)
+
+class Player:
+    def __init__(self):
+        self.width = 50
+        self.height = 30
+        self.x = SCREEN_WIDTH // 2 - self.width // 2
+        self.y = SCREEN_HEIGHT - 60
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.shoot_cooldown = 0
+        self.lives = 3
+        self.score = 0
+        self.combo = 0
+
+    def update(self, keys_pressed, dt):
+        if keys_pressed[pygame.K_LEFT] or keys_pressed[pygame.K_a]:
+            self.x -= self.speed
+        if keys_pressed[pygame.K_RIGHT] or keys_pressed[pygame.K_d]:
+            self.x += self.speed
+        self.x = max(0, min(SCREEN_WIDTH - self.width, self.x))
+
+        if self.shoot_cooldown > 0:
+            self.shoot_cooldown -= dt
+        if keys_pressed[pygame.K_SPACE] and self.shoot_cooldown <= 0:
+            self.shoot()
+            self.shoot_cooldown = PLAYER_SHOOT_COOLDOWN
+
+        for b in self.bullets[:]:
+            b.update()
+            if b.y < 0:
+                self.bullets.remove(b)
+
+    def shoot(self):
+        self.bullets.append(Bullet(self.x + self.width // 2 - 2, self.y, BULLET_SPEED, True))
+
+    def draw(self, surface):
+        # Draw player ship (triangle shape)
+        points = [
+            (self.x + self.width // 2, self.y),
+            (self.x, self.y + self.height),
+            (self.x + self.width, self.y + self.height)
+        ]
+        pygame.draw.polygon(surface, GREEN, points)
+        # Cockpit detail
+        cx = self.x + self.width // 2
+        cy = self.y + self.height // 2
+        pygame.draw.circle(surface, CYAN, (cx, cy), 6)
+        # Engine glow
+        pygame.draw.rect(surface, YELLOW, (self.x + 10, self.y + self.height - 5, 10, 5))
+        pygame.draw.rect(surface, YELLOW, (self.x + self.width - 20, self.y + self.height - 5, 10, 5))
+
+        for b in self.bullets:
+            b.draw(surface)
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+
+class Enemy:
+    def __init__(self, x, y, row, col):
+        self.width = 40
+        self.height = 30
+        self.x = x
+        self.y = y
+        self.row = row
+        self.col = col
+        self.alive = True
+        self.animation_frame = 0
+        self.shoot_timer = random.randint(0, ENEMY_SHOOT_COOLDOWN)
+
+    def update(self, dt, direction, drop):
+        self.animation_frame = (self.animation_frame + 1) % 20
+        self.x += direction * ENEMY_SPEED
+        self.y += drop
+
+    def draw(self, surface):
+        if not self.alive:
+            return
+        # Draw enemy (crab-like shape)
+        color_choice = RED if self.row % 2 == 0 else PURPLE
+        # Body
+        body_rect = pygame.Rect(self.x + 4, self.y + 6, self.width - 8, self.height - 10)
+        pygame.draw.ellipse(surface, color_choice, body_rect)
+        # Eyes
+        eye_offset = 1 if self.animation_frame < 10 else -1
+        pygame.draw.circle(surface, WHITE, (self.x + 12 + eye_offset, self.y + 10), 5)
+        pygame.draw.circle(surface, WHITE, (self.x + self.width - 12 + eye_offset, self.y + 10), 5)
+        pygame.draw.circle(surface, BLACK, (self.x + 12 + eye_offset, self.y + 10), 2)
+        pygame.draw.circle(surface, BLACK, (self.x + self.width - 12 + eye_offset, self.y + 10), 2)
+        # Legs
+        leg_y = self.y + self.height - 6
+        for i in range(3):
+            lx = self.x + 6 + i * 12
+            pygame.draw.line(surface, color_choice, (lx, leg_y), (lx - 4, leg_y + 6), 2)
+            pygame.draw.line(surface, color_choice, (lx + 8, leg_y), (lx + 12, leg_y + 6), 2)
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+
+class Bullet:
+    def __init__(self, x, y, speed, player_bullet=True):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 12
+        self.player_bullet = player_bullet
+
+    def update(self):
+        if self.player_bullet:
+            self.y -= self.speed
+        else:
+            self.y += self.speed
+
+    def draw(self, surface):
+        color = YELLOW if self.player_bullet else RED
+        pygame.draw.rect(surface, color, (self.x, self.y, self.width, self.height))
+
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+
+class Explosion:
+    def __init__(self, x, y, size=30):
+        self.x = x
+        self.y = y
+        self.size = size
+        self.lifetime = 30
+        self.particles = []
+        for _ in range(10):
+            self.particles.append({
+                'x': random.uniform(-size // 2, size // 2),
+                'y': random.uniform(-size // 2, size // 2),
+                'vx': random.uniform(-3, 3),
+                'vy': random.uniform(-3, 3),
+                'life': random.randint(10, 30)
+            })
+
+    def update(self):
+        self.lifetime -= 1
+        for p in self.particles:
+            p['x'] += p['vx']
+            p['y'] += p['vy']
+            p['life'] -= 1
+
+    def draw(self, surface):
+        if self.lifetime <= 0:
+            return
+        for p in self.particles:
+            if p['life'] > 0:
+                pygame.draw.circle(surface, YELLOW, (int(self.x + p['x']), int(self.y + p['y'])), 3)
+        # Main explosion circle
+        alpha = min(255, self.lifetime * 10)
+        pygame.draw.circle(surface, (255, 100, 0, alpha), (int(self.x), int(self.y)), self.size // 2, 2)
+
+    def is_dead(self):
+        return self.lifetime <= 0
+
+
+class Star:
+    def __init__(self):
+        self.x = random.randint(0, SCREEN_WIDTH)
+        self.y = random.randint(0, SCREEN_HEIGHT)
+        self.size = random.randint(1, 3)
+        self.speed = random.uniform(0.5, 1.5)
+
+    def update(self, dt):
+        self.y += self.speed
+        if self.y > SCREEN_HEIGHT:
+            self.y = 0
+            self.x = random.randint(0, SCREEN_WIDTH)
+
+    def draw(self, surface):
+        pygame.draw.circle(surface, WHITE, (int(self.x), int(self.y)), self.size)
+
+
+class Shield:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 80
+        self.height = 30
+        self.health = 3
+        self.blocks = []
+        for bx in range(0, self.width, 10):
+            for by in range(0, self.height, 10):
+                self.blocks.append(pygame.Rect(self.x + bx, self.y + by, 10, 10))
+
+    def hit(self, bullet_rect):
+        for block in self.blocks[:]:
+            if block.colliderect(bullet_rect):
+                self.blocks.remove(block)
+                return True
+        return False
+
+    def draw(self, surface):
+        for block in self.blocks:
+            pygame.draw.rect(surface, CYAN, block)
+
+
+class Game:
+    def __init__(self):
+        self.player = Player()
+        self.enemies = []
+        self.enemy_bullets = []
+        self.explosions = []
+        self.shields = []
+        self.stars = [Star() for _ in range(60)]
+        self.score = 0
+        self.lives = 3
+        self.level = 1
+        self.state = "playing"  # playing, game_over, paused, level_transition
+        self.enemy_direction = 1
+        self.enemy_speed_mult = 1.0
+        self.enemy_shoot_timer = 0
+        self.enemy_move_timer = 0
+        self.enemy_move_interval = 1000
+        self.enemy_bullet_timer = 0
+        self.enemy_bullet_interval = 800
+        self.transition_timer = 0
+        self.high_score = 0
+        self._load_high_score()
+        self._init_level()
+
+    def _load_high_score(self):
+        try:
+            with open("highscore.txt", "r") as f:
+                self.high_score = int(f.read().strip())
+        except:
+            self.high_score = 0
+
+    def _save_high_score(self):
+        with open("highscore.txt", "w") as f:
+            f.write(str(self.high_score))
+
+    def _init_level(self):
+        self.enemies.clear()
+        self.enemy_bullets.clear()
+        self.shields.clear()
+        self.enemy_direction = 1
+        self.enemy_speed_mult = 1.0 + (self.level - 1) * 0.15
+        self.enemy_shoot_timer = 0
+        self.enemy_move_timer = 0
+        self.enemy_bullet_timer = 0
+
+        # Create enemies
+        for row in range(ENEMY_ROWS):
+            for col in range(ENEMY_COLS):
+                x = ENEMY_OFFSET_X + col * ENEMY_GAP
+                y = ENEMY_OFFSET_Y + row * 40
+                self.enemies.append(Enemy(x, y, row, col))
+
+        # Create shields
+        for i in range(4):
+            sx = 80 + i * 180
+            sy = SCREEN_HEIGHT - 120
+            self.shields.append(Shield(sx, sy))
+
+    def handle_events(self, events):
+        for event in events:
+            if event.type == pygame.QUIT:
+                return False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if self.state == "playing":
+                        self.state = "paused"
+                    elif self.state == "paused":
+                        self.state = "playing"
+                if event.key == pygame.K_r and self.state == "game_over":
+                    self.__init__()
+                    return True
+                if event.key == pygame.K_SPACE and self.state == "level_transition":
+                    self.state = "playing"
+        return True
+
+    def update(self, dt):
+        if self.state == "paused" or self.state == "game_over" or self.state == "level_transition":
+            return
+
+        keys = pygame.key.get_pressed()
+        self.player.update(keys, dt)
+
+        # Update stars
+        for s in self.stars:
+            s.update(dt)
+
+        # Update explosions
+        for e in self.explosions[:]:
+            e.update()
+            if e.is_dead():
+                self.explosions.remove(e)
+
+        # Enemy movement
+        self.enemy_move_timer += dt
+        if self.enemy_move_timer >= self.enemy_move_interval:
+            self.enemy_move_timer = 0
+            # Check if any enemy hits edge
+            edge_hit = False
+            for e in self.enemies:
+                if e.alive:
+                    if (self.enemy_direction == 1 and e.x + e.width >= SCREEN_WIDTH - 10) or \
+                       (self.enemy_direction == -1 and e.x <= 10):
+                        edge_hit = True
+                        break
+            if edge_hit:
+                self.enemy_direction *= -1
+                for e in self.enemies:
+                    if e.alive:
+                        e.y += ENEMY_DROP
+            else:
+                for e in self.enemies:
+                    if e.alive:
+                        e.update(dt, self.enemy_direction * self.enemy_speed_mult, 0)
+
+        # Enemy shooting
+        self.enemy_bullet_timer += dt
+        if self.enemy_bullet_timer >= self.enemy_bullet_interval:
+            self.enemy_bullet_timer = 0
+            alive_enemies = [e for e in self.enemies if e.alive]
+            if alive_enemies:
+                shooter = random.choice(alive_enemies)
+                self.enemy_bullets.append(
+                    Bullet(shooter.x + shooter.width // 2 - 2, shooter.y + shooter.height,
+                           ENEMY_BULLET_SPEED, False)
+                )
+
+        # Update enemy bullets
+        for b in self.enemy_bullets[:]:
+            b.update()
+            if b.y > SCREEN_HEIGHT:
+                self.enemy_bullets.remove(b)
+
+        # Check collisions: player bullets vs enemies
+        for pb in self.player.bullets[:]:
+            pb_rect = pb.get_rect()
+            for e in self.enemies:
+                if e.alive and pb_rect.colliderect(e.get_rect()):
+                    e.alive = False
+                    self.player.bullets.remove(pb)
+                    self.score += 10 * (self.level)
+                    self.player.combo += 1
+                    if self.player.combo >= 5:
+                        self.score += 50
+                    self.explosions.append(Explosion(e.x + e.width // 2, e.y + e.height // 2))
+                    break
+
+        # Check collisions: enemy bullets vs player
+        player_rect = self.player.get_rect()
+        for eb in self.enemy_bullets[:]:
+            eb_rect = eb.get_rect()
+            if player_rect.colliderect(eb_rect):
+                self.enemy_bullets.remove(eb)
+                self.lives -= 1
+                self.player.combo = 0
+                self.explosions.append(Explosion(self.player.x + self.player.width // 2,
+                                                 self.player.y + self.player.height // 2))
+                if self.lives <= 0:
+                    self.state = "game_over"
+                    if self.score > self.high_score:
+                        self.high_score = self.score
+                        self._save_high_score()
+                break
+
+        # Check collisions: bullets vs shields
+        for shield in self.shields:
+            for pb in self.player.bullets[:]:
+                if shield.hit(pb.get_rect()):
+                    self.player.bullets.remove(pb)
+                    break
+            for eb in self.enemy_bullets[:]:
+                if shield.hit(eb.get_rect()):
+                    self.enemy_bullets.remove(eb)
+                    break
+
+        # Check collisions: enemies vs player
+        for e in self.enemies:
+            if e.alive and player_rect.colliderect(e.get_rect()):
+                self.lives = 0
+                self.state = "game_over"
+                if self.score > self.high_score:
+                    self.high_score = self.score
+                    self._save_high_score()
+                return
+
+        # Check collisions: enemies vs shields
+        for e in self.enemies:
+            if e.alive:
+                for shield in self.shields:
+                    for block in shield.blocks[:]:
+                        if block.colliderect(e.get_rect()):
+                            shield.blocks.remove(block)
+                            break
+
+        # Check level complete
+        if all(not e.alive for e in self.enemies):
+            self.level += 1
+            self.state = "level_transition"
+            self.transition_timer = 2000
+
+    def draw(self, surface):
+        surface.fill(BLACK)
+
+        # Draw stars
+        for s in self.stars:
+            s.draw(surface)
+
+        # Draw shields
+        for shield in self
+[tool call interrupted]
+
+ds4-agent: turn-stats round=0 generated=4096 max=4096 decode_s=120.561932 gen_tps=33.974 ctx=6034 stop=malformed_tool
+
+Tool call exceeded --tokens before it closed; increase --tokens or ask for a smaller artifact.

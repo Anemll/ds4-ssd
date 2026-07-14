@@ -1,0 +1,1 @@
+A good benchmark should be **relevant to the task, representative of the target domain, and resistant to overfitting**, ensuring that performance gains translate to real-world improvements rather than just statistical noise.

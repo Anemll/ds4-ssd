@@ -1,0 +1,5 @@
+case	out	err	gen_tps	block_ms	draft_ms	verify_ms	tau	acceptance	suspect
+th90p2	bench-results/dspark_trust_th90p2_n1000_062908.out	bench-results/dspark_trust_th90p2_n1000_062908.err	42.74	68.70	10.72	53.39	3.50	68.0%	1
+th95p2	bench-results/dspark_trust_th95p2_n1000_062908.out	bench-results/dspark_trust_th95p2_n1000_062908.err	57.21	84.22	10.72	71.28	4.88	98.3%	1
+th90p3	bench-results/dspark_trust_th90p3_n1000_062908.out	bench-results/dspark_trust_th90p3_n1000_062908.err	43.40	73.71	10.70	60.77	3.62	69.7%	1
+th95p3	bench-results/dspark_trust_th95p3_n1000_062908.out	bench-results/dspark_trust_th95p3_n1000_062908.err	57.20	84.23	10.72	71.29	4.88	98.3%	1

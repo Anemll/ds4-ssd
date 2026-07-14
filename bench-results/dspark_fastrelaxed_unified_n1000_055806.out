@@ -1,0 +1,128 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 10
+ENEMY_RADIUS = 15
+BULLET_SIZE = 8
+BULLET_SPEED = 10
+ENEMY_BULLET_SPEED = 5
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+ENEMY_COUNT = 10
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((800, 600), pygame.SCALED)
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        
+        # Reset
+        self.reset_game()
+    
+    def reset(self):
+        """Reset game state"""
+        self.player = None
+        self.enemies = []
+        self.bullets = []
+        self.lives = 0
+        self.score = 0
+        self.game_over = False
+        self.win = False
+        
+        self.reset_game()
+    
+    def reset_game(self):
+        """Initialize game objects"""
+        # Player
+        self.player = pygame.Rect(screen_width // 2 - 50, screen_height - 50, 100, 20)
+        
+        # Enemy
+        self.enemies = []
+        for i in range(5):
+                for j in range(2):
+                    x = 100 + i * 120
+                    y = 50 + j * 80
+                    enemy = pygame.Rect(x-20, 10, 40, 30)
+                    self.enemies.append(enemy)
+        
+        # Bullets
+        self.player_bullets = []
+        self.enemy_bullets = []
+        self.enemy_direction = 1  #1 for right, 1 for left
+        self.enemy_speed = 2
+        self.enemy_shot_timer = 0
+        self.enemy_shot = 0
+        
+        # Game state
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.win = False
+        self.paused = False
+        
+        # Player position
+        self.player_x = 400
+        self.player_y = 550
+        
+        self.enemy_move_down = False
+        self.enemy_move_timer = 0
+        self.enemy_move = 0
+        
+    def create_enemies(self):
+        """Create enemy positions"""
+        self.enemies = []
+        for row in range(3):
+            for col in range(10):
+                    x = 60 + col * 70
+                    y = 50 + row * 60
+                    enemy = {'rect': pygame.Rect(x, y, 40, 30), 'type': row, 'alive': False}
+        self.enemies.append(enemy)
+    
+    def draw_game(self):
+        """Draw game objects"""
+        # Player
+        if self.player:
+            pygame.draw.rect(self.screen, GREEN, (self.player_x, self.player_y - 50, 50, 20))
+            pygame.draw.polygon(self.screen, (255, 255, 255), 
+                [(self.player_x + 25, self.player_y - 20), 
+                 (self.player_x, self.player_y - 50),
+                 (self.player_x + 50, self.player_y - 50)])
+        
+        # Enemies
+        for enemy in self.enemies:
+            pygame.draw.rect(self.screen, RED, enemy)
+        
+        # Bullets
+        for bullet in self.player_bullets:
+            pygame.draw.circle(self.screen, YELLOW, 2, 2)
+        
+        for bullet in self.enemy_bullets:
+            pygame.draw.circle(self.screen, RED, 2, 2)
+    
+    def draw(self):
+        """Display the game"""
+        self.screen.fill(BLACK)
+        
+        if self.game_over:
+            self.font = self.font.size()
+            self.screen.blit(self.font.render("Game Over", True, 255,

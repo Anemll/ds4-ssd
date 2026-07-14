@@ -1,0 +1,133 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic implementation with all the essential features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, screen_width, screen_height):
+        self.width = 40
+        self.height = 20
+        self.x = screen_width // 2 - self.width // 2
+        self.y = screen_height - 50
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+        
+    def move_left(self):
+        self.x = max(0, self.x - self.speed)
+        
+    def move_right(self, screen_width):
+        self.x = min(screen_width - self.width, self.x + self.speed)
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Alien:
+    def __init__(self, x, y, speed):
+        self.width = 30
+        self.height = 20
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.direction = 1  # 1 for right, -1 for left
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        self.x += self.speed * self.direction
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+    
+    def change_direction(self):
+        self.direction *= -1
+
+class Bullet:
+    def __init__(self, x, y, speed, color):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.color = color
+        self.width = 4
+        self.height = 10
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        self.y += self.speed
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class SpaceInvaders:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.game_over = False
+        self.player = Player(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.aliens = []
+        self.player_bullets = []
+        self.alien_bullets = []
+        self.create_aliens()
+        
+    def create_aliens(self):
+        # Create a grid of aliens
+        for row in range(5):
+            for col in range(10):
+                x = 50 + col * 70
+                y = 50 + row * 40
+                speed = 1 + row * 0.5  # Faster aliens in higher rows
+                self.aliens.append(Alien(x, y, speed))
+                
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    # Shoot bullet
+                    bullet = Bullet(
+                        self.player.x + self.player.width // 2 - 2,
+                        self.player.y - 10,
+                        -8,  # Negative for upward movement
+                        YELLOW
+                    )
+                    self.player_bullets.append(bullet)
+                    
+    def update(self):
+        if self.game_over:
+            return
+            
+        # Update player
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player.move_left()
+        if keys[pygame.K_RIGHT]:
+            self.player.move_right(SCREEN_WIDTH)
+            
+        # Update aliens
+        for alien in self

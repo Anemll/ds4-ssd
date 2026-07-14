@@ -1,0 +1,69 @@
+===== seg-th0.4 Tue Jul  7 23:14:31 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=39.48 t/s (1000 tokens in 25.328s) cumulative=39.48 t/s elapsed=25.328s
+ds4: decode-progress: tokens=2000 window=36.72 t/s (1000 tokens in 27.234s) cumulative=38.05 t/s elapsed=52.562s
+ds4: prefill: 19.10 t/s, generation: 36.95 t/s (2500 tokens in 67.651s)
+ds4: dspark perf: draft=396.5 tok/s, verify=66.4 proposed tok/s, verify-accepted=43.9 tok/s, block=74.54 ms (draft=10.48 verify=62.59 overhead=1.47 commit=1.12, tau=2.75, blocks=667)
+ds4: dspark acceptance: 66.1% (1832/2771 draft tokens)
+ds4: dspark full-accept: 51.7% (328/635 blocks), first-miss: 19.4% (123/635 blocks)
+ds4: dspark avg scheduled: 4.36 draft tokens/block (635 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.1891 samples=2771
+===== seg-th0.9 Tue Jul  7 23:16:15 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=37.73 t/s (1000 tokens in 26.503s) cumulative=37.73 t/s elapsed=26.503s
+ds4: decode-progress: tokens=2000 window=36.16 t/s (1000 tokens in 27.654s) cumulative=36.93 t/s elapsed=54.157s
+ds4: prefill: 19.19 t/s, generation: 36.14 t/s (2500 tokens in 69.171s)
+ds4: dspark perf: draft=153.3 tok/s, verify=55.1 proposed tok/s, verify-accepted=49.0 tok/s, block=40.46 ms (draft=10.51 verify=29.23 overhead=0.71 commit=0.51, tau=1.43, blocks=1028)
+ds4: dspark acceptance: 88.8% (1472/1657 draft tokens)
+ds4: dspark full-accept: 87.8% (526/599 blocks), first-miss: 10.5% (63/599 blocks)
+ds4: dspark avg scheduled: 2.77 draft tokens/block (599 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.0916 samples=1657
+===== json-th0.4 Tue Jul  7 23:17:53 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=38.53 t/s (1000 tokens in 25.957s) cumulative=38.53 t/s elapsed=25.957s
+ds4: decode-progress: tokens=2000 window=37.40 t/s (1000 tokens in 26.736s) cumulative=37.96 t/s elapsed=52.693s
+ds4: prefill: 18.01 t/s, generation: 37.24 t/s (2500 tokens in 67.128s)
+ds4: dspark perf: draft=308.3 tok/s, verify=68.2 proposed tok/s, verify-accepted=46.5 tok/s, block=59.39 ms (draft=10.55 verify=47.71 overhead=1.13 commit=0.86, tau=2.22, blocks=777)
+ds4: dspark acceptance: 68.2% (1723/2527 draft tokens)
+ds4: dspark full-accept: 57.5% (395/687 blocks), first-miss: 25.6% (176/687 blocks)
+ds4: dspark avg scheduled: 3.68 draft tokens/block (687 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.1889 samples=2527
+===== json-th0.9 Tue Jul  7 23:19:30 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=37.43 t/s (1000 tokens in 26.714s) cumulative=37.43 t/s elapsed=26.714s
+ds4: decode-progress: tokens=2000 window=37.02 t/s (1000 tokens in 27.015s) cumulative=37.22 t/s elapsed=53.729s
+ds4: prefill: 18.11 t/s, generation: 36.68 t/s (2500 tokens in 68.153s)
+ds4: dspark perf: draft=131.9 tok/s, verify=57.7 proposed tok/s, verify-accepted=52.5 tok/s, block=35.03 ms (draft=10.50 verify=24.00 overhead=0.53 commit=0.40, tau=1.26, blocks=1106)
+ds4: dspark acceptance: 91.0% (1393/1531 draft tokens)
+ds4: dspark full-accept: 90.2% (387/429 blocks), first-miss: 9.6% (41/429 blocks)
+ds4: dspark avg scheduled: 3.57 draft tokens/block (429 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.0825 samples=1531
+===== prose-th0.4 Tue Jul  7 23:21:06 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=31.87 t/s (1000 tokens in 31.373s) cumulative=31.87 t/s elapsed=31.373s
+ds4: decode-progress: tokens=2000 window=30.26 t/s (1000 tokens in 33.047s) cumulative=31.05 t/s elapsed=64.420s
+ds4: prefill: 19.66 t/s, generation: 30.68 t/s (2500 tokens in 81.483s)
+ds4: dspark perf: draft=217.2 tok/s, verify=69.1 proposed tok/s, verify-accepted=35.7 tok/s, block=44.29 ms (draft=10.49 verify=32.97 overhead=0.83 commit=0.60, tau=1.18, blocks=1148)
+ds4: dspark acceptance: 51.7% (1351/2615 draft tokens)
+ds4: dspark full-accept: 40.9% (399/976 blocks), first-miss: 32.2% (314/976 blocks)
+ds4: dspark avg scheduled: 2.68 draft tokens/block (976 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.1351 samples=2615
+===== prose-th0.9 Tue Jul  7 23:22:57 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=28.43 t/s (1000 tokens in 35.179s) cumulative=28.43 t/s elapsed=35.179s
+ds4: decode-progress: tokens=2000 window=28.86 t/s (1000 tokens in 34.647s) cumulative=28.64 t/s elapsed=69.826s
+ds4: prefill: 19.52 t/s, generation: 28.58 t/s (2408 tokens in 84.245s)
+ds4: dspark perf: draft=21.6 tok/s, verify=42.9 proposed tok/s, verify-accepted=40.7 tok/s, block=15.86 ms (draft=10.50 verify=5.28 overhead=0.08 commit=0.05, tau=0.21, blocks=1982)
+ds4: dspark acceptance: 94.9% (426/449 draft tokens)
+ds4: dspark full-accept: 95.3% (307/322 blocks), first-miss: 4.0% (13/322 blocks)
+ds4: dspark avg scheduled: 1.39 draft tokens/block (322 blocks)
+ds4: dspark conf-calib reliability (bin pred-mean realized n):
+ds4: dspark conf-calib ECE=0.0120 samples=449
+===== json-nodraft Tue Jul  7 23:24:52 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=38.50 t/s (1000 tokens in 25.973s) cumulative=38.50 t/s elapsed=25.973s
+ds4: decode-progress: tokens=2000 window=37.98 t/s (1000 tokens in 26.330s) cumulative=38.24 t/s elapsed=52.303s
+ds4: prefill: 20.31 t/s, generation: 38.08 t/s (2500 tokens in 65.655s)
+===== prose-nodraft Tue Jul  7 23:26:21 PDT 2026 =====
+ds4: decode-progress: tokens=1000 window=38.52 t/s (1000 tokens in 25.961s) cumulative=38.52 t/s elapsed=25.961s
+ds4: decode-progress: tokens=2000 window=37.97 t/s (1000 tokens in 26.337s) cumulative=38.24 t/s elapsed=52.299s
+ds4: prefill: 21.40 t/s, generation: 38.08 t/s (2391 tokens in 62.790s)
+ALL DONE Tue Jul  7 23:27:47 PDT 2026

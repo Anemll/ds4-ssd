@@ -1,0 +1,3 @@
+case	gen_tps	decode_s	max_gpu_compressed_gib	last_gpu_compressed_gib	max_task_compressed_gib	case_status	log
+directauto_stats	6.482	39.492644	0.00	0.00	0.00	done	bench-results/20260617-181247-directauto_stats.log
+auto_per_slot_cliff	2.326	110.069515	62.11	62.11	70.55	done	bench-results/20260617-181247-auto_per_slot_cliff.log

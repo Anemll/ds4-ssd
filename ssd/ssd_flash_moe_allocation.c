@@ -186,8 +186,23 @@ static bool metal_graph_ensure_prefill_scratch_rows(
     const bool ane_shared_batch = metal_graph_batch_shared_expert_uses_ane();
     const bool needs_batch_shared_tensors =
         !ane_shared_batch || ds4_dspark_is_loaded(g->dspark);
+    /* Compare paths also need batch_heads_raw after prefill scratch is shrunk
+     * to the small speculative row count.  The initial graph allocation kept
+     * this tensor for the compare flags, but the resize path only checked the
+     * broad stage-audit flag and silently disabled every direct/varmap compare
+     * after prefill. */
     const bool needs_attn_stage_audit =
-        env_flag_enabled("DS4_DSPARK_HYBRID_ATTN_STAGE_AUDIT");
+        env_flag_enabled("DS4_DSPARK_HYBRID_ATTN_STAGE_AUDIT") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_MIXED_SHARED_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_MIXED_VEC_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_MIXED_VEC_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_DIRECT_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_DIRECT_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARMAP_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARMAP_COMPARE") ||
+        env_flag_enabled("DS4_DSPARK_ATTN_VARSTREAM_COMPARE") ||
+        env_flag_enabled("DS4_TARGET_FORWARD_SHARED_PREFIX_VARSTREAM_COMPARE");
     const bool needs_index_comp_rows =
         env_flag_enabled("DS4_DSPARK_HYBRID_INDEX_COMP_ROWS");
 

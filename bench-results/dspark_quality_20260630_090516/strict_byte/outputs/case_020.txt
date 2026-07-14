@@ -1,0 +1,12 @@
+## Binary Search for Insertion Point
+
+Binary search can efficiently find the insertion point for a target value in a sorted array by maintaining the invariant that the target belongs between `left` and `right` pointers.
+
+### Algorithm Description
+
+Given a sorted array and a target value, binary search finds the insertion point by:
+
+1. **Initialize** two pointers: `left = 0` and `right = n-1` (or `right = n` for insertion point search)
+2. **While** `left <= right`:
+   - Calculate `mid = left + (right - left) // 2`
+   - If

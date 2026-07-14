@@ -1,0 +1,28 @@
+=== slots96 ===
+26:ds4: Flash-MoE slot banks allocated: layers=43 slots=96 gpu-bank=27.2GB Dense: 8.2GB Context: 0.4GB Total <<<< 35.8GB >>>>
+94:ds4: prefill: 9.01 t/s, generation: 17.36 t/s (500 tokens in 28.809s)
+95:ds4: dspark perf: draft=465.3 tok/s, verify=29.1 proposed tok/s, verify-accepted=19.3 tok/s, block=184.47 ms (draft=10.74 verify=171.74 overhead=1.99 commit=0.00, tau=3.31, blocks=120)
+98:ds4: dspark acceptance: 77.1% (397/515 draft tokens)
+101:ds4: dspark full-accept: 63.1% (65/103 blocks), first-miss: 11.7% (12/103 blocks)
+102:ds4: dspark avg scheduled: 5.00 draft tokens/block (103 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_slotbank_fastrelaxed_ab_024227/slots96.out	1721	59	59	1	0		0		0	0	0	2	1	0
+=== slots128 ===
+26:ds4: Flash-MoE slot banks allocated: layers=43 slots=128 gpu-bank=36.3GB Dense: 8.2GB Context: 0.4GB Total <<<< 44.9GB >>>>
+94:ds4: prefill: 9.32 t/s, generation: 18.38 t/s (500 tokens in 27.208s)
+95:ds4: dspark perf: draft=465.0 tok/s, verify=30.9 proposed tok/s, verify-accepted=20.5 tok/s, block=174.34 ms (draft=10.75 verify=161.64 overhead=1.96 commit=0.00, tau=3.31, blocks=120)
+98:ds4: dspark acceptance: 77.1% (397/515 draft tokens)
+101:ds4: dspark full-accept: 63.1% (65/103 blocks), first-miss: 11.7% (12/103 blocks)
+102:ds4: dspark avg scheduled: 5.00 draft tokens/block (103 blocks)
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_slotbank_fastrelaxed_ab_024227/slots128.out	1721	59	59	1	0		0		0	0	0	2	1	0
+=== slots256 ===
+30:ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+105:ds4: prefill: 5.95 t/s, generation: 51.30 t/s (500 tokens in 9.746s)
+106:ds4: dspark perf: draft=461.4 tok/s, verify=71.3 proposed tok/s, verify-accepted=62.3 tok/s, block=82.77 ms (draft=10.80 verify=69.84 overhead=2.13 commit=1.70, tau=4.35, blocks=113)
+109:ds4: dspark acceptance: 91.4% (487/533 draft tokens)
+112:ds4: dspark full-accept: 80.4% (86/107 blocks), first-miss: 1.9% (2/107 blocks)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (107 blocks)
+114:ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_slotbank_fastrelaxed_ab_024227/slots256.out	1663	55	54	1	0		0		0	0	0	2	1	0

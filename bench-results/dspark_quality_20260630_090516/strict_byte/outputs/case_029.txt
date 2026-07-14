@@ -1,0 +1,6 @@
+Comparing two model quantizations without relying on a single answer requires a multi-faceted evaluation framework. A single metric (like accuracy on one test set) can be misleading. Here’s a structured approach to compare them fairly and comprehensively.
+
+### The Core Principle: Isolate the Impact of Quantization
+
+The goal is to measure the *degradation* (or sometimes improvement) caused by the quantization process itself, while controlling for all other variables. You are comparing **Model A (FP16/BF16)** vs. **Model B (INT8/INT4)** , where Model B is a quantized version of Model A.
+

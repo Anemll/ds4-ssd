@@ -1,0 +1,9 @@
+This is an excellent question that gets at a core efficiency challenge in deploying Mixture of Experts (MoE) models.
+
+The short answer is: **Grouped MoE expert execution improves prefill by replacing a highly irregular, memory-bound, and sequential computation pattern with a regular, compute-bound, and parallelizable one.**
+
+Let's break down why this is such a big deal, contrasting the "naive" approach with the "grouped" approach.
+
+### The Problem: The "Naive" MoE Prefill
+
+In a standard MoE layer, for each token in the input sequence, the router decides which "expert"

@@ -1,0 +1,15 @@
+Here's a tiny Python function that returns the median of three numbers:
+
+```python
+def median_of_three(a, b, c):
+    return sorted([a, b, c])[1]
+```
+
+**Explanation:**  
+- Sort the three numbers in a list.  
+- The median is the middle element, which is at index 1 (second element) of the sorted list.  
+
+**Example usage:**
+```python
+print(median_of_three(3, 5, 1))  # Output: 3
+```

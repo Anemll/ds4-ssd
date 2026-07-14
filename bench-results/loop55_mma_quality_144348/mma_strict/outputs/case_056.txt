@@ -1,0 +1,9 @@
+Questa è una domanda molto interessante e tecnica. Il "router" (o "router network") è un componente fondamentale e probabilmente il più importante in un modello **Mixture-of-Experts (MoE)**.
+
+Il suo ruolo è **decidere quali "esperti" (sotto-reti neurali specializzate) vengono attivati per elaborare un dato input.**
+
+Ecco una spiegazione dettagliata del suo ruolo, delle sue sfide e di come funziona.
+
+### Il Problema che il Router Risolve
+
+In un modello denso tradizionale (come una rete feed-forward

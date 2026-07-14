@@ -1,0 +1,9 @@
+A **confidence interval** is a way of saying, "I'm not sure of the exact answer, but I'm pretty sure it falls within this range."
+
+Here’s a simple analogy:
+
+Imagine you're trying to guess the number of jelly beans in a giant jar. You can't count every single one, but you take a handful, count them, and then multiply by the number of handfuls it would take to fill the jar.
+
+Your calculation gives you a single number, say **500** jelly beans. But you know that's just an estimate based on that one handful. You might be wrong.
+
+A **confidence interval**

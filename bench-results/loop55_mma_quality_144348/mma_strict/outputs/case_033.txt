@@ -1,0 +1,8 @@
+**Backpressure** (contro-pressione o pressione inversa) in un server di rete è un meccanismo di controllo del flusso che serve a **prevenire il sovraccarico** quando la velocità di arrivo dei dati supera la capacità di elaborazione del sistema.
+
+### Come funziona in pratica
+
+Immagina un server che riceve richieste da molti client contemporaneamente:
+
+1. **Arrivano troppe richieste** → il server non riesce a processarle tutte subito.
+2. **Si accumulano in un buffer** (c

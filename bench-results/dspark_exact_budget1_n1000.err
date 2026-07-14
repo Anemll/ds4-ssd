@@ -1,0 +1,559 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=1 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.247 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=26.35 t/s avg=0.59 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.59 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=51.72 t/s avg=1.16 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.15 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=51.82 t/s avg=1.70 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.68 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.66 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=48.54 t/s avg=2.19 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.17 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=50.56 t/s avg=2.68 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=2.65 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=54.89 t/s avg=3.16 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=3.13 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.18 t/s avg=3.62 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.58 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.55 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=55.60 t/s avg=4.02 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=3.98 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=57.19 t/s avg=4.43 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.39 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=50.57 t/s avg=4.84 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=4.79 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=58.98 t/s avg=5.23 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.18 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.14 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=51.21 t/s avg=5.56 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=5.51 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=49.88 t/s avg=5.92 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=5.87 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=53.39 t/s avg=6.27 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=6.22 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=56.57 t/s avg=6.61 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.56 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=6.50 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=52.60 t/s avg=6.87 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=6.81 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=53.34 t/s avg=7.18 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=7.12 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=54.21 t/s avg=7.48 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=7.42 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=45.71 t/s avg=7.76 t/s
+ds4: prefill full: 19 tokens in 2450.2 ms (7.8 t/s)
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=1 rows=1 in 158.0 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark timing seq drafted=1 verified=1 draft=5.848 ms verify=26.970 ms total=32.900 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.756 ms verify=27.912 ms total=33.730 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.734 ms verify=27.784 ms total=33.580 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.750 ms verify=26.972 ms total=32.784 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.826 ms verify=27.828 ms total=33.744 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.835 ms verify=27.032 ms total=32.929 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.673 ms verify=26.936 ms total=32.671 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.824 ms verify=26.994 ms total=32.909 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.792 ms verify=27.957 ms total=33.843 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.767 ms verify=26.996 ms total=32.825 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.823 ms verify=27.041 ms total=32.950 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.751 ms verify=27.997 ms total=33.810 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.768 ms verify=27.010 ms total=32.862 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.962 ms verify=27.889 ms total=33.932 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.760 ms verify=26.989 ms total=32.846 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.830 ms verify=27.053 ms total=32.976 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.802 ms verify=27.874 ms total=33.762 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.763 ms verify=27.014 ms total=32.839 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.533 ms verify=26.954 ms total=33.549 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.801 ms verify=27.846 ms total=33.709 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.759 ms verify=28.178 ms total=33.999 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.901 ms verify=27.128 ms total=33.122 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=29.287 ms total=35.326 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.839 ms verify=27.066 ms total=32.991 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.440 ms verify=28.587 ms total=35.112 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.768 ms verify=27.188 ms total=33.018 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.939 ms verify=28.547 ms total=34.570 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.918 ms verify=28.913 ms total=34.923 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.881 ms verify=28.538 ms total=34.480 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.923 ms verify=28.016 ms total=34.022 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.787 ms verify=29.412 ms total=35.260 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.734 ms verify=27.034 ms total=32.830 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.958 ms verify=27.672 ms total=33.691 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.929 ms verify=27.112 ms total=33.135 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.030 ms verify=28.970 ms total=35.062 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.920 ms verify=27.758 ms total=33.764 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.855 ms verify=27.791 ms total=33.707 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.919 ms verify=30.308 ms total=36.296 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.550 ms verify=28.977 ms total=35.619 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.961 ms verify=30.132 ms total=36.177 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.873 ms verify=27.958 ms total=33.893 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.099 ms verify=27.985 ms total=34.145 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.718 ms verify=28.000 ms total=34.780 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.907 ms verify=27.772 ms total=33.773 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.922 ms verify=27.060 ms total=33.043 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.895 ms verify=28.690 ms total=34.673 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=27.001 ms total=33.028 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.654 ms verify=29.273 ms total=35.988 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.942 ms verify=27.103 ms total=33.178 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=28.837 ms total=34.823 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.875 ms verify=28.166 ms total=34.103 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.893 ms verify=28.783 ms total=34.737 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.024 ms verify=28.400 ms total=34.509 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.877 ms verify=28.893 ms total=34.832 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.077 ms verify=28.152 ms total=34.323 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.022 ms verify=27.385 ms total=33.499 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.892 ms verify=28.406 ms total=34.385 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.051 ms verify=27.233 ms total=33.366 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.921 ms verify=29.680 ms total=35.667 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.668 ms verify=27.485 ms total=34.215 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.907 ms verify=29.714 ms total=35.682 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.906 ms verify=27.497 ms total=33.464 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.005 ms verify=29.462 ms total=35.528 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.939 ms verify=28.133 ms total=34.133 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.932 ms verify=27.427 ms total=33.421 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.994 ms verify=27.275 ms total=33.363 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.999 ms verify=28.354 ms total=34.446 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.949 ms verify=27.263 ms total=33.272 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.997 ms verify=27.371 ms total=33.461 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.916 ms verify=28.316 ms total=34.298 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.024 ms verify=27.424 ms total=33.535 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.692 ms verify=27.408 ms total=34.183 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.902 ms verify=27.286 ms total=33.251 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.945 ms verify=27.296 ms total=33.339 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.923 ms verify=28.247 ms total=34.231 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=27.351 ms total=33.381 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=28.229 ms total=34.236 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.949 ms verify=27.368 ms total=33.379 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.896 ms verify=27.381 ms total=33.338 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.929 ms verify=28.349 ms total=34.373 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.931 ms verify=27.387 ms total=33.379 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.928 ms verify=28.665 ms total=34.655 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.020 ms verify=27.467 ms total=33.575 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.955 ms verify=28.838 ms total=34.883 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.080 ms verify=28.331 ms total=34.475 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.916 ms verify=27.420 ms total=33.419 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.973 ms verify=28.164 ms total=34.197 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.985 ms verify=27.367 ms total=33.450 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.013 ms verify=27.268 ms total=33.370 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.935 ms verify=28.445 ms total=34.442 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.080 ms verify=27.297 ms total=33.465 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.023 ms verify=30.087 ms total=36.172 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.863 ms verify=29.225 ms total=35.150 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.701 ms verify=28.414 ms total=35.204 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.569 ms verify=28.354 ms total=34.985 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.341 ms verify=28.540 ms total=34.960 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.648 ms verify=28.250 ms total=34.957 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.942 ms verify=29.021 ms total=35.024 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.011 ms verify=28.305 ms total=34.401 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=28.956 ms total=34.941 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.684 ms verify=30.159 ms total=36.927 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.031 ms verify=29.148 ms total=35.260 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.757 ms verify=28.501 ms total=35.320 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.691 ms verify=28.434 ms total=35.185 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.915 ms verify=28.182 ms total=34.158 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.521 ms verify=27.445 ms total=34.028 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.005 ms verify=28.222 ms total=34.311 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.957 ms verify=27.396 ms total=33.411 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.062 ms verify=27.221 ms total=33.375 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.969 ms verify=27.215 ms total=33.246 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.006 ms verify=27.090 ms total=33.190 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.064 ms verify=28.420 ms total=34.574 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.012 ms verify=30.064 ms total=36.161 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.961 ms verify=27.362 ms total=33.385 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.936 ms verify=28.901 ms total=34.898 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.029 ms verify=28.510 ms total=34.607 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.026 ms verify=28.937 ms total=35.025 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.969 ms verify=28.485 ms total=34.517 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.982 ms verify=28.855 ms total=34.899 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.009 ms verify=27.702 ms total=33.777 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.987 ms verify=29.819 ms total=35.868 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.976 ms verify=27.537 ms total=33.605 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.947 ms verify=28.908 ms total=34.979 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.008 ms verify=28.373 ms total=34.442 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.099 ms verify=28.859 ms total=35.042 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.055 ms verify=27.464 ms total=33.612 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.930 ms verify=28.142 ms total=34.133 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.943 ms verify=27.396 ms total=33.400 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.887 ms verify=27.528 ms total=34.477 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.020 ms verify=28.365 ms total=34.472 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=27.696 ms total=33.703 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.913 ms verify=27.375 ms total=33.351 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.039 ms verify=27.558 ms total=33.687 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.958 ms verify=27.258 ms total=33.306 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.999 ms verify=28.416 ms total=34.508 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.927 ms verify=27.322 ms total=33.310 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.854 ms verify=27.497 ms total=33.428 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.060 ms verify=28.405 ms total=34.559 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.024 ms verify=27.504 ms total=33.621 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.901 ms verify=27.416 ms total=33.378 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.989 ms verify=27.642 ms total=33.715 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.043 ms verify=27.392 ms total=33.526 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.971 ms verify=28.307 ms total=34.363 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.941 ms verify=27.302 ms total=33.304 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.880 ms verify=27.549 ms total=33.491 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.867 ms verify=27.518 ms total=33.447 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.820 ms verify=27.566 ms total=33.448 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.548 ms verify=27.453 ms total=34.088 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.887 ms verify=27.436 ms total=33.384 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.980 ms verify=27.467 ms total=33.508 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.937 ms verify=28.379 ms total=34.378 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.099 ms verify=27.471 ms total=33.632 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.055 ms verify=27.417 ms total=33.566 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.986 ms verify=28.714 ms total=34.788 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.945 ms verify=28.523 ms total=34.529 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.830 ms verify=29.679 ms total=36.571 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.008 ms verify=28.364 ms total=34.454 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.997 ms verify=30.586 ms total=36.644 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.075 ms verify=28.302 ms total=34.459 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.951 ms verify=28.434 ms total=34.448 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.656 ms verify=28.254 ms total=34.983 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.034 ms verify=30.660 ms total=36.784 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.965 ms verify=28.909 ms total=34.935 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.544 ms verify=30.649 ms total=37.255 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.891 ms verify=28.216 ms total=35.197 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.001 ms verify=28.854 ms total=34.918 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.913 ms verify=29.232 ms total=35.207 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.004 ms verify=28.891 ms total=34.957 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.966 ms verify=27.391 ms total=33.419 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.970 ms verify=30.441 ms total=36.473 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.990 ms verify=27.310 ms total=33.389 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.028 ms verify=28.879 ms total=34.991 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.962 ms verify=27.985 ms total=34.033 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.137 ms verify=33.409 ms total=39.619 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.857 ms verify=31.293 ms total=38.223 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.856 ms verify=27.454 ms total=33.371 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.545 ms verify=28.971 ms total=35.581 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.041 ms verify=27.538 ms total=33.669 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.991 ms verify=28.894 ms total=34.946 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.003 ms verify=28.357 ms total=34.449 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.922 ms verify=28.774 ms total=34.758 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.933 ms verify=27.412 ms total=33.407 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.858 ms verify=28.904 ms total=34.823 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.001 ms verify=27.407 ms total=33.494 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.810 ms verify=28.803 ms total=35.697 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.945 ms verify=27.417 ms total=33.423 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.913 ms verify=28.753 ms total=34.727 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=28.283 ms total=34.268 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.970 ms verify=28.837 ms total=34.889 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.969 ms verify=27.471 ms total=33.503 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.988 ms verify=29.724 ms total=35.774 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.038 ms verify=28.179 ms total=34.311 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.122 ms verify=27.293 ms total=33.507 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.022 ms verify=28.284 ms total=34.390 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.970 ms verify=27.317 ms total=33.381 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.917 ms verify=27.464 ms total=33.464 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.938 ms verify=28.331 ms total=34.326 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.990 ms verify=27.446 ms total=33.498 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.938 ms verify=27.512 ms total=33.511 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.072 ms verify=28.443 ms total=34.577 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.879 ms verify=27.517 ms total=33.458 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.036 ms verify=28.290 ms total=34.419 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.978 ms verify=27.509 ms total=33.548 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.019 ms verify=27.483 ms total=33.563 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.960 ms verify=28.369 ms total=34.394 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.113 ms verify=28.340 ms total=34.547 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.774 ms verify=27.681 ms total=34.517 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.960 ms verify=28.596 ms total=34.618 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.760 ms verify=27.489 ms total=34.330 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.747 ms verify=27.363 ms total=34.207 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.944 ms verify=27.505 ms total=33.510 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.925 ms verify=27.267 ms total=33.253 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.112 ms verify=29.452 ms total=35.658 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.133 ms verify=30.012 ms total=36.226 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.974 ms verify=29.184 ms total=35.236 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.047 ms verify=30.612 ms total=36.721 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.914 ms verify=29.994 ms total=35.970 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.604 ms verify=29.781 ms total=36.446 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.253 ms verify=30.093 ms total=36.413 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.961 ms verify=30.963 ms total=36.985 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.120 ms verify=28.669 ms total=34.859 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.213 ms verify=33.306 ms total=39.582 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.697 ms verify=30.554 ms total=37.318 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.044 ms verify=32.217 ms total=38.324 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.860 ms verify=31.392 ms total=38.322 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.786 ms verify=31.323 ms total=38.177 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.836 ms verify=31.174 ms total=38.073 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.886 ms verify=30.180 ms total=37.154 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.181 ms verify=32.727 ms total=38.986 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.866 ms verify=28.484 ms total=35.426 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.742 ms verify=32.207 ms total=39.043 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.683 ms verify=28.638 ms total=35.405 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.971 ms verify=30.686 ms total=36.729 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.041 ms verify=29.169 ms total=35.276 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.950 ms verify=29.297 ms total=35.313 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.044 ms verify=30.678 ms total=36.789 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.118 ms verify=29.285 ms total=35.487 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.742 ms verify=30.758 ms total=37.562 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.736 ms verify=28.303 ms total=35.101 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.956 ms verify=29.819 ms total=35.837 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.941 ms verify=28.285 ms total=34.285 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.753 ms verify=30.736 ms total=37.550 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.965 ms verify=28.419 ms total=34.446 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.005 ms verify=28.980 ms total=35.049 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.950 ms verify=28.669 ms total=34.681 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.104 ms verify=29.237 ms total=35.406 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.971 ms verify=27.505 ms total=33.538 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.013 ms verify=29.328 ms total=35.433 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.079 ms verify=27.477 ms total=33.649 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.499 ms verify=29.967 ms total=36.532 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.966 ms verify=27.523 ms total=33.551 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.928 ms verify=28.904 ms total=34.894 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.865 ms verify=27.590 ms total=34.554 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.902 ms verify=28.902 ms total=34.866 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.961 ms verify=28.419 ms total=34.442 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.971 ms verify=29.904 ms total=35.960 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.015 ms verify=27.504 ms total=33.581 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.040 ms verify=28.870 ms total=34.972 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.919 ms verify=27.538 ms total=33.518 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.990 ms verify=28.938 ms total=34.989 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.092 ms verify=28.572 ms total=34.751 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.956 ms verify=28.521 ms total=34.538 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.976 ms verify=27.463 ms total=33.501 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.032 ms verify=27.643 ms total=33.768 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.944 ms verify=28.669 ms total=34.696 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.970 ms verify=27.534 ms total=33.566 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.964 ms verify=28.297 ms total=34.356 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.944 ms verify=27.593 ms total=33.598 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.017 ms verify=27.559 ms total=33.637 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.048 ms verify=28.494 ms total=34.629 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.040 ms verify=27.541 ms total=33.668 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.956 ms verify=27.592 ms total=33.609 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.950 ms verify=27.584 ms total=33.595 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.958 ms verify=27.527 ms total=33.579 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.825 ms verify=27.500 ms total=34.418 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.043 ms verify=27.549 ms total=33.681 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.898 ms verify=27.504 ms total=33.464 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.932 ms verify=27.471 ms total=33.464 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.061 ms verify=29.912 ms total=36.066 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.000 ms verify=27.637 ms total=33.699 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.704 ms verify=29.039 ms total=35.804 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.907 ms verify=28.497 ms total=34.465 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.989 ms verify=28.895 ms total=34.946 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.001 ms verify=28.359 ms total=34.420 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.906 ms verify=28.909 ms total=34.876 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=27.519 ms total=33.526 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.969 ms verify=28.862 ms total=34.927 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.931 ms verify=28.302 ms total=34.294 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.560 ms verify=28.939 ms total=35.561 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.769 ms verify=29.227 ms total=36.058 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.981 ms verify=29.363 ms total=35.406 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.975 ms verify=28.229 ms total=34.266 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.014 ms verify=29.066 ms total=35.138 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.039 ms verify=29.304 ms total=35.404 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.021 ms verify=29.351 ms total=35.440 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.950 ms verify=30.235 ms total=36.248 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.581 ms verify=28.334 ms total=34.976 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.586 ms verify=29.438 ms total=36.106 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.047 ms verify=29.243 ms total=35.381 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.576 ms verify=29.272 ms total=35.910 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.947 ms verify=28.362 ms total=34.371 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.007 ms verify=29.375 ms total=35.444 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=7.235 ms verify=28.563 ms total=35.899 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.985 ms verify=27.550 ms total=33.597 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.072 ms verify=27.546 ms total=33.708 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.989 ms verify=28.532 ms total=34.583 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.940 ms verify=27.537 ms total=33.539 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.952 ms verify=27.538 ms total=33.552 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.074 ms verify=29.641 ms total=35.777 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.888 ms verify=29.013 ms total=34.963 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.870 ms verify=27.496 ms total=33.427 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.876 ms verify=27.444 ms total=33.382 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.992 ms verify=28.430 ms total=34.484 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.033 ms verify=27.440 ms total=33.566 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.910 ms verify=27.549 ms total=33.521 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.914 ms verify=28.463 ms total=34.450 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.926 ms verify=29.990 ms total=35.982 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.912 ms verify=27.582 ms total=33.587 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.940 ms verify=29.117 ms total=35.119 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.963 ms verify=29.081 ms total=35.106 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.976 ms verify=28.430 ms total=34.467 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.721 ms verify=30.094 ms total=36.877 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.089 ms verify=27.638 ms total=33.818 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.926 ms verify=29.949 ms total=35.937 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.862 ms verify=27.526 ms total=33.481 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.902 ms verify=28.968 ms total=34.931 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.940 ms verify=27.633 ms total=33.666 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.953 ms verify=28.870 ms total=34.885 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.003 ms verify=28.093 ms total=34.183 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.126 ms verify=27.584 ms total=33.804 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.068 ms verify=27.566 ms total=33.720 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.948 ms verify=27.538 ms total=33.548 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.838 ms verify=28.554 ms total=34.454 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.923 ms verify=27.626 ms total=33.611 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.893 ms verify=28.210 ms total=34.164 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.888 ms verify=27.655 ms total=33.605 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.927 ms verify=27.554 ms total=33.543 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.011 ms verify=28.685 ms total=34.758 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.918 ms verify=27.575 ms total=33.578 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.981 ms verify=27.545 ms total=33.587 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.097 ms verify=29.018 ms total=35.209 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.876 ms verify=28.540 ms total=34.477 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.931 ms verify=27.480 ms total=33.472 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.100 ms verify=27.374 ms total=33.569 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.970 ms verify=28.428 ms total=34.460 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.048 ms verify=27.471 ms total=33.613 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.114 ms verify=29.386 ms total=35.590 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.614 ms verify=29.174 ms total=35.849 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.083 ms verify=28.417 ms total=34.585 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.599 ms verify=30.629 ms total=37.290 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.576 ms verify=28.230 ms total=34.868 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.462 ms verify=30.362 ms total=36.886 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.998 ms verify=28.407 ms total=34.464 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.509 ms verify=30.004 ms total=36.634 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.954 ms verify=29.296 ms total=35.311 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.938 ms verify=30.080 ms total=36.084 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.912 ms verify=29.521 ms total=35.510 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.055 ms verify=30.794 ms total=36.934 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.100 ms verify=29.250 ms total=35.427 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.687 ms verify=29.938 ms total=36.716 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.670 ms verify=28.609 ms total=35.340 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.035 ms verify=29.209 ms total=35.330 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.622 ms verify=27.767 ms total=34.477 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.955 ms verify=29.153 ms total=35.169 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.999 ms verify=27.718 ms total=33.810 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.888 ms verify=29.923 ms total=35.872 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.014 ms verify=27.895 ms total=33.997 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.953 ms verify=29.196 ms total=35.211 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.927 ms verify=28.573 ms total=34.562 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.920 ms verify=29.127 ms total=35.108 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.927 ms verify=27.703 ms total=33.692 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.931 ms verify=29.199 ms total=35.191 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.004 ms verify=27.592 ms total=33.658 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.929 ms verify=29.914 ms total=35.904 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.909 ms verify=27.584 ms total=33.555 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.055 ms verify=29.152 ms total=35.300 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.893 ms verify=29.455 ms total=35.428 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.933 ms verify=29.174 ms total=35.168 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.911 ms verify=27.562 ms total=33.534 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.028 ms verify=29.315 ms total=35.431 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.960 ms verify=27.629 ms total=33.653 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.865 ms verify=28.606 ms total=34.532 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.022 ms verify=28.783 ms total=34.867 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.053 ms verify=27.602 ms total=33.743 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.011 ms verify=27.754 ms total=33.852 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.945 ms verify=28.461 ms total=34.467 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.967 ms verify=27.703 ms total=33.774 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.573 ms verify=27.701 ms total=34.336 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=28.518 ms total=34.504 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.996 ms verify=27.662 ms total=33.719 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.998 ms verify=28.543 ms total=34.600 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.957 ms verify=27.617 ms total=33.635 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.984 ms verify=27.826 ms total=33.902 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.910 ms verify=28.453 ms total=34.425 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.008 ms verify=27.680 ms total=33.783 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.923 ms verify=27.620 ms total=33.604 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.904 ms verify=27.789 ms total=33.755 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.963 ms verify=27.690 ms total=33.714 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.168 ms verify=28.689 ms total=34.940 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.921 ms verify=27.812 ms total=33.794 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.958 ms verify=27.761 ms total=33.812 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=28.611 ms total=34.618 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.935 ms verify=27.809 ms total=33.806 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.001 ms verify=27.869 ms total=33.931 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.912 ms verify=28.718 ms total=34.692 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.951 ms verify=27.895 ms total=33.916 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.163 ms verify=29.054 ms total=35.290 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.973 ms verify=27.784 ms total=33.818 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.578 ms verify=28.709 ms total=35.349 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.479 ms verify=28.565 ms total=35.106 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.941 ms verify=29.586 ms total=35.592 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.004 ms verify=28.697 ms total=34.784 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.055 ms verify=29.489 ms total=35.629 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.076 ms verify=30.198 ms total=36.358 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.128 ms verify=29.334 ms total=35.524 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.758 ms verify=28.624 ms total=35.480 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.139 ms verify=29.987 ms total=36.217 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.911 ms verify=29.457 ms total=35.431 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.120 ms verify=29.486 ms total=35.690 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.971 ms verify=30.865 ms total=36.911 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.973 ms verify=29.539 ms total=35.647 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.966 ms verify=27.837 ms total=33.864 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.947 ms verify=29.175 ms total=35.183 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.915 ms verify=28.772 ms total=34.778 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.020 ms verify=29.154 ms total=35.236 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.911 ms verify=27.673 ms total=33.646 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.070 ms verify=31.251 ms total=37.411 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.966 ms verify=28.610 ms total=34.641 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.960 ms verify=29.198 ms total=35.242 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.034 ms verify=27.710 ms total=33.831 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.973 ms verify=29.162 ms total=35.197 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.029 ms verify=28.657 ms total=34.779 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.995 ms verify=29.096 ms total=35.190 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.935 ms verify=27.729 ms total=33.726 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.927 ms verify=30.082 ms total=36.070 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.992 ms verify=27.665 ms total=33.752 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.936 ms verify=27.732 ms total=33.730 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.923 ms verify=29.221 ms total=35.205 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.777 ms verify=27.648 ms total=34.518 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.042 ms verify=29.207 ms total=35.340 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.028 ms verify=27.514 ms total=33.637 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.909 ms verify=30.413 ms total=36.459 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.942 ms verify=27.721 ms total=33.724 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.881 ms verify=29.993 ms total=35.936 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.984 ms verify=28.682 ms total=34.750 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.049 ms verify=29.147 ms total=35.288 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.958 ms verify=27.687 ms total=33.731 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.039 ms verify=27.647 ms total=33.748 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.928 ms verify=30.019 ms total=36.008 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.941 ms verify=27.785 ms total=33.786 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.946 ms verify=29.120 ms total=35.128 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.903 ms verify=27.771 ms total=33.735 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.014 ms verify=28.219 ms total=34.316 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.926 ms verify=27.727 ms total=33.715 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.922 ms verify=28.596 ms total=34.584 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.079 ms verify=29.656 ms total=35.817 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.880 ms verify=27.851 ms total=33.792 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.924 ms verify=28.481 ms total=34.467 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.099 ms verify=28.548 ms total=34.734 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.036 ms verify=29.116 ms total=35.246 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.041 ms verify=27.695 ms total=33.824 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.953 ms verify=30.091 ms total=36.106 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.915 ms verify=27.703 ms total=33.680 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.027 ms verify=29.158 ms total=35.268 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.672 ms verify=30.053 ms total=36.815 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.713 ms verify=28.525 ms total=35.300 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=6.002 ms verify=31.322 ms total=37.385 ms
+ds4: dspark timing seq drafted=1 verified=1 draft=5.941 ms verify=28.631 ms total=34.634 ms
+ds4: ----------------------------------------
+ds4: prefill: 7.22 t/s, generation: 31.43 t/s (1000 tokens in 31.818s)
+ds4: dspark acceptance: 88.1% (468/531 draft tokens)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

@@ -1,0 +1,24 @@
+Here are several ways to complete the comment, depending on the context of the lock:
+
+**Option 1: General/Common**
+```c
+/* This lock protects the shared data structure. */
+```
+
+**Option 2: Specific to a variable**
+```c
+/* This lock protects the `count` variable. */
+```
+
+**Option 3: For a linked list**
+```c
+/* This lock protects the linked list. */
+```
+
+**Option 4: For a cache or hash table**
+```c
+/* This lock protects the hash table. */
+```
+
+**Option 5: For a file descriptor or I/O**
+```c

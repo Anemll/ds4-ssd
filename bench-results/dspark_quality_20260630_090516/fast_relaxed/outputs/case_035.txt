@@ -1,0 +1,12 @@
+Ti spiegherò il funzionamento di un **ring buffer** (o buffer circolare) e come gestire correttamente le sovrascritture.
+
+## Cos'è un Ring Buffer
+
+Un ring buffer è una struttura dati che utilizza un array di dimensione fissa, trattandolo come se fosse un cerchio. Ha due puntatori principali:
+- **write pointer** (o head): dove scrivere il prossimo dato
+- **read pointer** (o tail): da dove leggere il prossimo dato
+
+## Come Funziona
+
+```
+Esempio di buffer di 8

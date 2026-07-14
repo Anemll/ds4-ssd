@@ -1,0 +1,125 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic implementation with all the core features.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, screen_width, screen_height):
+        self.width = 60
+        self.height = 40
+        self.x = screen_width // 2 - self.width // 2
+        self.y = screen_height - 100
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+        
+    def move_left(self):
+        self.x -= self.speed
+        if self.x < 0:
+            self.x = 0
+            
+    def move_right(self):
+        self.x += self.speed
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+            
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+        # Draw the gun barrel
+        pygame.draw.rect(screen, GREEN, (self.x + self.width//2 - 5, self.y - 15, 10, 15))
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Bullet:
+    def __init__(self, x, y, speed=-10):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 10
+        
+    def move(self):
+        self.y += self.speed
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, YELLOW, (self.x, self.y, self.width, self.height))
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class Enemy:
+    def __init__(self, x, y, speed=2):
+        self.width = 50
+        self.height = 40
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.direction = 1  # 1 for right, -1 for left
+        
+    def move(self):
+        self.x += self.speed * self.direction
+        
+    def draw(self, screen):
+        pygame.draw.rect(screen, RED, (self.x, self.y, self.width, self.height))
+        # Draw enemy features
+        pygame.draw.circle(screen, WHITE, (self.x + 15, self.y + 15), 5)
+        pygame.draw.circle(screen, WHITE, (self.x + 35, self.y + 15), 5)
+        
+    def get_rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+class SpaceInvaders:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.player = Player(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.bullets = []
+        self.enemies = []
+        self.enemy_bullets = []
+        self.create_enemies()
+        self.score = 0
+        self.font = pygame.font.Font(None, 36)
+        self.game_over = False
+        
+    def create_enemies(self):
+        rows = 5
+        cols = 8
+        enemy_width = 50
+        enemy_height = 40
+        spacing_x = 20
+        spacing_y = 20
+        
+        for row in range(rows):
+            for col in range(cols):
+                x = col * (enemy_width + spacing_x) + 50
+                y = row * (enemy_height + spacing_y) + 50
+                enemy = Enemy(x, y)
+                self.enemies.append(enemy)
+                
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE and not self.game_over:
+                    self

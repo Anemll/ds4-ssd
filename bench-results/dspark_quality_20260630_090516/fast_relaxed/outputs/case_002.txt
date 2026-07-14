@@ -1,0 +1,14 @@
+This is a great question that gets to the heart of memory management in ML inference. Let me break down the key differences between mmap'd model weights and copying all weights into private buffers on macOS.
+
+## **mmap'd Model Weights**
+
+```python
+# Example: mmap'd weights
+import mmap
+import numpy as np
+
+# Load model weights via mmap
+with open("model.pt", "rb") as f:
+    mmap = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    # Weights are loaded on-demand, not copied
+   

@@ -1,0 +1,45 @@
+=== nofrontier_fast ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+92:ds4: dspark verifier strict_v1 active=5 prefixN=1
+93:ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+94:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+105:ds4: prefill: 7.80 t/s, generation: 49.97 t/s (300 tokens in 6.003s)
+106:ds4: dspark perf: draft=443.4 tok/s, verify=73.8 proposed tok/s, verify-accepted=65.4 tok/s, block=81.38 ms (draft=11.28 verify=67.79 overhead=2.31 commit=1.73, tau=4.44, blocks=55)
+109:ds4: dspark acceptance: 88.7% (244/275 draft tokens)
+113:ds4: dspark avg scheduled: 5.00 draft tokens/block (55 blocks)
+bench-results/dspark_mode_compare_fixedenv_002328/nofrontier_fast.out	1087	37	37	1	0		0		0	0	0	1	1	0
+=== frontier_fast ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+90:ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+91:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+103:ds4: dspark verifier strict_v1 active=5 prefixN=1
+105:ds4: prefill: 6.33 t/s, generation: 54.79 t/s (300 tokens in 5.476s)
+106:ds4: dspark perf: draft=448.0 tok/s, verify=73.3 proposed tok/s, verify-accepted=66.0 tok/s, block=81.24 ms (draft=11.13 verify=67.97 overhead=2.14 commit=1.71, tau=4.48, blocks=66)
+109:ds4: dspark acceptance: 95.8% (296/309 draft tokens)
+113:ds4: dspark avg scheduled: 4.98 draft tokens/block (62 blocks)
+bench-results/dspark_mode_compare_fixedenv_002328/frontier_fast.out	952	35	35	1	0		0		0	0	0	1	1	0
+=== batch_fast ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+92:ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+93:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+98:ds4: prefill: 7.58 t/s, generation: 46.03 t/s (300 tokens in 6.518s)
+99:ds4: dspark perf: draft=443.3 tok/s, verify=70.5 proposed tok/s, verify-accepted=58.2 tok/s, block=83.55 ms (draft=11.17 verify=70.20 overhead=2.19 commit=1.61, tau=4.08, blocks=59)
+102:ds4: dspark acceptance: 82.5% (241/292 draft tokens)
+106:ds4: dspark avg scheduled: 4.95 draft tokens/block (59 blocks)
+bench-results/dspark_mode_compare_fixedenv_002328/batch_fast.out	888	35	35	1	0		0		0	0	0	1	1	0
+=== unified_fast ===
+37:ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+89:ds4: dspark relaxed accept enabled (target top-128 + logit-delta<=6.00; non-target-greedy)
+90:ds4: target-forward unified active: N=1 wraps current decode; N<=5 backend selectable by DS4_TARGET_FORWARD_UNIFIED_BACKEND (default=batch; shared_prefix uses strict_v1 core plus varmap rows5 attention; strict_v1 available)
+93:ds4: dspark verifier unified_greedy diagnostic active=5 (batch target-forward contract; strict remains default)
+94:ds4: target-forward unified N<=5 backend active: batch n=5
+95:ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+96:ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+101:ds4: prefill: 8.21 t/s, generation: 46.05 t/s (300 tokens in 6.514s)
+102:ds4: dspark perf: draft=441.3 tok/s, verify=70.4 proposed tok/s, verify-accepted=58.1 tok/s, block=83.69 ms (draft=11.21 verify=70.31 overhead=2.17 commit=1.60, tau=4.08, blocks=59)
+105:ds4: dspark acceptance: 82.5% (241/292 draft tokens)
+109:ds4: dspark avg scheduled: 4.95 draft tokens/block (59 blocks)
+bench-results/dspark_mode_compare_fixedenv_002328/unified_fast.out	888	35	35	1	0		0		0	0	0	1	1	0

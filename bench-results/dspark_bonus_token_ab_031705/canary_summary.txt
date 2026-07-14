@@ -1,0 +1,4 @@
+== off.canary
+bench-results/dspark_bonus_token_ab_031705/off.out	2381	79	67	1	0		0		0	0	0	3	3	0
+== on.canary
+bench-results/dspark_bonus_token_ab_031705/on.out	2393	79	67	1	0		0		0	0	0	3	3	0

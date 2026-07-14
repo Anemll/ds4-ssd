@@ -1,0 +1,14 @@
+To test that a file-backed mmap is not repeatedly remapped, you need to verify that the kernel doesn't create new page table entries for the same physical pages on each access. Here's a comprehensive approach:
+
+## 1. **Direct Verification with `/proc/pid/maps`**
+
+```bash
+# Monitor the process's memory mappings
+watch -n 0 "cat /proc/<pid/maps | grep <your_mapped_file>"
+```
+
+If the mapping changes (different address or flags), it's being remapped.
+
+## 2. **Using `strace` or `perf`**
+
+```bash

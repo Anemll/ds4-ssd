@@ -1,0 +1,17 @@
+Here’s a structured approach to testing a command-line parser with edge cases, covering both the philosophy and practical examples.
+
+---
+
+## Why Edge Cases Matter for CLI Parsers
+
+Command-line parsers are the gatekeepers of user input. Edge cases often reveal:
+- **Security vulnerabilities** (e.g., injection attacks via flags)
+- **Usability bugs** (e.g., confusing error messages)
+- **Logic errors** (e.g., incorrect parsing of combined short flags)
+- **Cross-platform issues** (e.g., path separators, encoding)
+
+---
+
+## Core Edge Case Categories
+
+### 1. **Empty & Missing Input

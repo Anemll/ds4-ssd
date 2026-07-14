@@ -1,0 +1,7 @@
+Questa è un'ottima domanda. La cache KV (Key-Value) su disco è un elemento fondamentale per rendere le sessioni degli agenti AI scalabili, affidabili ed economiche.
+
+Ecco una spiegazione dettagliata del perché è così utile, partendo dal problema che risolve.
+
+### Il Problema: La Memoria Volatile e il Costo degli Agenti
+
+Gli agenti AI moderni (come quelli basati su modelli di linguaggio di grandi dimensioni, LLM) funzionano in "sessioni". Una sessione è una sequenza di interazioni: l

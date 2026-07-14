@@ -1,0 +1,42 @@
+{
+  "benchmark": "a",
+  "exit_code": 0,
+  "final_ds4_statistics": [
+    "ds4: ----------------------------------------",
+    "ds4: prefill: 3.70 t/s, generation: 38.61 t/s (2528 tokens in 65.477s)",
+    "ds4: ttf: first-output=23.188s total=88.573s (engine=1.897s session=16.035s prompt=0.000s prefill=5.138s decode=65.477s)",
+    "ds4: dspark perf: draft=439.8 tok/s, verify=47.9 proposed tok/s, verify-accepted=44.0 tok/s, block=121.54 ms (draft=11.66 verify=106.95 overhead=2.94 commit=2.49, tau=4.70, blocks=538, skip-pre=0, skip-verify=0)",
+    "ds4: dspark verify GPU-busy: 106.11 ms/block of 106.95 ms verify (99.2% active, 0.8% idle)",
+    "ds4: dspark draft-overlap upper-bound: 42.8 tok/s (1.11x block decode, hides 11.66 ms/block)",
+    "ds4: vm pressure: app=84.97 GiB resident=61.63 GiB wired=97.84 GiB compressed=2.34 GiB logical=4.87 GiB swap=2.37/3.00 GiB pressure=87% free=0.50 GiB gpu=84.41 GiB gpu-compressed=0.46 GiB task-compressed=28.46 GiB decompressions=4249775",
+    "ds4: dspark acceptance: 91.7% (2529/2758 draft tokens)",
+    "ds4: dspark acceptance by position: 1=538/538 2=503/538 3=443/481 4=400/445 5=356/406 6=289/350",
+    "ds4: dspark conditional acceptance: 1=100.0% (538/538) 2|1=93.5% (503/538) 3|1-2=96.1% (443/461) 4|1-3=96.9% (400/413) 5|1-4=95.4% (356/373) 6|1-5=92.9% (289/311)",
+    "ds4: dspark full-accept: 80.5% (433/538 blocks), first-miss: 0.0% (0/538 blocks)",
+    "ds4: dspark avg scheduled: 5.13 draft tokens/block (538 blocks)"
+  ],
+  "finished_at": "2026-07-10T21:37:30.589950+00:00",
+  "job_id": "20260710_143249_ac190b0918",
+  "log": "/Users/anemll/SourceRelease/GITHUB/ML_playground/ds4-ssd/bench-results/host-bench-watcher/20260710_143600_a_20260710_143249_ac190b0918/combined.log",
+  "metal_marker": "ds4: Metal device Apple M5 Max",
+  "native_metal": true,
+  "started_at": "2026-07-10T21:36:00.015953+00:00",
+  "stats": {
+    "acceptance": "91.7",
+    "avg_scheduled": "5.13",
+    "block_ms": "121.54",
+    "decode_s": "65.477",
+    "draft_tps": "439.8",
+    "first_output": "23.188",
+    "full_accept": "80.5",
+    "generation": "38.61",
+    "prefill": "3.70",
+    "tau": "4.70",
+    "tokens": "2528",
+    "total_s": "88.573",
+    "verify_accepted_tps": "44.0",
+    "verify_tps": "47.9"
+  },
+  "status": "completed",
+  "wall_seconds": 90.574
+}

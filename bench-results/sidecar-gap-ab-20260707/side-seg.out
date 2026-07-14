@@ -1,0 +1,282 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito Space Invaders arcade experience. It includes the original rules, sprite designs, and mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 Taito</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+        }
+        .cabinet {
+            background: #222;
+            border: 6px solid #333;
+            border-radius: 20px;
+            padding: 20px 25px 25px 25px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8), inset 0 0 10px #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .screen-wrapper {
+            background: #000;
+            border: 4px solid #444;
+            border-radius: 10px;
+            padding: 10px;
+            display: inline-block;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            width: 600px;
+            height: 600px;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 20px #1a1a1a;
+        }
+        .controls {
+            margin-top: 18px;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            color: #8f8;
+            font-weight: bold;
+            text-shadow: 0 0 6px #0f0;
+            letter-spacing: 2px;
+        }
+        .btn {
+            background: #333;
+            border: 2px solid #5a5a5a;
+            border-radius: 10px;
+            padding: 8px 20px;
+            color: #8f8;
+            font-size: 1.4rem;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            box-shadow: 0 0 10px #0f0;
+            transition: 0.1s;
+        }
+        .btn:active {
+            background: #555;
+            transform: scale(0.95);
+        }
+        .info {
+            color: #aaa;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            text-align: center;
+            border-top: 1px solid #3a3a3a;
+            padding-top: 8px;
+        }
+        .info span {
+            color: #f88;
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+    </div>
+    <div class="controls">
+        <span>← →</span>
+        <button class="btn" id="fireBtn">🔥 FIRE</button>
+        <span>SCORE <span id="scoreDisplay">000</span></span>
+    </div>
+    <div class="info">
+        <span>⦿</span> 1978 TAITO · ORIGINAL RULES · 1 PLAYER <span>⦿</span>
+    </div>
+</div>
+<script>
+    (function() {
+        // ----- CANVAS & CONTEXT -----
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+
+        // ----- GAME CONSTANTS (original fidelity) -----
+        const ROWS = 5;          // 5 rows of invaders
+        const COLS = 11;         // 11 columns
+        const INVADER_SIZE = 24; // pixel size (original sprite ~16px, scaled)
+        const PLAYER_WIDTH = 28;
+        const PLAYER_HEIGHT = 20;
+        const LASER_W = 4;
+        const LASER_H = 14;
+        const INVADER_LASER_W = 6;
+        const INVADER_LASER_H = 12;
+
+        // ----- GAME STATE -----
+        let playerX = 300 - PLAYER_WIDTH/2;   // 300 = center
+        let playerY = 560;
+        let lasers = [];
+        let invaderLasers = [];
+        let invaders = [];
+        let score = 0;
+        let lives = 3;
+        let gameOver = false;
+        let frame = 0;
+        let invaderDirection = 1;   // 1 = right, -1 = left
+        let invaderSpeed = 0.6;     // base speed
+        let moveCounter = 0;
+        let invaderMoveTrigger = 0;
+        let invaderStep = 0;        // animation frame
+
+        // original: invaders move 2px per step, step every 8 frames (adjust for smooth)
+        const INVADER_STEP_DELAY = 10;   // frames per step
+        const INVADER_DELTA = 2;         // pixels per step
+
+        // ----- INIT INVADERS (original grid) -----
+        function createInvaders() {
+            invaders = [];
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    invaders.push({
+                        x: 60 + col * 36,      // spacing 36px (original ~36)
+                        y: 40 + row * 32,       // row spacing 32px
+                        row: row,
+                        col: col,
+                        alive: true,
+                        sprite: row   // 0=top row (2 points), 4=bottom (10 points)
+                    });
+                }
+            }
+        }
+
+        // ----- RESET GAME -----
+        function resetGame() {
+            createInvaders();
+            playerX = 300 - PLAYER_WIDTH/2;
+            lasers = [];
+            invaderLasers = [];
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            frame = 0;
+            invaderDirection = 1;
+            moveCounter = 0;
+            invaderMoveTrigger = 0;
+            invaderStep = 0;
+            updateScore();
+        }
+
+        // ----- SCORE (original: 10, 7, 5, 3, 2 from bottom to top) -----
+        function invaderValue(row) {
+            // row 0 (top) = 2, row 1 = 3, row 2 = 5, row 3 = 7, row 4 (bottom) = 10
+            const values = [2, 3, 5, 7, 10];
+            return values[row] || 10;
+        }
+
+        // ----- PLAYER LASER -----
+        function fireLaser() {
+            if (gameOver) return;
+            if (lasers.length < 2) {  // original: max 2 lasers on screen
+                lasers.push({
+                    x: playerX + PLAYER_WIDTH/2 - LASER_W/2,
+                    y: playerY - 10,
+                    w: LASER_W,
+                    h: LASER_H
+                });
+            }
+        }
+
+        // ----- INVADER LASER (drop from random alive invader) -----
+        function dropInvaderLaser() {
+            const alive = invaders.filter(inv => inv.alive);
+            if (alive.length === 0) return;
+            const randomInv = alive[Math.floor(Math.random() * alive.length)];
+            invaderLasers.push({
+                x: randomInv.x + INVADER_SIZE/2 - INVADER_LASER_W/2,
+                y: randomInv.y + 12,
+                w: INVADER_LASER_W,
+                h: INVADER_LASER_H
+            });
+        }
+
+        // ----- UPDATE -----
+        function update() {
+            if (gameOver) return;
+
+            // 1. INVADER MOVEMENT (original: step every 8 frames, 2px)
+            moveCounter++;
+            if (moveCounter >= INVADER_STEP_DELAY) {
+                moveCounter = 0;
+                // move all invaders
+                let hitEdge = false;
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    inv.x += INVADER_DELTA * invaderDirection;
+                    // check edge (original: when reaching side, move down and reverse)
+                    if (inv.x <= 20 || inv.x + INVADER_SIZE >= 580) {
+                        hitEdge = true;
+                    }
+                }
+                if (hitEdge) {
+                    // reverse direction and move down
+                    invaderDirection *= -1;
+                    for (let inv of invaders) {
+                        if (!inv.alive) continue;
+                        inv.y += 8;   // move down 8px (original)
+                        // clamp
+                        if (inv.y + INVADER_SIZE > 540) inv.y = 540 - INVADER_SIZE;
+                    }
+                }
+                // animation frame toggle
+                invaderStep = (invaderStep + 1) % 2;
+            }
+
+            // 2. INVADER LASER DROP (random, ~1 every 30 frames)
+            if (frame % 25 === 0 && invaders.some(i => i.alive)) {
+                if (Math.random() < 0.5) dropInvaderLaser();
+            }
+
+            // 3. MOVE PLAYER (keyboard handled outside, but we keep position)
+            // playerX updated via keydown/keyup
+
+            // 4. MOVE LASERS
+            for (let i = lasers.length-1; i >= 0; i--) {
+                lasers[i].y -= 5;  // speed
+                if (lasers[i].y + lasers[i].h < 0) {
+                    lasers.splice(i, 1);
+                }
+            }
+
+            // 5. MOVE INVADER LASERS
+            for (let i = invaderLasers.length-1; i >= 0; i--) {
+                invaderLasers[i].y += 4;
+                if (invaderLasers[i].y > 600) {
+                    invaderLasers.splice(i, 1);
+                }
+            }
+
+            // 6. COLLISIONS: player lasers vs invaders
+            for (let li = lasers.length-1; li >= 0; li--) {
+                const laser = lasers[li];
+                for (let inv of invaders) {
+                    if (!inv.alive) continue;
+                    // simple AABB
+                    if (laser.x < inv.x + INVADER_SIZE && laser.x + laser.w > inv.x &&
+                        laser.y < inv.y + INVADER_SIZE && laser.y + laser.h > inv.y) {
+                        // kill invader
+                        inv.alive = false;
+                        score += invaderValue(inv.row);
+                        updateScore();
+                        // remove laser
+                        lasers.splice(li, 1);
+                        break;
+                    }
+                }
+            }
+
+            // 7. COLLISIONS: invader lasers vs player

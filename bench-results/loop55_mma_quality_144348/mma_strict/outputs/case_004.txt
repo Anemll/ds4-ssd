@@ -1,0 +1,10 @@
+This is an excellent question that gets at a core efficiency challenge in deploying large language models (LLMs) for interactive use cases.
+
+Here’s the explanation of why KV cache checkpointing is critical for agentic sessions, broken down into the problem, the solution, and the specific benefits.
+
+### The Core Problem: The "Recompute Everything" Tax
+
+In an agentic session, an LLM doesn't just answer one question. It goes through a loop:
+1.  **User Input:** "What's the weather in Paris?"
+2.  **LLM Reasoning:** The model processes the conversation history + the new query.
+3

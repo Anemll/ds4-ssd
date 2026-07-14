@@ -1,0 +1,7 @@
+Here are the first five measurements to take when investigating slow generation at long context lengths:
+
+1.  **Time-Per-Token (TPT) vs. Context Window Position**  
+    Measure the latency per generated token as a function of the position in the context window (e.g., token 1 vs. token 8k vs. token 32k). This isolates whether the slowdown is due to the *generation* phase itself or the *pre-fill/attention* phase.
+
+2.  **KV Cache Memory Usage & Swap Rate**  
+    Check GPU memory utilization for the key-value cache. At long contexts, the

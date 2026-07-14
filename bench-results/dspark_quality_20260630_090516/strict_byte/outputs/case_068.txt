@@ -1,0 +1,7 @@
+This is an excellent and insightful question. The core reason is that **quantization is a "democratic" process that treats all values equally, but rare experts have "aristocratic" needs.**
+
+To understand this, we need to break down what "rare experts" and "common experts" mean in the context of a neural network, and how quantization interacts with them.
+
+### Defining the Terms
+
+- **Common Experts (or "Dense" features):** These are features (neurons or attention heads) that are activated frequently across many different inputs. Their weights and activations are well-distributed across a wide range of values. They

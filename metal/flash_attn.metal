@@ -2871,6 +2871,339 @@ kernel void kernel_flash_attn_varmap_direct_rows5_f32_dk512_dv512(
     }
 }
 
+// DSpark strict N<=6 direct-resident attention with shared K/V microtiles.
+//
+// The raw/compressed cache stores one 512-wide vector that is used for both K
+// and V.  The ordinary direct-F32 kernel converts that vector independently in
+// every verifier-row simdgroup.  This variant keeps the exact 32-key score /
+// softmax / AV realization, keeps each lane's four half-Q values in registers,
+// and stages fourteen keys at a time (plus at most the
+// five-row positional span) once for all active rows.  Mixed raw/compressed
+// boundary fragments and non-contiguous geometry retain the direct row-local
+// read.  At N=6 the shared allocation is:
+//   score + output state     = 13,056 B
+//   19 half KV rows          = 19,456 B
+//   total                    = 32,512 B
+// so it remains below a 32 KiB threadgroup-memory budget.
+kernel void kernel_flash_attn_varmap_direct_shared_rows6_f32_dk512_dv512(
+        constant ds4_metal_args_flash_attn_ext_vec & args,
+        device const char     * q,
+        device const float4   * raw,
+        device const float4   * comp,
+        device const float    * sinks,
+        device       char     * dst,
+        device const uint32_t * row_raw_base,
+        device const uint32_t * row_n_raw,
+        device const uint32_t * row_n_comp,
+        constant uint32_t     & raw_union_start,
+        constant uint32_t     & n_raw_union,
+        constant uint32_t     & raw_cap,
+        threadgroup  half     * shmem_f16 [[threadgroup(0)]],
+        uint3   tgpig[[threadgroup_position_in_grid]],
+        uint    tiitg[[thread_index_in_threadgroup]],
+        ushort  tiisg[[thread_index_in_simdgroup]],
+        ushort  sgitg[[simdgroup_index_in_threadgroup]]) {
+    constexpr short DK = 512;
+    constexpr short DV = 512;
+    constexpr short DK4 = DK / 4;
+    constexpr short DV4 = DV / 4;
+    constexpr short C = OP_FLASH_ATTN_EXT_VEC_NCPSG;
+    constexpr short NW = N_SIMDWIDTH;
+    constexpr uint32_t MICRO = 14;
+    constexpr uint32_t MAX_ROWS = 6;
+    constexpr uint32_t STAGE_ROWS = MICRO + MAX_ROWS - 1;
+    const short NWG = (short)((args.ne31 > 0) ? args.ne31 : 32);
+    const uint32_t tg_threads = (uint32_t)args.ne01 * (uint32_t)NW;
+
+    const ushort row = sgitg;
+    if (row >= args.ne01) {
+        return;
+    }
+
+    const short iwg = tgpig[2];
+    const ushort head = tgpig[1];
+    const uint32_t n_raw = row_n_raw[row];
+    const uint32_t n_comp = row_n_comp[row];
+    const uint32_t n_keys = n_raw + n_comp;
+    const uint32_t raw_base = row_raw_base[row];
+
+    uint32_t max_n_keys = n_keys;
+    FOR_UNROLL (short rr = 0; rr < (short)MAX_ROWS; ++rr) {
+        if ((uint32_t)rr < (uint32_t)args.ne01) {
+            const uint32_t row_keys = row_n_raw[rr] + row_n_comp[rr];
+            if (row_keys > max_n_keys) max_n_keys = row_keys;
+        }
+    }
+
+    threadgroup float  *ss_base = (threadgroup float *)shmem_f16;
+    threadgroup float4 *so4_base =
+        (threadgroup float4 *)(ss_base + args.ne01 * C);
+    threadgroup half4 *skv4 =
+        (threadgroup half4 *)(so4_base + args.ne01 * DV4);
+    threadgroup float  *ss  = ss_base + row * C;
+    threadgroup float4 *so4 = so4_base + row * DV4;
+
+    device const float4 *q4 =
+        (device const float4 *)(q + row * args.nb01 + head * args.nb02);
+
+    half4 qreg[DK4 / NW];
+    FOR_UNROLL (short ii = 0; ii < DK4 / NW; ++ii) {
+        qreg[ii] = half4(q4[ii * NW + tiisg]);
+    }
+    for (short i = tiisg; i < C; i += NW) {
+        ss[i] = 0.0f;
+    }
+    for (short i = tiisg; i < DV4; i += NW) {
+        so4[i] = 0.0f;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    float S = 0.0f;
+    float M = -FLT_MAX / 2;
+
+    for (uint32_t ic = (uint32_t)iwg * C; ic < max_n_keys; ic += NWG * C) {
+        const bool row_chunk_active = ic < n_keys;
+        float mqk[C] = { [0 ... C - 1] = 0.0f };
+
+        // Score phase.  Microtiling changes only where the identical half KV
+        // values are loaded from; all 32 scores are still reduced together.
+        for (uint32_t mb = 0; mb < (uint32_t)C; mb += MICRO) {
+            const uint32_t micro_len = min(MICRO, (uint32_t)C - mb);
+            bool shared_raw = true;
+            bool shared_comp = true;
+            uint32_t union_begin = UINT_MAX;
+            uint32_t union_end = 0;
+
+            FOR_UNROLL (short rr = 0; rr < (short)MAX_ROWS; ++rr) {
+                if ((uint32_t)rr < (uint32_t)args.ne01) {
+                    const uint32_t rr_raw = row_n_raw[rr];
+                    const uint32_t rr_keys = rr_raw + row_n_comp[rr];
+                    const uint32_t rr_key = ic + mb;
+                    const bool rr_full = rr_key + micro_len <= rr_keys;
+                    const bool rr_is_raw = rr_full && rr_key + micro_len <= rr_raw;
+                    const bool rr_is_comp = rr_full && rr_key >= rr_raw;
+                    shared_raw = shared_raw && rr_is_raw;
+                    shared_comp = shared_comp && rr_is_comp;
+                    if (rr_is_raw) {
+                        const uint32_t begin = row_raw_base[rr] + rr_key;
+                        if (begin < union_begin) union_begin = begin;
+                        if (begin + micro_len > union_end) union_end = begin + micro_len;
+                    } else if (rr_is_comp) {
+                        const uint32_t begin = rr_key - rr_raw;
+                        if (begin < union_begin) union_begin = begin;
+                        if (begin + micro_len > union_end) union_end = begin + micro_len;
+                    }
+                }
+            }
+            const bool shared_stage =
+                (shared_raw || shared_comp) &&
+                union_begin != UINT_MAX &&
+                union_end >= union_begin &&
+                union_end - union_begin <= STAGE_ROWS;
+
+            if (shared_stage) {
+                const uint32_t union_len = union_end - union_begin;
+                const uint32_t stage_half4 = union_len * (uint32_t)DK4;
+                for (uint32_t i = tiitg; i < stage_half4; i += tg_threads) {
+                    const uint32_t stage_row = i / (uint32_t)DK4;
+                    const uint32_t component = i - stage_row * (uint32_t)DK4;
+                    if (shared_raw) {
+                        const uint32_t logical = union_begin + stage_row;
+                        const uint32_t physical = (raw_union_start + logical) % raw_cap;
+                        skv4[i] = half4(raw[(uint64_t)physical * DK4 + component]);
+                    } else {
+                        skv4[i] = half4(comp[(uint64_t)(union_begin + stage_row) * DK4 + component]);
+                    }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+
+            if (row_chunk_active) {
+                for (uint32_t mc = 0; mc < micro_len; mc++) {
+                    const uint32_t cc = mb + mc;
+                    const uint32_t key = ic + cc;
+                    const bool valid_key = key < n_keys;
+                    const bool raw_key = valid_key && key < n_raw;
+                    uint32_t mapped_raw = 0;
+                    uint32_t mapped_comp = 0;
+                    if (valid_key) {
+                        if (raw_key) {
+                            mapped_raw = (raw_union_start + raw_base + key) % raw_cap;
+                        } else {
+                            mapped_comp = key - n_raw;
+                        }
+                    }
+                    FOR_UNROLL (short ii = 0; ii < DK4 / NW; ++ii) {
+                        const short qi = ii * NW + tiisg;
+                        half4 mk = half4(0.0h);
+                        if (valid_key) {
+                            if (shared_stage) {
+                                const uint32_t logical = raw_key ? raw_base + key : mapped_comp;
+                                const uint32_t stage_off = logical - union_begin;
+                                mk = skv4[(uint64_t)stage_off * DK4 + qi];
+                            } else if (raw_key && raw_base + key < n_raw_union) {
+                                mk = half4(raw[(uint64_t)mapped_raw * DK4 + qi]);
+                            } else if (!raw_key) {
+                                mk = half4(comp[(uint64_t)mapped_comp * DK4 + qi]);
+                            }
+                        }
+                        mqk[cc] += dot(float4(mk), float4(qreg[ii]));
+                    }
+                    mqk[cc] = simd_sum(mqk[cc]);
+                }
+            }
+            if (shared_stage) {
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+        }
+
+        if (row_chunk_active) {
+            const bool valid = ic + tiisg < n_keys;
+            float score = mqk[tiisg] * args.scale;
+            score += valid ? 0.0f : -MAXHALF;
+            ss[tiisg] = score;
+            simdgroup_barrier(mem_flags::mem_threadgroup);
+
+            const float old_m = M;
+            const float s = ss[tiisg];
+            M = simd_max(max(M, s));
+            const float ms = exp(old_m - M);
+            const float vs = exp(s - M);
+            S = S * ms + simd_sum(vs);
+            ss[tiisg] = vs;
+            FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+                so4[ii * NW + tiisg] *= ms;
+            }
+            simdgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        float4 lo[DV4 / NW] = { [0 ... DV4 / NW - 1] = float4(0.0f) };
+        // AV phase.  Restage the same shared KV microtiles after all 32 softmax
+        // weights are known; cc ordering remains identical to the direct path.
+        for (uint32_t mb = 0; mb < (uint32_t)C; mb += MICRO) {
+            const uint32_t micro_len = min(MICRO, (uint32_t)C - mb);
+            bool shared_raw = true;
+            bool shared_comp = true;
+            uint32_t union_begin = UINT_MAX;
+            uint32_t union_end = 0;
+
+            FOR_UNROLL (short rr = 0; rr < (short)MAX_ROWS; ++rr) {
+                if ((uint32_t)rr < (uint32_t)args.ne01) {
+                    const uint32_t rr_raw = row_n_raw[rr];
+                    const uint32_t rr_keys = rr_raw + row_n_comp[rr];
+                    const uint32_t rr_key = ic + mb;
+                    const bool rr_full = rr_key + micro_len <= rr_keys;
+                    const bool rr_is_raw = rr_full && rr_key + micro_len <= rr_raw;
+                    const bool rr_is_comp = rr_full && rr_key >= rr_raw;
+                    shared_raw = shared_raw && rr_is_raw;
+                    shared_comp = shared_comp && rr_is_comp;
+                    if (rr_is_raw) {
+                        const uint32_t begin = row_raw_base[rr] + rr_key;
+                        if (begin < union_begin) union_begin = begin;
+                        if (begin + micro_len > union_end) union_end = begin + micro_len;
+                    } else if (rr_is_comp) {
+                        const uint32_t begin = rr_key - rr_raw;
+                        if (begin < union_begin) union_begin = begin;
+                        if (begin + micro_len > union_end) union_end = begin + micro_len;
+                    }
+                }
+            }
+            const bool shared_stage =
+                (shared_raw || shared_comp) &&
+                union_begin != UINT_MAX &&
+                union_end >= union_begin &&
+                union_end - union_begin <= STAGE_ROWS;
+
+            if (shared_stage) {
+                const uint32_t union_len = union_end - union_begin;
+                const uint32_t stage_half4 = union_len * (uint32_t)DV4;
+                for (uint32_t i = tiitg; i < stage_half4; i += tg_threads) {
+                    const uint32_t stage_row = i / (uint32_t)DV4;
+                    const uint32_t component = i - stage_row * (uint32_t)DV4;
+                    if (shared_raw) {
+                        const uint32_t logical = union_begin + stage_row;
+                        const uint32_t physical = (raw_union_start + logical) % raw_cap;
+                        skv4[i] = half4(raw[(uint64_t)physical * DV4 + component]);
+                    } else {
+                        skv4[i] = half4(comp[(uint64_t)(union_begin + stage_row) * DV4 + component]);
+                    }
+                }
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+
+            if (row_chunk_active) {
+                for (uint32_t mc = 0; mc < micro_len; mc++) {
+                    const uint32_t cc = mb + mc;
+                    const uint32_t key = ic + cc;
+                    const bool valid_key = key < n_keys;
+                    const bool raw_key = valid_key && key < n_raw;
+                    uint32_t mapped_raw = 0;
+                    uint32_t mapped_comp = 0;
+                    if (valid_key) {
+                        if (raw_key) {
+                            mapped_raw = (raw_union_start + raw_base + key) % raw_cap;
+                        } else {
+                            mapped_comp = key - n_raw;
+                        }
+                    }
+                    const float weight = ss[cc];
+                    FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+                        const short qi = ii * NW + tiisg;
+                        half4 mv = half4(0.0h);
+                        if (valid_key) {
+                            if (shared_stage) {
+                                const uint32_t logical = raw_key ? raw_base + key : mapped_comp;
+                                const uint32_t stage_off = logical - union_begin;
+                                mv = skv4[(uint64_t)stage_off * DV4 + qi];
+                            } else if (raw_key && raw_base + key < n_raw_union) {
+                                mv = half4(raw[(uint64_t)mapped_raw * DV4 + qi]);
+                            } else if (!raw_key) {
+                                mv = half4(comp[(uint64_t)mapped_comp * DV4 + qi]);
+                            }
+                        }
+                        lo[ii] += float4(mv) * weight;
+                    }
+                }
+            }
+            if (shared_stage) {
+                threadgroup_barrier(mem_flags::mem_threadgroup);
+            }
+        }
+        if (row_chunk_active) {
+            FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+                so4[ii * NW + tiisg] += lo[ii];
+            }
+            simdgroup_barrier(mem_flags::mem_threadgroup);
+        }
+    }
+
+    if (iwg == 0) {
+        const float old_m = M;
+        const float s = tiisg == 0 ? sinks[head] : -FLT_MAX / 2;
+        M = simd_max(max(M, s));
+        const float ms = exp(old_m - M);
+        const float vs = exp(s - M);
+        S = S * ms + simd_sum(vs);
+        FOR_UNROLL (short ii = 0; ii < DV4 / NW; ++ii) {
+            so4[ii * NW + tiisg] *= ms;
+        }
+    }
+
+    const int64_t nrows = args.ne3 * args.ne2 * args.ne1;
+    const int64_t rid = head + row * args.ne1;
+    device float4 *dst4 = (device float4 *) dst;
+    device float  *dst1 = (device float  *) dst + nrows * DV * NWG;
+
+    FOR_UNROLL (short i = 0; i < DV4 / NW; ++i) {
+        const short idx = i * NW + tiisg;
+        dst4[rid * DV4 * NWG + NWG * idx + iwg] = so4[idx];
+    }
+    if (tiisg == 0) {
+        dst1[rid * (2 * NWG) + 2 * iwg + 0] = S;
+        dst1[rid * (2 * NWG) + 2 * iwg + 1] = M;
+    }
+}
+
 #undef FA_TYPES
 #undef FA_TYPES_F32
 

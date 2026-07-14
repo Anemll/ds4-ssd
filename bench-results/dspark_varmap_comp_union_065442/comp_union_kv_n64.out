@@ -1,0 +1,9 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, aliens, bullets, scoring, lives, and game over conditions.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init<｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜><｜begin▁of▁sentence｜>

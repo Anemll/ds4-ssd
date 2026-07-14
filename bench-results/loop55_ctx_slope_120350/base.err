@@ -1,0 +1,667 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=8192, raw_kv_rows=8192, raw_window=128, effective_chunk=8064; target raw cap for one chunk is 8448, also requires ctx >= that value)
+ds4: context buffers 747.18 MiB (ctx=8192, backend=metal, prefill_chunk=8192, raw_kv_rows=8192, compressed_kv_rows=514/2050 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.343 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.9GB Total <<<< 81.7GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 8192 clamped to 8064 by raw-KV cap (raw_cap=8192, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 8320 (window + chunk) — or unset it to auto-size — to honor the chunk.
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=26.20 t/s avg=0.37 t/s
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.37 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=51.96 t/s avg=0.74 t/s
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=0.73 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=49.82 t/s avg=1.09 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.08 t/s
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.07 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=46.80 t/s avg=1.42 t/s
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=1.41 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=50.08 t/s avg=1.75 t/s
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=1.74 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=55.61 t/s avg=2.07 t/s
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=2.06 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=58.45 t/s avg=2.39 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.37 t/s
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=2.36 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=54.96 t/s avg=2.68 t/s
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=2.66 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=54.85 t/s avg=2.98 t/s
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=2.96 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=51.99 t/s avg=3.27 t/s
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=3.24 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=59.11 t/s avg=3.55 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.53 t/s
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=3.51 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=50.56 t/s avg=3.81 t/s
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=3.78 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=50.04 t/s avg=4.07 t/s
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=4.05 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=51.20 t/s avg=4.33 t/s
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=4.31 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=57.49 t/s avg=4.59 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.57 t/s
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=4.54 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=50.59 t/s avg=4.81 t/s
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=4.78 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=53.27 t/s avg=5.05 t/s
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=5.02 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=52.66 t/s avg=5.29 t/s
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=5.26 t/s
+processing 19 input tokens: 19/19 (100.0%) batch=46.26 t/s avg=5.51 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: DSpark draft warmup: cap=5 rows=5 in 143.9 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.300 ms snapshot=0.711 ms verify=73.581 ms prefix=1.776 ms total=86.488 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.286 ms snapshot=0.403 ms verify=72.753 ms prefix=1.759 ms total=85.224 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.665 ms snapshot=0.504 ms verify=71.641 ms dspark_kv=1.553 ms total=83.380 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.733 ms snapshot=0.386 ms verify=70.407 ms prefix=1.281 ms total=81.829 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=10.457 ms snapshot=0.381 ms verify=71.717 ms prefix=1.425 ms total=84.060 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=11.240 ms snapshot=0.432 ms verify=71.929 ms prefix=1.517 ms total=85.209 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.341 ms snapshot=0.378 ms verify=73.807 ms prefix=1.565 ms total=86.115 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.591 ms snapshot=0.390 ms verify=71.854 ms dspark_kv=1.562 ms total=84.485 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.405 ms snapshot=0.369 ms verify=72.780 ms dspark_kv=1.684 ms total=85.257 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.646 ms snapshot=0.372 ms verify=74.243 ms dspark_kv=1.534 ms total=85.814 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.645 ms snapshot=0.410 ms verify=74.263 ms dspark_kv=1.641 ms total=85.974 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.502 ms snapshot=0.403 ms verify=73.402 ms dspark_kv=1.637 ms total=84.960 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.549 ms snapshot=0.423 ms verify=73.775 ms dspark_kv=1.670 ms total=85.437 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.740 ms snapshot=0.400 ms verify=74.556 ms dspark_kv=2.327 ms total=87.039 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.736 ms snapshot=0.435 ms verify=74.196 ms dspark_kv=1.670 ms total=86.055 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.461 ms snapshot=0.377 ms verify=75.845 ms dspark_kv=1.664 ms total=88.428 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.514 ms snapshot=0.384 ms verify=75.297 ms dspark_kv=1.676 ms total=87.888 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.892 ms snapshot=0.405 ms verify=78.364 ms prefix=1.792 ms total=91.473 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.531 ms snapshot=0.380 ms verify=78.401 ms dspark_kv=1.573 ms total=90.963 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.565 ms snapshot=0.386 ms verify=78.265 ms prefix=1.753 ms total=90.992 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.860 ms snapshot=0.411 ms verify=76.872 ms dspark_kv=2.288 ms total=89.450 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.518 ms snapshot=0.562 ms verify=78.338 ms prefix=1.714 ms total=91.214 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.488 ms snapshot=0.402 ms verify=78.725 ms prefix=1.577 ms total=91.213 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.842 ms snapshot=0.487 ms verify=79.263 ms dspark_kv=2.586 ms total=92.199 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.656 ms snapshot=0.352 ms verify=80.090 ms dspark_kv=2.343 ms total=93.518 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.575 ms snapshot=0.357 ms verify=79.187 ms dspark_kv=1.616 ms total=91.755 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.770 ms snapshot=0.440 ms verify=79.312 ms dspark_kv=1.547 ms total=91.084 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.804 ms snapshot=0.449 ms verify=79.256 ms dspark_kv=1.592 ms total=91.121 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.828 ms snapshot=0.454 ms verify=80.237 ms dspark_kv=1.698 ms total=92.237 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.830 ms snapshot=0.447 ms verify=79.579 ms dspark_kv=1.575 ms total=91.448 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.564 ms snapshot=0.395 ms verify=79.196 ms dspark_kv=1.634 ms total=91.870 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.446 ms snapshot=0.412 ms verify=80.596 ms dspark_kv=1.685 ms total=93.159 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.816 ms snapshot=0.395 ms verify=79.662 ms dspark_kv=1.635 ms total=91.525 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.543 ms snapshot=0.386 ms verify=79.458 ms dspark_kv=1.645 ms total=92.137 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.514 ms snapshot=0.388 ms verify=80.748 ms dspark_kv=1.601 ms total=93.267 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.915 ms snapshot=0.420 ms verify=79.447 ms dspark_kv=1.651 ms total=91.454 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.844 ms snapshot=0.457 ms verify=79.773 ms dspark_kv=1.612 ms total=91.702 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.583 ms snapshot=0.364 ms verify=81.784 ms dspark_kv=1.616 ms total=94.426 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.519 ms snapshot=0.441 ms verify=79.592 ms dspark_kv=1.678 ms total=92.250 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.776 ms snapshot=0.466 ms verify=79.463 ms prefix=1.405 ms total=91.128 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.903 ms snapshot=0.386 ms verify=80.552 ms dspark_kv=1.656 ms total=92.547 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.832 ms snapshot=0.396 ms verify=79.830 ms dspark_kv=1.636 ms total=91.711 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.451 ms snapshot=0.432 ms verify=79.801 ms dspark_kv=1.623 ms total=91.323 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.880 ms snapshot=0.432 ms verify=79.748 ms dspark_kv=1.718 ms total=91.798 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.906 ms snapshot=0.450 ms verify=79.845 ms prefix=1.361 ms total=91.586 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.919 ms snapshot=0.403 ms verify=80.009 ms dspark_kv=1.569 ms total=92.916 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.735 ms snapshot=0.375 ms verify=78.886 ms dspark_kv=1.671 ms total=91.691 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.831 ms snapshot=0.475 ms verify=80.849 ms prefix=1.659 ms total=92.833 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.873 ms snapshot=0.368 ms verify=82.281 ms dspark_kv=1.606 ms total=94.144 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.851 ms snapshot=0.441 ms verify=80.633 ms dspark_kv=2.542 ms total=93.484 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.793 ms snapshot=0.364 ms verify=82.381 ms dspark_kv=1.651 ms total=94.207 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.825 ms snapshot=0.373 ms verify=80.235 ms prefix=1.556 ms total=92.016 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.796 ms snapshot=0.376 ms verify=80.093 ms dspark_kv=1.609 ms total=91.892 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.880 ms snapshot=0.441 ms verify=80.319 ms dspark_kv=1.503 ms total=92.160 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.844 ms snapshot=0.351 ms verify=81.230 ms prefix=1.452 ms total=92.933 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.488 ms snapshot=0.426 ms verify=79.106 ms prefix=1.333 ms total=91.439 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.448 ms snapshot=0.351 ms verify=80.259 ms prefix=1.738 ms total=92.861 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.904 ms snapshot=0.379 ms verify=80.578 ms dspark_kv=1.630 ms total=92.508 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.498 ms snapshot=0.377 ms verify=80.149 ms dspark_kv=1.616 ms total=92.717 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.518 ms snapshot=0.376 ms verify=82.909 ms dspark_kv=1.576 ms total=95.398 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.849 ms snapshot=0.382 ms verify=80.936 ms prefix=1.497 ms total=92.686 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.824 ms snapshot=0.361 ms verify=81.679 ms dspark_kv=1.627 ms total=93.511 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.913 ms snapshot=0.366 ms verify=81.002 ms dspark_kv=1.568 ms total=92.865 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.828 ms snapshot=0.358 ms verify=80.957 ms dspark_kv=1.589 ms total=92.751 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.849 ms snapshot=0.384 ms verify=80.904 ms prefix=1.821 ms total=92.980 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.887 ms snapshot=0.466 ms verify=80.780 ms dspark_kv=1.609 ms total=92.759 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.869 ms snapshot=0.468 ms verify=82.046 ms dspark_kv=1.639 ms total=94.040 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.823 ms snapshot=0.385 ms verify=81.110 ms dspark_kv=1.619 ms total=92.987 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.862 ms snapshot=0.413 ms verify=81.077 ms dspark_kv=1.663 ms total=93.031 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.843 ms snapshot=0.415 ms verify=80.749 ms prefix=1.272 ms total=92.298 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.015 ms snapshot=0.390 ms verify=84.485 ms prefix=1.853 ms total=96.763 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.631 ms snapshot=0.428 ms verify=80.927 ms dspark_kv=1.641 ms total=93.704 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.512 ms snapshot=0.352 ms verify=80.907 ms dspark_kv=1.737 ms total=93.525 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.919 ms snapshot=0.411 ms verify=80.969 ms prefix=1.414 ms total=92.731 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.906 ms snapshot=0.392 ms verify=81.055 ms prefix=1.673 ms total=93.050 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.466 ms snapshot=0.368 ms verify=82.206 ms dspark_kv=1.563 ms total=94.679 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.559 ms snapshot=0.542 ms verify=81.337 ms dspark_kv=1.583 ms total=94.072 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.875 ms snapshot=0.472 ms verify=81.333 ms dspark_kv=1.597 ms total=93.293 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.833 ms snapshot=0.373 ms verify=81.875 ms prefix=2.571 ms total=94.675 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.854 ms snapshot=0.394 ms verify=82.703 ms prefix=1.374 ms total=94.345 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.944 ms snapshot=0.398 ms verify=81.414 ms prefix=1.653 ms total=93.428 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.879 ms snapshot=0.407 ms verify=81.579 ms prefix=1.309 ms total=93.193 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.976 ms snapshot=0.427 ms verify=80.833 ms prefix=1.607 ms total=92.861 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=10.549 ms snapshot=0.427 ms verify=81.306 ms prefix=1.448 ms total=93.825 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.682 ms snapshot=0.409 ms verify=83.751 ms prefix=1.322 ms total=96.245 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.502 ms snapshot=0.382 ms verify=81.328 ms prefix=1.333 ms total=93.564 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.918 ms snapshot=0.417 ms verify=82.603 ms dspark_kv=1.834 ms total=94.793 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.866 ms snapshot=0.395 ms verify=80.554 ms dspark_kv=1.568 ms total=92.402 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.580 ms snapshot=0.376 ms verify=80.475 ms dspark_kv=1.684 ms total=93.136 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.955 ms snapshot=0.377 ms verify=81.756 ms dspark_kv=1.548 ms total=94.653 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.988 ms snapshot=0.455 ms verify=82.899 ms dspark_kv=1.682 ms total=95.041 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.965 ms snapshot=0.395 ms verify=81.817 ms dspark_kv=1.607 ms total=93.813 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.825 ms snapshot=0.375 ms verify=80.702 ms dspark_kv=1.639 ms total=92.556 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.865 ms snapshot=0.371 ms verify=80.780 ms dspark_kv=1.641 ms total=92.673 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.816 ms snapshot=0.370 ms verify=83.139 ms dspark_kv=1.638 ms total=94.981 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.888 ms snapshot=0.394 ms verify=82.115 ms dspark_kv=1.575 ms total=93.989 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.788 ms snapshot=0.561 ms verify=81.443 ms dspark_kv=1.615 ms total=94.491 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.647 ms snapshot=0.462 ms verify=83.154 ms dspark_kv=1.567 ms total=95.845 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.860 ms snapshot=0.350 ms verify=82.117 ms dspark_kv=1.660 ms total=94.015 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.910 ms snapshot=0.358 ms verify=82.305 ms dspark_kv=1.619 ms total=94.211 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.869 ms snapshot=0.384 ms verify=83.363 ms prefix=1.775 ms total=95.444 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.868 ms snapshot=0.412 ms verify=82.174 ms dspark_kv=1.557 ms total=94.031 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.811 ms snapshot=0.369 ms verify=83.124 ms dspark_kv=1.742 ms total=95.064 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.940 ms snapshot=0.394 ms verify=82.509 ms dspark_kv=1.617 ms total=94.479 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.815 ms snapshot=0.408 ms verify=81.374 ms dspark_kv=1.674 ms total=93.291 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.978 ms snapshot=0.403 ms verify=82.402 ms prefix=1.537 ms total=95.347 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.529 ms snapshot=0.361 ms verify=82.339 ms dspark_kv=1.609 ms total=94.911 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.385 ms snapshot=0.351 ms verify=84.222 ms dspark_kv=1.582 ms total=96.559 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.802 ms snapshot=0.372 ms verify=83.086 ms dspark_kv=1.742 ms total=95.021 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.807 ms snapshot=0.362 ms verify=82.638 ms dspark_kv=1.555 ms total=94.378 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.839 ms snapshot=0.374 ms verify=82.411 ms dspark_kv=1.655 ms total=94.297 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.895 ms snapshot=0.392 ms verify=84.803 ms dspark_kv=1.646 ms total=96.775 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.911 ms snapshot=0.411 ms verify=82.742 ms prefix=1.553 ms total=94.637 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.899 ms snapshot=0.366 ms verify=83.768 ms prefix=1.307 ms total=95.394 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.428 ms snapshot=0.388 ms verify=82.867 ms dspark_kv=1.613 ms total=95.377 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.521 ms snapshot=0.354 ms verify=82.691 ms dspark_kv=1.562 ms total=95.174 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.784 ms snapshot=0.368 ms verify=84.006 ms dspark_kv=1.643 ms total=95.820 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.935 ms snapshot=0.360 ms verify=82.838 ms dspark_kv=1.605 ms total=94.758 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.792 ms snapshot=0.410 ms verify=83.024 ms dspark_kv=1.686 ms total=94.931 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.846 ms snapshot=0.383 ms verify=82.600 ms dspark_kv=1.634 ms total=94.512 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.912 ms snapshot=0.370 ms verify=83.613 ms prefix=1.532 ms total=95.449 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.965 ms snapshot=0.397 ms verify=84.143 ms dspark_kv=2.233 ms total=96.756 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.559 ms snapshot=0.432 ms verify=82.872 ms dspark_kv=1.632 ms total=95.575 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.475 ms snapshot=0.411 ms verify=82.828 ms dspark_kv=1.546 ms total=95.280 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.593 ms snapshot=0.410 ms verify=85.264 ms dspark_kv=1.595 ms total=97.944 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.553 ms snapshot=0.398 ms verify=82.451 ms dspark_kv=1.684 ms total=95.104 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.801 ms snapshot=0.368 ms verify=82.036 ms dspark_kv=1.598 ms total=93.823 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.820 ms snapshot=0.406 ms verify=81.996 ms dspark_kv=1.675 ms total=94.915 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.836 ms snapshot=0.424 ms verify=83.276 ms dspark_kv=1.656 ms total=96.208 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.903 ms snapshot=0.363 ms verify=82.953 ms prefix=1.328 ms total=94.577 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.632 ms snapshot=0.419 ms verify=84.345 ms dspark_kv=1.664 ms total=97.143 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.463 ms snapshot=0.373 ms verify=84.677 ms prefix=1.731 ms total=97.263 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.891 ms snapshot=0.399 ms verify=83.497 ms dspark_kv=1.658 ms total=95.465 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.915 ms snapshot=0.374 ms verify=83.281 ms prefix=1.652 ms total=95.241 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.022 ms snapshot=0.404 ms verify=83.131 ms prefix=1.425 ms total=95.003 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.799 ms snapshot=0.387 ms verify=84.843 ms prefix=1.421 ms total=97.539 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.401 ms snapshot=0.451 ms verify=84.120 ms dspark_kv=2.531 ms total=97.520 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.981 ms snapshot=0.420 ms verify=84.511 ms dspark_kv=1.653 ms total=96.582 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.886 ms snapshot=0.401 ms verify=83.657 ms dspark_kv=1.662 ms total=95.621 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.965 ms snapshot=0.456 ms verify=83.533 ms dspark_kv=1.677 ms total=95.648 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.916 ms snapshot=0.427 ms verify=83.301 ms prefix=1.692 ms total=95.354 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.619 ms snapshot=0.404 ms verify=83.132 ms prefix=1.445 ms total=95.683 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.559 ms snapshot=0.380 ms verify=83.287 ms prefix=1.316 ms total=95.563 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.684 ms snapshot=0.386 ms verify=83.421 ms prefix=1.752 ms total=96.324 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.587 ms snapshot=0.372 ms verify=83.772 ms prefix=1.691 ms total=96.443 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.929 ms snapshot=0.416 ms verify=83.414 ms prefix=1.688 ms total=95.466 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.867 ms snapshot=0.387 ms verify=83.531 ms dspark_kv=1.616 ms total=95.418 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.075 ms snapshot=0.410 ms verify=84.633 ms dspark_kv=1.623 ms total=96.762 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.332 ms snapshot=0.432 ms verify=88.471 ms dspark_kv=1.641 ms total=100.893 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.499 ms snapshot=0.478 ms verify=90.824 ms prefix=1.494 ms total=103.314 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.572 ms snapshot=0.386 ms verify=91.108 ms dspark_kv=1.674 ms total=103.758 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.285 ms snapshot=0.371 ms verify=90.647 ms dspark_kv=1.798 ms total=104.185 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.338 ms snapshot=0.351 ms verify=89.606 ms dspark_kv=1.713 ms total=103.028 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.570 ms snapshot=0.347 ms verify=89.270 ms dspark_kv=1.652 ms total=101.877 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.079 ms snapshot=0.408 ms verify=89.396 ms dspark_kv=1.766 ms total=102.730 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.024 ms snapshot=0.459 ms verify=88.344 ms dspark_kv=1.662 ms total=101.507 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.402 ms snapshot=0.378 ms verify=87.860 ms dspark_kv=1.648 ms total=100.305 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.412 ms snapshot=0.431 ms verify=87.732 ms dspark_kv=1.670 ms total=100.261 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.358 ms snapshot=0.452 ms verify=88.913 ms dspark_kv=1.694 ms total=101.436 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.248 ms snapshot=0.387 ms verify=87.801 ms dspark_kv=1.610 ms total=100.062 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.292 ms snapshot=0.436 ms verify=88.620 ms dspark_kv=1.637 ms total=101.001 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.233 ms snapshot=0.405 ms verify=87.388 ms dspark_kv=1.645 ms total=100.688 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.189 ms snapshot=0.458 ms verify=88.526 ms dspark_kv=1.657 ms total=100.846 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.765 ms snapshot=0.375 ms verify=87.165 ms dspark_kv=2.646 ms total=101.031 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=10.766 ms snapshot=0.383 ms verify=87.402 ms prefix=1.630 ms total=100.263 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.755 ms snapshot=0.398 ms verify=86.888 ms dspark_kv=1.563 ms total=99.685 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.741 ms snapshot=0.358 ms verify=84.350 ms dspark_kv=1.566 ms total=97.104 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.453 ms snapshot=0.360 ms verify=84.078 ms dspark_kv=1.587 ms total=96.508 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.835 ms snapshot=0.359 ms verify=85.390 ms dspark_kv=1.642 ms total=97.245 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.892 ms snapshot=0.437 ms verify=85.808 ms prefix=1.338 ms total=98.494 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.800 ms snapshot=0.359 ms verify=84.643 ms prefix=1.433 ms total=96.261 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.894 ms snapshot=0.368 ms verify=85.456 ms prefix=1.293 ms total=97.065 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.822 ms snapshot=0.355 ms verify=84.660 ms dspark_kv=1.624 ms total=96.479 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.825 ms snapshot=0.415 ms verify=84.455 ms prefix=1.333 ms total=96.050 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.822 ms snapshot=0.362 ms verify=84.355 ms dspark_kv=1.603 ms total=96.160 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.857 ms snapshot=0.385 ms verify=85.828 ms dspark_kv=1.574 ms total=97.659 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.819 ms snapshot=0.375 ms verify=84.889 ms dspark_kv=1.629 ms total=96.729 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.527 ms snapshot=0.375 ms verify=84.199 ms prefix=1.373 ms total=96.558 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.524 ms snapshot=0.372 ms verify=84.645 ms dspark_kv=1.586 ms total=97.147 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.849 ms snapshot=0.382 ms verify=87.132 ms prefix=1.709 ms total=99.108 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.962 ms snapshot=0.406 ms verify=84.852 ms dspark_kv=1.628 ms total=96.865 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.793 ms snapshot=0.365 ms verify=84.756 ms prefix=1.607 ms total=96.543 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.802 ms snapshot=0.368 ms verify=85.304 ms prefix=1.811 ms total=97.308 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.862 ms snapshot=0.386 ms verify=84.788 ms prefix=1.410 ms total=96.470 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.704 ms snapshot=0.386 ms verify=84.765 ms prefix=1.349 ms total=97.288 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.678 ms snapshot=0.377 ms verify=86.189 ms prefix=1.862 ms total=99.129 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=10.456 ms snapshot=0.404 ms verify=85.008 ms prefix=1.413 ms total=97.364 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.579 ms snapshot=0.373 ms verify=84.990 ms dspark_kv=1.752 ms total=97.712 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.871 ms snapshot=0.385 ms verify=85.076 ms dspark_kv=1.650 ms total=96.999 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.889 ms snapshot=0.475 ms verify=86.041 ms prefix=1.347 ms total=97.773 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.946 ms snapshot=0.392 ms verify=85.060 ms dspark_kv=1.639 ms total=97.057 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.848 ms snapshot=0.395 ms verify=85.008 ms prefix=1.786 ms total=97.056 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.899 ms snapshot=0.382 ms verify=85.105 ms dspark_kv=1.624 ms total=97.026 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.901 ms snapshot=0.413 ms verify=85.246 ms dspark_kv=1.566 ms total=97.142 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.950 ms snapshot=0.409 ms verify=86.430 ms dspark_kv=1.622 ms total=98.427 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.911 ms snapshot=0.389 ms verify=86.041 ms prefix=1.677 ms total=98.037 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.852 ms snapshot=0.421 ms verify=85.697 ms dspark_kv=1.530 ms total=97.517 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.901 ms snapshot=0.437 ms verify=85.411 ms dspark_kv=1.633 ms total=97.398 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.900 ms snapshot=0.393 ms verify=85.407 ms prefix=1.728 ms total=97.448 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.917 ms snapshot=0.490 ms verify=86.625 ms dspark_kv=1.640 ms total=98.689 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.674 ms snapshot=0.371 ms verify=86.646 ms dspark_kv=1.676 ms total=99.469 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.475 ms snapshot=0.372 ms verify=85.364 ms dspark_kv=1.629 ms total=97.859 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.902 ms snapshot=0.396 ms verify=85.255 ms dspark_kv=1.625 ms total=97.202 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.848 ms snapshot=0.408 ms verify=86.706 ms dspark_kv=1.633 ms total=98.613 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.954 ms snapshot=0.373 ms verify=86.357 ms dspark_kv=1.588 ms total=98.288 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.851 ms snapshot=0.410 ms verify=85.641 ms prefix=1.714 ms total=97.640 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.948 ms snapshot=0.384 ms verify=85.751 ms prefix=1.520 ms total=97.634 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.839 ms snapshot=0.415 ms verify=85.799 ms dspark_kv=1.712 ms total=97.781 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.889 ms snapshot=0.380 ms verify=85.654 ms dspark_kv=1.601 ms total=97.574 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.864 ms snapshot=0.395 ms verify=85.842 ms prefix=1.727 ms total=97.846 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.894 ms snapshot=0.400 ms verify=86.365 ms prefix=2.070 ms total=98.748 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.884 ms snapshot=0.388 ms verify=86.232 ms dspark_kv=1.612 ms total=98.133 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.510 ms snapshot=0.367 ms verify=85.968 ms dspark_kv=1.628 ms total=98.550 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.498 ms snapshot=0.367 ms verify=85.651 ms dspark_kv=1.654 ms total=98.189 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.800 ms snapshot=0.365 ms verify=85.832 ms dspark_kv=1.632 ms total=97.648 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.830 ms snapshot=0.390 ms verify=87.547 ms dspark_kv=1.587 ms total=99.370 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.861 ms snapshot=0.370 ms verify=86.156 ms prefix=1.693 ms total=98.101 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.650 ms snapshot=0.425 ms verify=85.063 ms dspark_kv=2.151 ms total=98.367 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.695 ms snapshot=0.378 ms verify=86.147 ms dspark_kv=2.248 ms total=99.486 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.858 ms snapshot=0.458 ms verify=86.105 ms prefix=1.937 ms total=98.380 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.524 ms snapshot=0.381 ms verify=89.410 ms prefix=1.354 ms total=101.749 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.473 ms snapshot=0.387 ms verify=86.359 ms dspark_kv=1.634 ms total=98.870 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.853 ms snapshot=0.383 ms verify=86.254 ms dspark_kv=1.615 ms total=98.121 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.924 ms snapshot=0.394 ms verify=88.467 ms dspark_kv=2.514 ms total=101.316 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.934 ms snapshot=0.454 ms verify=86.792 ms dspark_kv=1.612 ms total=98.808 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.899 ms snapshot=0.428 ms verify=86.321 ms prefix=1.435 ms total=98.120 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.938 ms snapshot=0.414 ms verify=87.495 ms prefix=1.412 ms total=99.278 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.454 ms snapshot=0.412 ms verify=86.390 ms dspark_kv=1.488 ms total=98.825 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.437 ms snapshot=0.357 ms verify=86.198 ms dspark_kv=1.596 ms total=98.607 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.853 ms snapshot=0.362 ms verify=87.482 ms dspark_kv=1.568 ms total=99.281 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.829 ms snapshot=0.371 ms verify=88.033 ms dspark_kv=1.514 ms total=99.766 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.971 ms snapshot=0.427 ms verify=86.588 ms dspark_kv=1.647 ms total=98.659 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.802 ms snapshot=0.413 ms verify=86.590 ms dspark_kv=1.605 ms total=98.427 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.833 ms snapshot=0.362 ms verify=87.403 ms dspark_kv=1.634 ms total=99.248 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.850 ms snapshot=0.372 ms verify=86.670 ms dspark_kv=1.633 ms total=98.544 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.844 ms snapshot=0.435 ms verify=86.425 ms dspark_kv=1.734 ms total=98.456 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.821 ms snapshot=0.375 ms verify=86.666 ms dspark_kv=1.628 ms total=98.509 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.825 ms snapshot=0.372 ms verify=89.228 ms prefix=1.405 ms total=100.861 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.511 ms snapshot=0.461 ms verify=85.832 ms dspark_kv=1.682 ms total=98.568 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.510 ms snapshot=0.387 ms verify=85.694 ms prefix=1.893 ms total=98.503 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.540 ms snapshot=0.401 ms verify=87.926 ms dspark_kv=1.616 ms total=100.562 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.479 ms snapshot=0.388 ms verify=86.868 ms prefix=1.535 ms total=99.289 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.903 ms snapshot=0.404 ms verify=87.591 ms dspark_kv=1.611 ms total=99.526 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.098 ms snapshot=0.369 ms verify=89.270 ms dspark_kv=1.599 ms total=101.378 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.116 ms snapshot=0.380 ms verify=89.529 ms dspark_kv=1.638 ms total=101.690 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.104 ms snapshot=0.410 ms verify=91.707 ms dspark_kv=1.602 ms total=103.839 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.158 ms snapshot=0.387 ms verify=90.444 ms dspark_kv=1.790 ms total=102.797 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.253 ms snapshot=0.379 ms verify=90.445 ms prefix=1.732 ms total=102.868 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.792 ms snapshot=0.375 ms verify=87.952 ms dspark_kv=1.736 ms total=101.959 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.769 ms snapshot=0.370 ms verify=89.555 ms dspark_kv=1.647 ms total=103.357 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.150 ms snapshot=0.406 ms verify=89.316 ms dspark_kv=2.279 ms total=103.171 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.107 ms snapshot=0.406 ms verify=90.320 ms dspark_kv=2.661 ms total=103.510 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.267 ms snapshot=0.419 ms verify=89.761 ms prefix=1.569 ms total=102.036 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.052 ms snapshot=0.475 ms verify=90.053 ms dspark_kv=1.659 ms total=102.256 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.169 ms snapshot=0.392 ms verify=89.641 ms dspark_kv=1.675 ms total=101.894 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.160 ms snapshot=0.407 ms verify=89.596 ms dspark_kv=1.634 ms total=101.812 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.146 ms snapshot=0.380 ms verify=89.626 ms dspark_kv=1.668 ms total=101.871 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.103 ms snapshot=0.451 ms verify=89.588 ms prefix=1.614 ms total=101.775 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.130 ms snapshot=0.399 ms verify=89.890 ms dspark_kv=1.724 ms total=102.160 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.086 ms snapshot=0.394 ms verify=89.424 ms dspark_kv=1.596 ms total=101.516 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.713 ms snapshot=0.364 ms verify=89.615 ms prefix=1.854 ms total=102.625 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.783 ms snapshot=0.396 ms verify=88.199 ms dspark_kv=1.651 ms total=101.107 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.574 ms snapshot=0.411 ms verify=88.016 ms prefix=1.513 ms total=100.534 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.944 ms snapshot=0.401 ms verify=88.237 ms prefix=1.948 ms total=100.549 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.939 ms snapshot=0.395 ms verify=88.060 ms dspark_kv=1.901 ms total=100.316 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.965 ms snapshot=0.411 ms verify=87.971 ms dspark_kv=1.698 ms total=100.064 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.951 ms snapshot=0.403 ms verify=89.256 ms dspark_kv=1.678 ms total=101.305 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.980 ms snapshot=0.423 ms verify=88.210 ms prefix=1.545 ms total=100.181 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.938 ms snapshot=0.384 ms verify=89.138 ms dspark_kv=1.646 ms total=101.124 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.892 ms snapshot=0.485 ms verify=88.947 ms dspark_kv=1.586 ms total=100.927 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.994 ms snapshot=0.415 ms verify=89.447 ms dspark_kv=1.798 ms total=101.671 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.849 ms snapshot=0.465 ms verify=89.011 ms dspark_kv=1.763 ms total=102.104 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.931 ms snapshot=0.380 ms verify=89.925 ms dspark_kv=1.629 ms total=101.881 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.835 ms snapshot=0.407 ms verify=88.796 ms dspark_kv=1.593 ms total=100.648 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.954 ms snapshot=0.408 ms verify=88.949 ms dspark_kv=1.673 ms total=101.000 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.124 ms snapshot=0.406 ms verify=88.855 ms dspark_kv=1.634 ms total=101.036 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.978 ms snapshot=0.378 ms verify=89.696 ms dspark_kv=1.620 ms total=101.722 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.910 ms snapshot=0.399 ms verify=88.200 ms dspark_kv=1.682 ms total=100.208 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.856 ms snapshot=0.399 ms verify=88.864 ms dspark_kv=2.500 ms total=101.635 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.907 ms snapshot=0.390 ms verify=88.501 ms dspark_kv=1.650 ms total=100.464 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.032 ms snapshot=0.404 ms verify=90.569 ms dspark_kv=1.648 ms total=102.670 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.878 ms snapshot=0.388 ms verify=88.564 ms dspark_kv=1.608 ms total=100.454 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.910 ms snapshot=0.412 ms verify=88.362 ms dspark_kv=1.608 ms total=100.308 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.877 ms snapshot=0.383 ms verify=88.836 ms dspark_kv=1.665 ms total=100.777 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.916 ms snapshot=0.397 ms verify=89.863 ms dspark_kv=1.566 ms total=101.758 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.884 ms snapshot=0.357 ms verify=89.051 ms dspark_kv=1.720 ms total=101.027 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.646 ms snapshot=0.416 ms verify=90.046 ms dspark_kv=1.652 ms total=102.833 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.831 ms snapshot=0.396 ms verify=90.227 ms dspark_kv=1.605 ms total=103.136 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.740 ms snapshot=0.372 ms verify=90.211 ms dspark_kv=1.762 ms total=103.158 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.665 ms snapshot=0.387 ms verify=92.564 ms dspark_kv=1.638 ms total=105.304 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.139 ms snapshot=0.390 ms verify=90.805 ms dspark_kv=1.757 ms total=103.108 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.777 ms snapshot=0.398 ms verify=90.580 ms prefix=1.802 ms total=103.638 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=10.847 ms snapshot=0.363 ms verify=92.625 ms prefix=1.592 ms total=105.505 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.672 ms snapshot=0.390 ms verify=90.598 ms dspark_kv=1.601 ms total=103.279 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.036 ms snapshot=0.405 ms verify=91.640 ms prefix=1.322 ms total=103.425 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.038 ms snapshot=0.374 ms verify=90.900 ms dspark_kv=1.648 ms total=102.979 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.092 ms snapshot=0.372 ms verify=90.466 ms dspark_kv=1.692 ms total=102.641 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.139 ms snapshot=0.375 ms verify=90.318 ms dspark_kv=1.653 ms total=102.502 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.061 ms snapshot=0.380 ms verify=91.969 ms dspark_kv=1.614 ms total=104.043 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.057 ms snapshot=0.376 ms verify=92.437 ms dspark_kv=1.648 ms total=104.537 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.112 ms snapshot=0.462 ms verify=91.207 ms dspark_kv=1.630 ms total=103.428 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.045 ms snapshot=0.393 ms verify=90.853 ms dspark_kv=1.650 ms total=102.966 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.109 ms snapshot=0.378 ms verify=90.955 ms dspark_kv=1.679 ms total=104.137 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.166 ms snapshot=0.400 ms verify=90.384 ms dspark_kv=2.245 ms total=104.212 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.768 ms snapshot=0.431 ms verify=91.666 ms dspark_kv=2.617 ms total=105.560 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.676 ms snapshot=0.370 ms verify=92.121 ms dspark_kv=1.749 ms total=104.962 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.904 ms snapshot=0.395 ms verify=89.775 ms dspark_kv=1.522 ms total=101.633 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.000 ms snapshot=0.387 ms verify=90.198 ms dspark_kv=1.507 ms total=102.143 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.037 ms snapshot=0.362 ms verify=89.985 ms prefix=1.552 ms total=101.959 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.927 ms snapshot=0.392 ms verify=91.068 ms prefix=1.701 ms total=103.106 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.880 ms snapshot=0.350 ms verify=90.295 ms prefix=1.493 ms total=102.043 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.832 ms snapshot=0.461 ms verify=92.165 ms prefix=1.346 ms total=103.827 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.941 ms snapshot=0.508 ms verify=90.349 ms prefix=1.655 ms total=102.475 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.101 ms snapshot=0.370 ms verify=90.514 ms dspark_kv=1.587 ms total=102.625 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.938 ms snapshot=0.355 ms verify=90.332 ms prefix=1.619 ms total=102.270 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.969 ms snapshot=0.379 ms verify=90.605 ms dspark_kv=1.611 ms total=102.615 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.033 ms snapshot=0.364 ms verify=90.176 ms dspark_kv=1.682 ms total=102.273 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.027 ms snapshot=0.362 ms verify=91.143 ms dspark_kv=1.624 ms total=103.172 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.866 ms snapshot=0.367 ms verify=89.963 ms dspark_kv=1.553 ms total=101.765 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.586 ms snapshot=0.378 ms verify=89.814 ms dspark_kv=1.645 ms total=102.501 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.635 ms snapshot=0.388 ms verify=91.056 ms dspark_kv=1.664 ms total=103.761 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.918 ms snapshot=0.399 ms verify=90.013 ms dspark_kv=1.591 ms total=101.938 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.931 ms snapshot=0.393 ms verify=90.185 ms dspark_kv=1.564 ms total=102.090 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.882 ms snapshot=0.458 ms verify=89.949 ms dspark_kv=1.785 ms total=102.091 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.950 ms snapshot=0.372 ms verify=92.603 ms prefix=1.717 ms total=104.683 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.039 ms snapshot=0.387 ms verify=93.284 ms dspark_kv=1.627 ms total=105.352 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.193 ms snapshot=0.429 ms verify=90.876 ms dspark_kv=1.735 ms total=104.324 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.628 ms snapshot=0.379 ms verify=90.998 ms dspark_kv=1.767 ms total=104.792 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.240 ms snapshot=0.411 ms verify=94.445 ms dspark_kv=1.689 ms total=107.805 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.105 ms snapshot=0.397 ms verify=92.201 ms prefix=1.537 ms total=104.260 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=11.072 ms snapshot=0.420 ms verify=93.599 ms prefix=1.399 ms total=106.514 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.117 ms snapshot=0.397 ms verify=92.231 ms dspark_kv=1.687 ms total=104.449 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.754 ms snapshot=0.363 ms verify=93.923 ms prefix=1.395 ms total=106.517 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.755 ms snapshot=0.378 ms verify=93.535 ms prefix=2.623 ms total=107.404 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.673 ms snapshot=0.389 ms verify=91.260 ms prefix=1.490 ms total=103.894 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.604 ms snapshot=0.378 ms verify=91.557 ms dspark_kv=1.710 ms total=104.266 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.121 ms snapshot=0.410 ms verify=92.871 ms dspark_kv=1.857 ms total=105.276 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.939 ms snapshot=0.394 ms verify=92.127 ms prefix=1.653 ms total=105.131 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.033 ms snapshot=0.403 ms verify=92.988 ms prefix=1.578 ms total=105.021 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.097 ms snapshot=0.403 ms verify=91.982 ms dspark_kv=1.608 ms total=104.107 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.986 ms snapshot=0.386 ms verify=93.577 ms dspark_kv=1.654 ms total=105.619 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.162 ms snapshot=0.412 ms verify=92.415 ms prefix=1.765 ms total=104.775 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.045 ms snapshot=0.401 ms verify=92.564 ms dspark_kv=1.753 ms total=104.780 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.099 ms snapshot=0.370 ms verify=92.454 ms dspark_kv=1.642 ms total=104.614 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.000 ms snapshot=0.383 ms verify=92.605 ms dspark_kv=1.664 ms total=104.672 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.162 ms snapshot=0.375 ms verify=93.232 ms dspark_kv=1.596 ms total=105.415 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.134 ms snapshot=0.357 ms verify=92.375 ms prefix=1.448 ms total=104.338 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.727 ms snapshot=0.357 ms verify=92.355 ms dspark_kv=1.718 ms total=105.173 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.076 ms snapshot=0.382 ms verify=93.464 ms dspark_kv=1.775 ms total=105.747 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.036 ms snapshot=0.345 ms verify=92.649 ms dspark_kv=1.610 ms total=104.656 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.054 ms snapshot=0.396 ms verify=92.408 ms dspark_kv=1.894 ms total=104.768 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.213 ms snapshot=0.443 ms verify=91.369 ms dspark_kv=1.791 ms total=104.832 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.900 ms snapshot=0.527 ms verify=92.758 ms dspark_kv=1.674 ms total=105.877 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.663 ms snapshot=0.414 ms verify=92.285 ms dspark_kv=1.627 ms total=105.068 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=10.631 ms snapshot=0.366 ms verify=92.717 ms prefix=1.428 ms total=105.230 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.512 ms snapshot=0.368 ms verify=91.403 ms prefix=1.457 ms total=103.766 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.468 ms snapshot=0.427 ms verify=92.087 ms dspark_kv=1.733 ms total=104.748 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.795 ms snapshot=0.365 ms verify=90.283 ms dspark_kv=2.209 ms total=103.667 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.564 ms snapshot=0.407 ms verify=91.282 ms dspark_kv=1.714 ms total=104.046 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.514 ms snapshot=0.406 ms verify=91.378 ms dspark_kv=1.627 ms total=103.944 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.971 ms snapshot=0.386 ms verify=91.193 ms prefix=1.715 ms total=103.285 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.856 ms snapshot=0.356 ms verify=91.387 ms dspark_kv=1.639 ms total=103.253 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.893 ms snapshot=0.422 ms verify=93.417 ms dspark_kv=2.578 ms total=106.329 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.841 ms snapshot=0.375 ms verify=91.669 ms prefix=1.760 ms total=103.669 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.854 ms snapshot=0.357 ms verify=91.690 ms dspark_kv=1.560 ms total=103.480 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.855 ms snapshot=0.364 ms verify=94.025 ms dspark_kv=1.593 ms total=105.855 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.192 ms snapshot=0.470 ms verify=94.342 ms prefix=1.358 ms total=106.384 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.722 ms snapshot=0.369 ms verify=91.331 ms prefix=1.795 ms total=104.349 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.501 ms snapshot=0.382 ms verify=92.959 ms dspark_kv=1.643 ms total=106.502 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.137 ms snapshot=0.379 ms verify=92.934 ms dspark_kv=1.644 ms total=105.132 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.072 ms snapshot=0.370 ms verify=94.565 ms dspark_kv=1.723 ms total=106.760 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=11.001 ms snapshot=0.369 ms verify=92.359 ms prefix=2.204 ms total=105.956 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.293 ms snapshot=0.379 ms verify=93.618 ms dspark_kv=1.735 ms total=106.041 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.330 ms snapshot=0.394 ms verify=95.063 ms dspark_kv=1.792 ms total=107.599 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.051 ms snapshot=0.406 ms verify=95.003 ms dspark_kv=1.901 ms total=107.378 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.396 ms snapshot=0.426 ms verify=93.861 ms dspark_kv=1.618 ms total=106.318 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.016 ms snapshot=0.450 ms verify=93.777 ms prefix=1.685 ms total=105.948 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.057 ms snapshot=0.609 ms verify=94.044 ms dspark_kv=1.646 ms total=106.373 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.125 ms snapshot=0.404 ms verify=95.460 ms dspark_kv=1.670 ms total=107.675 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.134 ms snapshot=0.366 ms verify=93.788 ms prefix=1.266 ms total=105.605 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.032 ms snapshot=0.352 ms verify=93.603 ms dspark_kv=1.547 ms total=105.553 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.054 ms snapshot=0.371 ms verify=93.654 ms dspark_kv=1.687 ms total=105.785 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.152 ms snapshot=0.414 ms verify=95.238 ms dspark_kv=1.663 ms total=107.484 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.045 ms snapshot=0.382 ms verify=94.497 ms dspark_kv=1.615 ms total=106.576 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.069 ms snapshot=0.383 ms verify=94.578 ms dspark_kv=1.598 ms total=106.643 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.692 ms snapshot=0.424 ms verify=94.659 ms prefix=1.366 ms total=107.224 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.576 ms snapshot=0.372 ms verify=92.603 ms dspark_kv=1.678 ms total=105.305 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.661 ms snapshot=0.499 ms verify=93.296 ms dspark_kv=1.626 ms total=106.108 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.868 ms snapshot=0.431 ms verify=92.174 ms prefix=1.931 ms total=104.429 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.588 ms snapshot=0.375 ms verify=92.048 ms prefix=1.423 ms total=104.515 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.605 ms snapshot=0.387 ms verify=92.800 ms dspark_kv=2.654 ms total=106.526 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.632 ms snapshot=0.381 ms verify=92.478 ms dspark_kv=1.740 ms total=105.248 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.695 ms snapshot=0.361 ms verify=93.772 ms dspark_kv=1.586 ms total=106.514 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.565 ms snapshot=0.393 ms verify=93.170 ms dspark_kv=1.584 ms total=105.729 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.936 ms snapshot=0.382 ms verify=93.450 ms dspark_kv=1.932 ms total=105.741 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.980 ms snapshot=0.367 ms verify=95.034 ms dspark_kv=1.607 ms total=107.005 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.882 ms snapshot=0.392 ms verify=94.389 ms prefix=1.702 ms total=107.385 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.683 ms snapshot=0.385 ms verify=94.386 ms dspark_kv=1.556 ms total=107.102 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.698 ms snapshot=0.405 ms verify=95.966 ms dspark_kv=1.627 ms total=108.787 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.680 ms snapshot=0.386 ms verify=93.998 ms dspark_kv=1.639 ms total=106.783 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.466 ms snapshot=0.353 ms verify=92.768 ms dspark_kv=1.768 ms total=106.376 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.752 ms snapshot=0.405 ms verify=96.311 ms prefix=1.379 ms total=108.869 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.782 ms snapshot=0.369 ms verify=94.263 ms prefix=1.462 ms total=106.960 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.590 ms snapshot=0.425 ms verify=93.185 ms dspark_kv=1.566 ms total=106.843 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.618 ms snapshot=0.379 ms verify=94.603 ms dspark_kv=1.541 ms total=108.161 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.594 ms snapshot=0.378 ms verify=94.610 ms dspark_kv=1.586 ms total=107.257 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=11.711 ms snapshot=0.383 ms verify=93.098 ms prefix=1.494 ms total=106.769 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.604 ms snapshot=0.424 ms verify=94.342 ms dspark_kv=1.826 ms total=108.217 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.130 ms snapshot=0.410 ms verify=94.343 ms dspark_kv=1.743 ms total=106.642 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.112 ms snapshot=0.392 ms verify=98.488 ms prefix=1.518 ms total=110.530 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.880 ms snapshot=0.373 ms verify=95.957 ms dspark_kv=1.696 ms total=109.009 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.757 ms snapshot=0.400 ms verify=95.008 ms dspark_kv=1.598 ms total=107.813 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.974 ms snapshot=0.376 ms verify=94.771 ms prefix=1.351 ms total=106.493 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.020 ms snapshot=0.289 ms verify=94.796 ms dspark_kv=1.754 ms total=106.876 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.063 ms snapshot=0.364 ms verify=95.428 ms dspark_kv=1.639 ms total=108.510 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.073 ms snapshot=0.423 ms verify=96.358 ms prefix=1.703 ms total=108.610 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.069 ms snapshot=0.386 ms verify=95.430 ms dspark_kv=1.655 ms total=107.556 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.081 ms snapshot=0.404 ms verify=96.181 ms dspark_kv=2.585 ms total=109.270 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.078 ms snapshot=0.401 ms verify=95.592 ms dspark_kv=1.592 ms total=107.680 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.039 ms snapshot=0.371 ms verify=96.474 ms prefix=1.805 ms total=108.708 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.033 ms snapshot=0.436 ms verify=96.295 ms dspark_kv=1.610 ms total=108.390 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.009 ms snapshot=0.371 ms verify=95.311 ms prefix=1.459 ms total=107.169 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.068 ms snapshot=0.372 ms verify=95.003 ms prefix=1.675 ms total=107.148 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.045 ms snapshot=0.357 ms verify=95.236 ms dspark_kv=1.741 ms total=107.408 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.099 ms snapshot=0.385 ms verify=96.649 ms prefix=1.556 ms total=108.746 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.086 ms snapshot=0.368 ms verify=94.748 ms dspark_kv=1.621 ms total=106.841 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.885 ms snapshot=0.367 ms verify=95.079 ms prefix=2.041 ms total=108.428 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.781 ms snapshot=0.347 ms verify=93.707 ms dspark_kv=1.683 ms total=106.649 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.614 ms snapshot=0.401 ms verify=93.107 ms dspark_kv=1.534 ms total=106.677 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.025 ms snapshot=0.363 ms verify=95.349 ms dspark_kv=1.649 ms total=107.407 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.889 ms snapshot=0.433 ms verify=94.375 ms prefix=1.297 ms total=106.013 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.022 ms snapshot=0.420 ms verify=94.792 ms dspark_kv=1.714 ms total=106.965 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.963 ms snapshot=0.403 ms verify=95.169 ms dspark_kv=1.703 ms total=107.255 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.034 ms snapshot=0.398 ms verify=96.569 ms dspark_kv=1.700 ms total=109.717 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.038 ms snapshot=0.381 ms verify=95.850 ms dspark_kv=1.663 ms total=107.948 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.067 ms snapshot=0.364 ms verify=95.772 ms dspark_kv=1.607 ms total=107.863 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=11.534 ms snapshot=0.417 ms verify=96.085 ms dspark_kv=1.658 ms total=109.774 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.152 ms snapshot=0.417 ms verify=95.601 ms dspark_kv=1.614 ms total=108.802 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.660 ms snapshot=0.364 ms verify=95.070 ms dspark_kv=1.629 ms total=107.821 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.723 ms snapshot=0.361 ms verify=96.420 ms dspark_kv=1.698 ms total=109.238 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.759 ms snapshot=0.376 ms verify=95.019 ms dspark_kv=1.779 ms total=108.017 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.680 ms snapshot=0.378 ms verify=95.683 ms prefix=1.351 ms total=108.188 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.626 ms snapshot=0.371 ms verify=79.296 ms prefix=1.427 ms total=91.742 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.046 ms snapshot=0.444 ms verify=81.423 ms dspark_kv=1.663 ms total=93.627 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.075 ms snapshot=0.383 ms verify=80.958 ms dspark_kv=1.653 ms total=93.099 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.112 ms snapshot=0.387 ms verify=80.449 ms dspark_kv=2.649 ms total=93.614 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.097 ms snapshot=0.366 ms verify=102.384 ms prefix=1.716 ms total=114.610 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.066 ms snapshot=0.397 ms verify=107.256 ms prefix=1.622 ms total=119.378 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.521 ms snapshot=0.489 ms verify=107.050 ms dspark_kv=1.531 ms total=119.670 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.533 ms snapshot=0.363 ms verify=106.441 ms dspark_kv=1.583 ms total=118.975 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.927 ms snapshot=0.389 ms verify=104.702 ms prefix=1.440 ms total=116.478 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.933 ms snapshot=0.369 ms verify=107.216 ms prefix=1.695 ms total=119.249 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.858 ms snapshot=0.419 ms verify=107.038 ms dspark_kv=1.549 ms total=119.885 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.934 ms snapshot=0.405 ms verify=105.565 ms dspark_kv=1.547 ms total=117.468 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.968 ms snapshot=0.467 ms verify=106.743 ms dspark_kv=1.660 ms total=118.857 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.983 ms snapshot=0.459 ms verify=107.010 ms dspark_kv=1.657 ms total=119.127 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.869 ms snapshot=0.378 ms verify=107.393 ms prefix=1.640 ms total=119.303 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.661 ms snapshot=0.401 ms verify=107.458 ms prefix=1.790 ms total=120.391 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.507 ms snapshot=0.383 ms verify=107.584 ms dspark_kv=1.596 ms total=120.087 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.895 ms snapshot=0.366 ms verify=106.198 ms dspark_kv=1.635 ms total=118.114 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.777 ms snapshot=0.400 ms verify=106.086 ms dspark_kv=1.637 ms total=118.929 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.859 ms snapshot=0.450 ms verify=105.870 ms dspark_kv=1.537 ms total=117.732 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.659 ms snapshot=0.359 ms verify=106.179 ms dspark_kv=1.623 ms total=118.912 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.377 ms snapshot=0.386 ms verify=106.899 ms dspark_kv=1.690 ms total=120.382 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.685 ms snapshot=0.411 ms verify=107.059 ms dspark_kv=1.603 ms total=119.847 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.496 ms snapshot=0.381 ms verify=106.277 ms dspark_kv=1.611 ms total=118.782 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.908 ms snapshot=0.383 ms verify=106.123 ms dspark_kv=1.558 ms total=118.024 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.852 ms snapshot=0.388 ms verify=107.510 ms prefix=1.684 ms total=119.455 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=11.051 ms snapshot=0.387 ms verify=107.022 ms dspark_kv=1.665 ms total=120.175 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.868 ms snapshot=0.402 ms verify=105.798 ms dspark_kv=1.594 ms total=117.678 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.013 ms snapshot=0.402 ms verify=105.654 ms dspark_kv=1.680 ms total=117.765 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.954 ms snapshot=0.425 ms verify=106.061 ms prefix=1.740 ms total=118.241 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.855 ms snapshot=0.408 ms verify=106.743 ms dspark_kv=2.544 ms total=119.570 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.926 ms snapshot=0.442 ms verify=107.382 ms dspark_kv=1.625 ms total=120.391 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.988 ms snapshot=0.413 ms verify=106.317 ms dspark_kv=1.582 ms total=118.320 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.922 ms snapshot=0.431 ms verify=106.146 ms dspark_kv=1.538 ms total=118.054 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.899 ms snapshot=0.440 ms verify=105.666 ms dspark_kv=1.566 ms total=117.624 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.881 ms snapshot=0.428 ms verify=107.647 ms dspark_kv=1.587 ms total=119.563 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.940 ms snapshot=0.381 ms verify=106.810 ms dspark_kv=1.583 ms total=118.735 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.612 ms snapshot=0.381 ms verify=106.758 ms dspark_kv=1.564 ms total=119.442 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.541 ms snapshot=0.381 ms verify=107.799 ms dspark_kv=1.643 ms total=120.381 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.921 ms snapshot=0.367 ms verify=106.512 ms dspark_kv=1.714 ms total=118.567 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.978 ms snapshot=0.480 ms verify=105.859 ms dspark_kv=1.553 ms total=117.889 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.946 ms snapshot=0.385 ms verify=105.940 ms dspark_kv=1.544 ms total=117.832 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.872 ms snapshot=0.417 ms verify=107.034 ms dspark_kv=1.628 ms total=118.969 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.966 ms snapshot=0.375 ms verify=105.666 ms dspark_kv=1.586 ms total=117.632 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.986 ms snapshot=0.362 ms verify=105.844 ms dspark_kv=1.541 ms total=117.762 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.863 ms snapshot=0.383 ms verify=106.088 ms dspark_kv=1.566 ms total=118.952 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.912 ms snapshot=0.416 ms verify=107.382 ms prefix=1.827 ms total=119.557 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.925 ms snapshot=0.389 ms verify=107.275 ms prefix=1.443 ms total=119.052 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.888 ms snapshot=0.366 ms verify=105.406 ms dspark_kv=1.703 ms total=117.382 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.891 ms snapshot=0.370 ms verify=105.935 ms dspark_kv=1.682 ms total=117.920 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.957 ms snapshot=0.403 ms verify=107.462 ms dspark_kv=1.678 ms total=120.516 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.936 ms snapshot=0.476 ms verify=106.068 ms dspark_kv=1.633 ms total=118.130 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.880 ms snapshot=0.473 ms verify=105.921 ms dspark_kv=1.528 ms total=117.819 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.908 ms snapshot=0.392 ms verify=105.631 ms prefix=1.576 ms total=117.548 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.865 ms snapshot=0.385 ms verify=105.482 ms prefix=1.564 ms total=117.318 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.866 ms snapshot=0.365 ms verify=107.985 ms prefix=1.744 ms total=119.977 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.584 ms snapshot=0.380 ms verify=105.692 ms prefix=1.437 ms total=118.177 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.455 ms snapshot=0.367 ms verify=107.921 ms prefix=1.588 ms total=120.383 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.509 ms snapshot=0.360 ms verify=108.013 ms prefix=1.756 ms total=120.719 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.517 ms snapshot=0.367 ms verify=105.955 ms prefix=1.501 ms total=118.375 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.875 ms snapshot=0.349 ms verify=105.777 ms prefix=1.280 ms total=117.334 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.897 ms snapshot=0.344 ms verify=104.650 ms dspark_kv=1.642 ms total=116.584 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.856 ms snapshot=0.357 ms verify=104.683 ms prefix=1.539 ms total=116.459 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.912 ms snapshot=0.357 ms verify=106.298 ms prefix=1.355 ms total=117.945 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.940 ms snapshot=0.395 ms verify=106.124 ms prefix=1.426 ms total=117.908 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.857 ms snapshot=0.377 ms verify=105.826 ms prefix=1.781 ms total=117.866 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=1 draft=10.593 ms snapshot=0.363 ms verify=106.056 ms prefix=2.028 ms total=119.125 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.554 ms snapshot=0.395 ms verify=105.933 ms dspark_kv=1.598 ms total=118.558 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.585 ms snapshot=0.433 ms verify=105.667 ms prefix=1.563 ms total=118.301 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.834 ms snapshot=0.353 ms verify=106.810 ms dspark_kv=1.664 ms total=118.679 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.008 ms snapshot=0.369 ms verify=105.882 ms prefix=1.246 ms total=117.526 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.592 ms snapshot=0.387 ms verify=108.353 ms dspark_kv=1.590 ms total=121.000 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.549 ms snapshot=0.371 ms verify=106.469 ms prefix=1.670 ms total=119.081 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.985 ms snapshot=0.476 ms verify=105.826 ms prefix=1.554 ms total=117.860 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.030 ms snapshot=0.410 ms verify=107.716 ms prefix=1.513 ms total=119.689 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.903 ms snapshot=0.353 ms verify=105.674 ms dspark_kv=1.639 ms total=117.611 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.874 ms snapshot=0.429 ms verify=105.838 ms prefix=1.531 ms total=117.696 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.919 ms snapshot=0.368 ms verify=105.781 ms dspark_kv=1.698 ms total=117.824 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.738 ms snapshot=0.353 ms verify=105.952 ms dspark_kv=1.561 ms total=118.623 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.983 ms snapshot=0.408 ms verify=106.121 ms prefix=1.448 ms total=117.982 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=2 draft=10.621 ms snapshot=0.409 ms verify=105.714 ms prefix=1.417 ms total=118.244 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=11.380 ms snapshot=0.374 ms verify=107.358 ms prefix=1.440 ms total=120.573 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=10.619 ms snapshot=0.369 ms verify=105.676 ms prefix=1.471 ms total=118.242 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.627 ms snapshot=0.385 ms verify=105.836 ms prefix=1.709 ms total=118.637 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=10.523 ms snapshot=0.397 ms verify=106.095 ms prefix=1.711 ms total=118.745 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.899 ms snapshot=0.371 ms verify=105.731 ms dspark_kv=1.653 ms total=117.704 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.983 ms snapshot=0.375 ms verify=106.885 ms prefix=1.525 ms total=118.788 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.614 ms snapshot=0.435 ms verify=105.750 ms dspark_kv=1.644 ms total=118.523 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.633 ms snapshot=0.361 ms verify=105.859 ms dspark_kv=1.642 ms total=118.598 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.530 ms snapshot=0.397 ms verify=107.146 ms prefix=1.383 ms total=119.479 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.884 ms snapshot=0.406 ms verify=107.663 ms prefix=2.010 ms total=119.982 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.521 ms snapshot=0.366 ms verify=106.154 ms prefix=1.685 ms total=118.813 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=10.618 ms snapshot=0.644 ms verify=107.267 ms prefix=1.481 ms total=120.113 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=10.572 ms snapshot=0.382 ms verify=108.937 ms dspark_kv=1.579 ms total=121.488 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.924 ms snapshot=0.431 ms verify=105.955 ms prefix=1.494 ms total=117.826 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=4 draft=10.612 ms snapshot=0.368 ms verify=105.918 ms prefix=1.618 ms total=118.626 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=10.453 ms snapshot=0.360 ms verify=105.932 ms prefix=1.558 ms total=118.326 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.563 ms snapshot=0.398 ms verify=106.519 ms prefix=1.673 ms total=119.172 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.838 ms snapshot=0.382 ms verify=107.042 ms dspark_kv=1.721 ms total=119.000 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.923 ms snapshot=0.453 ms verify=107.466 ms prefix=1.344 ms total=119.207 ms
+ds4: dspark timing decodeN-prefix drafted=5 committed=3 draft=10.624 ms snapshot=0.395 ms verify=107.918 ms prefix=1.525 ms total=120.556 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=10.591 ms snapshot=0.373 ms verify=105.689 ms prefix=1.310 ms total=117.984 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=1 draft=9.911 ms snapshot=0.402 ms verify=105.749 ms prefix=1.413 ms total=117.499 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=9.910 ms snapshot=0.435 ms verify=105.535 ms prefix=1.594 ms total=117.534 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=4 draft=9.881 ms snapshot=0.368 ms verify=105.540 ms prefix=1.616 ms total=117.432 ms
+ds4: dspark timing decodeN drafted=5 committed=5 draft=10.587 ms snapshot=0.383 ms verify=105.670 ms dspark_kv=1.577 ms total=118.296 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=3 draft=10.559 ms snapshot=0.370 ms verify=107.207 ms prefix=1.577 ms total=119.731 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.979 ms snapshot=0.361 ms verify=105.553 ms prefix=1.340 ms total=117.269 ms
+ds4: dspark timing frontier-prefix drafted=3 committed=2 draft=9.888 ms snapshot=0.391 ms verify=69.857 ms prefix=1.395 ms total=81.555 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.848 ms snapshot=0.415 ms verify=107.204 ms prefix=1.538 ms total=119.030 ms
+ds4: dspark timing frontier-decodeN drafted=5 committed=5 draft=9.944 ms snapshot=0.365 ms verify=106.779 ms dspark_kv=1.581 ms total=118.721 ms
+ds4: dspark timing frontier-prefix drafted=5 committed=2 draft=9.987 ms snapshot=0.398 ms verify=105.974 ms prefix=1.445 ms total=117.824 ms
+ds4: dspark timing frontier-decodeN drafted=4 committed=4 draft=9.906 ms snapshot=0.386 ms verify=88.355 ms dspark_kv=1.370 ms total=100.033 ms
+ds4: ----------------------------------------
+ds4: prefill: 5.25 t/s, generation: 39.72 t/s (2479 tokens in 62.405s)
+ds4: dspark perf: draft=486.4 tok/s, verify=69.3 proposed tok/s, verify-accepted=46.8 tok/s, block=84.00 ms (draft=10.27 verify=72.08 overhead=1.65 commit=1.31, tau=3.37, blocks=699)
+ds4: dspark verify GPU-busy: 71.04 ms/block of 72.08 ms verify (98.6% active, 1.4% idle)
+ds4: dspark draft-overlap upper-bound: 45.8 tok/s (1.14x block decode, hides 10.27 ms/block)
+ds4: vm pressure: app=84.40 GiB resident=30.88 GiB wired=96.17 GiB compressed=1.76 GiB logical=3.46 GiB swap=2.59/4.00 GiB pressure=85% free=3.90 GiB gpu=84.30 GiB gpu-compressed=0.00 GiB task-compressed=60.92 GiB decompressions=6116821
+ds4: dspark acceptance: 81.7% (2359/2887 draft tokens)
+ds4: dspark acceptance by position: 1=555/578 2=524/578 3=477/578 4=434/577 5=369/576
+ds4: dspark conditional acceptance: 1=96.0% (555/578) 2|1=94.4% (524/555) 3|1-2=91.0% (477/524) 4|1-3=91.0% (434/477) 5|1-4=85.2% (369/433)
+ds4: dspark full-accept: 64.0% (370/578 blocks), first-miss: 4.0% (23/578 blocks)
+ds4: dspark avg scheduled: 4.99 draft tokens/block (578 blocks)

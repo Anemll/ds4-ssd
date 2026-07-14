@@ -1,0 +1,27 @@
+outdir=bench-results/dspark_pair2_candidate_162933
+
+[control]
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+92:ds4: dspark row-routed direct Q2 down ordered-sum enabled
+102:ds4: prefill: 6.22 t/s, generation: 40.47 t/s (300 tokens in 7.413s)
+103:ds4: dspark acceptance: 83.6% (240/287 draft tokens)
+104:ds4: dspark acceptance by position: 1=56/60 2=53/60 3=49/58 4=44/57 5=38/52
+106:ds4: dspark full-accept: 71.7% (43/60 blocks), first-miss: 6.7% (4/60 blocks)
+107:ds4: dspark avg scheduled: 4.78 draft tokens/block (60 blocks)
+
+[pair2]
+20:ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+86:ds4: dspark row-routed grouped exact descriptor enabled (GPU route grouping; math fallback row-exact)
+87:ds4: dspark row-routed grouped Q2 down materialization diagnostic enabled (unsafe shared-weight math)
+104:ds4: prefill: 5.86 t/s, generation: 39.00 t/s (300 tokens in 7.691s)
+105:ds4: dspark acceptance: 83.6% (240/287 draft tokens)
+106:ds4: dspark acceptance by position: 1=56/60 2=53/60 3=49/58 4=44/57 5=38/52
+108:ds4: dspark full-accept: 71.7% (43/60 blocks), first-miss: 6.7% (4/60 blocks)
+109:ds4: dspark avg scheduled: 4.78 draft tokens/block (60 blocks)
+
+[cmp/control-vs-pair2]
+cmp=0
+
+[canary pair2]
+path	chars	lines	unique_lines	max_repeated_line_run	max_duplicate_declaration_count	duplicate_declaration_names	max_duplicate_css_selector_count	duplicate_css_selectors	malformed_assignment_lines	malformed_html_lines	malformed_css_lines	max_4gram_count	max_8gram_count	suspect
+bench-results/dspark_pair2_candidate_162933/pair2.out	887	37	37	1	0		0		0	0	0	1	1	0

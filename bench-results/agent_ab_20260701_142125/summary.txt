@@ -1,0 +1,9 @@
+== nodraft
+  agent decode: no turn-stats found
+  TOOLS: clean
+== strict_b5
+  agent decode: 1989 tokens / 59.38s = 33.50 t/s over 6 rounds
+  TOOLS: clean
+== dynamic
+  agent decode: 1989 tokens / 59.37s = 33.50 t/s over 6 rounds
+  TOOLS: clean

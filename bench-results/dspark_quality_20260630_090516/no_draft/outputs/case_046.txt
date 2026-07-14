@@ -1,0 +1,7 @@
+This is a great question that gets to the heart of how modern, large-scale AI models achieve efficiency and performance.
+
+In a **Mixture-of-Experts (MoE)** layer, the **router** (also called a **gating network** or **switch**) plays the critical role of **deciding which expert(s) to activate for a given input token**.
+
+Think of it as a smart dispatcher or a manager. Its job is to look at each piece of data (token) and route it to the sub-model (expert) best suited to handle it.
+
+Here’s a breakdown of its specific roles and how it

@@ -1,0 +1,12 @@
+This is a great question because these two concepts are often confused, yet they are fundamentally different.
+
+Think of it as a **water pipeline** going to your house.
+
+- **Latency** is the **time** it takes for a single drop of water to travel from the reservoir to the tap.
+- **Throughput** is the **rate** of flow, or the total volume of water that can come out of the tap per minute.
+
+Here is the technical breakdown:
+
+### Latency (The "Wait")
+
+**Definition:** The time it takes for a single request to travel from the client to the system and back (the "round

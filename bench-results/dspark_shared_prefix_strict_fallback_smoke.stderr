@@ -1,0 +1,5 @@
+dspark phase0: baseline -> bench-results/dspark_shared_prefix_strict_fallback_smoke/baseline.err
+dspark phase0: baseline_tps=33.49
+dspark phase0: draft budget=4 -> bench-results/dspark_shared_prefix_strict_fallback_smoke/dspark_b4.err
+dspark phase0: unified backend=shared_prefix budget=4 -> bench-results/dspark_shared_prefix_strict_fallback_smoke/dspark_unified_shared_prefix_b4.err
+dspark phase0: wrote bench-results/dspark_shared_prefix_strict_fallback_smoke/summary.tsv

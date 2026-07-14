@@ -1,0 +1,8 @@
+Ecco una spiegazione chiara della differenza tra **laten** e **throughput** (o *throughput*), con un esempio pratico.
+
+---
+
+### **Latenza (Latency)**
+- **Definizione:** Il tempo che impiega un singolo dato o una richiesta per viaggiare da un punto A a un punto B (o da un input all'output).
+- **Metafora:** È il tempo di attesa per ricevere la prima risposta.
+- **Misura:** Millisecondi (ms), microsecondi (μs), o nanosecond (ns).

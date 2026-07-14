@@ -1,0 +1,6 @@
+In un database distribuito, la **consistenza eventuale** (o *eventual consistency*) è un modello di coerenza dei dati che garantisce che, in assenza di nuovi aggiornamenti, tutte le copie dei dati (repliche) alla fine convergeranno allo stesso valore, ma non immediatamente.
+
+### Spiegazione pratica:
+
+1. **Cosa succede subito dopo un aggiornamento?**  
+   Se un utente scrive un dato su un nodo del sistema, gli altri nodi potrebbero non vedere subito la modifica. Per un breve periodo

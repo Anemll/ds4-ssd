@@ -1,0 +1,111 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENEMY_HEIGHT = 40
+BULLET_WIDTH = 4
+BULLET_HEIGHT = 10
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.reset_game()
+    
+    def reset_game(self):
+        self.player = pygame.Rect(SCREEN_WIDTH // 2 - PLAYER_WIDTH // 2, 
+                                  SCREEN_HEIGHT - PLAYER_HEIGHT - 20, 
+                                  PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.enemies = []
+        self.bullets = []
+        self.enemy_bullets = []
+        self.score = 0
+        self.lives = 3
+        self.game_over = False
+        self.win = False
+        self.enemy_direction = 0  # 0 = left, 1 = right
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.enemy_direction = 1
+        self.en

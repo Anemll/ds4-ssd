@@ -1,0 +1,7 @@
+This is a great question that gets to the heart of how we handle concurrent access to shared data.
+
+The core difference is this:
+- **A mutex** is a **mechanism for *mutual exclusion***. It protects a section of code (a critical section) so that only one thread can execute it at a time. It's about **access control**.
+- **An atomic counter** is a **specific data structure** (usually a variable) that allows for **lock-free, thread-safe operations** (like increment or decrement). It's about **data integrity**.
+
+Let's break down the "why" and "

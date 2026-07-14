@@ -1,0 +1,5 @@
+verify	out	err	gen_tps	block_ms	draft_ms	verify_ms	tau	acceptance	suspect
+2	bench-results/dspark_fastrelaxed_v2_n1000_061252.out	bench-results/dspark_fastrelaxed_v2_n1000_061252.err	39.41	47.09	6.25	39.16	1.90	97.7%	0
+3	bench-results/dspark_fastrelaxed_v3_n1000_061252.out	bench-results/dspark_fastrelaxed_v3_n1000_061252.err	46.69	57.30	7.47	48.04	2.74	95.3%	0
+4	bench-results/dspark_fastrelaxed_v4_n1000_061252.out	bench-results/dspark_fastrelaxed_v4_n1000_061252.err	49.16	67.81	8.77	56.78	3.49	91.0%	0
+5	bench-results/dspark_fastrelaxed_v5_n1000_061252.out	bench-results/dspark_fastrelaxed_v5_n1000_061252.err	54.39	82.35	10.09	70.09	4.58	93.6%	0

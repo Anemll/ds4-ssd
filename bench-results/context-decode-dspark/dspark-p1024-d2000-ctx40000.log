@@ -1,0 +1,376 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: profile: 20 ANE env defaults skipped (ANE off by default until precision work lands; enable with --ane or DS4_ANE=1)
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (31 env defaults set, 0 kept from environment)
+ds4: context buffers 1488.81 MiB (ctx=40000, backend=metal, prefill_chunk=16384, raw_kv_rows=16640, compressed_kv_rows=514/10002 max, grow_block=2048)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 active=5 scheduler=confidence conf=0.400 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, strict_v1 verifier
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.318 ms, residency requested in 0.001 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill ctx-grow: on, block=2048 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: startup timing: engine=5.683s profile=0.001s model=0.006s sidecar=0.006s weights=0.000s dspark=5.669s backend=0.000s prewarm=0.000s
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 3.1GB Total <<<< 83.9GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = GPU fp32 | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: session startup timing: total=33.552s raw-graph=0.007s flash-moe=33.545s steering=0.000s draft-scratch=yes
+processing 1023 input tokens: 0/1023 (0.0%) batch=0.00 t/s avg=0.00 t/s
+processing 1023 input tokens: 23/1023 (2.2%) batch=9.36 t/s avg=9.36 t/s
+processing 1023 input tokens: 47/1023 (4.6%) batch=260.73 t/s avg=18.44 t/s
+processing 1023 input tokens: 71/1023 (6.9%) batch=241.27 t/s avg=26.81 t/s
+processing 1023 input tokens: 95/1023 (9.3%) batch=296.61 t/s avg=34.80 t/s
+processing 1023 input tokens: 118/1023 (11.5%) batch=276.58 t/s avg=41.95 t/s
+processing 1023 input tokens: 142/1023 (13.9%) batch=311.75 t/s avg=49.14 t/s
+processing 1023 input tokens: 166/1023 (16.2%) batch=277.93 t/s avg=55.78 t/s
+processing 1023 input tokens: 190/1023 (18.6%) batch=286.45 t/s avg=62.09 t/s
+processing 1023 input tokens: 214/1023 (20.9%) batch=248.81 t/s avg=67.80 t/s
+processing 1023 input tokens: 237/1023 (23.2%) batch=226.05 t/s avg=72.74 t/s
+processing 1023 input tokens: 261/1023 (25.5%) batch=253.23 t/s avg=77.84 t/s
+processing 1023 input tokens: 285/1023 (27.9%) batch=234.49 t/s avg=82.48 t/s
+processing 1023 input tokens: 309/1023 (30.2%) batch=220.22 t/s avg=86.70 t/s
+processing 1023 input tokens: 333/1023 (32.6%) batch=221.33 t/s avg=90.67 t/s
+processing 1023 input tokens: 356/1023 (34.8%) batch=204.86 t/s avg=94.06 t/s
+processing 1023 input tokens: 380/1023 (37.1%) batch=214.92 t/s avg=97.52 t/s
+processing 1023 input tokens: 404/1023 (39.5%) batch=228.15 t/s avg=100.96 t/s
+processing 1023 input tokens: 428/1023 (41.8%) batch=230.75 t/s avg=104.24 t/s
+processing 1023 input tokens: 452/1023 (44.2%) batch=217.28 t/s avg=107.20 t/s
+processing 1023 input tokens: 475/1023 (46.4%) batch=227.01 t/s avg=110.02 t/s
+processing 1023 input tokens: 499/1023 (48.8%) batch=230.54 t/s avg=112.85 t/s
+processing 1023 input tokens: 523/1023 (51.1%) batch=218.47 t/s avg=115.41 t/s
+processing 1023 input tokens: 547/1023 (53.5%) batch=208.73 t/s avg=117.72 t/s
+processing 1023 input tokens: 570/1023 (55.7%) batch=193.21 t/s avg=119.61 t/s
+processing 1023 input tokens: 594/1023 (58.1%) batch=215.45 t/s avg=121.80 t/s
+processing 1023 input tokens: 618/1023 (60.4%) batch=207.53 t/s avg=123.78 t/s
+processing 1023 input tokens: 642/1023 (62.8%) batch=223.85 t/s avg=125.89 t/s
+processing 1023 input tokens: 666/1023 (65.1%) batch=212.78 t/s avg=127.77 t/s
+processing 1023 input tokens: 689/1023 (67.4%) batch=191.45 t/s avg=129.20 t/s
+processing 1023 input tokens: 713/1023 (69.7%) batch=226.23 t/s avg=131.09 t/s
+processing 1023 input tokens: 737/1023 (72.0%) batch=202.93 t/s avg=132.62 t/s
+processing 1023 input tokens: 761/1023 (74.4%) batch=204.32 t/s avg=134.11 t/s
+processing 1023 input tokens: 785/1023 (76.7%) batch=210.87 t/s avg=135.62 t/s
+processing 1023 input tokens: 808/1023 (79.0%) batch=227.45 t/s avg=137.19 t/s
+processing 1023 input tokens: 832/1023 (81.3%) batch=211.96 t/s avg=138.60 t/s
+processing 1023 input tokens: 856/1023 (83.7%) batch=209.03 t/s avg=139.93 t/s
+processing 1023 input tokens: 880/1023 (86.0%) batch=225.49 t/s avg=141.39 t/s
+processing 1023 input tokens: 904/1023 (88.4%) batch=227.21 t/s avg=142.82 t/s
+processing 1023 input tokens: 927/1023 (90.6%) batch=204.90 t/s avg=143.90 t/s
+processing 1023 input tokens: 951/1023 (93.0%) batch=234.58 t/s avg=145.32 t/s
+processing 1023 input tokens: 975/1023 (95.3%) batch=251.03 t/s avg=146.84 t/s
+processing 1023 input tokens: 999/1023 (97.7%) batch=280.70 t/s avg=148.54 t/s
+processing 1023 input tokens: 1023/1023 (100.0%) batch=257.87 t/s avg=150.04 t/s
+ds4: dspark draft FP8 rows5 kernel enabled
+ds4: dspark draft FP8 strided rows5 kernel enabled
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4: dspark verifier strict_v1 active=5 prefixN=1
+ds4: dspark verifier Q8 rows5 shared-exact kernel enabled
+ds4: dspark verifier microbatch KV FP8/raw-store rows enabled
+ds4: dspark hybrid FFN-pre verifier using exact F16 rows path
+ds4: dspark hybrid row-router verifier using exact F16 logits rows path
+ds4: dspark hybrid row-router verifier using exact selector rows path
+ds4: dspark row-routed direct Q2 down ordered-sum enabled
+ds4: dspark hybrid row-routed verifier using row-exact tiny batch path
+ds4: dspark hybrid shared verifier using exact fused rows path
+ds4: dspark hybrid shared verifier using exact shared-down+HC rows path
+ds4: dspark hybrid attention verifier using exact F16 compressor rows path
+ds4: dspark hybrid attention verifier using exact F16 indexer-compressor rows path
+ds4: dspark hybrid verifier deferring plain attention heads to batch call
+ds4: dspark hybrid verifier using rows-exact flash attention heads
+ds4: dspark verifier using experimental varmap rows5 attention kernel
+Here's a complete Tetris implementation in C++ for macOS using SFML:
+
+```cpp
+// Tetris.cpp - Full Tetris implementation for macOS
+// Compile with: g++ -std=c++11 Tetris.cpp -o Tetris -lsfml-graphics -lsfml-window -lsfml-system
+
+#include <SFML/Graphics.hpp>
+#include <SFML/System.hpp>
+#include <SFML/Window.hpp>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <string>
+
+// Game constants
+const int BOARD_WIDTH = 10;
+const int BOARD_HEIGHT = 20;
+const int BLOCK_SIZE = 30;
+const int WINDOW_WIDTH = BOARD_WIDTH * BLOCK_SIZE + 200; // Extra space for side panel
+const int WINDOW_HEIGHT = BOARD_HEIGHT * BLOCK_SIZE;
+
+// Tetromino shapes (4x4 matrices)
+// Each shape is represented by a 4x4 boolean matrix
+struct Tetromino {
+    std::vector<std::vector<bool>> shape;
+    int rotation; // Current rotation state (0-3)
+    sf::Color color;
+};
+
+// Define all 7 Tetromino shapes
+std::vector<Tetromino> createTetrominos() {
+    std::vector<Tetromino> pieces;
+    
+    // I-piece (straight line)
+    Tetromino i;
+    i.shape = {
+        {false, false, false, false},
+        {true, true, true, true},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    i.color = sf::Color::Cyan;
+    pieces.push_back(i);
+    
+    // O-piece (square)
+    Tetromino o;
+    o.shape = {
+        {true, true, false, false},
+        {true, true, false, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    o.color = sf::Color::Yellow;
+    pieces.push_back(o);
+    
+    // T-piece
+    Tetromino t;
+    t.shape = {
+        {false, true, false, false},
+        {true, true, true, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    t.color = sf::Color::Magenta;
+    pieces.push_back(t);
+    
+    // S-piece
+    Tetromino s;
+    s.shape = {
+        {false, true, true, false},
+        {true, true, false, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    s.color = sf::Color::Green;
+    pieces.push_back(s);
+    
+    // Z-piece
+    Tetromino z;
+    z.shape = {
+        {true, true, false, false},
+        {false, true, true, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    z.color = sf::Color::Red;
+    pieces.push_back(z);
+    
+    // J-piece
+    Tetromino j;
+    j.shape = {
+        {true, false, false, false},
+        {true, true, true, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    j.color = sf::Color::Blue;
+    pieces.push_back(j);
+    
+    // L-piece
+    Tetromino l;
+    l.shape = {
+        {false, false, true, false},
+        {true, true, true, false},
+        {false, false, false, false},
+        {false, false, false, false}
+    };
+    l.color = sf::Color(255, 165, 0); // Orange
+    pieces.push_back(l);
+    
+    return pieces;
+}
+
+// Game class
+class TetrisGame {
+private:
+    sf::RenderWindow window;
+    std::vector<std::vector<sf::Color>> board;
+    std::vector<Tetromino> pieces;
+    Tetromino currentPiece;
+    int currentX, currentY;
+    int score;
+    int level;
+    int linesCleared;
+    sf::Clock fallClock;
+    sf::Clock inputClock;
+    float fallSpeed;
+    bool gameOver;
+    
+    // Initialize board with empty cells
+    void initBoard() {
+        board.clear();
+        board.resize(BOARD_HEIGHT, std::vector<sf::Color>(BOARD_WIDTH, sf::Color::Black));
+    }
+    
+    // Get a random piece
+    Tetromino getRandomPiece() {
+        return pieces[rand() % pieces.size()];
+    }
+    
+    // Rotate piece 90 degrees clockwise
+    Tetromino rotatePiece(const Tetromino& piece) {
+        Tetromino rotated = piece;
+        std::vector<std::vector<bool>> newShape(4, std::vector<bool>(4, false));
+        
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                newShape[j][3 - i] = piece.shape[i][j];
+            }
+        }
+        
+        rotated.shape = newShape;
+        return rotated;
+    }
+    
+    // Check if piece can be placed at position
+    bool isValidPosition(const Tetromino& piece, int x, int y) {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                if (piece.shape[i][j]) {
+                    int boardX = x + j;
+                    int boardY = y + i;
+                    
+                    // Check boundaries
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                        boardY >= BOARD_HEIGHT) {
+                        return false;
+                    }
+                    
+                    // Check collision with placed pieces
+                    if (boardY >= 0 && board[boardY][boardX] != sf::Color::Black) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    
+    // Place current piece on board
+    void placePiece() {
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 4; j++) {
+                if (currentPiece.shape[i][j]) {
+                    int boardX = currentX + j;
+                    int boardY = currentY + i;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                        boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = currentPiece.color;
+                    }
+                }
+            }
+        }
+        
+        // Check for completed lines
+        checkLines();
+        
+        // Spawn new piece
+        spawnPiece();
+    }
+    
+    // Check and clear completed lines
+    void checkLines() {
+        int cleared = 0;
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            bool fullLine = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (board[y][x] == sf::Color::Black) {
+                    fullLine = false;
+                    break;
+                }
+            }
+            
+            if (fullLine) {
+                // Remove line and shift everything down
+                for (int shiftY = y; shiftY > 0; shiftY--) {
+                    for (int x = 0; x < BOARD_WIDTH; x++) {
+                        board[shiftY][x] = board[shiftY - 1][x];
+                    }
+                }
+                // Clear top line
+                for (int x = 0; x < BOARD_WIDTH; x++) {
+                    board[0][x] = sf::Color::Black;
+                }
+                cleared++;
+            }
+        }
+        
+        if (cleared > 0) {
+            linesCleared += cleared;
+            score += cleared * 100 * level;
+            
+            // Level up every 10 lines
+            level = 1 + (linesCleared / 10);
+            fallSpeed = std::max(0.05f, 0.5f - (level - 1) * 0.05f);
+        }
+    }
+    
+    // Spawn a new piece at top center
+    void spawnPiece() {
+        currentPiece = getRandomPiece();
+        currentX = BOARD_WIDTH / 2 - 2;
+        currentY = -1; // Start above the board
+        
+        // Check if game over
+        if (!isValidPosition(currentPiece, currentX, currentY)) {
+            gameOver = true;
+        }
+    }
+    
+    // Draw the game
+    void draw() {
+        window.clear(sf::Color::Black);
+        
+        // Draw board
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                sf::RectangleShape block(sf::Vector2f(BLOCK_SIZE - 1, BLOCK_SIZE - 1));
+                block.setPosition(x * BLOCK_SIZE + 1, y * BLOCK_SIZE + 1);
+                
+                if (board[y][x] != sf::Color::Black) {
+                    block.setFillColor(board[y][x]);
+                } else {
+                    block.setFillColor(sf
+ds4: ----------------------------------------
+ds4: prefill: 145.20 t/s, generation: 32.51 t/s (2000 tokens in 61.525s)
+ds4: ttf: first-output=46.513s total=107.827s (engine=5.683s session=33.552s prompt=0.000s prefill=7.046s decode=61.525s)
+ds4: dspark perf: draft=390.1 tok/s, verify=62.5 proposed tok/s, verify-accepted=38.8 tok/s, block=88.11 ms (draft=11.96 verify=74.59 overhead=1.56 commit=1.23, tau=2.89, blocks=641)
+ds4: dspark verify GPU-busy: 73.61 ms/block of 74.59 ms verify (98.7% active, 1.3% idle)
+ds4: dspark draft-overlap upper-bound: 38.0 tok/s (1.16x block decode, hides 11.96 ms/block)
+ds4: vm pressure: app=84.92 GiB resident=14.66 GiB wired=97.40 GiB compressed=0.42 GiB logical=0.95 GiB swap=3.22/4.00 GiB pressure=86% free=0.15 GiB gpu=84.84 GiB gpu-compressed=0.00 GiB task-compressed=77.16 GiB decompressions=7774627
+ds4: dspark acceptance: 79.7% (1854/2325 draft tokens)
+ds4: dspark acceptance by position: 1=452/500 2=425/496 3=379/472 4=325/443 5=273/414
+ds4: dspark conditional acceptance: 1=90.4% (452/500) 2|1=94.2% (425/451) 3|1-2=92.9% (379/408) 4|1-3=90.3% (325/360) 5|1-4=87.5% (273/312)
+ds4: dspark full-accept: 64.6% (323/500 blocks), first-miss: 9.6% (48/500 blocks)
+ds4: dspark avg scheduled: 4.65 draft tokens/block (500 blocks)

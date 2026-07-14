@@ -1,0 +1,324 @@
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM
+ds4: Metal 4 tensor API enabled for Tensor kernels
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=on
+ds4: Metal model views created in 2.159 ms, residency requested in 436.287 ms, warmup 2.945 ms (mapped 82697.67 MiB from offset 5.09 MiB)
+ds4: Metal mapped mmaped model as 2 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: context buffers 993.88 MiB (ctx=40000, backend=metal, prefill_chunk=4096, raw_kv_rows=4352, compressed_kv_rows=10002)
+ds4: using GPU graph generation with graph prefill
+ds4: gpu prefill layer 1/43
+ds4: gpu prefill layer 2/43
+ds4: gpu prefill layer 3/43
+ds4: gpu prefill layer 4/43
+ds4: gpu prefill layer 5/43
+ds4: gpu prefill layer 6/43
+ds4: gpu prefill layer 7/43
+ds4: gpu prefill layer 8/43
+ds4: gpu prefill layer 9/43
+ds4: gpu prefill layer 10/43
+ds4: gpu prefill layer 11/43
+ds4: gpu prefill layer 12/43
+ds4: gpu prefill layer 13/43
+ds4: gpu prefill layer 14/43
+ds4: gpu prefill layer 15/43
+ds4: gpu prefill layer 16/43
+ds4: gpu prefill layer 17/43
+ds4: gpu prefill layer 18/43
+ds4: gpu prefill layer 19/43
+ds4: gpu prefill layer 20/43
+ds4: gpu prefill layer 21/43
+ds4: gpu prefill layer 22/43
+ds4: gpu prefill layer 23/43
+ds4: gpu prefill layer 24/43
+ds4: gpu prefill layer 25/43
+ds4: gpu prefill layer 26/43
+ds4: gpu prefill layer 27/43
+ds4: gpu prefill layer 28/43
+ds4: gpu prefill layer 29/43
+ds4: gpu prefill layer 30/43
+ds4: gpu prefill layer 31/43
+ds4: gpu prefill layer 32/43
+ds4: gpu prefill layer 33/43
+ds4: gpu prefill layer 34/43
+ds4: gpu prefill layer 35/43
+ds4: gpu prefill layer 36/43
+ds4: gpu prefill layer 37/43
+ds4: gpu prefill layer 38/43
+ds4: gpu prefill layer 39/43
+ds4: gpu prefill layer 40/43
+ds4: gpu prefill layer 41/43
+ds4: gpu prefill layer 42/43
+ds4: gpu prefill layer 43/43
+I'll create a complete Tetris game in C++ for macOS. This will be a console-based game using standard C++ libraries.
+
+```cpp
+// Tetris Game for macOS
+// Console-based implementation using standard C++
+
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <algorithm>
+
+// Tetromino shapes
+const std::vector<std::vector<std::vector<int>>> TETROMINOS = {
+    // I piece
+    {{0,0,0,0},
+     {1,1,1,1},
+     {0,0,0,0},
+     {0,0,0,0}},
+    // O piece
+    {{1,1},
+     {1,1}},
+    // T piece
+    {{0,1,0},
+     {1,1,1},
+     {0,0,0}},
+    // S piece
+    {{0,1,1},
+     {1,1,0},
+     {0,0,0}},
+    // Z piece
+    {{1,1,0},
+     {0,1,1},
+     {0,0,0}},
+    // J piece
+    {{1,0,0},
+     {1,1,1},
+     {0,0,0}},
+    // L piece
+    {{0,0,1},
+     {1,1,1},
+     {0,0,0}}
+};
+
+class Tetris {
+private:
+    static const int BOARD_WIDTH = 10;
+    static const int BOARD_HEIGHT = 20;
+    std::vector<std::vector<int>> board;
+    std::vector<std::vector<int>> currentPiece;
+    int pieceX, pieceY;
+    int pieceType;
+    int score;
+    int level;
+    int linesCleared;
+    bool gameOver;
+
+public:
+    Tetris() : board(BOARD_HEIGHT, std::vector<int>(BOARD_WIDTH, 0)),
+               pieceX(3), pieceY(0), pieceType(0), score(0),
+               level(1), linesCleared(0), gameOver(false) {
+        srand(time(nullptr));
+        spawnNewPiece();
+    }
+
+    void spawnNewPiece() {
+        pieceType = rand() % 7;
+        currentPiece = TETROMINOS[pieceType];
+        pieceX = 3;
+        pieceY = 0;
+        
+        // Check if game over
+        if (!isValidPosition(pieceX, pieceY, currentPiece)) {
+            gameOver = true;
+        }
+    }
+
+    bool isValidPosition(int x, int y, const std::vector<std::vector<int>>& piece) {
+        for (int i = 0; i < piece.size(); i++) {
+            for (int j = 0; j < piece[i].size(); j++) {
+                if (piece[i][j]) {
+                    int boardX = x + j;
+                    int boardY = y + i;
+                    
+                    if (boardX < 0 || boardX >= BOARD_WIDTH || 
+                        boardY >= BOARD_HEIGHT || boardY < 0) {
+                        return false;
+                    }
+                    
+                    if (boardY >= 0 && board[boardY][boardX]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    void rotatePiece() {
+        std::vector<std::vector<int>> rotated(currentPiece.size(), 
+            std::vector<int>(currentPiece.size(), 0));
+        
+        for (int i = 0; i < currentPiece.size(); i++) {
+            for (int j = 0; j < currentPiece[i].size(); j++) {
+                rotated[j][currentPiece.size() - 1 - i] = currentPiece[i][j];
+            }
+        }
+        
+        if (isValidPosition(pieceX, pieceY, rotated)) {
+            currentPiece = rotated;
+        }
+    }
+
+    void moveLeft() {
+        if (isValidPosition(pieceX - 1, pieceY, currentPiece)) {
+            pieceX--;
+        }
+    }
+
+    void moveRight() {
+        if (isValidPosition(pieceX + 1, pieceY, currentPiece)) {
+            pieceX++;
+        }
+    }
+
+    void moveDown() {
+        if (isValidPosition(pieceX, pieceY + 1, currentPiece)) {
+            pieceY++;
+        } else {
+            lockPiece();
+            clearLines();
+            spawnNewPiece();
+        }
+    }
+
+    void lockPiece() {
+        for (int i = 0; i < currentPiece.size(); i++) {
+            for (int j = 0; j < currentPiece[i].size(); j++) {
+                if (currentPiece[i][j]) {
+                    int boardY = pieceY + i;
+                    int boardX = pieceX + j;
+                    if (boardY >= 0 && boardY < BOARD_HEIGHT && 
+                        boardX >= 0 && boardX < BOARD_WIDTH) {
+                        board[boardY][boardX] = 1;
+                    }
+                }
+            }
+        }
+    }
+
+    void clearLines() {
+        int cleared = 0;
+        for (int y = BOARD_HEIGHT - 1; y >= 0; y--) {
+            bool fullLine = true;
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                if (!board[y][x]) {
+                    fullLine = false;
+                    break;
+                }
+            }
+            
+            if (fullLine) {
+                cleared++;
+                // Move all lines above down
+                for (int k = y; k > 0; k--) {
+                    board[k] = board[k - 1];
+                }
+                board[0] = std::vector<int>(BOARD_WIDTH, 0);
+                y++; // Check the same line again
+            }
+        }
+        
+        if (cleared > 0) {
+            linesCleared += cleared;
+            score += cleared * 100 * level;
+            
+            // Level up every 10 lines
+            if (linesCleared >= level * 10) {
+                level++;
+            }
+        }
+    }
+
+    void hardDrop() {
+        while (isValidPosition(pieceX, pieceY + 1, currentPiece)) {
+            pieceY++;
+        }
+        lockPiece();
+        clearLines();
+        spawnNewPiece();
+    }
+
+    void draw() {
+        // Clear screen (macOS specific)
+        std::cout << "\033[2J\033[1;1H";
+        
+        // Draw top border
+        std::cout << "╔";
+        for (int i = 0; i < BOARD_WIDTH; i++) std::cout << "══";
+        std::cout << "╗\n";
+        
+        // Draw board
+        for (int y = 0; y < BOARD_HEIGHT; y++) {
+            std::cout << "║";
+            for (int x = 0; x < BOARD_WIDTH; x++) {
+                bool drawPiece = false;
+                
+                // Check if current piece occupies this cell
+                for (int i = 0; i < currentPiece.size(); i++) {
+                    for (int j = 0; j < currentPiece[i].size(); j++) {
+                        if (currentPiece[i][j] && 
+                            pieceY + i == y && pieceX + j == x) {
+                            drawPiece = true;
+                        }
+                    }
+                }
+                
+                if (drawPiece || board[y][x]) {
+                    std::cout << "██";
+                } else {
+                    std::cout << "  ";
+                }
+            }
+            std::cout << "║\n";
+        }
+        
+        // Draw bottom border
+        std::cout << "╚";
+        for (int i = 0; i < BOARD_WIDTH; i++) std::cout << "══";
+        std::cout << "╝\n";
+        
+        // Draw game info
+        std::cout << "Score: " << score << "\n";
+        std::cout << "Level: " << level << "\n";
+        std::cout << "Lines: " << linesCleared << "\n";
+        
+        if (gameOver) {
+            std::cout << "\nGAME OVER!\n";
+            std::cout << "Press 'r' to restart or 'q' to quit\n";
+        }
+    }
+
+    bool isGameOver() { return gameOver; }
+    int getScore() { return score; }
+    int getLevel() { return level; }
+};
+
+// Non-blocking keyboard input for macOS
+char getKeyPress() {
+    struct termios oldt, newt;
+    char c;
+    
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    
+    // Set non-blocking
+    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+    c = getchar();
+    
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return c;
+}
+
+int main() {
+    std::cout << "TETRIS GAME\n";
+    std::cout << "Controls:\n";
+    std::cout << " 
+ds4: prefill: 311.19 t/s, generation: 27.50 t/s

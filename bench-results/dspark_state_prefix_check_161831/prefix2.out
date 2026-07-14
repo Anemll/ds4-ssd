@@ -1,0 +1,70 @@
+Here's a complete Space Invaders game using Pygame:
+
+```python
+import pygame
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+RED = (255, 0,  0)
+GREEN = (0, 255,  0)
+BLUE = (0,, 0,, 255)
+
+class Player:
+    def __init__(self):
+        self.x = SCREEN_WIDTH // 2
+        self.y = SCREEN_HEIGHT - 50
+        self.width = 50
+               self.height = 30
+        self.speed = 5
+        self.lives = 3
+        self.score = 0
+
+    def move(self, dx):
+        self.x += dx * self.speed
+        self.x = max(0, min(self.x, SCREEN_WIDTH - self.width))
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+
+    def shoot(self):
+        return Bullet(self.x + self.width // 2, self.y - 10)
+
+class Enemy:
+    def __initinit__(self, x, y):
+        self self.x = x
+        self self.y = y
+        self self.width = 40
+        self self.height = 3030
+        self self.speed = = 1
+        self.direction = 1
+
+    def move move(self):
+               self.x += += self.speed * self.direction
+
+    def draw draw(self, screen screen):
+        pygame pygame.draw.rectrect(screen, RED, (self.x,, self.y,, self.width,, self.height))
+
+class Bullet:
+    def def __init__(self,,, x, y y):
+        self self.x = x x
+        self.y = y y
+        self.speed = 10
+        self.width = 5
+        self.height = 10
+
+    def move(self):
+               self.y -= -= self.speed
+
+    def def draw(self,, screen screen):
+):
+        pygame pygame.draw.rectrect(screen, WHITE, (self.x

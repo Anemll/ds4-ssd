@@ -1,0 +1,5 @@
+Ecco tre invarianti per una tabella di token speciali, ad esempio in un sistema di gestione di accesso o di autenticazione:
+
+1. **Unicità dei token**: Ogni token nella tabella deve essere unico. Non può esistere più di una riga con lo stesso valore del token, altrimenti si perderebbe l'associazione unica tra token e utente o risorsa.
+
+2. **Validità temporale**: Ogni token deve essere associato a un intervallo di validità (es. `data_emissione` e `data_scad

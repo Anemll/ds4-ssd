@@ -1,0 +1,121 @@
+I'll create a pixel-perfect Space Invaders arcade game that replicates the original 1978 Taito experience with authentic sprites, mechanics, and rules.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPACE INVADERS · 1978 Taito</title>
+    <style>
+        /* CRT scanline overlay + retro aesthetic */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            image-rendering: pixelated;
+        }
+        .cabinet {
+            background: #111;
+            border: 6px solid #333;
+            border-radius: 20px;
+            padding: 20px 30px 30px;
+            box-shadow: 0 0 30px rgba(0,255,0,0.2), inset 0 0 20px #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .screen-wrapper {
+            position: relative;
+            background: #000;
+            border: 4px solid #222;
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: inset 0 0 10px #0f0, 0 0 0 2px #0a0a0a;
+        }
+        canvas {
+            display: block;
+            background: #0a0a0a;
+            width: 640px;
+            height: 640px;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 40px #0f0;
+        }
+        /* scanline effect */
+        .screen-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 2px, transparent 2px, transparent 4px);
+            pointer-events: none;
+            border-radius: 4px;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-top: 20px;
+            gap: 20px;
+        }
+        .btn {
+            background: #222;
+            border: 3px solid #555;
+            border-radius: 10px;
+            color: #0f0;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            cursor: pointer;
+            box-shadow: 0 0 10px #0f0;
+            transition: 0.1s;
+        }
+        .btn:active {
+            background: #0f0;
+            color: #000;
+            transform: scale(0.95);
+        }
+        .info {
+            color: #0f0;
+            font-size: 1.1rem;
+            text-shadow: 0 0 6px #0f0;
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        .info span {
+            background: #000;
+            padding: 4px 12px;
+            border: 1px solid #0f0;
+            border-radius: 4px;
+        }
+        @media (max-width: 720px) {
+            canvas { width: 360px; height: 360px; }
+            .cabinet { padding: 10px; }
+        }
+    </style>
+</head>
+<body>
+<div class="cabinet">
+    <div class="screen-wrapper">
+        <canvas id="gameCanvas" width="640" height="640"></canvas>
+    </div>
+    <div class="controls">
+        <div class="info">
+            <span id="scoreDisplay">0000</span>
+            <span id="livesDisplay">❤️❤️❤️</span>
+        </div>
+        <div>
+            <button class="btn" id="resetBtn">⟲ RESET</button>
+        </div>
+    </div>
+    <div style="color:#0f0; font-size:0.8rem

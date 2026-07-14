@@ -1,0 +1,289 @@
+Here is a self-contained HTML file that recreates the classic 1978 Taito Space Invaders arcade experience. It's a single-file implementation with inline CSS and JavaScript, featuring the iconic pixel art style, sound effects, and core gameplay mechanics.
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invaders · 1978 Taito</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      margin: 0;
+      padding: 16px;
+    }
+    .cabinet {
+      background: #111;
+      border-radius: 20px;
+      box-shadow: 0 0 0 4px #333, 0 0 0 8px #222, 0 20px 40px rgba(0,0,0,0.9);
+      padding: 20px 20px 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 520px;
+      width: 100%;
+    }
+    .bezel {
+      background: #000;
+      border: 4px solid #444;
+      border-radius: 12px;
+      padding: 10px 12px 8px;
+      width: 100%;
+      margin-bottom: 12px;
+      box-shadow: inset 0 0 20px #1a1a1a;
+    }
+    canvas {
+      display: block;
+      background: #0b0b0b;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 448 / 512;
+      image-rendering: pixelated;
+      border: 2px solid #3a3a3a;
+      border-radius: 6px;
+      box-shadow: 0 0 0 2px #1f1f1f, inset 0 0 30px #000;
+      cursor: none;
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-top: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    .arcade-btn {
+      background: #222;
+      border: 2px solid #555;
+      border-radius: 50%;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ddd;
+      font-size: 28px;
+      font-weight: bold;
+      box-shadow: 0 4px 0 #111, 0 6px 12px rgba(0,0,0,0.7);
+      transition: 0.05s;
+      cursor: pointer;
+      user-select: none;
+    }
+    .arcade-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #111;
+    }
+    .arcade-btn.fire {
+      background: #2a1a1a;
+      border-color: #aa3333;
+      color: #ff4444;
+      font-size: 32px;
+    }
+    .info-panel {
+      display: flex;
+      gap: 20px;
+      background: #1a1a1a;
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 2px solid #3a3a3a;
+      color: #eee;
+      font-size: 1.2rem;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    .info-panel span {
+      min-width: 60px;
+      text-align: center;
+    }
+    .reset-btn {
+      background: #2a2a2a;
+      border: 2px solid #666;
+      border-radius: 10px;
+      padding: 6px 18px;
+      color: #ccc;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #111;
+      transition: 0.05s;
+    }
+    .reset-btn:active {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #111;
+    }
+    @media (max-width: 480px) {
+      .cabinet { padding: 12px; }
+      .arcade-btn { width: 44px; height: 44px; font-size: 22px; }
+      .info-panel { font-size: 0.9rem; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+<div class="cabinet">
+  <div class="bezel">
+    <canvas id="gameCanvas" width="448" height="512"></canvas>
+  </div>
+  <div class="controls">
+    <div class="btn-group">
+      <div class="arcade-btn" id="leftBtn">◀</div>
+      <div class="arcade-btn" id="rightBtn">▶</div>
+    </div>
+    <div class="info-panel">
+      <span id="scoreDisplay">0000</span>
+      <span id="livesDisplay">❤️❤️❤️</span>
+    </div>
+    <div class="arcade-btn fire" id="fireBtn">⨁</div>
+  </div>
+  <div style="display: flex; justify-content: center; width: 100%; margin-top: 10px;">
+    <div class="reset-btn" id="resetBtn">⟳ RESET</div>
+  </div>
+  <div style="color: #555; font-size: 0.7rem; margin-top: 8px; text-align: center; letter-spacing: 1px;">
+    ←  →  FIRE  ·  1978 TAIKO
+  </div>
+</div>
+<script>
+  (function() {
+    // ---------- CANVAS ----------
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = 448, H = 512;
+    canvas.width = W; canvas.height = H;
+
+    // ---------- GAME STATE ----------
+    let gameRunning = false;
+    let gameOver = false;
+    let win = false;
+    let score = 0;
+    let lives = 3;
+    let level = 1;
+
+    // Player
+    let playerX = 200;
+    const PLAYER_Y = 460;
+    const PLAYER_W = 28;
+    const PLAYER_H = 20;
+    let playerDir = 0; // -1 left, 1 right
+    let fireCooldown = 0;
+    let canFire = true;
+
+    // Invaders
+    let invaders = [];
+    let invaderDir = 1; // 1 right, -1 left
+    let invaderSpeed = 1.5;
+    let invaderMoveCounter = 0;
+    let invaderMoveThreshold = 10;
+    let invaderBottomReach = false;
+    let invaderAnim = 0; // 0 or 1 for sprite frame
+
+    // Bullets
+    let playerBullets = [];
+    let invaderBullets = [];
+    const BULLET_W = 4;
+    const BULLET_H = 10;
+
+    // Explosions
+    let explosions = [];
+
+    // Audio (simple beep)
+    function playBeep(freq, duration = 80) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = freq;
+        gain.gain.value = 0.2;
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration/1000);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration/1000);
+      } catch(e) { /* silent */ }
+    }
+
+    // ---------- INVADER SETUP ----------
+    function createInvaders() {
+      invaders = [];
+      const rows = 5;
+      const cols = 11;
+      const startX = 30, startY = 40;
+      const gapX = 36, gapY = 28;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          let type = (r === 0) ? 'crab' : (r === 1 ? 'crab' : (r === 2 ? 'crab' : 'crab')); // all same sprite
+          // but we differentiate by row for points
+          let pts = 0;
+          if (r === 0) pts = 30;    // top
+          else if (r === 1) pts = 20;
+          else if (r === 2) pts = 10;
+          else pts = 10;
+          invaders.push({
+            x: startX + c * gapX,
+            y: startY + r * gapY,
+            width: 28,
+            height: 20,
+            alive: true,
+            points: pts,
+            row: r,
+            col: c,
+            type: 'standard'
+          });
+        }
+      }
+      // move down a bit
+      invaders.forEach(inv => inv.y += 20);
+    }
+
+    // ---------- INIT / RESET ----------
+    function resetGame() {
+      gameOver = false;
+      win = false;
+      score = 0;
+      lives = 3;
+      level = 1;
+      playerX = 200;
+      playerDir = 0;
+      fireCooldown = 0;
+      canFire = true;
+      playerBullets = [];
+      invaderBullets = [];
+      explosions = [];
+      invaderDir = 1;
+      invaderSpeed = 1.5;
+      invaderMoveCounter = 0;
+      invaderMoveThreshold = 10;
+      invaderBottomReach = false;
+      invaderAnim = 0;
+      createInvaders();
+      gameRunning = true;
+      updateUI();
+    }
+
+    // ---------- HELPER: DRAW INVADER (pixel sprite) ----------
+    function drawInvader(ctx, x, y, frame, type) {
+      // classic 1978 sprite: 2 frames (legs move)
+      const offset = frame ? 0 : -2; // tiny leg shift
+      ctx.fillStyle = '#3aff3a';
+      // body
+      ctx.fillRect(x+4, y+2, 20, 10);
+      // head
+      ctx.fillRect(x+8, y-2, 12, 6);
+      // eyes
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x+10, y-1, 2, 2);
+     

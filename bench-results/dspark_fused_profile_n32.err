@@ -1,0 +1,2652 @@
+ds4: detected DS4 sidecar package: -m /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major/dense/model-dense.gguf, --moe-sidecar /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major, --moe-mode slot-bank
+ds4: applied sidecar tuning profile [Apple M5 Max] from ds4_profile.json (51 env defaults set, 0 kept from environment)
+ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+ds4: context buffers 429.99 MiB (ctx=4096, backend=metal, prefill_chunk=4096, raw_kv_rows=4096, compressed_kv_rows=1026)
+ds4: Flash-MoE sidecar loaded: /Users/anemll/Models/flash/dsv4-iq2xxs-expert-major (slot-bank=256, expert-record 6.75 MiB)
+ds4: Flash-MoE expert mmap cache: off; expert reads: pread
+ds4: Metal device Apple M5 Max, 128.00 GiB RAM, GPU working-set budget 107.52 GiB (raise with: sudo sysctl iogpu.wired_limit_mb=<MB>)
+ds4: drift-patch flags hc_stable=on norm_unify=on kv_raw_f32=off rope_exp2_log2=off math_safe=off tensor_matmul=off
+ds4: MXFP4 native library (MSL 4.1): repack=ok selected-repack=ok selected-plane-copy=ok scale-plane matmul=ok selected-matmul=ok decode2=pair/sum6 batch-decode2=pair/sum6 batch-strided=pair/sum6 hybrid-down=sum6 chunked-decode2=pair/sum6
+ds4: DS4_MXFP4_NATIVE=1: native MXFP4 available (MPP 4.1 scale-plane matmul2d)
+ds4: DSpark resident expert cache: ranges=9 bytes=9.56 GiB (persistent; debug opt-out requires DS4_DSPARK_ALLOW_NONRESIDENT=1)
+ds4: DSpark sidecar Metal residency requested: buffers=9 bytes=9.56 GiB
+ds4: DSpark draft package loaded: /Users/anemll/Models/DSv4-Flash-DSpark-draft (block=5 verify=5 scheduler=static conf=0.000 noise=128799 target_layers=40,41,42 markov_rank=256 records=81 mapped=10.12 GiB)
+ds4: DSpark draft records: F32=41 F16=6 FP8_E4M3=25 MXFP4_NATIVE=9
+ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels, fused routed-MoE per draft layer, persistent resident experts, greedy Markov head, exact verifier v1
+ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup
+ds4: Metal model views created in 0.292 ms, residency requested in 0.000 ms, warmup 0.000 ms (mapped 8393.67 MiB from offset 5.06 MiB)
+ds4: Metal mapped mmaped model as 1 overlapping shared buffers
+ds4: metal backend initialized for graph diagnostics
+ds4: prefill routed-MoE (requested): mul_mm_id (grouped GPU / ALU)  [grouped path]
+ds4: prefill quant scales (ANE env first): w_qscale=512 x_qscale=32 mid_qscale=32 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4: prefill ctx-grow: on, block=16384 tokens
+ds4: prefill chunk cap: 16384, graph_raw_cap=auto
+ds4: Flash-MoE resident mixed slot-bank load: layers=43 slots=256 bytes=72.56 GiB (one dot per layer)
+ds4: Flash-MoE resident prepare: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE resident preload: ........................................... 72.56/72.56 GiB (43 layers)
+ds4: Flash-MoE preloaded mixed slot bank: layers=43 slots=256 identity-mapped experts=256
+ds4: Flash-MoE slot-bank Metal residency requested: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot-bank pages touched: buffers=43 bytes=72.56 GiB
+ds4: Flash-MoE slot banks allocated: layers=43 slots=256 gpu-bank=72.6GB Dense: 8.2GB Context: 0.4GB Total <<<< 81.2GB >>>>
+ds4: Flash-MoE slot bank layout: mixed expert-major
+ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+ds4: prefill compute: routed experts = ANE i8i8 (W8A8) | dense proj = Q8 direct-RHS NAX; K-quant dense = fused mul_mm_id batch
+ds4: prefill I/O: io-split=4 async-pread=on pread-threads=4 readahead=12 bank-prefetch=3 slot-cache-topk=0 xlayer=auto<=6k-tok topk=128
+ds4: decode  I/O: io-split=4 router-prefetch=off scratch-prefetch=off max-loads=0 layer-stride=1 miss-direct-slot-pread=on prefetch-direct-slot-pread=off did-modify=on shared-down=on reset-after-prefill=off realloc-after-prefill=off restore-after-prefill=off resident=slot-bank slots=256
+ds4: Flash-MoE banked kernels using M5 simdgroup_matrix fast path (prefetch=3, banks=4)
+ds4: WARNING: prefill chunk 4096 clamped to 3968 by raw-KV cap (raw_cap=4096, window=128). Set DS4_METAL_GRAPH_RAW_CAP >= 4224 (window + chunk) — or unset it to auto-size — to honor the chunk.
+ds4: prefill chunk cap EFFECTIVE=3968 tokens (DS4_METAL_PREFILL_CHUNK=16384), CLAMPED by raw-KV-cap (ctx-grow) (resident-NAX tiles this by scratch_cap; that tile gates the sync bridge)
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4: ANE i8w-i8x-tiled-fused cached async prefill B=256 H=4096 I=2048 w_scale=0.00195312 x_scale=0.03125 mid_scale=0.03125
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 0/19 (0.0%) batch=0.00 t/s avg=0.00 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 1/19 (5.3%) batch=29.79 t/s avg=0.68 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 1/19 (5.3%) batch=0.00 t/s avg=0.67 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 2/19 (10.5%) batch=55.00 t/s avg=1.32 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 2/19 (10.5%) batch=0.00 t/s avg=1.31 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 3/19 (15.8%) batch=51.41 t/s avg=1.94 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.91 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 3/19 (15.8%) batch=0.00 t/s avg=1.89 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 4/19 (21.1%) batch=49.30 t/s avg=2.49 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 4/19 (21.1%) batch=0.00 t/s avg=2.46 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 5/19 (26.3%) batch=49.47 t/s avg=3.03 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 5/19 (26.3%) batch=0.00 t/s avg=3.00 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 6/19 (31.6%) batch=55.03 t/s avg=3.56 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 6/19 (31.6%) batch=0.00 t/s avg=3.52 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 7/19 (36.8%) batch=60.08 t/s avg=4.07 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=4.03 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 7/19 (36.8%) batch=0.00 t/s avg=3.99 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 8/19 (42.1%) batch=54.88 t/s avg=4.51 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 8/19 (42.1%) batch=0.00 t/s avg=4.45 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 9/19 (47.4%) batch=56.59 t/s avg=4.96 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 9/19 (47.4%) batch=0.00 t/s avg=4.91 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 10/19 (52.6%) batch=51.10 t/s avg=5.39 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 10/19 (52.6%) batch=0.00 t/s avg=5.34 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 11/19 (57.9%) batch=59.09 t/s avg=5.82 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.76 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 11/19 (57.9%) batch=0.00 t/s avg=5.72 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 12/19 (63.2%) batch=50.60 t/s avg=6.17 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 12/19 (63.2%) batch=0.00 t/s avg=6.11 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 13/19 (68.4%) batch=49.93 t/s avg=6.56 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 13/19 (68.4%) batch=0.00 t/s avg=6.50 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 14/19 (73.7%) batch=53.12 t/s avg=6.93 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 14/19 (73.7%) batch=0.00 t/s avg=6.87 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 15/19 (78.9%) batch=56.66 t/s avg=7.30 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.23 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 15/19 (78.9%) batch=0.00 t/s avg=7.16 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 16/19 (84.2%) batch=50.60 t/s avg=7.56 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 16/19 (84.2%) batch=0.00 t/s avg=7.49 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 17/19 (89.5%) batch=54.08 t/s avg=7.89 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 17/19 (89.5%) batch=0.00 t/s avg=7.81 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 18/19 (94.7%) batch=53.38 t/s avg=8.20 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 18/19 (94.7%) batch=0.00 t/s avg=8.13 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=3 flush=0 enc_end=3 wait=3
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+processing 19 input tokens: 19/19 (100.0%) batch=45.75 t/s avg=8.50 t/s
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=1 wait=1
+ds4: prefill full: 19 tokens in 2238.0 ms (8.5 t/s)
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=57 wait=1
+ds4: dspark block profile layer=0 hc_attn=1.397 ms
+ds4: dspark block profile layer=0 q_proj=12.431 ms
+ds4: dspark block profile layer=0 kv_proj=0.302 ms
+ds4: dspark block profile layer=0 attn=0.399 ms
+ds4: dspark block profile layer=0 attn_out=20.821 ms
+ds4: dspark block profile layer=0 ffn_hc=0.987 ms
+ds4: dspark block profile layer=0 shared_router=9.799 ms
+ds4: [mxfp4-native] two-dispatch plane decode arm engaged (dspark-strided, experts=6)
+ds4: dspark block profile layer=0 routed=22.801 ms
+ds4: dspark graph profile block0=68.998 ms
+ds4: dspark block profile layer=1 hc_attn=1.206 ms
+ds4: dspark block profile layer=1 q_proj=10.665 ms
+ds4: dspark block profile layer=1 kv_proj=1.317 ms
+ds4: dspark block profile layer=1 attn=1.149 ms
+ds4: dspark block profile layer=1 attn_out=20.236 ms
+ds4: dspark block profile layer=1 ffn_hc=1.119 ms
+ds4: dspark block profile layer=1 shared_router=9.332 ms
+ds4: dspark block profile layer=1 routed=2.247 ms
+ds4: dspark graph profile block1=47.334 ms
+ds4: dspark block profile layer=2 hc_attn=1.183 ms
+ds4: dspark block profile layer=2 q_proj=10.845 ms
+ds4: dspark block profile layer=2 kv_proj=0.380 ms
+ds4: dspark block profile layer=2 attn=0.323 ms
+ds4: dspark block profile layer=2 attn_out=22.560 ms
+ds4: dspark block profile layer=2 ffn_hc=1.135 ms
+ds4: dspark block profile layer=2 shared_router=9.117 ms
+ds4: dspark block profile layer=2 routed=1.150 ms
+ds4: dspark graph profile block2=46.749 ms
+ds4: dspark graph profile head=2.530 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=165.709 ms markov=42.828 ms total=208.537 ms
+ds4: DSpark draft warmup: cap=5 rows=5 in 208.5 ms (paid before decode timer)
+ds4: Flash-MoE mixed resident bank using fused GPU-selected decode path (slot id == expert id)
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.279 ms
+ds4: dspark block profile layer=0 q_proj=1.021 ms
+ds4: dspark block profile layer=0 kv_proj=0.340 ms
+ds4: dspark block profile layer=0 attn=0.226 ms
+ds4: dspark block profile layer=0 attn_out=2.755 ms
+ds4: dspark block profile layer=0 ffn_hc=0.286 ms
+ds4: dspark block profile layer=0 shared_router=0.797 ms
+ds4: dspark block profile layer=0 routed=0.947 ms
+ds4: dspark graph profile block0=6.677 ms
+ds4: dspark block profile layer=1 hc_attn=0.305 ms
+ds4: dspark block profile layer=1 q_proj=1.019 ms
+ds4: dspark block profile layer=1 kv_proj=0.304 ms
+ds4: dspark block profile layer=1 attn=0.294 ms
+ds4: dspark block profile layer=1 attn_out=2.785 ms
+ds4: dspark block profile layer=1 ffn_hc=0.279 ms
+ds4: dspark block profile layer=1 shared_router=0.740 ms
+ds4: dspark block profile layer=1 routed=0.971 ms
+ds4: dspark graph profile block1=6.738 ms
+ds4: dspark block profile layer=2 hc_attn=0.251 ms
+ds4: dspark block profile layer=2 q_proj=0.966 ms
+ds4: dspark block profile layer=2 kv_proj=0.271 ms
+ds4: dspark block profile layer=2 attn=0.201 ms
+ds4: dspark block profile layer=2 attn_out=2.820 ms
+ds4: dspark block profile layer=2 ffn_hc=0.309 ms
+ds4: dspark block profile layer=2 shared_router=1.543 ms
+ds4: dspark block profile layer=2 routed=0.950 ms
+ds4: dspark graph profile block2=7.349 ms
+ds4: dspark graph profile head=1.438 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=22.268 ms markov=2.079 ms total=24.347 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.273 ms
+ds4: dspark block profile layer=0 q_proj=0.983 ms
+ds4: dspark block profile layer=0 kv_proj=0.324 ms
+ds4: dspark block profile layer=0 attn=0.217 ms
+ds4: dspark block profile layer=0 attn_out=2.775 ms
+ds4: dspark block profile layer=0 ffn_hc=0.306 ms
+ds4: dspark block profile layer=0 shared_router=0.770 ms
+ds4: dspark block profile layer=0 routed=0.952 ms
+ds4: dspark graph profile block0=6.630 ms
+ds4: dspark block profile layer=1 hc_attn=0.241 ms
+ds4: dspark block profile layer=1 q_proj=1.014 ms
+ds4: dspark block profile layer=1 kv_proj=0.299 ms
+ds4: dspark block profile layer=1 attn=0.297 ms
+ds4: dspark block profile layer=1 attn_out=2.800 ms
+ds4: dspark block profile layer=1 ffn_hc=0.265 ms
+ds4: dspark block profile layer=1 shared_router=0.821 ms
+ds4: dspark block profile layer=1 routed=0.971 ms
+ds4: dspark graph profile block1=6.766 ms
+ds4: dspark block profile layer=2 hc_attn=0.247 ms
+ds4: dspark block profile layer=2 q_proj=1.026 ms
+ds4: dspark block profile layer=2 kv_proj=0.297 ms
+ds4: dspark block profile layer=2 attn=0.310 ms
+ds4: dspark block profile layer=2 attn_out=2.751 ms
+ds4: dspark block profile layer=2 ffn_hc=0.272 ms
+ds4: dspark block profile layer=2 shared_router=0.783 ms
+ds4: dspark block profile layer=2 routed=0.939 ms
+ds4: dspark graph profile block2=6.663 ms
+ds4: dspark graph profile head=1.447 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=21.566 ms markov=2.048 ms total=23.614 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.235 ms
+ds4: dspark block profile layer=0 q_proj=0.970 ms
+ds4: dspark block profile layer=0 kv_proj=0.310 ms
+ds4: dspark block profile layer=0 attn=0.233 ms
+ds4: dspark block profile layer=0 attn_out=2.790 ms
+ds4: dspark block profile layer=0 ffn_hc=0.317 ms
+ds4: dspark block profile layer=0 shared_router=0.777 ms
+ds4: dspark block profile layer=0 routed=0.987 ms
+ds4: dspark graph profile block0=6.681 ms
+ds4: dspark block profile layer=1 hc_attn=0.260 ms
+ds4: dspark block profile layer=1 q_proj=0.978 ms
+ds4: dspark block profile layer=1 kv_proj=0.315 ms
+ds4: dspark block profile layer=1 attn=0.284 ms
+ds4: dspark block profile layer=1 attn_out=2.777 ms
+ds4: dspark block profile layer=1 ffn_hc=0.279 ms
+ds4: dspark block profile layer=1 shared_router=0.848 ms
+ds4: dspark block profile layer=1 routed=0.953 ms
+ds4: dspark graph profile block1=6.740 ms
+ds4: dspark block profile layer=2 hc_attn=0.258 ms
+ds4: dspark block profile layer=2 q_proj=1.017 ms
+ds4: dspark block profile layer=2 kv_proj=0.336 ms
+ds4: dspark block profile layer=2 attn=0.236 ms
+ds4: dspark block profile layer=2 attn_out=2.811 ms
+ds4: dspark block profile layer=2 ffn_hc=0.281 ms
+ds4: dspark block profile layer=2 shared_router=0.853 ms
+ds4: dspark block profile layer=2 routed=0.970 ms
+ds4: dspark graph profile block2=6.823 ms
+ds4: dspark graph profile head=1.385 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=21.680 ms markov=2.007 ms total=23.687 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.320 ms
+ds4: dspark block profile layer=0 q_proj=1.002 ms
+ds4: dspark block profile layer=0 kv_proj=0.320 ms
+ds4: dspark block profile layer=0 attn=0.313 ms
+ds4: dspark block profile layer=0 attn_out=2.705 ms
+ds4: dspark block profile layer=0 ffn_hc=0.327 ms
+ds4: dspark block profile layer=0 shared_router=0.791 ms
+ds4: dspark block profile layer=0 routed=0.948 ms
+ds4: dspark graph profile block0=6.753 ms
+ds4: dspark block profile layer=1 hc_attn=0.330 ms
+ds4: dspark block profile layer=1 q_proj=1.017 ms
+ds4: dspark block profile layer=1 kv_proj=0.298 ms
+ds4: dspark block profile layer=1 attn=0.290 ms
+ds4: dspark block profile layer=1 attn_out=2.786 ms
+ds4: dspark block profile layer=1 ffn_hc=0.283 ms
+ds4: dspark block profile layer=1 shared_router=0.788 ms
+ds4: dspark block profile layer=1 routed=0.995 ms
+ds4: dspark graph profile block1=6.835 ms
+ds4: dspark block profile layer=2 hc_attn=0.250 ms
+ds4: dspark block profile layer=2 q_proj=1.010 ms
+ds4: dspark block profile layer=2 kv_proj=0.338 ms
+ds4: dspark block profile layer=2 attn=0.326 ms
+ds4: dspark block profile layer=2 attn_out=2.750 ms
+ds4: dspark block profile layer=2 ffn_hc=0.316 ms
+ds4: dspark block profile layer=2 shared_router=0.854 ms
+ds4: dspark block profile layer=2 routed=0.966 ms
+ds4: dspark graph profile block2=6.863 ms
+ds4: dspark graph profile head=1.499 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=22.013 ms markov=1.999 ms total=24.012 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.254 ms
+ds4: dspark block profile layer=0 q_proj=0.968 ms
+ds4: dspark block profile layer=0 kv_proj=0.314 ms
+ds4: dspark block profile layer=0 attn=0.265 ms
+ds4: dspark block profile layer=0 attn_out=2.765 ms
+ds4: dspark block profile layer=0 ffn_hc=0.289 ms
+ds4: dspark block profile layer=0 shared_router=0.821 ms
+ds4: dspark block profile layer=0 routed=1.004 ms
+ds4: dspark graph profile block0=6.739 ms
+ds4: dspark block profile layer=1 hc_attn=0.252 ms
+ds4: dspark block profile layer=1 q_proj=0.995 ms
+ds4: dspark block profile layer=1 kv_proj=0.336 ms
+ds4: dspark block profile layer=1 attn=0.236 ms
+ds4: dspark block profile layer=1 attn_out=2.779 ms
+ds4: dspark block profile layer=1 ffn_hc=0.298 ms
+ds4: dspark block profile layer=1 shared_router=0.892 ms
+ds4: dspark block profile layer=1 routed=0.964 ms
+ds4: dspark graph profile block1=6.797 ms
+ds4: dspark block profile layer=2 hc_attn=0.262 ms
+ds4: dspark block profile layer=2 q_proj=1.072 ms
+ds4: dspark block profile layer=2 kv_proj=0.305 ms
+ds4: dspark block profile layer=2 attn=0.239 ms
+ds4: dspark block profile layer=2 attn_out=2.800 ms
+ds4: dspark block profile layer=2 ffn_hc=0.255 ms
+ds4: dspark block profile layer=2 shared_router=0.787 ms
+ds4: dspark block profile layer=2 routed=0.935 ms
+ds4: dspark graph profile block2=6.738 ms
+ds4: dspark graph profile head=1.454 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=21.792 ms markov=2.019 ms total=23.811 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.263 ms
+ds4: dspark block profile layer=0 q_proj=1.008 ms
+ds4: dspark block profile layer=0 kv_proj=0.291 ms
+ds4: dspark block profile layer=0 attn=0.278 ms
+ds4: dspark block profile layer=0 attn_out=2.804 ms
+ds4: dspark block profile layer=0 ffn_hc=0.602 ms
+ds4: dspark block profile layer=0 shared_router=0.999 ms
+ds4: dspark block profile layer=0 routed=1.006 ms
+ds4: dspark graph profile block0=7.283 ms
+ds4: dspark block profile layer=1 hc_attn=0.258 ms
+ds4: dspark block profile layer=1 q_proj=1.023 ms
+ds4: dspark block profile layer=1 kv_proj=0.293 ms
+ds4: dspark block profile layer=1 attn=0.314 ms
+ds4: dspark block profile layer=1 attn_out=2.796 ms
+ds4: dspark block profile layer=1 ffn_hc=0.295 ms
+ds4: dspark block profile layer=1 shared_router=0.809 ms
+ds4: dspark block profile layer=1 routed=0.942 ms
+ds4: dspark graph profile block1=6.762 ms
+ds4: dspark block profile layer=2 hc_attn=0.252 ms
+ds4: dspark block profile layer=2 q_proj=1.026 ms
+ds4: dspark block profile layer=2 kv_proj=0.293 ms
+ds4: dspark block profile layer=2 attn=0.338 ms
+ds4: dspark block profile layer=2 attn_out=2.774 ms
+ds4: dspark block profile layer=2 ffn_hc=0.277 ms
+ds4: dspark block profile layer=2 shared_router=0.865 ms
+ds4: dspark block profile layer=2 routed=0.978 ms
+ds4: dspark graph profile block2=6.867 ms
+ds4: dspark graph profile head=1.393 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=22.358 ms markov=2.045 ms total=24.403 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.258 ms
+ds4: dspark block profile layer=0 q_proj=0.967 ms
+ds4: dspark block profile layer=0 kv_proj=0.277 ms
+ds4: dspark block profile layer=0 attn=0.240 ms
+ds4: dspark block profile layer=0 attn_out=2.798 ms
+ds4: dspark block profile layer=0 ffn_hc=0.293 ms
+ds4: dspark block profile layer=0 shared_router=0.810 ms
+ds4: dspark block profile layer=0 routed=0.919 ms
+ds4: dspark graph profile block0=6.599 ms
+ds4: dspark block profile layer=1 hc_attn=0.250 ms
+ds4: dspark block profile layer=1 q_proj=0.976 ms
+ds4: dspark block profile layer=1 kv_proj=0.267 ms
+ds4: dspark block profile layer=1 attn=0.212 ms
+ds4: dspark block profile layer=1 attn_out=2.853 ms
+ds4: dspark block profile layer=1 ffn_hc=0.356 ms
+ds4: dspark block profile layer=1 shared_router=0.793 ms
+ds4: dspark block profile layer=1 routed=0.950 ms
+ds4: dspark graph profile block1=6.689 ms
+ds4: dspark block profile layer=2 hc_attn=0.313 ms
+ds4: dspark block profile layer=2 q_proj=1.014 ms
+ds4: dspark block profile layer=2 kv_proj=0.282 ms
+ds4: dspark block profile layer=2 attn=0.253 ms
+ds4: dspark block profile layer=2 attn_out=2.794 ms
+ds4: dspark block profile layer=2 ffn_hc=0.341 ms
+ds4: dspark block profile layer=2 shared_router=0.812 ms
+ds4: dspark block profile layer=2 routed=0.981 ms
+ds4: dspark graph profile block2=6.858 ms
+ds4: dspark graph profile head=1.406 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=5 wait=1
+ds4: dspark draft profile cap=5 rows=5 graph=21.591 ms markov=2.098 ms total=23.689 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: dspark block profile layer=0 hc_attn=0.249 ms
+ds4: dspark block profile layer=0 q_proj=0.719 ms
+ds4: dspark block profile layer=0 kv_proj=0.266 ms
+ds4: dspark block profile layer=0 attn=0.231 ms
+ds4: dspark block profile layer=0 attn_out=1.709 ms
+ds4: dspark block profile layer=0 ffn_hc=0.287 ms
+ds4: dspark block profile layer=0 shared_router=0.928 ms
+ds4: dspark block profile layer=0 routed=0.681 ms
+ds4: dspark graph profile block0=5.118 ms
+ds4: dspark block profile layer=1 hc_attn=0.210 ms
+ds4: dspark block profile layer=1 q_proj=0.727 ms
+ds4: dspark block profile layer=1 kv_proj=0.334 ms
+ds4: dspark block profile layer=1 attn=0.278 ms
+ds4: dspark block profile layer=1 attn_out=1.741 ms
+ds4: dspark block profile layer=1 ffn_hc=0.294 ms
+ds4: dspark block profile layer=1 shared_router=0.629 ms
+ds4: dspark block profile layer=1 routed=0.666 ms
+ds4: dspark graph profile block1=4.923 ms
+ds4: dspark block profile layer=2 hc_attn=0.229 ms
+ds4: dspark block profile layer=2 q_proj=0.753 ms
+ds4: dspark block profile layer=2 kv_proj=0.303 ms
+ds4: dspark block profile layer=2 attn=0.286 ms
+ds4: dspark block profile layer=2 attn_out=1.719 ms
+ds4: dspark block profile layer=2 ffn_hc=0.265 ms
+ds4: dspark block profile layer=2 shared_router=0.645 ms
+ds4: dspark block profile layer=2 routed=0.656 ms
+ds4: dspark graph profile block2=4.919 ms
+ds4: dspark graph profile head=1.383 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=28 enc_end=25 wait=29
+ds4-fusion[batch]: owned_commit+wait=1 flush=0 enc_end=3 wait=1
+ds4: dspark draft profile cap=3 rows=3 graph=16.413 ms markov=1.337 ms total=17.750 ms
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4-fusion[batch]: owned_commit+wait=1 flush=1 enc_end=5 wait=2
+ds4: ----------------------------------------
+ds4: prefill: 7.69 t/s, generation: 29.62 t/s (32 tokens in 1.080s)
+ds4: dspark acceptance: 63.2% (24/38 draft tokens)
+ds4: Flash-MoE resident slot bank: resident-slots=11008/11008 (100.0%, avg=256.0/layer) installed=72.56 GiB

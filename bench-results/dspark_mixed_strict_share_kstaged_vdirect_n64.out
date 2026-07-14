@@ -1,0 +1,14 @@
+I'll create a complete Space Invaders game using Pygame. This will be a classic Space Invaders clone with a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+py

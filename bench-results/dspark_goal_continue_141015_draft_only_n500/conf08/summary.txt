@@ -1,0 +1,9 @@
+3:ds4: warning: raw KV cap limits Metal prefill chunk (prefill_chunk=4096, raw_kv_rows=4096, raw_window=128, effective_chunk=3968; target raw cap for one chunk is 4352, also requires ctx >= that value)
+32:ds4: warning: very large Flash-MoE slot bank can collapse decode throughput (slots=256, gpu-bank=72.56 GiB). The wired bank competes with the OS file cache that serves decode-miss reads of the sidecar; when the sidecar is larger than RAM, smaller banks decode faster. Compare --moe-slot-bank 32/48/64 or use --ssd-cache auto.
+89:ds4: dspark draft-only diagnostic enabled (no target verifier, non-target-greedy, approximate DSpark KV refresh)
+91:ds4: prefill: 15.48 t/s, generation: 209.92 t/s (500 tokens in 2.382s)
+92:ds4: dspark perf: draft=231.2 tok/s, verify=0.0 proposed tok/s, verify-accepted=0.0 tok/s, block=14.69 ms (draft=13.43 verify=0.00 overhead=1.25 commit=1.25, tau=3.11, blocks=161)
+95:ds4: dspark acceptance: 100.0% (500/500 draft tokens)
+97:ds4: dspark conditional acceptance: 1=100.0% (161/161) 2|1=100.0% (91/91) 3|1-2=100.0% (86/86) 4|1-3=100.0% (83/83) 5|1-4=100.0% (79/79)
+98:ds4: dspark full-accept: 100.0% (161/161 blocks), first-miss: 0.0% (0/161 blocks)
+99:ds4: dspark avg scheduled: 3.11 draft tokens/block (161 blocks)

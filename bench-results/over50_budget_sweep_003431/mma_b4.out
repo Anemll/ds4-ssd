@@ -1,0 +1,131 @@
+I'll create a complete Space Invaders game using Pygame. This will include a player ship, enemies, bullets, and scoring.
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SPEED = 5
+ENEMY_SPEED = 2
+BULLET_SPEED = 7
+ENEMY_BULLET_SPEED = 3
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.width = 50
+        self.height = 40
+        self.speed = PLAYER_SPEED
+        self.bullets = []
+        self.lives = 3
+        self.score = 0
+        
+    def move_left(self):
+        self.x -= self.speed
+        if self.x < 0:
+            self.x = 0
+            
+    def move_right(self):
+        self.x += self.speed
+        if self.x > SCREEN_WIDTH - self.width:
+            self.x = SCREEN_WIDTH - self.width
+            
+    def shoot(self):
+        bullet = Bullet(self.x + self.width//2 - 2, self.y, BULLET_SPEED, True)
+        self.bullets.append(bullet)
+        
+    def draw(self, screen):
+        # Draw player ship (triangle shape)
+        points = [
+            (self.x + self.width//2, self.y),
+            (self.x, self.y + self.height),
+            (self.x + self.width, self.y + self.height)
+        ]
+        pygame.draw.polygon(screen, GREEN, points)
+        
+        # Draw bullets
+        for bullet in self.bullets:
+            bullet.draw(screen)
+            
+    def update(self):
+        # Update bullets
+        for bullet in self.bullets[:]:
+            bullet.update()
+            if bullet.y < 0:
+                self.bullets.remove(bullet)
+
+class Enemy:
+    def __init__(self, x, y, row, col):
+        self.x = x
+        self.y = y
+        self.width = 40
+        self.height = 30
+        self.speed = ENEMY_SPEED
+        self.direction = 1  # 1 for right, -1 for left
+        self.row = row
+        self.col = col
+        self.alive = True
+        
+    def draw(self, screen):
+        if self.alive:
+            # Draw enemy (inverted triangle)
+            points = [
+                (self.x + self.width//2, self.y + self.height),
+                (self.x, self.y),
+                (self.x + self.width, self.y)
+            ]
+            pygame.draw.polygon(screen, RED, points)
+            
+    def move(self):
+        self.x += self.speed * self.direction
+        
+    def reverse_direction(self):
+        self.direction *= -1
+        self.y += 10  # Move down when reversing
+        
+    def shoot(self):
+        if self.alive and random.random() < 0.02:  # 2% chance to shoot
+            return Bullet(self.x + self.width//2 - 2, self.y + self.height, 
+                         ENEMY_BULLET_SPEED, False)
+        return None
+
+class Bullet:
+    def __init__(self, x, y, speed, is_player_bullet):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.width = 4
+        self.height = 10
+        self.is_player_bullet = is_player_bullet
+        
+    def draw(self, screen):
+        color = YELLOW if self.is_player_bullet else RED
+        pygame.draw.rect(screen, color, (self.x, self.y, self.width, self.height))
+        
+    def update(self):
+        if self.is_player_bullet:
+            self.y -= self.speed
+        else:
+            self.y += self.speed
+
+class SpaceInvaders:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 

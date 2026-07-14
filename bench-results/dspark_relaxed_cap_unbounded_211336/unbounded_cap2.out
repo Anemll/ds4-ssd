@@ -1,0 +1,77 @@
+Here's a complete Space Invaders game using Pygame:
+
+```python
+import pygame
+import random
+
+# Initialize Pygame
+pygame.init()
+
+# Constants
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_WIDTH = 60
+PLAYER_HEIGHT = 40
+ENEMY_WIDTH = 50
+ENY_HEIGHT = 40
+BULLET_SIZE = 10
+F = 60
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Space Invaders")
+        self.clock = pygame.time.Clock()
+        self.running = True
+        self.font = pygame.font.Font(None, 36)
+        self.small_font = pygame.font.Font(None, 24)
+        self.reset_game()
+    
+    def reset(self):
+        self.player = pygame.Rect(SCREEN_WIDTH//2 - PLAYER_WIDTH//2, 
+                                   SCREEN_HEIGHT - 100, 
+                                   PLAYER_WIDTH, PLAYER_HEIGHT)
+        self.enemies = []
+        self.bullets = []
+        self.score = 0
+        self.lives = 3
+        self.enemy_direction = 1
+        self.enemy_speed = 2
+        self.enemy_shoot_timer = 0
+        self.enemy_bullets = []
+        self.create_enemies()
+    
+    def create_enemies(self):
+        for row in range(3):
+            for col in range(10):
+                    x = 50 +col * 70
+                    y = 50 + row * 60
+                    self.enemies.append(pygame.Rect(x, y, ENEMY_WIDTH, ENEMY_HEIGHT))
+    
+    def handle_events(self):
+        for event in pygame.event():
+            if event.type == pygame.QUIT:
+                self.running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.KPACE:
+                    self.shoot()
+    
+    def shoot(self):
+        if len(self.bullets) < 5:  # Limit bullets
+            bullet = pygame.Rect(self.player.x + PLAYER_WIDTH//2 - BULLET_SIZE//2,
+                                 self.player.y -10,
+                                 BULLET_SIZE, 10)
+            self.bullet.append(bullet)
+    
+    def update(self):
+        # Player movement
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.player

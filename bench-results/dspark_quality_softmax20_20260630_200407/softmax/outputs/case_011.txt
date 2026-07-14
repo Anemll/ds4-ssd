@@ -1,0 +1,22 @@
+Ecco un progetto conciso per un server TCP echo con gestione di client lenti:
+
+## Architettura del Sistema
+
+```
+[Client Lento] → [Server TCP Echo] → [Gestione Timeout]
+```
+
+## Componenti Principali
+
+### 1. Server TCP Echo
+```python
+import socket
+import threading
+import time
+
+class EchoServer:
+    def __init__(self, host='localhost', port=8080, timeout=30):
+        self.host = host
+        self.port = port
+        self.timeout = timeout  # Timeout per client lenti
+        self

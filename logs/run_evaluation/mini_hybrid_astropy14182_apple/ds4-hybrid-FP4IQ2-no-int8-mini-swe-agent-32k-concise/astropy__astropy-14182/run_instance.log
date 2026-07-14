@@ -1,0 +1,75 @@
+2026-06-23 23:49:46,157 - INFO - Creating container for astropy__astropy-14182...
+2026-06-23 23:49:46,177 - INFO - Container for astropy__astropy-14182 created: sweb.eval.astropy__astropy-14182.mini_hybrid_astropy14182_apple
+2026-06-23 23:49:46,687 - INFO - Container for astropy__astropy-14182 started: sweb.eval.astropy__astropy-14182.mini_hybrid_astropy14182_apple
+2026-06-23 23:49:46,688 - INFO - Intermediate patch for astropy__astropy-14182 written to logs/run_evaluation/mini_hybrid_astropy14182_apple/ds4-hybrid-FP4IQ2-no-int8-mini-swe-agent-32k-concise/astropy__astropy-14182/patch.diff, now applying to container...
+2026-06-23 23:49:46,978 - INFO - >>>>> Applied Patch:
+Checking patch astropy/io/ascii/rst.py...
+Applied patch astropy/io/ascii/rst.py cleanly.
+
+2026-06-23 23:49:47,410 - INFO - Git diff before:
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8ef..387b078c2 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,19 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
+-        super().__init__(delimiter_pad=None, bookend=False)
++    def __init__(self, header_rows=None):
++        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+ 
+     def write(self, lines):
+         lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
++        # Find the position line (the line consisting of ==== style characters)
++        # This is the line that separates header from data
++        position_char = self.header.position_char
++        position_line_idx = None
++        for idx, line in enumerate(lines):
++            if all(c == position_char or c == ' ' for c in line):
++                position_line_idx = idx
++                break
++        if position_line_idx is not None:
++            lines = [lines[position_line_idx]] + lines + [lines[position_line_idx]]
+         return lines
+2026-06-23 23:49:47,410 - INFO - Eval script for astropy__astropy-14182 written to logs/run_evaluation/mini_hybrid_astropy14182_apple/ds4-hybrid-FP4IQ2-no-int8-mini-swe-agent-32k-concise/astropy__astropy-14182/eval.sh; copying to container...
+2026-06-23 23:51:15,403 - INFO - Test runtime: 87.83 seconds
+2026-06-23 23:51:15,404 - INFO - Test output for astropy__astropy-14182 written to logs/run_evaluation/mini_hybrid_astropy14182_apple/ds4-hybrid-FP4IQ2-no-int8-mini-swe-agent-32k-concise/astropy__astropy-14182/test_output.txt
+2026-06-23 23:51:15,548 - INFO - Git diff after:
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8ef..387b078c2 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,19 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
+-        super().__init__(delimiter_pad=None, bookend=False)
++    def __init__(self, header_rows=None):
++        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+ 
+     def write(self, lines):
+         lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
++        # Find the position line (the line consisting of ==== style characters)
++        # This is the line that separates header from data
++        position_char = self.header.position_char
++        position_line_idx = None
++        for idx, line in enumerate(lines):
++            if all(c == position_char or c == ' ' for c in line):
++                position_line_idx = idx
++                break
++        if position_line_idx is not None:
++            lines = [lines[position_line_idx]] + lines + [lines[position_line_idx]]
+         return lines
+2026-06-23 23:51:15,548 - INFO - Grading answer for astropy__astropy-14182...
+2026-06-23 23:51:15,550 - INFO - report: {'astropy__astropy-14182': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': False, 'tests_status': {'FAIL_TO_PASS': {'success': [], 'failure': ['astropy/io/ascii/tests/test_rst.py::test_rst_with_header_rows']}, 'PASS_TO_PASS': {'success': ['astropy/io/ascii/tests/test_rst.py::test_read_normal', 'astropy/io/ascii/tests/test_rst.py::test_read_normal_names', 'astropy/io/ascii/tests/test_rst.py::test_read_normal_names_include', 'astropy/io/ascii/tests/test_rst.py::test_read_normal_exclude', 'astropy/io/ascii/tests/test_rst.py::test_read_unbounded_right_column', 'astropy/io/ascii/tests/test_rst.py::test_read_unbounded_right_column_header', 'astropy/io/ascii/tests/test_rst.py::test_read_right_indented_table', 'astropy/io/ascii/tests/test_rst.py::test_trailing_spaces_in_row_definition', 'astropy/io/ascii/tests/test_rst.py::test_write_normal'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for astropy__astropy-14182: resolved: False
+2026-06-23 23:51:15,551 - INFO - Attempting to stop container sweb.eval.astropy__astropy-14182.mini_hybrid_astropy14182_apple...
+2026-06-23 23:51:31,458 - INFO - Attempting to remove container sweb.eval.astropy__astropy-14182.mini_hybrid_astropy14182_apple...
+2026-06-23 23:51:31,528 - INFO - Container sweb.eval.astropy__astropy-14182.mini_hybrid_astropy14182_apple removed.
+2026-06-23 23:51:31,529 - INFO - Attempting to remove image swebench/sweb.eval.x86_64.astropy_1776_astropy-14182:latest...
+2026-06-23 23:51:31,533 - INFO - Image swebench/sweb.eval.x86_64.astropy_1776_astropy-14182:latest removed.

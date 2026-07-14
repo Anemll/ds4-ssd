@@ -1,0 +1,15 @@
+Ecco un formato sicuro per salvare l'header di un checkpoint modello, strutturato per garantire integrità e compatibilità:
+
+```json
+{
+  "format_version": "1.0.0",
+  "model_metadata": {
+    "architecture": "transformer_lm",
+    "config": {
+      "vocab_size": 32000,
+      "hidden_dim": 4096,
+      "num_layers": 32,
+      "num_heads": 32,
+      "d_ff": 16384,
+      "max_seq_len": 2048,
+      "activation

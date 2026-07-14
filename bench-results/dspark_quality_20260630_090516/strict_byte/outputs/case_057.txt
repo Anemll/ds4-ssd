@@ -1,0 +1,7 @@
+Questa è una domanda molto interessante, tipica di chi lavora con database NoSQL (come Cassandra, Riak, o sistemi di caching) o con formati di archiviazione dati come Parquet o sistemi di log strutturati.
+
+Ecco la differenza tra **righe KV raw** e **righe KV compresse**, spiegata in modo chiaro e con esempi.
+
+### Il concetto di base
+
+In un sistema **Key-Value (KV)** , ogni "riga" è una coppia di dati: una **Chiave** (Key) che identifica il

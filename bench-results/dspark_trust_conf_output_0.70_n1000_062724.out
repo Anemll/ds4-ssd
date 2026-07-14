@@ -1,0 +1,94 @@
+Here's a complete game of Space Invaders in Python using Pygame:
+
+```python
+import pygame
+import random
+import math
+
+# Initialize Pygame
+pygame.init()
+
+()
+
+# Set up
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600 = 600
+# Display
+screen = pygame.display = = (screen_width = 800)
+# Colors
+BLACK = (0, 0)
+WHITE = (255, 255)
+WHITEITE)
+WHITE = (255, 255,, 255)
+RED = (255, 0, 0)
+GREEN = ( (255, 0, 0)
+GREEN = (0,  0, 255)
+Y = (255, 255, 0)
+# Game
+PLAYER_SPE = 5 = 5
+PLAYER_WIDTH = 50
+PLAYER_HEIGHT = 30
+PLAYER_LIVES = 3
+B = 5
+BULLET_SPEED = 10
+ENEMY_WIDTH = 40
+ENEM_HEIGHT = 30
+ENEMYY_SPEED = 2
+ENEMY_COUNT = 10
+ENEMY = 1 = 1
+# = (F = 60)
+# = pygame.time.Clock()
+
+# =========================================================
+class Player:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+        self.width = PLAYER_WIDTH
+        self.height = PLAYER_HEIGHT
+        self.speed = PLAYER_SPEED
+        self.lives = PLAYER_LIVES
+        self.bullet = []
+    def update(self):
+        # Handle in pygame.Keys:
+        if (keys[pygame.K_LEFT]):
+            if self.x > 0:
+                self.x -= self.speed
+        if (keys[pygamegame.K_RIGHT]):
+            if self.x.x += 0:
+                self.x += self.speed
+        # Move
+        for i += 1:
+            if len(self.bullet) > 0:
+                for i in range(len(self.bulullet):
+                    if i < len(self.bullet):
+                        self.bullet[i].update()
+    def draw(self, screen):
+        if self.lives > 0:
+            pygame.draw.rect(screen,rect(screen, GREEN, (self.x, self.y, self.width, self.height))
+        for i in self.bullet:
+            i.draw(screen)
+    def shoot(self):
+        if len(self.lives) > 0:
+            self.bulletullet(self.x(self.x + self.width + self.width // 2, self.y - self.height // 2):
+    def get_bullet(self):
+        return self.bullet
+
+class Bullet:
+    def def __init__(self, x, y, x_speed, y_speed):
+        self.x = x
+        self.y.y = y = y = self.y = y
+        self.x_speed = x_speed
+        self.y_speed = = y_speed
+        self.rect = 0
+    def update(self):
+        self.x += self.x_speed
+        self.y += self.y_speed
+        self.rect = self.x, self.y, 10, 10
+    def draw(self):
+        if if self.y < 0:
+            return True
+    def draw(self, screen):
+        if if self.y < 0:
+               pygame.draw.rect(self, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self self.rect, self.rect, self.rect, self.rect, self.rect, self self.rect, self.rect, self.rect, self self.rect, self.rect self.rect,, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rect, self.rectrect, self.rect, self.rect, self.rectrect, self.rect, self.rect, self.rect, self.rectrect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect rect, rect, rect, rect, rect, rect rect, rect, rect, rect, rect, rect, rect, rect, rect, rect, rect rect, rect, rect, rect, rect, rect rect, rect
