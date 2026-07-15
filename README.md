@@ -257,6 +257,24 @@ active Q8_0 or F16 KV state in its normal `~/.ds4/kvcache/sysprompt.kv`, so
 subsequent launches restore a matching system/tool prompt instead of
 prefilling it again.
 
+For long interactive sessions, keep a larger physical KV allocation while
+compacting the normal transcript earlier:
+
+```sh
+./ds4-agent \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --ctx 32000 \
+  --working-context 12000 \
+  -sys '' --nothink --temp 0
+```
+
+`--working-context` must be at least 4096 and smaller than `--ctx`. It starts
+normal compaction at that frontier, while the full physical context remains
+available for a large tool result and the private summary exchange. The footer
+shows both values (for example `ctx 7.5k/32k work:12k`), and compaction rebuilds
+strictly below the working frontier so the next boundary cannot immediately
+compact the same transcript again.
+
 `ds4-agent` renders and parses HY3's native Hunyuan tool-control tokens
 (`tool_calls:opensource`, `tool_call:opensource`, `tool_sep:opensource`, and
 the matching argument/response tokens). It does not prompt HY3 to imitate

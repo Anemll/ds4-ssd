@@ -53,6 +53,7 @@ typedef struct {
     const char *trace_path;
     int n_predict;
     int ctx_size;
+    int working_ctx_size;
     float temperature;
     float top_p;
     float min_p;
@@ -82,6 +83,16 @@ typedef struct {
     bool debug_status;
 } agent_config;
 
+/* The physical context remains available for unusually large turns and the
+ * private compaction exchange.  A smaller working context is only the normal
+ * transcript frontier at which compaction should begin. */
+static int agent_working_context_limit(const agent_config *cfg) {
+    if (!cfg) return 0;
+    const int physical = cfg->gen.ctx_size;
+    const int working = cfg->gen.working_ctx_size;
+    return working > 0 && working < physical ? working : physical;
+}
+
 typedef enum {
     AGENT_WORKER_IDLE,
     AGENT_WORKER_PREFILL,
@@ -104,6 +115,7 @@ typedef struct {
     double prefill_phase_t0;
     int ctx_used;
     int ctx_size;
+    int working_ctx_size;
     char prefill_label[64];
     bool prefill_ane;
     bool prefill_token_by_token;
@@ -656,7 +668,9 @@ static void usage(FILE *fp) {
         "                         --moe-cache-io-split when unset.\n"
         "  --moe-prefill-banks N  Transient prefill expert banks (read-ahead depth).\n"
         "                         Default 4. Raise DS4_FLASH_MOE_PREFETCH to N-1.\n"
-        "  -c, --ctx N            Context size. Default: 100000\n"
+        "  -c, --ctx N            Physical context size. Default: 100000\n"
+        "  --working-context N    Compact at this normal transcript frontier while\n"
+        "                         retaining --ctx capacity for large turns. Disabled by default.\n"
         "  -n, --tokens N         Max generated tokens per turn. Default: 50000\n"
         "  -p, --prompt TEXT      Submit an initial prompt after startup.\n"
         "  --resume SHA           Load a saved agent session at startup.\n"
@@ -977,6 +991,8 @@ static agent_config parse_options(int argc, char **argv) {
             }
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
+        } else if (!strcmp(arg, "--working-context")) {
+            c.gen.working_ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
             c.gen.n_predict = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--temp")) {
@@ -1059,6 +1075,13 @@ static agent_config parse_options(int argc, char **argv) {
         c.engine.directional_steering_ffn = 1.0f;
     if (agent_parse_bool_default(getenv("DS4_AGENT_DEBUG_STATUS"), false))
         c.debug_status = true;
+    if (c.gen.working_ctx_size != 0 &&
+        (c.gen.working_ctx_size < 4096 ||
+         c.gen.working_ctx_size >= c.gen.ctx_size)) {
+        fprintf(stderr,
+                "ds4-agent: --working-context must be at least 4096 and smaller than --ctx\n");
+        exit(2);
+    }
     agent_setenv_default_or_die("DS4_METAL_RESUME_PREFILL_MIN", "256");
     c.engine.ctx_size = c.gen.ctx_size;
     if (c.engine.draft_kind == DS4_DRAFT_DSPARK &&
@@ -7055,6 +7078,14 @@ static int agent_worker_sync_tokens(agent_worker *w, const ds4_tokens *tokens,
 static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t err_len) {
     ds4_tokens sys = {0};
     agent_worker_build_system_tokens(w, &sys);
+    const int working_limit = agent_working_context_limit(w->cfg);
+    if (w->cfg->gen.working_ctx_size > 0 && sys.len >= working_limit) {
+        snprintf(err, err_len,
+                 "system prompt (%d tokens) does not fit --working-context %d",
+                 sys.len, working_limit);
+        ds4_tokens_free(&sys);
+        return false;
+    }
 
     size_t text_len = 0;
     char *text = ds4_kvstore_render_tokens_text(w->engine, &sys, &text_len);
@@ -7952,6 +7983,7 @@ static bool agent_worker_switch_session(agent_worker *w, const char *prefix,
         w->status.state = AGENT_WORKER_IDLE;
         w->status.ctx_used = w->transcript.len;
         w->status.ctx_size = w->cfg->gen.ctx_size;
+        w->status.working_ctx_size = w->cfg->gen.working_ctx_size;
         w->status.last_completed_s = 0.0;
         w->turn_t0 = 0.0;
         w->status.error[0] = '\0';
@@ -10914,6 +10946,25 @@ static int agent_compact_tail_start_tokens(const ds4_tokens *transcript,
                                            int bottom, int sys_len,
                                            int ctx_size, int compacted_base_len,
                                            int user_id);
+static bool agent_should_compact_tokens(int used, int physical_ctx,
+                                        int working_ctx);
+
+static int agent_selftest_working_context_frontier(void) {
+    if (agent_should_compact_tokens(11999, 32000, 12000))
+        return agent_selftest_fail(
+            "working-context-frontier", "compacted before the working frontier");
+    if (!agent_should_compact_tokens(12000, 32000, 12000))
+        return agent_selftest_fail(
+            "working-context-frontier", "did not compact at the working frontier");
+    if (!agent_should_compact_tokens(24000, 32000, 0))
+        return agent_selftest_fail(
+            "working-context-frontier", "physical free-space guard regressed");
+    if (agent_should_compact_tokens(1, 0, 0))
+        return agent_selftest_fail(
+            "working-context-frontier", "invalid context requested compaction");
+    printf("PASS prompt:working-context-frontier\n");
+    return 0;
+}
 
 static int agent_selftest_compaction_tail_boundaries(void) {
     int storage[40] = {0};
@@ -11245,6 +11296,7 @@ done:
 static int agent_run_tool_self_test(void) {
     int failures = 0;
     failures += agent_selftest_shell_word_progress();
+    failures += agent_selftest_working_context_frontier();
     failures += agent_selftest_compaction_tail_boundaries();
     failures += agent_selftest_hy3_reasoning_suffix();
     failures += agent_selftest_hy3_no_think_guard();
@@ -11808,17 +11860,25 @@ static char *agent_bash_jobs_compaction_observation(agent_worker *w) {
  */
 
 /* Decide when to compact before an ordinary turn or before appending a large
- * tool result.  The fixed free-token threshold is capped proportionally for
- * smaller contexts so tests with tiny contexts still compact rather than fail. */
-static bool agent_worker_should_compact(agent_worker *w) {
-    int ctx = w->cfg->gen.ctx_size;
-    int used = w->transcript.len;
-    if (ctx <= 0 || used <= 0) return false;
-    if (used >= (ctx * AGENT_COMPACT_SOFT_PERCENT) / 100) return true;
+ * tool result.  A configured working frontier triggers directly; the physical
+ * context still retains the existing emergency free-space guards. */
+static bool agent_should_compact_tokens(int used, int physical_ctx,
+                                        int working_ctx) {
+    if (physical_ctx <= 0 || used <= 0) return false;
+    if (working_ctx > 0 && working_ctx < physical_ctx &&
+        used >= working_ctx)
+        return true;
+    if (used >= (physical_ctx * AGENT_COMPACT_SOFT_PERCENT) / 100) return true;
     int free_threshold = AGENT_COMPACT_MIN_FREE_TOKENS;
-    int proportional = ctx / 4;
+    int proportional = physical_ctx / 4;
     if (free_threshold > proportional) free_threshold = proportional;
-    return ctx - used <= free_threshold;
+    return physical_ctx - used <= free_threshold;
+}
+
+static bool agent_worker_should_compact(agent_worker *w) {
+    return agent_should_compact_tokens(w->transcript.len,
+                                       w->cfg->gen.ctx_size,
+                                       w->cfg->gen.working_ctx_size);
 }
 
 static int agent_special_token_id(ds4_engine *engine, const char *rendered) {
@@ -11895,7 +11955,7 @@ static int agent_compact_tail_start_tokens(const ds4_tokens *transcript,
 static int agent_compact_tail_start(agent_worker *w, int bottom, int sys_len,
                                     int compacted_base_len) {
     return agent_compact_tail_start_tokens(
-        &w->transcript, bottom, sys_len, w->cfg->gen.ctx_size,
+        &w->transcript, bottom, sys_len, agent_working_context_limit(w->cfg),
         compacted_base_len, ds4_token_user(w->engine));
 }
 
@@ -11990,6 +12050,10 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
     }
     int summary_max = summary_room < AGENT_COMPACT_SUMMARY_MAX_TOKENS ?
                       summary_room : AGENT_COMPACT_SUMMARY_MAX_TOKENS;
+    const int working_limit = agent_working_context_limit(w->cfg);
+    const int working_summary_cap = working_limit / 4;
+    if (summary_max > working_summary_cap)
+        summary_max = working_summary_cap;
 
     ds4_session_set_progress(w->session, worker_progress_cb, w);
     ds4_session_set_display_progress(w->session, worker_progress_cb, w);
@@ -12128,10 +12192,28 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
     free(summary_msg.ptr);
     free(summary.ptr);
 
+    const int compacted_base_len = compacted.len;
+    if (w->cfg->gen.working_ctx_size > 0 &&
+        compacted_base_len >= working_limit) {
+        snprintf(err, err_len,
+                 "compacted system summary does not fit --working-context; raise the frontier");
+        ds4_session_invalidate(w->session);
+        ds4_tokens_free(&compacted);
+        ds4_tokens_free(&sys);
+        return false;
+    }
+
     int tail_start = agent_compact_tail_start(
-        w, bottom, sys.len, compacted.len);
-    if (tail_kept_out) *tail_kept_out = tail_start < bottom;
+        w, bottom, sys.len, compacted_base_len);
     agent_tokens_append_range(&compacted, &w->transcript, tail_start, bottom);
+    if (w->cfg->gen.working_ctx_size > 0 && compacted.len >= working_limit) {
+        /* The durable summary is sufficient when no complete recent turn fits
+         * below the frontier.  Never rebuild at/above the trigger and compact
+         * again immediately on the next boundary. */
+        compacted.len = compacted_base_len;
+        tail_start = bottom;
+    }
+    if (tail_kept_out) *tail_kept_out = tail_start < bottom;
 
     agent_publishf(w,
         "\x1b[1;95mCOMPACTING\x1b[0m rebuilding context: old=%d summary+tail=%d tail=%d\n",
@@ -12161,8 +12243,10 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
                       strlen("\x1b[90mCOMPACTING added bash job update after rebuild\x1b[0m\n"));
         free(bash_update);
     }
-    agent_trace(w, "compacted reason=\"%s\" old=%d new=%d tail_start=%d tail=%d",
+    agent_trace(w,
+                "compacted reason=\"%s\" old=%d new=%d working_ctx=%d tail_start=%d tail=%d",
                 reason ? reason : "", bottom, w->transcript.len,
+                w->cfg->gen.working_ctx_size,
                 tail_start, bottom - tail_start);
     return true;
 }
@@ -13076,8 +13160,9 @@ static void worker_run_deferred_save(agent_worker *w) {
  * thread owns all DS4 session mutation, tool execution, and compaction. */
 static void *worker_main(void *arg) {
     agent_worker *w = arg;
-    agent_trace(w, "agent worker start ctx=%d backend=%s model=%s trace=%s",
+    agent_trace(w, "agent worker start ctx=%d working_ctx=%d backend=%s model=%s trace=%s",
                 w->cfg->gen.ctx_size,
+                w->cfg->gen.working_ctx_size,
                 ds4_backend_name(w->cfg->engine.backend),
                 w->cfg->engine.model_path ? w->cfg->engine.model_path : "",
                 w->cfg->gen.trace_path ? w->cfg->gen.trace_path : "");
@@ -13248,6 +13333,7 @@ static void worker_consume(agent_worker *w, char **out, size_t *out_len, agent_s
     }
     w->status.ctx_used = w->transcript.len;
     w->status.ctx_size = w->cfg->gen.ctx_size;
+    w->status.working_ctx_size = w->cfg->gen.working_ctx_size;
     if (status) *status = w->status;
     w->wake_pending = false;
     pthread_mutex_unlock(&w->mu);
@@ -13257,6 +13343,7 @@ static void worker_get_status(agent_worker *w, agent_status *status) {
     pthread_mutex_lock(&w->mu);
     w->status.ctx_used = w->transcript.len;
     w->status.ctx_size = w->cfg->gen.ctx_size;
+    w->status.working_ctx_size = w->cfg->gen.working_ctx_size;
     *status = w->status;
     pthread_mutex_unlock(&w->mu);
 }
@@ -13274,6 +13361,7 @@ static bool worker_is_initialized(agent_worker *w, agent_status *status) {
     pthread_mutex_lock(&w->mu);
     w->status.ctx_used = w->transcript.len;
     w->status.ctx_size = w->cfg->gen.ctx_size;
+    w->status.working_ctx_size = w->cfg->gen.working_ctx_size;
     if (status) *status = w->status;
     bool initialized = w->initialized;
     pthread_mutex_unlock(&w->mu);
@@ -13504,17 +13592,28 @@ static void build_status_debug_text(const agent_status *st, char *buf, size_t le
 /* Build the one-line footer shown below the prompt.  It is intentionally compact
  * because linenoise redraws it on every progress update. */
 static void build_status_text(const agent_status *st, char *buf, size_t len) {
-    char used[32], total_ctx[32];
+    char used[32], total_ctx[32], working_ctx[32] = "";
     agent_format_ctx_size(st->ctx_used, used, sizeof(used));
     agent_format_ctx_size(st->ctx_size, total_ctx, sizeof(total_ctx));
+    if (st->working_ctx_size > 0 && st->working_ctx_size < st->ctx_size)
+        agent_format_ctx_size(st->working_ctx_size,
+                              working_ctx, sizeof(working_ctx));
     char debug[128];
     char prefix[192];
     build_status_debug_text(st, debug, sizeof(debug));
     if (debug[0]) {
-        snprintf(prefix, sizeof(prefix), "ctx %s/%s | %s",
-                 used, total_ctx, debug);
+        if (working_ctx[0])
+            snprintf(prefix, sizeof(prefix), "ctx %s/%s work:%s | %s",
+                     used, total_ctx, working_ctx, debug);
+        else
+            snprintf(prefix, sizeof(prefix), "ctx %s/%s | %s",
+                     used, total_ctx, debug);
     } else {
-        snprintf(prefix, sizeof(prefix), "ctx %s/%s", used, total_ctx);
+        if (working_ctx[0])
+            snprintf(prefix, sizeof(prefix), "ctx %s/%s work:%s",
+                     used, total_ctx, working_ctx);
+        else
+            snprintf(prefix, sizeof(prefix), "ctx %s/%s", used, total_ctx);
     }
 
     switch (st->state) {
@@ -14517,14 +14616,27 @@ static void agent_format_ctx_size(int ctx_size, char *buf, size_t len) {
 
 static void agent_format_welcome_banner(const agent_config *cfg,
                                         char *buf, size_t len) {
-    char ctx[32];
+    char ctx[32], working[32] = "";
     agent_format_ctx_size(cfg->gen.ctx_size, ctx, sizeof(ctx));
+    if (cfg->gen.working_ctx_size > 0)
+        agent_format_ctx_size(cfg->gen.working_ctx_size,
+                              working, sizeof(working));
     if (stdout_is_tty()) {
-        snprintf(buf, len,
-                 "\x1b[1;97mDwarf\x1b[1;94mStar\x1b[0m 🐋 Agent, context %s tokens\n\n",
-                 ctx);
+        if (working[0])
+            snprintf(buf, len,
+                     "\x1b[1;97mDwarf\x1b[1;94mStar\x1b[0m 🐋 Agent, context %s tokens (working %s)\n\n",
+                     ctx, working);
+        else
+            snprintf(buf, len,
+                     "\x1b[1;97mDwarf\x1b[1;94mStar\x1b[0m 🐋 Agent, context %s tokens\n\n",
+                     ctx);
     } else {
-        snprintf(buf, len, "DwarfStar Agent, context %s tokens\n\n", ctx);
+        if (working[0])
+            snprintf(buf, len,
+                     "DwarfStar Agent, context %s tokens (working %s)\n\n",
+                     ctx, working);
+        else
+            snprintf(buf, len, "DwarfStar Agent, context %s tokens\n\n", ctx);
     }
 }
 
@@ -14827,6 +14939,8 @@ static void agent_print_resume_hint(agent_worker *w) {
     printf("\nresume this session:\n  ./ds4-agent --model %s --backend %s --ctx %d",
            model, ds4_backend_name(cfg->engine.backend), cfg->gen.ctx_size);
     free(model);
+    if (cfg->gen.working_ctx_size > 0)
+        printf(" --working-context %d", cfg->gen.working_ctx_size);
 
     if (cfg->engine.mtp_path && cfg->engine.mtp_path[0]) {
         char *mtp = agent_shell_quote(cfg->engine.mtp_path);
