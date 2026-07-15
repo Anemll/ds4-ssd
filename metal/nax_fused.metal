@@ -32,6 +32,7 @@ struct hy3_nax_kv_args {
     float scale;
 };
 
+template <bool FAST_TILE>
 static inline void hy3_nax_gqa_f16_partial_impl(
         constant hy3_nax_kv_args &args,
         device float *query,
@@ -92,11 +93,16 @@ static inline void hy3_nax_gqa_f16_partial_impl(
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         const uint tile_count = min(TILE, last_pos - tile + 1u);
-        for (uint work = uint(tiitg); work < GQA * TILE; work += 128u) {
-            const uint c = work & (TILE - 1u);
-            if (c >= tile_count) scores[work] = -INFINITY;
+        /* Complete decode tiles need neither the masking stores nor the
+         * second threadgroup rendezvous.  The rollback specialization keeps
+         * the original sequence for direct comparison and diagnostics. */
+        if (!FAST_TILE || tile_count < TILE) {
+            for (uint work = uint(tiitg); work < GQA * TILE; work += 128u) {
+                const uint c = work & (TILE - 1u);
+                if (c >= tile_count) scores[work] = -INFINITY;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
         }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
 
         const float score0 = scores[h0 * TILE + uint(lane)] * args.scale;
         const float score1 = scores[h1 * TILE + uint(lane)] * args.scale;
@@ -115,17 +121,36 @@ static inline void hy3_nax_gqa_f16_partial_impl(
         max0 = next_max0;
         max1 = next_max1;
 
-        for (uint work = uint(tiitg); work < TILE * DIM; work += 128u) {
-            const uint c = work / DIM;
-            const uint d = work - c * DIM;
-            v_tile[work] = c < tile_count
-                ? vbase[(ulong(tile + c) * DIM) + d] : half(0.0f);
+        if (FAST_TILE) {
+            /* Copy four F16 values per transaction.  DIM=128 and every cache
+             * row starts on a 256-byte boundary, while the fast kernel declares
+             * its tile as half4 so both sides satisfy vector alignment. */
+            constexpr uint VEC_PER_ROW = DIM / 4u;
+            threadgroup half4 *dst4 =
+                reinterpret_cast<threadgroup half4 *>(v_tile);
+            device half4 *src4 = reinterpret_cast<device half4 *>(vbase);
+            for (uint work = uint(tiitg);
+                 work < TILE * VEC_PER_ROW; work += 128u) {
+                const uint c = work / VEC_PER_ROW;
+                const uint d4 = work - c * VEC_PER_ROW;
+                dst4[work] = c < tile_count
+                    ? src4[ulong(tile + c) * VEC_PER_ROW + d4]
+                    : half4(0.0h);
+            }
+        } else {
+            for (uint work = uint(tiitg); work < TILE * DIM; work += 128u) {
+                const uint c = work / DIM;
+                const uint d = work - c * DIM;
+                v_tile[work] = c < tile_count
+                    ? vbase[(ulong(tile + c) * DIM) + d] : half(0.0f);
+            }
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
 
         float4 tile_acc0 = float4(0.0f);
         float4 tile_acc1 = float4(0.0f);
-        threadgroup half4 *v4 = reinterpret_cast<threadgroup half4 *>(v_tile);
+        threadgroup half4 *v4 =
+            reinterpret_cast<threadgroup half4 *>(v_tile);
         for (uint c = 0u; c < tile_count; ++c) {
             const float4 vv = float4(v4[c * 32u + uint(lane)]);
             tile_acc0 = fma(vv, weights[h0 * TILE + c], tile_acc0);
@@ -192,10 +217,35 @@ kernel void kernel_hy3_gqa_decode_f16_nax_partial(
     threadgroup float scores[8 * 32];
     threadgroup float weights[8 * 32];
     threadgroup half v_tile[32 * 128];
-    hy3_nax_gqa_f16_partial_impl(args, query, kc, vc, scratch,
-                                  scores, weights, v_tile, 0u, args.pos,
-                                  kv_head, iwg, 0u, false,
-                                  lane, sgitg, tiitg);
+    hy3_nax_gqa_f16_partial_impl<false>(
+        args, query, kc, vc, scratch, scores, weights, v_tile,
+        0u, args.pos, kv_head, iwg, 0u, false, lane, sgitg, tiitg);
+}
+
+/* Default decode specialization.  DS4_HY3_NAX_FAST_TILE=0 selects the
+ * arithmetic-identical rollback kernel above; only full-tile synchronization
+ * and raw F16 V-cache staging differ. */
+kernel void kernel_hy3_gqa_decode_f16_nax_fast_tile_partial(
+        constant hy3_nax_kv_args &args [[buffer(0)]],
+        device float *query [[buffer(1)]],
+        device half  *kc [[buffer(2)]],
+        device half  *vc [[buffer(3)]],
+        device float *scratch [[buffer(4)]],
+        uint group_id [[threadgroup_position_in_grid]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    if (args.nwg == 0u) return;
+    const uint kv_head = group_id / args.nwg;
+    if (kv_head >= args.n_head_kv) return;
+    const uint iwg = group_id - kv_head * args.nwg;
+    threadgroup float scores[8 * 32];
+    threadgroup float weights[8 * 32];
+    threadgroup half4 v_tile4[32 * 32];
+    hy3_nax_gqa_f16_partial_impl<true>(
+        args, query, kc, vc, scratch, scores, weights,
+        reinterpret_cast<threadgroup half *>(v_tile4),
+        0u, args.pos, kv_head, iwg, 0u, false, lane, sgitg, tiitg);
 }
 
 kernel void kernel_hy3_gqa_prefill_f16_nax_partial(
@@ -217,11 +267,10 @@ kernel void kernel_hy3_gqa_prefill_f16_nax_partial(
     threadgroup float scores[8 * 32];
     threadgroup float weights[8 * 32];
     threadgroup half v_tile[32 * 128];
-    hy3_nax_gqa_f16_partial_impl(args, query, kc, vc, scratch,
-                                  scores, weights, v_tile, token,
-                                  args.pos + token, kv_head, iwg,
-                                  token * args.n_head, args.nwg == 1u,
-                                  lane, sgitg, tiitg);
+    hy3_nax_gqa_f16_partial_impl<false>(
+        args, query, kc, vc, scratch, scores, weights, v_tile, token,
+        args.pos + token, kv_head, iwg, token * args.n_head,
+        args.nwg == 1u, lane, sgitg, tiitg);
 }
 
 /* Two-token HY3 prefill tile.  The scalar prefill kernel above launches one

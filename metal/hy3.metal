@@ -386,6 +386,165 @@ kernel void kernel_hy3_gqa_decode_q8_0_partial4(
     }
 }
 
+/* GQA8-fused long-context decode.  One 256-thread workgroup owns one
+ * (KV head, partial): its eight SIMDgroups preserve the existing scalar Q.K
+ * and P.V order for the eight query heads while sharing each dequantized
+ * 32x128 K/V tile.  The four SG4 context streams are still accumulated and
+ * merged independently, so the output uses the exact same partial/reduce ABI
+ * as kernel_hy3_gqa_decode_q8_0_partial4.  The host only dispatches this
+ * kernel for head_dim=128 and n_head/n_head_kv=8. */
+kernel void kernel_hy3_gqa_decode_q8_0_gqa8_partial4(
+        constant hy3_kv_args &args [[buffer(0)]],
+        device const float   *query [[buffer(1)]],
+        device const hy3_block_q8_0 *kc [[buffer(2)]],
+        device const hy3_block_q8_0 *vc [[buffer(3)]],
+        device float         *scratch [[buffer(4)]],
+        uint group_id [[threadgroup_position_in_grid]],
+        uint tid [[thread_index_in_threadgroup]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]]) {
+    const uint kv_head = group_id / args.nwg;
+    const uint iwg = group_id - kv_head * args.nwg;
+    const uint head_in_group = uint(sgitg);
+    const uint head = kv_head * 8u + head_in_group;
+
+    const uint blocks_per_head = args.head_dim / 32u;
+    const uint blocks_per_token = args.n_head_kv * blocks_per_head;
+    const uint qbase = head * args.head_dim;
+    device const float4 *query4 =
+        reinterpret_cast<device const float4 *>(query + qbase);
+    const float4 qv = query4[lane];
+
+    /* K and V use this storage sequentially.  Keeping the staged values in
+     * float preserves Q8 dequantization exactly; no extra half rounding is
+     * introduced by the fused path. */
+    threadgroup float4 kv_tile[32][32];
+
+    float stream_max[4] = {
+        -INFINITY, -INFINITY, -INFINITY, -INFINITY
+    };
+    float stream_sum[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    float4 stream_acc[4] = {
+        float4(0.0f), float4(0.0f), float4(0.0f), float4(0.0f)
+    };
+
+    const uint tile_stride = args.nwg * 4u * 32u;
+    for (uint stream = 0u; stream < 4u; ++stream) {
+        float local_max = -INFINITY;
+        float local_sum = 0.0f;
+        float4 acc = float4(0.0f);
+
+        for (uint tile = (iwg * 4u + stream) * 32u;
+             tile <= args.pos; tile += tile_stride) {
+            const uint tile_count = min(32u, args.pos - tile + 1u);
+            const uint tile_slices = tile_count * 32u;
+
+            /* Cooperatively dequantize K once for all eight query heads.
+             * A slice is four adjacent dimensions, matching one SIMD lane's
+             * float4 in the existing SG4 kernel. */
+            for (uint i = tid; i < tile_slices; i += 256u) {
+                const uint c = i >> 5u;
+                const uint slice = i & 31u;
+                const uint q8_block = slice >> 3u;
+                const uint q8_lane4 = (slice & 7u) << 2u;
+                const ulong base =
+                    ulong(tile + c) * ulong(blocks_per_token) +
+                    ulong(kv_head * blocks_per_head + q8_block);
+                device const hy3_block_q8_0 &kb = kc[base];
+                const float kd = float(kb.d);
+                kv_tile[c][slice] =
+                    float4(float(kb.qs[q8_lane4]),
+                           float(kb.qs[q8_lane4 + 1u]),
+                           float(kb.qs[q8_lane4 + 2u]),
+                           float(kb.qs[q8_lane4 + 3u])) * kd;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            float lane_score = -INFINITY;
+            for (uint c = 0u; c < tile_count; ++c) {
+                const float score =
+                    simd_sum(dot(qv, kv_tile[c][lane])) * args.scale;
+                if (uint(lane) == c) lane_score = score;
+            }
+
+            const float next_max = max(local_max, simd_max(lane_score));
+            const float alpha = exp(local_max - next_max);
+            const float weight = exp(lane_score - next_max);
+            const float tile_sum = simd_sum(weight);
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            /* Reuse the same shared tile for V.  All query-head SIMDgroups
+             * consume these values before the next K tile overwrites them. */
+            for (uint i = tid; i < tile_slices; i += 256u) {
+                const uint c = i >> 5u;
+                const uint slice = i & 31u;
+                const uint q8_block = slice >> 3u;
+                const uint q8_lane4 = (slice & 7u) << 2u;
+                const ulong base =
+                    ulong(tile + c) * ulong(blocks_per_token) +
+                    ulong(kv_head * blocks_per_head + q8_block);
+                device const hy3_block_q8_0 &vb = vc[base];
+                const float vd = float(vb.d);
+                kv_tile[c][slice] =
+                    float4(float(vb.qs[q8_lane4]),
+                           float(vb.qs[q8_lane4 + 1u]),
+                           float(vb.qs[q8_lane4 + 2u]),
+                           float(vb.qs[q8_lane4 + 3u])) * vd;
+            }
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+
+            float4 tile_acc = float4(0.0f);
+            for (uint c = 0u; c < tile_count; ++c) {
+                tile_acc = fma(kv_tile[c][lane],
+                               simd_shuffle(weight, c), tile_acc);
+            }
+
+            local_sum = fma(local_sum, alpha, tile_sum);
+            acc = fma(acc, alpha, tile_acc);
+            local_max = next_max;
+            threadgroup_barrier(mem_flags::mem_threadgroup);
+        }
+
+        stream_max[stream] = local_max;
+        stream_sum[stream] = local_sum;
+        stream_acc[stream] = acc;
+    }
+
+    /* Match partial4's four-way online-softmax merge, including its stream
+     * order and empty-stream handling. */
+    const float candidate =
+        lane < 4u ? stream_max[uint(lane)] : -INFINITY;
+    const float merged_max = simd_max(candidate);
+    float scale_part = 0.0f;
+    float sum_part = 0.0f;
+    if (lane < 4u) {
+        const uint stream = uint(lane);
+        if (stream_sum[stream] > 0.0f) {
+            scale_part = exp(candidate - merged_max);
+            sum_part = stream_sum[stream] * scale_part;
+        }
+    }
+    const float merged_sum = simd_sum(sum_part);
+
+    float4 merged_acc = float4(0.0f);
+    for (uint stream = 0u; stream < 4u; ++stream) {
+        merged_acc = fma(stream_acc[stream],
+                         simd_shuffle(scale_part, stream), merged_acc);
+    }
+
+    const ulong partial_stride = ulong(args.head_dim + 2u);
+    const ulong dst = ulong(head * args.nwg + iwg) * partial_stride;
+    if (lane == 0u) {
+        scratch[dst] = merged_max;
+        scratch[dst + 1u] = merged_sum;
+    }
+    const ulong out4 = dst + 2u + ulong(lane) * 4u;
+    scratch[out4] = merged_acc.x;
+    scratch[out4 + 1u] = merged_acc.y;
+    scratch[out4 + 2u] = merged_acc.z;
+    scratch[out4 + 3u] = merged_acc.w;
+}
+
 kernel void kernel_hy3_gqa_decode_q8_0_reduce(
         constant hy3_kv_args &args [[buffer(0)]],
         device const float   *scratch [[buffer(1)]],

@@ -207,6 +207,7 @@ static id<MTLComputePipelineState> g_mpp_dequant_gud_i8_pipeline;
 static id<MTLLibrary>              g_nax_fused_library;
 static bool                        g_nax_fused_tried;
 static id<MTLComputePipelineState> g_hy3_gqa_f16_nax_pipeline;
+static id<MTLComputePipelineState> g_hy3_gqa_f16_nax_fast_tile_pipeline;
 static id<MTLComputePipelineState> g_hy3_gqa_prefill_f16_nax_pipeline;
 static id<MTLComputePipelineState> g_hy3_gqa_prefill_f16_nax_group2_pipeline;
 /* Optional native-MXFP4 (MPP 4.1 / macOS 27 scale-plane matmul2d) library.
@@ -7818,6 +7819,7 @@ void ds4_gpu_cleanup(void) {
         g_nax_fused_library = nil;
         g_nax_fused_tried = false;
         g_hy3_gqa_f16_nax_pipeline = nil;
+        g_hy3_gqa_f16_nax_fast_tile_pipeline = nil;
         g_hy3_gqa_prefill_f16_nax_pipeline = nil;
         g_hy3_gqa_prefill_f16_nax_group2_pipeline = nil;
         g_mxfp4_native_library = nil;
@@ -30670,15 +30672,51 @@ int ds4_gpu_hy3_gqa_attention_tensor(
             ds4_gpu_env_u32_default("DS4_HY3_ATTN_SG4_MIN_CTX", 2048u);
         const bool sg4 = flash && sg4_min_ctx != 0u && pos + 1u >= sg4_min_ctx &&
                          getenv("DS4_HY3_DISABLE_ATTN_SG4") == NULL;
-        id<MTLComputePipelineState> attention = flash
-            ? ds4_gpu_get_pipeline(sg4
-                  ? "kernel_hy3_gqa_decode_q8_0_partial4"
-                  : "kernel_hy3_gqa_decode_q8_0_partial")
-            : ds4_gpu_get_pipeline("kernel_hy3_gqa_decode_q8_0");
+        const int fused_gqa8_env =
+            ds4_gpu_env_bool("DS4_HY3_Q8_FUSED_GQA8");
+        const bool fused_gqa8_enabled =
+            fused_gqa8_env >= 0 ? fused_gqa8_env != 0 : true;
+        const bool fused_gqa8_requested =
+            sg4 && n_head == n_head_kv * 8u && fused_gqa8_enabled;
+        id<MTLComputePipelineState> fused_gqa8_pipeline =
+            fused_gqa8_requested
+                ? ds4_gpu_get_pipeline(
+                      "kernel_hy3_gqa_decode_q8_0_gqa8_partial4")
+                : nil;
+        const bool fused_gqa8 =
+            fused_gqa8_pipeline != nil &&
+            fused_gqa8_pipeline.maxTotalThreadsPerThreadgroup >= 256u;
+        if (fused_gqa8) {
+            static bool logged_fused_gqa8 = false;
+            if (!logged_fused_gqa8) {
+                logged_fused_gqa8 = true;
+                fprintf(stderr,
+                        "ds4: HY3 Q8 fused GQA8 SG4 decode enabled by default "
+                        "(rollback: DS4_HY3_Q8_FUSED_GQA8=0)\n");
+            }
+        }
+        if (fused_gqa8_requested && !fused_gqa8) {
+            static bool logged_fused_gqa8_fallback = false;
+            if (!logged_fused_gqa8_fallback) {
+                logged_fused_gqa8_fallback = true;
+                fprintf(stderr,
+                        "ds4: HY3 fused Q8 GQA8 pipeline unavailable; "
+                        "falling back to SG4 attention\n");
+            }
+        }
+        id<MTLComputePipelineState> attention = fused_gqa8
+            ? fused_gqa8_pipeline
+            : (flash
+                ? ds4_gpu_get_pipeline(sg4
+                      ? "kernel_hy3_gqa_decode_q8_0_partial4"
+                      : "kernel_hy3_gqa_decode_q8_0_partial")
+                : ds4_gpu_get_pipeline("kernel_hy3_gqa_decode_q8_0"));
         id<MTLComputePipelineState> reduce = flash
             ? ds4_gpu_get_pipeline("kernel_hy3_gqa_decode_q8_0_reduce") : nil;
+        const NSUInteger attention_threads =
+            fused_gqa8 ? 256u : (flash ? (sg4 ? 128u : 32u) : head_dim);
         if (!store || !attention ||
-            (flash && (!reduce || attention.maxTotalThreadsPerThreadgroup < (sg4 ? 128u : 32u) ||
+            (flash && (!reduce || attention.maxTotalThreadsPerThreadgroup < attention_threads ||
                        reduce.maxTotalThreadsPerThreadgroup < head_dim)) ||
             (!flash && attention.maxTotalThreadsPerThreadgroup < head_dim)) return 0;
         const bool had_batch = g_batch_cb != nil;
@@ -30718,8 +30756,12 @@ int ds4_gpu_hy3_gqa_attention_tensor(
         [enc setBuffer:flash ? ds4_gpu_tensor_buffer(scratch) : ds4_gpu_tensor_buffer(out)
                   offset:flash ? ds4_gpu_tensor_offset(scratch) : ds4_gpu_tensor_offset(out)
                  atIndex:4];
-        [enc dispatchThreadgroups:MTLSizeMake(flash ? n_head * args.nwg : n_head, 1, 1)
-             threadsPerThreadgroup:MTLSizeMake(flash ? (sg4 ? 128u : 32u) : head_dim, 1, 1)];
+        [enc dispatchThreadgroups:
+                 MTLSizeMake(flash
+                                 ? (fused_gqa8 ? n_head_kv : n_head) * args.nwg
+                                 : n_head,
+                             1, 1)
+             threadsPerThreadgroup:MTLSizeMake(attention_threads, 1, 1)];
         ds4_gpu_end_compute_encoder(cb, enc);
 
         if (flash) {
@@ -30905,6 +30947,22 @@ int ds4_gpu_hy3_gqa_attention_f16_nax_tensor(
         id<MTLComputePipelineState> store =
             ds4_gpu_get_pipeline("kernel_hy3_store_kv_f16_headmajor");
         id<MTLComputePipelineState> attention = g_hy3_gqa_f16_nax_pipeline;
+        static int fast_tile_enabled = -1;
+        if (fast_tile_enabled < 0) {
+            const int env = ds4_gpu_env_bool("DS4_HY3_NAX_FAST_TILE");
+            fast_tile_enabled = env >= 0 ? (env != 0 ? 1 : 0) : 1;
+        }
+        if (fast_tile_enabled != 0 &&
+            g_hy3_gqa_f16_nax_fast_tile_pipeline != nil) {
+            attention = g_hy3_gqa_f16_nax_fast_tile_pipeline;
+            static bool logged_fast_tile = false;
+            if (!logged_fast_tile) {
+                logged_fast_tile = true;
+                fprintf(stderr,
+                        "ds4: HY3 NAX fast decode tiles enabled by default "
+                        "(rollback: DS4_HY3_NAX_FAST_TILE=0)\n");
+            }
+        }
         id<MTLComputePipelineState> reduce =
             ds4_gpu_get_pipeline("kernel_hy3_gqa_decode_q8_0_reduce");
         if (!store || !attention || !reduce ||
@@ -41632,6 +41690,10 @@ static void ds4_gpu_ensure_nax_fused_library(void) {
     g_hy3_gqa_f16_nax_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library,
                                   @"kernel_hy3_gqa_decode_f16_nax_partial");
+    g_hy3_gqa_f16_nax_fast_tile_pipeline =
+        ds4_gpu_make_mpp_pipeline(
+            g_nax_fused_library,
+            @"kernel_hy3_gqa_decode_f16_nax_fast_tile_partial");
     g_hy3_gqa_prefill_f16_nax_pipeline =
         ds4_gpu_make_mpp_pipeline(g_nax_fused_library,
                                   @"kernel_hy3_gqa_prefill_f16_nax_partial");

@@ -302,7 +302,13 @@ while `DS4_HY3_DECODE_BLOCKING_FLUSH=0` (or
 When `--hy3-q8` is active, decode automatically switches to a four-SIMDgroup
 Q8_0 split-KV kernel at 2,048 context tokens. `DS4_HY3_ATTN_SG4_MIN_CTX=N`
 changes that threshold, and `DS4_HY3_DISABLE_ATTN_SG4=1` keeps the
-one-SIMDgroup diagnostic path.
+one-SIMDgroup diagnostic path. At that threshold, HY3 also defaults to an exact
+fused GQA8 kernel: one workgroup dequantizes each shared K/V tile once for all
+eight query heads while retaining the existing Q8 cache and reducer layout.
+Set `DS4_HY3_Q8_FUSED_GQA8=0` to restore the prior SG4 kernel. On Apple M5 Max,
+balanced full-model runs improved from 19.835 to 20.727 t/s at 8k context
+(+4.50%) and from 15.589 to 16.732 t/s at 16k (+7.33%), with identical greedy
+continuations.
 
 HY3 defaults to direct NAX-half attention on supported Metal systems. This
 allocates a persistent head-major F16 K/V cache and writes each new token
@@ -319,6 +325,14 @@ that variable is unset, the presence of
 `DS4_HY3_DISABLE_NAX_GROUPED_PREFILL` also disables grouping. HY3 session
 snapshots support both Q8_0 and F16 cache layouts, record the active layout,
 and restore compact live rows without serializing F16 padding.
+
+NAX-half decode uses an exact fast-tile specialization by default. Complete
+32-row tiles skip a no-op mask pass and synchronization barrier, and V-cache
+staging uses aligned F16 vectors; softmax and P×V arithmetic are unchanged.
+Set `DS4_HY3_NAX_FAST_TILE=0` for the original diagnostic kernel. On Apple M5
+Max, a 256-token greedy run improved from 21.81 to 24.19 t/s at 8k context
+(+10.9%) and from 18.21 to 20.96 t/s at 16k (+15.1%), with identical generated
+token hashes at both frontiers.
 
 HY3 keeps the generic direct-RHS Q8 NAX matrix path disabled for its Q/K/V
 projections. On HY3 that path changes greedy logits at its 32-token dispatch
