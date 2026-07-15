@@ -1433,6 +1433,11 @@ extern "C" int ds4_gpu_tensor_copy(ds4_gpu_tensor *dst, uint64_t dst_offset,
 
 extern "C" int ds4_gpu_begin_commands(void) { return 1; }
 extern "C" int ds4_gpu_flush_commands(void) { return cuda_ok(cudaDeviceSynchronize(), "flush"); }
+extern "C" int ds4_gpu_flush_commands_bounded(uint32_t max_in_flight) {
+    (void)max_in_flight;
+    return cuda_ok(cudaDeviceSynchronize(), "bounded flush");
+}
+extern "C" int ds4_gpu_flush_commands_blocking(void) { return cuda_ok(cudaDeviceSynchronize(), "blocking flush"); }
 extern "C" int ds4_gpu_end_commands(void) { return cuda_ok(cudaDeviceSynchronize(), "end commands"); }
 extern "C" int ds4_gpu_synchronize(void) { return cuda_ok(cudaDeviceSynchronize(), "synchronize"); }
 
@@ -1525,6 +1530,10 @@ extern "C" int ds4_gpu_set_model_map_range(const void *model_map, uint64_t model
 extern "C" void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views) {
     (void)request_residency;
     (void)warm_views;
+}
+
+extern "C" void ds4_gpu_set_model_lazy_views(bool enabled) {
+    (void)enabled;
 }
 
 extern "C" int ds4_gpu_set_model_fd(int fd) {
@@ -6307,6 +6316,88 @@ extern "C" int ds4_gpu_rope_tail_tensor(ds4_gpu_tensor *x, uint32_t n_tok, uint3
     uint32_t pairs = n_tok * n_head * (n_rot / 2);
     rope_tail_kernel<<<(pairs + 255) / 256, 256>>>((float *)x->ptr, n_tok, n_head, head_dim, n_rot, pos0, n_ctx_orig, inverse ? 1 : 0, freq_base, freq_scale, ext_factor, attn_factor, beta_fast, beta_slow);
     return cuda_ok(cudaGetLastError(), "rope_tail launch");
+}
+
+/* HY3 is currently a Metal-only runtime.  Keep the shared ds4.o linkable in
+ * CUDA builds while making accidental HY3 CUDA dispatch fail cleanly at the
+ * existing backend check instead of leaving unresolved GPU API symbols. */
+extern "C" int ds4_gpu_hy3_get_row_q4_k_tensor(
+        ds4_gpu_tensor *out, const void *model_map, uint64_t model_size,
+        uint64_t row_offset, uint32_t n_cols) {
+    (void)out; (void)model_map; (void)model_size; (void)row_offset; (void)n_cols;
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_get_rows_q4_k_tensor(
+        ds4_gpu_tensor *out, const void *model_map, uint64_t model_size,
+        uint64_t weight_offset, uint32_t n_vocab, const int *tokens,
+        uint32_t n_tokens, uint32_t n_cols) {
+    (void)out; (void)model_map; (void)model_size; (void)weight_offset;
+    (void)n_vocab; (void)tokens; (void)n_tokens; (void)n_cols;
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_gqa_attention_tensor(
+        ds4_gpu_tensor *out, ds4_gpu_tensor *scratch,
+        ds4_gpu_tensor *k_cache, ds4_gpu_tensor *v_cache,
+        const ds4_gpu_tensor *query, const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value, uint32_t pos, uint32_t ctx,
+        uint32_t n_head, uint32_t n_head_kv, uint32_t head_dim, float scale) {
+    (void)out; (void)scratch; (void)k_cache; (void)v_cache; (void)query;
+    (void)key; (void)value; (void)pos; (void)ctx; (void)n_head;
+    (void)n_head_kv; (void)head_dim; (void)scale;
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_gqa_attention_batch_tensor(
+        ds4_gpu_tensor *out, ds4_gpu_tensor *scratch,
+        ds4_gpu_tensor *k_cache, ds4_gpu_tensor *v_cache,
+        const ds4_gpu_tensor *query, const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value, uint32_t pos0, uint32_t n_tokens,
+        uint32_t ctx, uint32_t n_head, uint32_t n_head_kv,
+        uint32_t head_dim, float scale) {
+    (void)out; (void)scratch; (void)k_cache; (void)v_cache; (void)query;
+    (void)key; (void)value; (void)pos0; (void)n_tokens; (void)ctx;
+    (void)n_head; (void)n_head_kv; (void)head_dim; (void)scale;
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_nax_f16_supported(void) {
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_gqa_attention_f16_nax_tensor(
+        ds4_gpu_tensor *out, ds4_gpu_tensor *scratch,
+        ds4_gpu_tensor *k_cache, ds4_gpu_tensor *v_cache,
+        const ds4_gpu_tensor *query, const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value, uint32_t pos, uint32_t ctx,
+        uint32_t n_head, uint32_t n_head_kv, uint32_t head_dim, float scale) {
+    (void)out; (void)scratch; (void)k_cache; (void)v_cache; (void)query;
+    (void)key; (void)value; (void)pos; (void)ctx; (void)n_head;
+    (void)n_head_kv; (void)head_dim; (void)scale;
+    return 0;
+}
+
+extern "C" int ds4_gpu_hy3_gqa_attention_f16_nax_batch_tensor(
+        ds4_gpu_tensor *out, ds4_gpu_tensor *scratch,
+        ds4_gpu_tensor *k_cache, ds4_gpu_tensor *v_cache,
+        const ds4_gpu_tensor *query, const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value, uint32_t pos0, uint32_t n_tokens,
+        uint32_t ctx, uint32_t n_head, uint32_t n_head_kv,
+        uint32_t head_dim, float scale) {
+    (void)out; (void)scratch; (void)k_cache; (void)v_cache; (void)query;
+    (void)key; (void)value; (void)pos0; (void)n_tokens; (void)ctx;
+    (void)n_head; (void)n_head_kv; (void)head_dim; (void)scale;
+    return 0;
+}
+
+extern "C" int ds4_gpu_rope_neox_tensor(
+        ds4_gpu_tensor *x, uint32_t n_tok, uint32_t n_head,
+        uint32_t head_dim, uint32_t n_rot, uint32_t pos0,
+        uint32_t n_ctx_orig, float freq_base, float freq_scale) {
+    (void)x; (void)n_tok; (void)n_head; (void)head_dim; (void)n_rot;
+    (void)pos0; (void)n_ctx_orig; (void)freq_base; (void)freq_scale;
+    return 0;
 }
 extern "C" int ds4_gpu_store_raw_kv_tensor(ds4_gpu_tensor *raw_cache, const ds4_gpu_tensor *kv, uint32_t raw_cap, uint32_t row, uint32_t head_dim);
 extern "C" int ds4_gpu_kv_fp8_store_raw_tensor(

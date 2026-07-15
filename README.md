@@ -198,6 +198,215 @@ curl http://127.0.0.1:8000/v1/models
 Use that id in API calls unless you intentionally want a compatibility alias:
 `deepseek-chat` disables thinking and `deepseek-reasoner` enables thinking.
 
+## Run HY3
+
+HY3 full-GGUF models are detected from `general.architecture=hy_v3` and use a
+DS4-native Metal runtime. The implementation keeps all mapped GGUF tensors on
+the existing DS4 quantized-matmul path. It executes each token's selected top-8
+routes together, fuses gate/up/SwiGLU work, and uses a direct top-8 IQ3_XXS
+down-and-sum kernel. Attention defaults to a direct head-major F16 NAX-half KV
+cache on supported Metal systems. The lower-memory Q8_0 split-KV path remains
+available with `--hy3-q8`.
+
+Recommended interactive agent command on M5 Max:
+
+```sh
+./ds4-agent \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --ctx 16000 \
+  -sys '' \
+  --nothink \
+  --temp 0
+```
+
+Use the same model with the lower-memory Q8_0 KV cache:
+
+```sh
+./ds4-agent \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --hy3-q8 \
+  --ctx 16000 \
+  -sys '' \
+  --nothink \
+  --temp 0
+```
+
+For one-shot CLI generation:
+
+```sh
+./ds4 \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --ctx 5000 \
+  -sys '' \
+  --nothink \
+  --temp 0 \
+  -p "Make a game of Space invaders in C++"
+```
+
+The current HY3 path is Metal-only. It supports normal CLI and interactive
+generation, uses the model's Hunyuan tokenizer/chat framing, and intentionally
+does not use llama.cpp-specific CLI flags. `-sys ''` disables DS4's default
+`You are a helpful assistant` system message and can be omitted when that
+default is wanted. Prompt ingestion uses a 256-token layer-major Metal path and
+only computes vocabulary logits for the final prompt row. Set
+`DS4_HY3_DISABLE_BATCH_PREFILL=1` to use the diagnostic token path, or use
+`--quality` to select the conservative one-token prefill and serial-attention
+fallbacks. `--moe-mode stock` is an anemll-flash-llama.cpp option and is neither
+needed nor accepted by DS4's full-GGUF HY3 path. `ds4-agent` persists HY3's
+active Q8_0 or F16 KV state in its normal `~/.ds4/kvcache/sysprompt.kv`, so
+subsequent launches restore a matching system/tool prompt instead of
+prefilling it again.
+
+`ds4-agent` renders and parses HY3's native Hunyuan tool-control tokens
+(`tool_calls:opensource`, `tool_call:opensource`, `tool_sep:opensource`, and
+the matching argument/response tokens). It does not prompt HY3 to imitate
+DSML or GLM XML. This matters for file-writing prompts: mixed protocols can
+look like model-quality or KV-precision corruption even when the sampled
+content itself is sound.
+
+During live `write`, `edit`, and `bash` arguments, `ds4-agent` also stops an
+exact short byte pattern that repeats for at least 512 bytes (for example a
+literal `, 50, 50, ...` decode loop). It preserves the incomplete `.part`
+preview, leaves the destination untouched, discards the bad assistant turn,
+and retries once with compact-payload framing. Set
+`DS4_AGENT_PAYLOAD_REPEAT_GUARD=0` only when intentionally generating a long
+literal repetition that cannot be represented with a loop or `repeat`/`fill`.
+
+HY3 demand-pages GGUF tensors through per-tensor Metal views and drains decode
+every 16 layers by default. Decode keeps at most two Metal command buffers in
+flight, waiting and retiring only the oldest split while the next one is
+encoded; the final synchronize drains the remaining work and releases its
+transients normally. `DS4_HY3_DECODE_SPLIT_LAYERS=N` changes that interval.
+For A/B diagnostics, `DS4_HY3_DECODE_BLOCKING_FLUSH=1` forces blocking depth 1,
+while `DS4_HY3_DECODE_BLOCKING_FLUSH=0` (or
+`DS4_HY3_DECODE_UNBOUNDED_FLUSH=1`) restores unbounded submission.
+
+When `--hy3-q8` is active, decode automatically switches to a four-SIMDgroup
+Q8_0 split-KV kernel at 2,048 context tokens. `DS4_HY3_ATTN_SG4_MIN_CTX=N`
+changes that threshold, and `DS4_HY3_DISABLE_ATTN_SG4=1` keeps the
+one-SIMDgroup diagnostic path.
+
+HY3 defaults to direct NAX-half attention on supported Metal systems. This
+allocates a persistent head-major F16 K/V cache and writes each new token
+directly into it; NAX consumes that cache in place, so there is no context
+conversion pass. Use `--hy3-q8` to select the lower-memory Q8_0 KV fallback.
+`DS4_HY3_NAX_HALF_ATTN=0` remains a backward-compatible low-level equivalent
+for existing benchmark scripts. NAX-half uses about 4.88 GiB of K/V at 16k
+context for the 80-layer HY3 model, versus about 2.59 GiB for Q8_0. Within the
+NAX-half path, prefill groups two adjacent tokens into one 16-query-row MPP tile
+by default so they share the same K/V history walk. Set
+`DS4_HY3_NAX_GROUPED_PREFILL=0` to select the one-token diagnostic kernel, or
+set it to `1` to select the grouped path when its pipeline is available. If
+that variable is unset, the presence of
+`DS4_HY3_DISABLE_NAX_GROUPED_PREFILL` also disables grouping. HY3 session
+snapshots support both Q8_0 and F16 cache layouts, record the active layout,
+and restore compact live rows without serializing F16 padding.
+
+HY3 keeps the generic direct-RHS Q8 NAX matrix path disabled for its Q/K/V
+projections. On HY3 that path changes greedy logits at its 32-token dispatch
+boundary and creates a slow final prefill chunk; the standard simdgroup Q8
+projection is both faster and stable. `DS4_HY3_ENABLE_DENSE_NAX=1` is an
+audit-only override. It is independent of `DS4_HY3_NAX_HALF_ATTN`, which
+selects the F16 NAX attention/KV path by default.
+
+HY3 prompt prefill is layer-major and uses 256-token chunks by default. Set
+`DS4_HY3_PREFILL_CHUNK=32`, `64`, `128`, or `256` to benchmark a fixed chunk
+size; values above 256 are clamped because the attention and selected-expert
+workspaces grow linearly with the chunk. `--quality`,
+`DS4_HY3_DISABLE_BATCH_PREFILL`, or `DS4_HY3_DISABLE_FLASH_ATTN` disables this
+batched path. Chunks of at least 128 tokens also use a true batched F32 router
+projection; `DS4_HY3_F32_ROUTER_MM_MIN_TOKENS=N` changes that crossover and
+`DS4_HY3_DISABLE_F32_ROUTER_MM=1` restores the per-token diagnostic path.
+
+### HY3 NextN/MTP sidecar
+
+HY3 stores its optional one-layer NextN predictor as block 80. A full
+MTP-bearing GGUF can be used directly as the MTP support model, or reduced to a
+2.16 GiB support sidecar while the normal block-0-through-79 GGUF remains the
+target:
+
+```sh
+export HY3_FULL_MTP_GGUF="$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M-mtp.gguf"
+export HY3_MTP_GGUF="$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M-mtp-only.gguf"
+
+python3 scripts/export_hy3_mtp_sidecar.py --dry-run "$HY3_FULL_MTP_GGUF"
+python3 scripts/export_hy3_mtp_sidecar.py \
+  "$HY3_FULL_MTP_GGUF" "$HY3_MTP_GGUF"
+```
+
+The exporter streams tensor payloads without materializing the model and
+fails closed unless the source has the exact 20 block-80 tensors and required
+`hy_v3` metadata. Run the target plus the exported support model with greedy
+decoding and a two-token draft:
+
+```sh
+./ds4-agent \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --mtp "$HY3_MTP_GGUF" \
+  --mtp-draft 2 \
+  --ctx 5000 \
+  -sys '' \
+  --nothink \
+  --temp 0
+```
+
+HY3 only activates block 80 when `--mtp-draft` is greater than one and
+speculative greedy decoding is available. The default `--mtp-draft 1`,
+`DS4_MTP_SPEC_DISABLE=1`, and nonzero `--temp` keep MTP inactive so prompt and
+decode do not maintain an unused predictor cache.
+
+The block-80 implementation keeps its own KV cache, keeps target hidden state
+on Metal, and uses the same fused selected top-8 GGUF MoE path as the target.
+The forced one-token reference below strictly verifies greedy drafts. The
+fingerprinted HY3 payload persists target KV, block-80 KV, and the
+target-hidden carry in `ds4-agent`'s system-prompt cache, and rejects reuse
+after either GGUF file is replaced. After the default one-way target fallback,
+save/resume writes a target-only HY3 payload and keeps MTP disabled for that
+restored session. A new session builds block-80 state only when reference MTP
+or the explicitly unsafe batch experiment is selected.
+
+On M5 Max, the exact one-token verifier is a correctness reference rather than
+a speedup: it still evaluates one complete target row per emitted token and
+adds the block-80 work. DS4 therefore defaults to a session-local one-way plain
+target route before prompt sync, which preserves target output and throughput
+without building an unused predictor cache. Force the exact reference MTP path
+for acceptance and timing measurements with:
+
+```sh
+DS4_HY3_MTP_AUTO_FALLBACK=0 \
+DS4_MTP_TIMING=1 \
+DS4_MTP_SPEC_LOG=1 \
+./ds4-agent \
+  -m "$HOME/Models/Hy3-GGUF_1b/Hy3-IQ1_M.gguf" \
+  --mtp "$HY3_MTP_GGUF" \
+  --mtp-draft 2 \
+  --ctx 5000 \
+  -sys '' \
+  --nothink \
+  --temp 0
+```
+
+A paired M5 Max coding-prompt run (`--ctx 2048`, 256 generated tokens) was
+byte-identical to target-only while accepting 156/186 draft tokens (83.9%).
+Target-only measured 27.65 t/s; forced reference MTP measured 26.43 t/s. The
+high acceptance but lower throughput is the reason the measured default is
+target-only until an invariant verifier can retire more than one target row
+per pass.
+
+`DS4_HY3_MTP_BATCH_VERIFY=1` requests the carried, layer-major verifier
+experiment, but fails closed to the safe route. Entering the experiment also
+requires `DS4_HY3_MTP_UNSAFE_BATCH_VERIFY=1`. It folds the first predicted
+token into the verifier batch and uses tiny fused expert-pair kernels, but is
+not a target-greedy mode: the current M5 Max run produced 11.97 t/s versus
+27.46 t/s target-only, and the tested carried target state diverged from
+one-token decode. Its acceptance counters include the folded first-token
+prediction, so they measure predictor-row accuracy rather than extra emitted
+suffix yield. Always compare its output byte-for-byte with the target-only run;
+never use it for quality or production measurements.
+`DS4_HY3_MTP_PROFILE=1` adds scoped MoE-stage diagnostics. HY3 uses the F16 NAX
+KV layout by default; add `--hy3-q8` for a Q8_0 comparison. No model conversion
+is required.
+
 ## Run MTP With A Sidecar
 
 MTP speculative decoding is optional. It uses the normal sidecar or resident

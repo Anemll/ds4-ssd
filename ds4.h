@@ -162,6 +162,7 @@ void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
                                               const char *program_name);
 void ds4_engine_summary(ds4_engine *e);
 bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e);
+bool ds4_engine_uses_hy3_tokenizer(const ds4_engine *e);
 const char *ds4_backend_name(ds4_backend backend);
 bool ds4_think_mode_enabled(ds4_think_mode mode);
 const char *ds4_think_mode_name(ds4_think_mode mode);
@@ -240,6 +241,9 @@ ds4_session_rewrite_result ds4_session_rewrite_from_common(
 int ds4_session_common_prefix(ds4_session *s, const ds4_tokens *prompt);
 int ds4_session_argmax(ds4_session *s);
 int ds4_session_argmax_excluding(ds4_session *s, int excluded_id);
+int ds4_session_argmax_excluding_many(ds4_session *s,
+                                      const int *excluded_ids,
+                                      int excluded_count);
 int ds4_session_sample(ds4_session *s, float temperature, int top_k, float top_p, float min_p, uint64_t *rng);
 int ds4_session_top_logprobs(ds4_session *s, ds4_token_score *out, int k);
 int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out);

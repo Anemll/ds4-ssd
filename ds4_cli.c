@@ -53,6 +53,7 @@ typedef struct {
     cli_generation_options gen;
     char *prompt_owned;
     bool inspect;
+    bool hy3_q8;
 } cli_config;
 
 static volatile sig_atomic_t cli_interrupted;
@@ -102,6 +103,8 @@ static void usage(FILE *fp) {
         "      GGUF model path. Default: ds4flash.gguf\n"
         "      A sidecar package directory is also accepted when it contains\n"
         "      manifest.json and dense/model-dense.gguf.\n"
+        "  --hy3-q8\n"
+        "      HY3 only: use Q8_0 KV instead of the default F16 NAX-half cache.\n"
         "  --mtp FILE\n"
         "      Optional MTP support GGUF used for draft-token probes.\n"
         "  --mtp-draft N\n"
@@ -1989,6 +1992,9 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.system = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "-m") || !strcmp(arg, "--model")) {
             c.engine.model_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--hy3-q8")) {
+            c.hy3_q8 = true;
+            cli_setenv_or_die("DS4_HY3_NAX_HALF_ATTN", "0", 1);
         } else if (!strcmp(arg, "--mtp")) {
             c.engine.mtp_path = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "--mtp-draft")) {
@@ -2196,6 +2202,18 @@ static cli_config parse_options(int argc, char **argv) {
 int main(int argc, char **argv) {
     cli_process_start_t = cli_now_sec();
     cli_config cfg = parse_options(argc, argv);
+    if (cfg.engine.mtp_path && cfg.engine.mtp_path[0] &&
+        cfg.gen.temperature > 0.0f && getenv("DS4_MTP_SPEC_DISABLE") == NULL) {
+        if (setenv("DS4_MTP_SPEC_DISABLE", "1", 0) != 0) {
+            fprintf(stderr, "ds4: failed to disable MTP for non-greedy decode\n");
+            free(cfg.prompt_owned);
+            return 1;
+        }
+        fprintf(stderr,
+                "ds4: MTP runtime disabled before prefill because "
+                "--temp %.6g > 0; use --temp 0 for MTP drafting\n",
+                (double)cfg.gen.temperature);
+    }
     ds4_engine_options_autodetect_sidecar_package(&cfg.engine, "ds4");
     ds4_engine_options_apply_resident_preset(&cfg.engine, "ds4");
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
@@ -2217,6 +2235,12 @@ int main(int argc, char **argv) {
         return 1;
     }
     cli_engine_open_end_t = cli_now_sec();
+    if (cfg.hy3_q8 && !ds4_engine_uses_hy3_tokenizer(engine)) {
+        fprintf(stderr, "ds4: --hy3-q8 requires a HY3 model\n");
+        ds4_engine_close(engine);
+        free(cfg.prompt_owned);
+        return 2;
+    }
     const char *dspark_partial = getenv("DS4_DSPARK_ALLOW_PARTIAL");
     const bool dspark_partial_allowed =
         dspark_partial && dspark_partial[0] && atoi(dspark_partial) != 0;

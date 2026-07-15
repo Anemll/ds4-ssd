@@ -95,10 +95,10 @@ enum {
     DS4_MAX_EMBD             = 7168,
     DS4_MAX_VOCAB            = 154880,
     DS4_MAX_HEAD             = 128,
-    DS4_MAX_HEAD_KV          = 1,
+    DS4_MAX_HEAD_KV          = 8,
     DS4_MAX_HEAD_DIM         = 512,
     DS4_MAX_VALUE_DIM        = 512,
-    DS4_MAX_ROT              = 64,
+    DS4_MAX_ROT              = 128,
     DS4_MAX_OUT_GROUP        = 16,
     DS4_MAX_LORA_Q           = 2048,
     DS4_MAX_LORA_O           = 1024,
@@ -120,6 +120,7 @@ typedef enum {
     DS4_VARIANT_FLASH = 0,
     DS4_VARIANT_PRO   = 1,
     DS4_VARIANT_GLM52 = 2,
+    DS4_VARIANT_HY3   = 3,
 } ds4_variant;
 
 typedef struct {
@@ -280,6 +281,46 @@ static const ds4_shape DS4_SHAPE_GLM52 = {
     .rope_yarn_beta_slow = DS4_DEFAULT_ROPE_YARN_BETA_SLOW,
     .compress_rope_freq_base = 0.0f,
     .rope_orig_ctx = UINT64_C(1048576),
+};
+
+static const ds4_shape DS4_SHAPE_HY3 = {
+    .name = "Hunyuan HY3",
+    .variant = DS4_VARIANT_HY3,
+    .n_layer = 80,
+    .n_embd = 4096,
+    .n_vocab = 120832,
+    .n_head = 64,
+    .n_head_kv = 8,
+    .n_head_dim = 128,
+    .n_value_dim = 128,
+    .n_rot = 128,
+    .n_out_group = 1,
+    .n_lora_q = 0,
+    .n_lora_o = 0,
+    .n_expert = 192,
+    .n_expert_used = 8,
+    .n_expert_shared = 1,
+    .n_ff_exp = 1536,
+    .n_hash_layer = 0,
+    .n_swa = 0,
+    .n_indexer_head = 0,
+    .n_indexer_head_dim = 0,
+    .n_indexer_top_k = 0,
+    .n_hc = 1,
+    .n_hc_sinkhorn_iter = 0,
+    .n_dense_lead = 1,
+    .n_nextn = 0,
+    .n_lora_kv = 0,
+    .rms_eps = 1.0e-5f,
+    .hc_eps = DS4_DEFAULT_HC_EPS,
+    .expert_weight_scale = 2.826f,
+    .swiglu_clamp_exp = 0.0f,
+    .rope_freq_base = 11158840.0f,
+    .rope_scale_factor = 1.0f,
+    .rope_yarn_beta_fast = DS4_DEFAULT_ROPE_YARN_BETA_FAST,
+    .rope_yarn_beta_slow = DS4_DEFAULT_ROPE_YARN_BETA_SLOW,
+    .compress_rope_freq_base = 0.0f,
+    .rope_orig_ctx = UINT64_C(262144),
 };
 
 static ds4_shape g_ds4_shape = {
@@ -1391,6 +1432,9 @@ struct ds4_model {
     int fd;
     const uint8_t *map;
     uint64_t size;
+    uint64_t file_dev;
+    uint64_t file_ino;
+    uint64_t file_mtime_ns;
 
     uint32_t version;
     uint64_t n_kv;
@@ -1727,6 +1771,15 @@ static void model_open(ds4_model *m, const char *path, bool metal_mapping,
     m->fd = fd;
     m->map = map;
     m->size = (uint64_t)st.st_size;
+    m->file_dev = (uint64_t)st.st_dev;
+    m->file_ino = (uint64_t)st.st_ino;
+#if defined(__APPLE__)
+    m->file_mtime_ns = (uint64_t)st.st_mtimespec.tv_sec * UINT64_C(1000000000) +
+                       (uint64_t)st.st_mtimespec.tv_nsec;
+#else
+    m->file_mtime_ns = (uint64_t)st.st_mtim.tv_sec * UINT64_C(1000000000) +
+                       (uint64_t)st.st_mtim.tv_nsec;
+#endif
 
     ds4_cursor c = cursor_at(m, 0);
     uint32_t magic;
@@ -2711,6 +2764,12 @@ typedef struct {
     ds4_tensor *hc_attn_scale;
     ds4_tensor *hc_attn_base;
     ds4_tensor *attn_norm;
+    ds4_tensor *attn_q;
+    ds4_tensor *attn_q_norm;
+    ds4_tensor *attn_k;
+    ds4_tensor *attn_k_norm;
+    ds4_tensor *attn_v;
+    ds4_tensor *attn_output;
     ds4_tensor *attn_q_a;
     ds4_tensor *attn_q_a_norm;
     ds4_tensor *attn_q_b;
@@ -3399,10 +3458,20 @@ static void glm52_weights_bind(
         ds4_weights                  *w,
         const ds4_model              *m,
         const ds4_flash_moe_sidecar  *flash_moe);
+static bool hy3_model_is_hy_v3(const ds4_model *m);
+static void hy3_config_validate_model(const ds4_model *m);
+static void hy3_weights_bind(
+        ds4_weights                  *w,
+        const ds4_model              *m,
+        const ds4_flash_moe_sidecar  *flash_moe);
 
 /* Validate metadata values that affect semantics: attention shape, HC count,
  * expert routing, RoPE scaling, compression ratios, and SwiGLU clamp. */
 static void config_validate_model(const ds4_model *m) {
+    if (hy3_model_is_hy_v3(m)) {
+        hy3_config_validate_model(m);
+        return;
+    }
     if (glm52_model_is_glm_dsa(m)) {
         glm52_config_validate_model(m);
         return;
@@ -3556,6 +3625,7 @@ static ds4_tensor *routed_tensorf(
 }
 
 #include "glm52/glm52_model.c"
+#include "hy3/hy3_model.c"
 
 /* Bind tensor names once into the fixed DS4 layer layout.  This is the point
  * where stringly GGUF metadata becomes direct model-specific pointers. */
@@ -3563,6 +3633,10 @@ static void weights_bind(
         ds4_weights                  *w,
         const ds4_model              *m,
         const ds4_flash_moe_sidecar  *flash_moe) {
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
+        hy3_weights_bind(w, m, flash_moe);
+        return;
+    }
     if (DS4_MODEL_VARIANT == DS4_VARIANT_GLM52) {
         glm52_weights_bind(w, m, flash_moe);
         return;
@@ -23472,9 +23546,60 @@ static uint32_t metal_graph_resume_prefill_min_tokens(void) {
     return 32u;
 }
 
+/* HY3 defaults to its direct head-major F16 NAX cache.  Keep the environment
+ * knob as an explicit escape hatch for Q8_0 KV A/B and memory-constrained
+ * runs; this helper is used by both allocation and the public memory estimate
+ * so the startup report cannot disagree with the runtime. */
+static bool hy3_nax_half_requested(void) {
+    const char *env = getenv("DS4_HY3_NAX_HALF_ATTN");
+    return !env || !env[0] || atoi(env) != 0;
+}
+
 ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size) {
     ds4_context_memory m = {0};
     uint32_t ctx = ctx_size > 0 ? (uint32_t)ctx_size : 1u;
+
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
+        uint64_t pc = 256u;
+        const char *hy3_chunk = getenv("DS4_HY3_PREFILL_CHUNK");
+        if (hy3_chunk && hy3_chunk[0]) {
+            char *end = NULL;
+            const unsigned long parsed = strtoul(hy3_chunk, &end, 10);
+            if (end != hy3_chunk && *end == '\0' && parsed != 0ul) {
+                pc = parsed > 256ul ? 256u : (uint64_t)parsed;
+            }
+        }
+        const uint64_t e = DS4_N_EMBD;
+        const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
+        const uint64_t kv_dim = (uint64_t)DS4_N_HEAD_KV * DS4_N_HEAD_DIM;
+        const uint64_t active = DS4_N_EXPERT_USED;
+        const uint64_t expert_ff = DS4_N_FF_EXP;
+        const uint64_t dense_ff = 13312u;
+        m.prefill_cap = (uint32_t)pc;
+        m.raw_cap = ctx;
+        if (hy3_nax_half_requested()) {
+            const uint64_t ctx_pad = ((uint64_t)ctx + 31u) & ~UINT64_C(31);
+            m.raw_bytes = (uint64_t)DS4_N_LAYER * 2u * ctx_pad *
+                          DS4_N_HEAD_KV * DS4_N_HEAD_DIM * sizeof(uint16_t);
+        } else {
+            m.raw_bytes = (uint64_t)DS4_N_LAYER * 2u * ctx *
+                          DS4_N_HEAD_KV * (DS4_N_HEAD_DIM / 32u) * 34u;
+        }
+        /* Match hy3_runtime_alloc(): batched activations, split-KV partials,
+         * router/expert workspaces, and one vocabulary-logit row. */
+        const uint64_t scratch_f32 =
+            8u * pc * e + e +
+            3u * pc * q_dim + 3u * pc * kv_dim +
+            pc * DS4_N_HEAD * 32u * (DS4_N_HEAD_DIM + 2u) +
+            2u * pc * DS4_N_EXPERT + 2u * pc * active +
+            3u * pc * active * expert_ff + pc * active * e +
+            3u * pc * expert_ff +
+            3u * pc * dense_ff +
+            2u * pc + DS4_N_VOCAB;
+        m.scratch_bytes = scratch_f32 * sizeof(float);
+        m.total_bytes = m.raw_bytes + m.scratch_bytes;
+        return m;
+    }
 
     if (ds4_backend_uses_graph(backend)) {
         m.prefill_cap = metal_graph_prefill_cap_for_prompt((int)ctx);
@@ -23849,6 +23974,7 @@ struct ds4_vocab {
     ds4_str *token;
     int n_vocab;
     bool glm_tokenizer;
+    bool hy3_tokenizer;
     int bos_id;
     int eos_id;
     int pad_id;
@@ -23860,6 +23986,20 @@ struct ds4_vocab {
     int think_start_id;
     int think_end_id;
     int dsml_id;
+    int reasoning_mode_id;
+    int toolcalls_begin_id;
+    int toolcalls_end_id;
+    int toolcall_begin_id;
+    int toolcall_end_id;
+    int toolsep_id;
+    int argkey_begin_id;
+    int argkey_end_id;
+    int argvalue_begin_id;
+    int argvalue_end_id;
+    int toolresponses_begin_id;
+    int toolresponses_end_id;
+    int toolresponse_begin_id;
+    int toolresponse_end_id;
     str_i32_table token_to_id;
     str_i32_table merge_rank;
 };
@@ -23870,6 +24010,7 @@ struct ds4_engine {
     ds4_vocab vocab;
     ds4_weights weights;
     ds4_mtp_weights mtp_weights;
+    hy3_mtp_weights hy3_mtp_weights;
     ds4_dspark_draft dspark;
     ds4_backend backend;
     int mtp_draft_tokens;
@@ -23894,7 +24035,13 @@ struct ds4_engine {
 #ifndef DS4_NO_GPU
 static bool metal_graph_prepare_decode_model_views_engine(const ds4_engine *e) {
     if (!e || !metal_graph_prepare_decode_model_views_one(&e->model)) return false;
-    if (e->mtp_ready && !metal_graph_prepare_decode_model_views_one(&e->mtp_model)) return false;
+    /* HY3's target is a huge lazy-mapped GGUF while an exported MTP sidecar is
+     * only ~2.2 GiB.  Promoting that second mapping to the single persistent
+     * range would evict the target range and make its next tensor lookup fail.
+     * Keep both maps in the lazy per-tensor cache; the command encoders retain
+     * each no-copy wrapper for the life of the batch. */
+    if (e->mtp_ready && DS4_MODEL_VARIANT != DS4_VARIANT_HY3 &&
+        !metal_graph_prepare_decode_model_views_one(&e->mtp_model)) return false;
     return true;
 }
 #endif
@@ -24421,6 +24568,12 @@ static bool vocab_model_uses_glm4_tokenizer(const ds4_model *model) {
     return model_get_string(model, "general.architecture", &arch) && ds4_streq(arch, "glm-dsa");
 }
 
+static bool vocab_model_uses_hy3_tokenizer(const ds4_model *model) {
+    ds4_str arch = {0};
+    return model_get_string(model, "general.architecture", &arch) &&
+           ds4_streq(arch, "hy_v3");
+}
+
 /* Load token strings, special token ids, and merge ranks from GGUF metadata. */
 static void vocab_load(ds4_vocab *vocab, const ds4_model *model) {
     memset(vocab, 0, sizeof(*vocab));
@@ -24456,13 +24609,53 @@ static void vocab_load(ds4_vocab *vocab, const ds4_model *model) {
     }
 
     vocab->glm_tokenizer = vocab_model_uses_glm4_tokenizer(model);
+    vocab->hy3_tokenizer = vocab_model_uses_hy3_tokenizer(model);
     vocab->pad_id = -1;
     vocab->sop_id = -1;
     vocab->system_id = -1;
     vocab->observation_id = -1;
     vocab->dsml_id = -1;
+    vocab->reasoning_mode_id = -1;
+    vocab->toolcalls_begin_id = -1;
+    vocab->toolcalls_end_id = -1;
+    vocab->toolcall_begin_id = -1;
+    vocab->toolcall_end_id = -1;
+    vocab->toolsep_id = -1;
+    vocab->argkey_begin_id = -1;
+    vocab->argkey_end_id = -1;
+    vocab->argvalue_begin_id = -1;
+    vocab->argvalue_end_id = -1;
+    vocab->toolresponses_begin_id = -1;
+    vocab->toolresponses_end_id = -1;
+    vocab->toolresponse_begin_id = -1;
+    vocab->toolresponse_end_id = -1;
 
-    if (vocab->glm_tokenizer) {
+    if (vocab->hy3_tokenizer) {
+        uint32_t id = 0;
+        vocab->bos_id = model_get_u32(model, "tokenizer.ggml.bos_token_id", &id) ?
+                        (int)id : vocab_lookup(vocab, "<｜hy_begin_of_sentence:opensource｜>");
+        vocab->eos_id = model_get_u32(model, "tokenizer.ggml.eos_token_id", &id) ?
+                        (int)id : vocab_lookup(vocab, "<｜hy_eos:opensource｜>");
+        if (model_get_u32(model, "tokenizer.ggml.padding_token_id", &id)) vocab->pad_id = (int)id;
+        vocab->user_id = vocab_lookup(vocab, "<｜hy_User:opensource｜>");
+        vocab->assistant_id = vocab_lookup(vocab, "<｜hy_Assistant:opensource｜>");
+        vocab->think_start_id = vocab_lookup(vocab, "<think:opensource>");
+        vocab->think_end_id = vocab_lookup(vocab, "</think:opensource>");
+        vocab->reasoning_mode_id = vocab_lookup(vocab, "<｜reasoning_mode:opensource｜>");
+        vocab->toolcalls_begin_id = vocab_lookup(vocab, "<tool_calls:opensource>");
+        vocab->toolcalls_end_id = vocab_lookup(vocab, "</tool_calls:opensource>");
+        vocab->toolcall_begin_id = vocab_lookup(vocab, "<tool_call:opensource>");
+        vocab->toolcall_end_id = vocab_lookup(vocab, "</tool_call:opensource>");
+        vocab->toolsep_id = vocab_lookup(vocab, "<tool_sep:opensource>");
+        vocab->argkey_begin_id = vocab_lookup(vocab, "<arg_key:opensource>");
+        vocab->argkey_end_id = vocab_lookup(vocab, "</arg_key:opensource>");
+        vocab->argvalue_begin_id = vocab_lookup(vocab, "<arg_value:opensource>");
+        vocab->argvalue_end_id = vocab_lookup(vocab, "</arg_value:opensource>");
+        vocab->toolresponses_begin_id = vocab_lookup(vocab, "<tool_responses:opensource>");
+        vocab->toolresponses_end_id = vocab_lookup(vocab, "</tool_responses:opensource>");
+        vocab->toolresponse_begin_id = vocab_lookup(vocab, "<tool_response:opensource>");
+        vocab->toolresponse_end_id = vocab_lookup(vocab, "</tool_response:opensource>");
+    } else if (vocab->glm_tokenizer) {
         uint32_t id = 0;
         if (model_get_u32(model, "tokenizer.ggml.bos_token_id", &id)) {
             vocab->bos_id = (int)id;
@@ -24512,6 +24705,21 @@ static void encode_chat_prompt(
         const char      *prompt,
         ds4_think_mode   think_mode,
         token_vec       *out) {
+    if (vocab->hy3_tokenizer) {
+        token_vec_push(out, vocab->bos_id);
+        if (system && system[0]) bpe_tokenize_text(vocab, system, out);
+        token_vec_push(out, vocab->reasoning_mode_id);
+        bpe_tokenize_text(vocab,
+                          ds4_think_mode_enabled(think_mode) ?
+                              "reasoning_effort:high" : "reasoning_effort:no_think",
+                          out);
+        token_vec_push(out, vocab->user_id);
+        bpe_tokenize_text(vocab, prompt, out);
+        token_vec_push(out, vocab->assistant_id);
+        token_vec_push(out, vocab->think_start_id);
+        if (!ds4_think_mode_enabled(think_mode)) token_vec_push(out, vocab->think_end_id);
+        return;
+    }
     if (vocab->glm_tokenizer) {
         token_vec_push(out, vocab->bos_id);
         token_vec_push(out, vocab->sop_id);
@@ -24585,11 +24793,35 @@ static bool special_token_at(const ds4_vocab *vocab, const char *p, int *token, 
         {"</think>",               vocab->think_end_id},
         {"｜DSML｜",                vocab->dsml_id},
     };
+    const struct special hy3_specials[] = {
+        {"<｜hy_begin_of_sentence:opensource｜>", vocab->bos_id},
+        {"<｜hy_eos:opensource｜>", vocab->eos_id},
+        {"<｜hy_User:opensource｜>", vocab->user_id},
+        {"<｜hy_Assistant:opensource｜>", vocab->assistant_id},
+        {"<｜reasoning_mode:opensource｜>", vocab->reasoning_mode_id},
+        {"<think:opensource>", vocab->think_start_id},
+        {"</think:opensource>", vocab->think_end_id},
+        {"<tool_calls:opensource>", vocab->toolcalls_begin_id},
+        {"</tool_calls:opensource>", vocab->toolcalls_end_id},
+        {"<tool_call:opensource>", vocab->toolcall_begin_id},
+        {"</tool_call:opensource>", vocab->toolcall_end_id},
+        {"<tool_sep:opensource>", vocab->toolsep_id},
+        {"<arg_key:opensource>", vocab->argkey_begin_id},
+        {"</arg_key:opensource>", vocab->argkey_end_id},
+        {"<arg_value:opensource>", vocab->argvalue_begin_id},
+        {"</arg_value:opensource>", vocab->argvalue_end_id},
+        {"<tool_responses:opensource>", vocab->toolresponses_begin_id},
+        {"</tool_responses:opensource>", vocab->toolresponses_end_id},
+        {"<tool_response:opensource>", vocab->toolresponse_begin_id},
+        {"</tool_response:opensource>", vocab->toolresponse_end_id},
+    };
 
-    const struct special *specials = vocab->glm_tokenizer ? glm_specials : ds4_specials;
-    const size_t n_specials = vocab->glm_tokenizer ?
-        sizeof(glm_specials) / sizeof(glm_specials[0]) :
-        sizeof(ds4_specials) / sizeof(ds4_specials[0]);
+    const struct special *specials = vocab->hy3_tokenizer ? hy3_specials :
+                                      vocab->glm_tokenizer ? glm_specials : ds4_specials;
+    const size_t n_specials = vocab->hy3_tokenizer ?
+        sizeof(hy3_specials) / sizeof(hy3_specials[0]) :
+        vocab->glm_tokenizer ? sizeof(glm_specials) / sizeof(glm_specials[0]) :
+                               sizeof(ds4_specials) / sizeof(ds4_specials[0]);
     for (size_t i = 0; i < n_specials; i++) {
         if (specials[i].token < 0) continue;
         size_t n = strlen(specials[i].text);
@@ -24653,6 +24885,10 @@ void ds4_encode_chat_prompt(
 }
 
 void ds4_chat_append_max_effort_prefix(ds4_engine *e, ds4_tokens *tokens) {
+    if (e->vocab.hy3_tokenizer) {
+        /* HY3 emits reasoning effort after the system/tool prompt. */
+        return;
+    }
     if (e->vocab.glm_tokenizer) {
         token_vec_push(tokens, e->vocab.system_id);
         bpe_tokenize_text(&e->vocab, "\n", tokens);
@@ -24665,6 +24901,28 @@ void ds4_chat_append_message(ds4_engine *e, ds4_tokens *tokens, const char *role
     if (!role) role = "user";
     if (!content) content = "";
 
+    if (vocab->hy3_tokenizer) {
+        if (!strcmp(role, "system") || !strcmp(role, "developer")) {
+            bpe_tokenize_text(vocab, content, tokens);
+        } else if (!strcmp(role, "assistant")) {
+            token_vec_push(tokens, vocab->assistant_id);
+            bpe_tokenize_text(vocab, content, tokens);
+        } else if (!strcmp(role, "tool") || !strcmp(role, "function")) {
+            token_vec_push(tokens, vocab->toolresponses_begin_id);
+            bpe_tokenize_text(vocab, "\n", tokens);
+            token_vec_push(tokens, vocab->toolresponse_begin_id);
+            bpe_tokenize_text(vocab, "\n", tokens);
+            bpe_tokenize_text(vocab, content, tokens);
+            bpe_tokenize_text(vocab, "\n", tokens);
+            token_vec_push(tokens, vocab->toolresponse_end_id);
+            bpe_tokenize_text(vocab, "\n", tokens);
+            token_vec_push(tokens, vocab->toolresponses_end_id);
+        } else {
+            token_vec_push(tokens, vocab->user_id);
+            bpe_tokenize_text(vocab, content, tokens);
+        }
+        return;
+    }
     if (vocab->glm_tokenizer) {
         if (!strcmp(role, "system") || !strcmp(role, "developer")) {
             token_vec_push(tokens, vocab->system_id);
@@ -24699,6 +24957,11 @@ void ds4_chat_append_message(ds4_engine *e, ds4_tokens *tokens, const char *role
 
 void ds4_chat_append_assistant_prefix(ds4_engine *e, ds4_tokens *tokens, ds4_think_mode think_mode) {
     token_vec_push(tokens, e->vocab.assistant_id);
+    if (e->vocab.hy3_tokenizer) {
+        token_vec_push(tokens, e->vocab.think_start_id);
+        if (!ds4_think_mode_enabled(think_mode)) token_vec_push(tokens, e->vocab.think_end_id);
+        return;
+    }
     if (e->vocab.glm_tokenizer) {
         bpe_tokenize_text(&e->vocab, "\n", tokens);
         if (think_mode == DS4_THINK_NONE) {
@@ -25491,6 +25754,10 @@ const char *ds4_backend_name(ds4_backend backend) {
 
 bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e) {
     return e && e->vocab.glm_tokenizer;
+}
+
+bool ds4_engine_uses_hy3_tokenizer(const ds4_engine *e) {
+    return e && e->vocab.hy3_tokenizer;
 }
 
 bool ds4_think_mode_enabled(ds4_think_mode mode) {
@@ -29231,6 +29498,7 @@ static float *ds4_session_dspark_decode_rows(ds4_session *s, size_t rows) {
 }
 
 #include "glm52/glm52_runtime.c"
+#include "hy3/hy3_runtime.c"
 
 /* =========================================================================
  * Session Snapshot Payloads.
@@ -30262,6 +30530,7 @@ static bool ds4_session_replay_spec_prefix_exact(
 uint64_t ds4_session_payload_bytes(ds4_session *s) {
     if (!s || !s->checkpoint_valid) return 0;
 #ifndef DS4_NO_GPU
+    if (hy3_session_active(s)) return hy3_session_payload_bytes(s);
     if (glm52_session_active(s)) return glm52_session_payload_bytes(s);
 #endif
     if (ds4_session_is_cpu(s)) {
@@ -30293,6 +30562,7 @@ int ds4_session_save_payload(ds4_session *s, FILE *fp, char *err, size_t errlen)
         return 1;
     }
 #ifndef DS4_NO_GPU
+    if (hy3_session_active(s)) return hy3_session_save_payload(s, fp, err, errlen);
     if (glm52_session_active(s)) return glm52_session_save_payload(s, fp, err, errlen);
 #endif
     if (ds4_session_is_cpu(s)) {
@@ -30491,6 +30761,9 @@ int ds4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_bytes, c
         return 1;
     }
 #ifndef DS4_NO_GPU
+    if (hy3_session_active(s)) {
+        return hy3_session_load_payload(s, fp, payload_bytes, err, errlen);
+    }
     if (glm52_session_active(s)) return glm52_session_load_payload(s, fp, payload_bytes, err, errlen);
 #endif
     uint64_t remaining = payload_bytes;
@@ -31272,22 +31545,26 @@ int ds4_engine_generate_argmax(
     const ds4_weights *weights = &e->weights;
 
 #ifndef DS4_NO_GPU
-    if (e->flash_moe) {
+    if (e->flash_moe ||
+        DS4_MODEL_VARIANT == DS4_VARIANT_GLM52 ||
+        DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
         ds4_session *s = NULL;
         if (ds4_session_create(&s, e, ctx_size) != 0) {
-            fprintf(stderr, "ds4: Flash-MoE generation requires a session backend\n");
+            fprintf(stderr, "ds4: model generation requires a session backend\n");
             return 1;
         }
         ds4_session_set_progress(s, progress, progress_ud);
         ds4_session_set_display_progress(s, progress, progress_ud);
         char err[160];
+        const double prefill_t0 = now_sec();
         if (ds4_session_sync(s, prompt, err, sizeof(err)) != 0) {
             ds4_session_set_progress(s, NULL, NULL);
             ds4_session_set_display_progress(s, NULL, NULL);
-            fprintf(stderr, "ds4: Flash-MoE prompt processing failed: %s\n", err);
+            fprintf(stderr, "ds4: prompt processing failed: %s\n", err);
             ds4_session_free(s);
             return 1;
         }
+        const double prefill_t1 = now_sec();
         ds4_session_set_progress(s, NULL, NULL);
         ds4_session_set_display_progress(s, NULL, NULL);
 
@@ -31307,7 +31584,7 @@ int ds4_engine_generate_argmax(
                 break;
             }
             if (ds4_session_eval(s, token, err, sizeof(err)) != 0) {
-                fprintf(stderr, "ds4: Flash-MoE decode failed: %s\n", err);
+                fprintf(stderr, "ds4: decode failed: %s\n", err);
                 ds4_session_free(s);
                 return 1;
             }
@@ -31318,15 +31595,21 @@ int ds4_engine_generate_argmax(
         }
         if (!stopped) glm_stop_filter_flush(&stop_filter);
         const double decode_t1 = now_sec();
-        if (backend_stats_logs_enabled()) {
-            const double decode_s = decode_t1 - decode_t0;
-            fprintf(stderr,
-                    "ds4: Flash-MoE generation: %.2f t/s (%d tokens in %.3fs)\n",
-                    decode_s > 0.0 ? (double)generated / decode_s : 0.0,
-                    generated,
-                    decode_s);
-        }
         if (done) done(emit_ud);
+        const double prefill_s = prefill_t1 - prefill_t0;
+        const double decode_s = decode_t1 - decode_t0;
+        ds4_log(stderr, DS4_LOG_TIMING,
+                "ds4: ----------------------------------------\n");
+        ds4_log(stderr,
+                DS4_LOG_TIMING,
+                "ds4: prefill: %.2f t/s (%d tokens in %.3fs), "
+                "generation: %.2f t/s (%d tokens in %.3fs)\n",
+                prefill_s > 0.0 ? (double)prompt->len / prefill_s : 0.0,
+                prompt->len,
+                prefill_s,
+                decode_s > 0.0 ? (double)generated / decode_s : 0.0,
+                generated,
+                decode_s);
         ds4_session_free(s);
         return 0;
     }
@@ -31795,6 +32078,62 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     }
     vocab_load(&e->vocab, &e->model);
     config_validate_model(&e->model);
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
+        /* Machine profiles target the resident/sidecar DS4 model families.
+         * HY3 binds selected experts directly from its full GGUF, so allowing
+         * those routing knobs to reach the shared batched-MoE helper is both
+         * misleading and potentially unsafe as new resident shapes are added. */
+        static const char *const resident_profile_env[] = {
+            "DS4_RESIDENT_MOE_BACKEND",
+            "DS4_RESIDENT_MOE_PREFILL_BY_TOKENS",
+            "DS4_RESIDENT_MOE_MPP_INT8_PREFILL",
+            "DS4_RESIDENT_MOE_MPP_FORCE",
+            "DS4_RESIDENT_MOE_MPP_MIN_TOKENS",
+            "DS4_RESIDENT_MOE_MPP_COMPACT_MIN_TOKENS",
+            "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE",
+            "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT",
+            "DS4_RESIDENT_MOE_NAX_HALF_MAX_TOKENS",
+        };
+        bool ignored_resident_profile = false;
+        for (size_t i = 0;
+             i < sizeof(resident_profile_env) / sizeof(resident_profile_env[0]);
+             ++i) {
+            if (getenv(resident_profile_env[i]) != NULL) {
+                ignored_resident_profile = true;
+                (void)unsetenv(resident_profile_env[i]);
+            }
+        }
+        if (ignored_resident_profile) {
+            fprintf(stderr,
+                    "ds4: HY3 ignoring resident-MoE profile routing; using "
+                    "full-GGUF selected-expert kernels\n");
+        }
+
+        /* The generic M5 profile enables the direct-RHS Q8 NAX matrix path.
+         * HY3 uses Q8_0 specifically for all 240 Q/K/V projections, and the
+         * alternate path changes greedy logits at its 32-token dispatch
+         * boundary.  It is also slower on HY3's long layer-major prefill
+         * (the final partial chunk becomes a severe tail).  Keep HY3 on the
+         * stable simdgroup Q8 projection unless explicitly auditing that
+         * kernel; HY3's F16 NAX attention remains enabled independently.
+         * DENSE_I8 must be suppressed too: below its W8A8 cutoff it deliberately
+         * falls back through the same direct-RHS NAX kernel. */
+        if (!env_flag_enabled("DS4_HY3_ENABLE_DENSE_NAX")) {
+            const char *dense_nax = getenv("DS4_GPU_DENSE_NAX");
+            const char *dense_i8 = getenv("DS4_GPU_DENSE_I8");
+            const bool was_enabled =
+                !dense_nax || !dense_nax[0] || atoi(dense_nax) != 0 ||
+                (dense_i8 && dense_i8[0] && atoi(dense_i8) != 0);
+            ds4_setenv_override("DS4_GPU_DENSE_NAX", "0");
+            ds4_setenv_override("DS4_GPU_DENSE_I8", "0");
+            if (was_enabled) {
+                fprintf(stderr,
+                        "ds4: HY3 disabled direct-RHS Q8 NAX QKV; using stable "
+                        "simdgroup Q8 projections (audit override: "
+                        "DS4_HY3_ENABLE_DENSE_NAX=1)\n");
+            }
+        }
+    }
     const double t_model1 = now_sec();
     const ds4_flash_moe_sidecar *flash_moe_weights = NULL;
 #ifndef DS4_NO_GPU
@@ -31901,7 +32240,11 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
                 "needs a true N=2 MXFP4 verifier to be fast)\n");
     } else if (opt->mtp_path && opt->mtp_path[0]) {
         model_open(&e->mtp_model, opt->mtp_path, graph_backend, true);
-        mtp_weights_bind(&e->mtp_weights, &e->mtp_model);
+        if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
+            hy3_mtp_weights_bind(&e->hy3_mtp_weights, &e->mtp_model);
+        } else {
+            mtp_weights_bind(&e->mtp_weights, &e->mtp_model);
+        }
         e->mtp_ready = true;
         fprintf(stderr, "ds4: MTP support model loaded: %s (draft=%d)\n",
                 opt->mtp_path,
@@ -31979,8 +32322,18 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             return 1;
         }
         ds4_gpu_set_quality(e->quality);
-        ds4_gpu_set_model_residency_mode(e->flash_moe == NULL, e->flash_moe == NULL);
-        if (e->flash_moe) {
+        const bool streamed_full_gguf = DS4_MODEL_VARIANT == DS4_VARIANT_HY3;
+        /* HY3's routed kernels bind a complete layer's all-expert tensors.
+         * Two giant full-model Metal buffers make every split revalidate a
+         * tens-of-GiB resource. Per-tensor wrappers plus bounded layer drains
+         * keep command submission scoped to the layers in the current split. */
+        ds4_gpu_set_model_lazy_views(streamed_full_gguf);
+        ds4_gpu_set_model_residency_mode(e->flash_moe == NULL && !streamed_full_gguf,
+                                         e->flash_moe == NULL && !streamed_full_gguf);
+        if (streamed_full_gguf) {
+            fprintf(stderr,
+                    "ds4: HY3 using demand-paged full-GGUF weights without full-model Metal residency warmup\n");
+        } else if (e->flash_moe) {
             fprintf(stderr,
                     "ds4: Flash-MoE using mmap-backed dense/shared weights without full-model Metal residency warmup\n");
         }
@@ -32012,7 +32365,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
             *out = NULL;
             return 1;
         }
-        if (!e->mtp_ready && !accelerator_cache_model_tensors(e->backend, &e->model)) {
+        if (!streamed_full_gguf && !e->mtp_ready &&
+            !accelerator_cache_model_tensors(e->backend, &e->model)) {
             fprintf(stderr, "ds4: %s failed to prepare startup model cache\n",
                     ds4_backend_name(e->backend));
             ds4_engine_close(e);
@@ -32040,7 +32394,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
 	     * paid inside the first prefill, hiding the per-token speedup the
 	     * async eval delivers.  Runs once at engine open, before any prefill
 	     * timer is started by the CLI/server. */
-	    if (graph_backend && e->metal_ready) {
+	    if (graph_backend && e->metal_ready &&
+	        DS4_MODEL_VARIANT != DS4_VARIANT_HY3) {
 	        if (env_flag_enabled("DS4_RESIDENT_MOE_MPP_INT8_PREFILL") ||
 	            env_flag_enabled("DS4_RESIDENT_MOE_NAX_INT8_PREFILL") ||
 	            env_flag_enabled("DS4_RESIDENT_MPP_INT8_PREFILL") ||
@@ -32340,13 +32695,16 @@ void ds4_engine_close(ds4_engine *e) {
     weights_free(&e->weights);
     vocab_free(&e->vocab);
     ds4_threads_shutdown();
-    if (e->mtp_ready) model_close(&e->mtp_model);
     ds4_dspark_close(&e->dspark);
-    model_close(&e->model);
 #ifndef DS4_NO_GPU
-    ds4_flash_moe_sidecar_close(e->flash_moe);
+    /* Metal lazy model views are no-copy wrappers over the GGUF mmap (and the
+     * CUDA backend may have registered that same host range).  Drain and
+     * release backend resources while their backing mappings are still valid. */
     ds4_gpu_cleanup();
+    ds4_flash_moe_sidecar_close(e->flash_moe);
 #endif
+    if (e->mtp_ready) model_close(&e->mtp_model);
+    model_close(&e->model);
     ds4_release_instance_lock();
     free(e->directional_steering_dirs);
     free(e->directional_steering_file);
@@ -32355,6 +32713,9 @@ void ds4_engine_close(ds4_engine *e) {
 
 int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     if (!out || !e || ctx_size <= 0) return 1;
+    if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
+        return hy3_session_create(out, e, ctx_size);
+    }
     if (DS4_MODEL_VARIANT == DS4_VARIANT_GLM52) {
         return glm52_session_create(out, e, ctx_size);
     }
@@ -32447,7 +32808,9 @@ int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
 
 void ds4_session_free(ds4_session *s) {
     if (!s) return;
-    if (glm52_session_active(s)) {
+    if (hy3_session_active(s)) {
+        hy3_session_free(s);
+    } else if (glm52_session_active(s)) {
         glm52_session_free(s);
     } else if (ds4_session_is_cpu(s)) {
         kv_cache_free(&s->cpu_cache);
@@ -32705,6 +33068,9 @@ int ds4_session_sync(ds4_session *s, const ds4_tokens *prompt, char *err, size_t
     if (!s || !prompt || prompt->len <= 0 || prompt->len >= s->ctx_size) {
         snprintf(err, errlen, "prompt exceeds context");
         return 1;
+    }
+    if (hy3_session_active(s)) {
+        return hy3_session_sync(s, prompt, err, errlen);
     }
     if (glm52_session_active(s)) {
         return glm52_session_sync(s, prompt, err, errlen);
@@ -33127,12 +33493,21 @@ int ds4_session_argmax(ds4_session *s) {
     return sample_argmax(s->logits, DS4_N_VOCAB);
 }
 
-int ds4_session_argmax_excluding(ds4_session *s, int excluded_id) {
+int ds4_session_argmax_excluding_many(ds4_session *s,
+                                      const int *excluded_ids,
+                                      int excluded_count) {
     if (!s || !s->logits) return -1;
     int best = -1;
     float best_logit = DS4_NEG_INF;
     for (uint32_t i = 0; i < DS4_N_VOCAB; i++) {
-        if ((int)i == excluded_id) continue;
+        bool excluded = false;
+        for (int j = 0; j < excluded_count; j++) {
+            if (excluded_ids && (int)i == excluded_ids[j]) {
+                excluded = true;
+                break;
+            }
+        }
+        if (excluded) continue;
         const float v = s->logits[i];
         if (best < 0 || v > best_logit) {
             best = (int)i;
@@ -33140,6 +33515,10 @@ int ds4_session_argmax_excluding(ds4_session *s, int excluded_id) {
         }
     }
     return best;
+}
+
+int ds4_session_argmax_excluding(ds4_session *s, int excluded_id) {
+    return ds4_session_argmax_excluding_many(s, &excluded_id, 1);
 }
 
 int ds4_session_sample(ds4_session *s, float temperature, int top_k, float top_p, float min_p, uint64_t *rng) {
@@ -33214,6 +33593,9 @@ static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,
     if (!(s->dspark_draft_prefetch_pending &&
           s->dspark_draft_prefetch_from_overlap)) {
         ds4_session_dspark_draft_prefetch_clear(s);
+    }
+    if (hy3_session_active(s)) {
+        return hy3_session_eval(s, token, probe_mtp, err, errlen);
     }
     if (glm52_session_active(s)) {
         (void)probe_mtp;
@@ -33410,6 +33792,11 @@ static int ds4_session_eval_speculative_argmax_impl(ds4_session *s,
                                                     size_t errlen) {
     if (drafted) *drafted = 0;
     if (draft_accepted) *draft_accepted = -1;
+    if (hy3_session_active(s)) {
+        return hy3_session_eval_speculative_argmax(
+            s, first_token, max_tokens, eos_token,
+            accepted, accepted_cap, drafted, draft_accepted, err, errlen);
+    }
     if (ds4_session_is_cpu(s)) {
         (void)max_tokens;
         (void)eos_token;
@@ -37550,6 +37937,10 @@ int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
 }
 
 void ds4_session_invalidate(ds4_session *s) {
+    if (hy3_session_active(s)) {
+        hy3_session_reset(s);
+        return;
+    }
     s->checkpoint_valid = false;
     s->checkpoint.len = 0;
     s->mtp_draft_valid = false;
@@ -37558,7 +37949,21 @@ void ds4_session_invalidate(ds4_session *s) {
 void ds4_session_rewind(ds4_session *s, int pos) {
     if (pos < 0) pos = 0;
     if (pos > s->checkpoint.len) pos = s->checkpoint.len;
+    if (hy3_session_active(s) && s->engine && s->engine->mtp_ready &&
+        pos != s->checkpoint.len) {
+        /* MTP needs the normalized target carry at the rewind boundary; legacy
+         * checkpoints do not retain hidden history, so force an exact refill. */
+        hy3_session_reset(s);
+        return;
+    }
     s->checkpoint.len = pos;
+    if (hy3_session_active(s) && hy3_rt(s)) {
+        /* A no-op rewind must not forge alignment for block-80 state that the
+         * target-only auto route intentionally stopped maintaining.  Any real
+         * rewind with MTP loaded took the reset branch above; without MTP only
+         * the target cursor exists and can be lowered normally. */
+        hy3_rt(s)->n_past = (uint32_t)pos;
+    }
     s->mtp_draft_valid = false;
 }
 

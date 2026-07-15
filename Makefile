@@ -157,6 +157,8 @@ DS4_INCLUDED_SRCS = \
 	ds4_metal_mtp.c \
 	glm52/glm52_model.c \
 	glm52/glm52_runtime.c \
+	hy3/hy3_model.c \
+	hy3/hy3_runtime.c \
 	ssd/ssd_flash_moe_sidecar.c \
 	ssd/ssd_flash_moe_streaming.c \
 	ssd/ssd_flash_moe_allocation.c \

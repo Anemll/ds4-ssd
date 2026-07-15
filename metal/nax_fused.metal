@@ -16,6 +16,421 @@ using namespace mpp::tensor_ops;
 
 #define QK_K 256
 
+/* HY3 direct NAX-half attention.  The persistent cache is head-major F16:
+ * [kv_head][round_up(ctx,32)][128].  One workgroup computes the natural group
+ * of eight query heads sharing a KV head, so K and V are fetched once instead
+ * of eight times.  Q remains F32 and is bound directly to matmul2d; there is no
+ * context-sized conversion or staging pass. */
+struct hy3_nax_kv_args {
+    uint pos;
+    uint ctx;
+    uint n_head;
+    uint n_head_kv;
+    uint head_dim;
+    uint nwg;
+    uint n_tokens;
+    float scale;
+};
+
+static inline void hy3_nax_gqa_f16_partial_impl(
+        constant hy3_nax_kv_args &args,
+        device float *query,
+        device half  *kc,
+        device half  *vc,
+        device float *result,
+        threadgroup float *scores,
+        threadgroup float *weights,
+        threadgroup half  *v_tile,
+        uint query_token,
+        uint last_pos,
+        uint kv_head,
+        uint iwg,
+        uint output_head_base,
+        bool direct_out,
+        ushort lane,
+        ushort sgitg,
+        ushort tiitg) {
+    constexpr uint GQA = 8u;
+    constexpr uint DIM = 128u;
+    constexpr uint TILE = 32u;
+    const uint ctx_pad = (args.ctx + TILE - 1u) & ~(TILE - 1u);
+    const uint q_head0 = kv_head * GQA;
+    device float *qbase = query +
+        (ulong(query_token) * ulong(args.n_head) + ulong(q_head0)) * DIM;
+    device half *kbase = kc + ulong(kv_head) * ulong(ctx_pad) * DIM;
+    device half *vbase = vc + ulong(kv_head) * ulong(ctx_pad) * DIM;
+
+    auto tQ = tensor(qbase,
+                     dextents<int32_t, 2>((int32_t)DIM, (int32_t)GQA),
+                     array<int32_t, 2>({1, (int32_t)DIM}));
+    auto tK = tensor(kbase,
+                     dextents<int32_t, 2>((int32_t)DIM, (int32_t)ctx_pad),
+                     array<int32_t, 2>({1, (int32_t)DIM}));
+    auto tScores = tensor(scores,
+                          dextents<int32_t, 2>((int32_t)TILE, (int32_t)GQA),
+                          array<int32_t, 2>({1, (int32_t)TILE}));
+    matmul2d<matmul2d_descriptor(8, 32, 128, false, true, false,
+        matmul2d_descriptor::mode::multiply_accumulate),
+        execution_simdgroups<4>> mm;
+
+    const uint h0 = uint(sgitg) * 2u;
+    const uint h1 = h0 + 1u;
+    float max0 = -INFINITY, max1 = -INFINITY;
+    float sum0 = 0.0f, sum1 = 0.0f;
+    float4 acc0 = float4(0.0f), acc1 = float4(0.0f);
+
+    for (uint tile = iwg * TILE; tile <= last_pos; tile += args.nwg * TILE) {
+        auto cQK = mm.template get_destination_cooperative_tensor<
+            decltype(tQ), decltype(tK), float>();
+        for (uint16_t i = 0; i < cQK.get_capacity(); ++i) {
+            if (cQK.is_valid_element(i)) cQK[i] = 0.0f;
+        }
+        auto mQ = tQ.slice(0, 0);
+        auto mK = tK.slice(0, (int32_t)tile);
+        mm.run(mQ, mK, cQK);
+        cQK.store(tScores);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        const uint tile_count = min(TILE, last_pos - tile + 1u);
+        for (uint work = uint(tiitg); work < GQA * TILE; work += 128u) {
+            const uint c = work & (TILE - 1u);
+            if (c >= tile_count) scores[work] = -INFINITY;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        const float score0 = scores[h0 * TILE + uint(lane)] * args.scale;
+        const float score1 = scores[h1 * TILE + uint(lane)] * args.scale;
+        const float next_max0 = max(max0, simd_max(score0));
+        const float next_max1 = max(max1, simd_max(score1));
+        const float alpha0 = exp(max0 - next_max0);
+        const float alpha1 = exp(max1 - next_max1);
+        const float weight0 = exp(score0 - next_max0);
+        const float weight1 = exp(score1 - next_max1);
+        weights[h0 * TILE + uint(lane)] = weight0;
+        weights[h1 * TILE + uint(lane)] = weight1;
+        sum0 = fma(sum0, alpha0, simd_sum(weight0));
+        sum1 = fma(sum1, alpha1, simd_sum(weight1));
+        acc0 *= alpha0;
+        acc1 *= alpha1;
+        max0 = next_max0;
+        max1 = next_max1;
+
+        for (uint work = uint(tiitg); work < TILE * DIM; work += 128u) {
+            const uint c = work / DIM;
+            const uint d = work - c * DIM;
+            v_tile[work] = c < tile_count
+                ? vbase[(ulong(tile + c) * DIM) + d] : half(0.0f);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        float4 tile_acc0 = float4(0.0f);
+        float4 tile_acc1 = float4(0.0f);
+        threadgroup half4 *v4 = reinterpret_cast<threadgroup half4 *>(v_tile);
+        for (uint c = 0u; c < tile_count; ++c) {
+            const float4 vv = float4(v4[c * 32u + uint(lane)]);
+            tile_acc0 = fma(vv, weights[h0 * TILE + c], tile_acc0);
+            tile_acc1 = fma(vv, weights[h1 * TILE + c], tile_acc1);
+        }
+        acc0 += tile_acc0;
+        acc1 += tile_acc1;
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    const uint gh0 = output_head_base + q_head0 + h0;
+    const uint gh1 = output_head_base + q_head0 + h1;
+    if (direct_out) {
+        const float4 normalized0 = acc0 / sum0;
+        const float4 normalized1 = acc1 / sum1;
+        const ulong out0 = ulong(gh0) * DIM + ulong(lane) * 4u;
+        const ulong out1 = ulong(gh1) * DIM + ulong(lane) * 4u;
+        result[out0] = normalized0.x;
+        result[out0 + 1u] = normalized0.y;
+        result[out0 + 2u] = normalized0.z;
+        result[out0 + 3u] = normalized0.w;
+        result[out1] = normalized1.x;
+        result[out1 + 1u] = normalized1.y;
+        result[out1 + 2u] = normalized1.z;
+        result[out1 + 3u] = normalized1.w;
+        return;
+    }
+
+    const ulong partial_stride = ulong(args.head_dim + 2u);
+    const ulong dst0 = ulong(gh0 * args.nwg + iwg) * partial_stride;
+    const ulong dst1 = ulong(gh1 * args.nwg + iwg) * partial_stride;
+    if (lane == 0u) {
+        result[dst0] = max0;
+        result[dst0 + 1u] = sum0;
+        result[dst1] = max1;
+        result[dst1 + 1u] = sum1;
+    }
+    const ulong out0 = dst0 + 2u + ulong(lane) * 4u;
+    const ulong out1 = dst1 + 2u + ulong(lane) * 4u;
+    result[out0] = acc0.x;
+    result[out0 + 1u] = acc0.y;
+    result[out0 + 2u] = acc0.z;
+    result[out0 + 3u] = acc0.w;
+    result[out1] = acc1.x;
+    result[out1 + 1u] = acc1.y;
+    result[out1 + 2u] = acc1.z;
+    result[out1 + 3u] = acc1.w;
+}
+
+kernel void kernel_hy3_gqa_decode_f16_nax_partial(
+        constant hy3_nax_kv_args &args [[buffer(0)]],
+        device float *query [[buffer(1)]],
+        device half  *kc [[buffer(2)]],
+        device half  *vc [[buffer(3)]],
+        device float *scratch [[buffer(4)]],
+        uint group_id [[threadgroup_position_in_grid]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    if (args.nwg == 0u) return;
+    const uint kv_head = group_id / args.nwg;
+    if (kv_head >= args.n_head_kv) return;
+    const uint iwg = group_id - kv_head * args.nwg;
+    threadgroup float scores[8 * 32];
+    threadgroup float weights[8 * 32];
+    threadgroup half v_tile[32 * 128];
+    hy3_nax_gqa_f16_partial_impl(args, query, kc, vc, scratch,
+                                  scores, weights, v_tile, 0u, args.pos,
+                                  kv_head, iwg, 0u, false,
+                                  lane, sgitg, tiitg);
+}
+
+kernel void kernel_hy3_gqa_prefill_f16_nax_partial(
+        constant hy3_nax_kv_args &args [[buffer(0)]],
+        device float *query [[buffer(1)]],
+        device half  *kc [[buffer(2)]],
+        device half  *vc [[buffer(3)]],
+        device float *scratch [[buffer(4)]],
+        uint group_id [[threadgroup_position_in_grid]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    if (args.nwg == 0u) return;
+    const uint iwg = group_id % args.nwg;
+    const uint x = group_id / args.nwg;
+    const uint kv_head = x % args.n_head_kv;
+    const uint token = x / args.n_head_kv;
+    if (token >= args.n_tokens) return;
+    threadgroup float scores[8 * 32];
+    threadgroup float weights[8 * 32];
+    threadgroup half v_tile[32 * 128];
+    hy3_nax_gqa_f16_partial_impl(args, query, kc, vc, scratch,
+                                  scores, weights, v_tile, token,
+                                  args.pos + token, kv_head, iwg,
+                                  token * args.n_head, args.nwg == 1u,
+                                  lane, sgitg, tiitg);
+}
+
+/* Two-token HY3 prefill tile.  The scalar prefill kernel above launches one
+ * 8x32 QK matmul per token/KV-head/split.  Here two adjacent causal queries
+ * share the same cache walk and become a 16x32x128 MPP operation.  Query rows
+ * must be packed because the source is token-major with 64 heads, while the
+ * sixteen rows needed by one KV head are not a single affine 2-D view.
+ *
+ * For multiple splits the output retains the scalar kernel's scratch ABI:
+ *   [token * n_head + q_head][nwg][max, sum, acc128].
+ * A single split is already a complete online-softmax state, so it can write
+ * normalized output directly and skip the separate reducer dispatch. */
+static inline void hy3_nax_gqa_f16_prefill_group2_impl(
+        constant hy3_nax_kv_args &args,
+        device float *query,
+        device half  *kc,
+        device half  *vc,
+        device float *result,
+        threadgroup float *q_tile,
+        threadgroup float *scores,
+        threadgroup half  *v_tile,
+        uint token0,
+        uint kv_head,
+        uint iwg,
+        bool direct_out,
+        ushort lane,
+        ushort sgitg,
+        ushort tiitg) {
+    constexpr uint TOKENS = 2u;
+    constexpr uint GQA = 8u;
+    constexpr uint ROWS = TOKENS * GQA;
+    constexpr uint ROWS_PER_SG = ROWS / 4u;
+    constexpr uint DIM = 128u;
+    constexpr uint TILE = 32u;
+
+    const uint token_count = min(TOKENS, args.n_tokens - token0);
+    const uint group_last_pos = args.pos + token0 + token_count - 1u;
+    const uint ctx_pad = (args.ctx + TILE - 1u) & ~(TILE - 1u);
+    const uint q_head0 = kv_head * GQA;
+    device half *kbase = kc + ulong(kv_head) * ulong(ctx_pad) * DIM;
+    device half *vbase = vc + ulong(kv_head) * ulong(ctx_pad) * DIM;
+
+    /* Pack [token-within-pair][GQA head][dim] into sixteen contiguous rows.
+     * Keep Q in F32, matching the original NAX-half path exactly; only K/V are
+     * persistent half. */
+    for (uint work = uint(tiitg); work < ROWS * DIM; work += 128u) {
+        const uint row = work / DIM;
+        const uint d = work - row * DIM;
+        const uint token_rel = row / GQA;
+        const uint q_head = q_head0 + row - token_rel * GQA;
+        float v = 0.0f;
+        if (token_rel < token_count) {
+            const ulong src =
+                (ulong(token0 + token_rel) * ulong(args.n_head) + q_head) * DIM + d;
+            v = query[src];
+        }
+        q_tile[work] = v;
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    auto tQ = tensor(q_tile,
+                     dextents<int32_t, 2>((int32_t)DIM, (int32_t)ROWS),
+                     array<int32_t, 2>({1, (int32_t)DIM}));
+    auto tK = tensor(kbase,
+                     dextents<int32_t, 2>((int32_t)DIM, (int32_t)ctx_pad),
+                     array<int32_t, 2>({1, (int32_t)DIM}));
+    auto tScores = tensor(scores,
+                          dextents<int32_t, 2>((int32_t)TILE, (int32_t)ROWS),
+                          array<int32_t, 2>({1, (int32_t)TILE}));
+    matmul2d<matmul2d_descriptor(16, 32, 128, false, true, false,
+        matmul2d_descriptor::mode::multiply_accumulate),
+        execution_simdgroups<4>> mm;
+
+    float local_max[ROWS_PER_SG];
+    float local_sum[ROWS_PER_SG];
+    float4 acc[ROWS_PER_SG];
+#pragma unroll
+    for (uint r = 0u; r < ROWS_PER_SG; ++r) {
+        local_max[r] = -INFINITY;
+        local_sum[r] = 0.0f;
+        acc[r] = float4(0.0f);
+    }
+
+    const uint row0 = uint(sgitg) * ROWS_PER_SG;
+    for (uint tile = iwg * TILE; tile <= group_last_pos;
+         tile += args.nwg * TILE) {
+        auto cQK = mm.template get_destination_cooperative_tensor<
+            decltype(tQ), decltype(tK), float>();
+        for (uint16_t i = 0; i < cQK.get_capacity(); ++i) {
+            if (cQK.is_valid_element(i)) cQK[i] = 0.0f;
+        }
+        auto mQ = tQ.slice(0, 0);
+        auto mK = tK.slice(0, (int32_t)tile);
+        mm.run(mQ, mK, cQK);
+        cQK.store(tScores);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        /* Every SIMDgroup owns four complete query rows.  Causal validity is
+         * row-specific: the second token can see one more cache row than the
+         * first, including when the pair crosses a 32-row tile boundary.  An
+         * empty split leaves (-inf, 0, 0) for the reducer; it must not evaluate
+         * exp(-inf - -inf).  The score tile is overwritten in place by the
+         * unnormalized online-softmax weights. */
+        uint valid_count[ROWS_PER_SG];
+#pragma unroll
+        for (uint r = 0u; r < ROWS_PER_SG; ++r) {
+            const uint row = row0 + r;
+            const uint token_rel = row / GQA;
+            uint count = 0u;
+            if (token_rel < token_count) {
+                const uint last_pos = args.pos + token0 + token_rel;
+                if (tile <= last_pos) count = min(TILE, last_pos - tile + 1u);
+            }
+            valid_count[r] = count;
+            if (count != 0u) {
+                const float score = uint(lane) < count
+                    ? scores[row * TILE + uint(lane)] * args.scale : -INFINITY;
+                const float next_max = max(local_max[r], simd_max(score));
+                const float alpha = exp(local_max[r] - next_max);
+                const float weight = exp(score - next_max);
+                scores[row * TILE + uint(lane)] = weight;
+                local_sum[r] = fma(local_sum[r], alpha, simd_sum(weight));
+                acc[r] *= alpha;
+                local_max[r] = next_max;
+            } else {
+                scores[row * TILE + uint(lane)] = 0.0f;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        const uint tile_count = min(TILE, group_last_pos - tile + 1u);
+        for (uint work = uint(tiitg); work < TILE * DIM; work += 128u) {
+            const uint c = work / DIM;
+            const uint d = work - c * DIM;
+            v_tile[work] = c < tile_count
+                ? vbase[(ulong(tile + c) * DIM) + d] : half(0.0f);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+
+        threadgroup half4 *v4 = reinterpret_cast<threadgroup half4 *>(v_tile);
+#pragma unroll
+        for (uint r = 0u; r < ROWS_PER_SG; ++r) {
+            float4 tile_acc = float4(0.0f);
+            for (uint c = 0u; c < valid_count[r]; ++c) {
+                const float4 vv = float4(v4[c * 32u + uint(lane)]);
+                tile_acc = fma(vv, scores[(row0 + r) * TILE + c], tile_acc);
+            }
+            acc[r] += tile_acc;
+        }
+        /* No SIMDgroup may start the next MPP store while another still reads
+         * the shared score/V tiles. */
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    const ulong partial_stride = ulong(args.head_dim + 2u);
+#pragma unroll
+    for (uint r = 0u; r < ROWS_PER_SG; ++r) {
+        const uint row = row0 + r;
+        const uint token_rel = row / GQA;
+        if (token_rel >= token_count) continue;
+        const uint q_head = q_head0 + row - token_rel * GQA;
+        const uint query_index = (token0 + token_rel) * args.n_head + q_head;
+        if (direct_out) {
+            const float4 normalized = acc[r] / local_sum[r];
+            const ulong out = ulong(query_index) * DIM + ulong(lane) * 4u;
+            result[out] = normalized.x;
+            result[out + 1u] = normalized.y;
+            result[out + 2u] = normalized.z;
+            result[out + 3u] = normalized.w;
+            continue;
+        }
+        const ulong dst = ulong(query_index * args.nwg + iwg) * partial_stride;
+        if (lane == 0u) {
+            result[dst] = local_max[r];
+            result[dst + 1u] = local_sum[r];
+        }
+        const ulong out = dst + 2u + ulong(lane) * 4u;
+        result[out] = acc[r].x;
+        result[out + 1u] = acc[r].y;
+        result[out + 2u] = acc[r].z;
+        result[out + 3u] = acc[r].w;
+    }
+}
+
+kernel void kernel_hy3_gqa_prefill_f16_nax_group2_partial(
+        constant hy3_nax_kv_args &args [[buffer(0)]],
+        device float *query [[buffer(1)]],
+        device half  *kc [[buffer(2)]],
+        device half  *vc [[buffer(3)]],
+        device float *scratch [[buffer(4)]],
+        uint group_id [[threadgroup_position_in_grid]],
+        ushort lane [[thread_index_in_simdgroup]],
+        ushort sgitg [[simdgroup_index_in_threadgroup]],
+        ushort tiitg [[thread_index_in_threadgroup]]) {
+    if (args.nwg == 0u) return;
+    const uint iwg = group_id % args.nwg;
+    const uint x = group_id / args.nwg;
+    const uint kv_head = x % args.n_head_kv;
+    const uint token0 = (x / args.n_head_kv) * 2u;
+    if (token0 >= args.n_tokens) return;
+    threadgroup float q_tile[16 * 128];
+    threadgroup float scores[16 * 32];
+    threadgroup half v_tile[32 * 128];
+    hy3_nax_gqa_f16_prefill_group2_impl(
+        args, query, kc, vc, scratch, q_tile, scores, v_tile,
+        token0, kv_head, iwg, args.nwg == 1u,
+        lane, sgitg, tiitg);
+}
+
 // Autotune knobs (injected via MTLCompileOptions.preprocessorMacros from env at
 // library-build time; see ds4_gpu_ensure_nax_fused_library). Defaults preserve the
 // shipped behavior so an unset env is a no-op.
@@ -124,10 +539,9 @@ struct block_q2_K { uchar scales[QK_K/16]; uchar qs[QK_K/4]; half d; half dmin; 
 struct block_q8_0 { half d; char qs[32]; };
 
 // Dense Q8_0 NAX matmul, ported from antirez kernel_mul_mm_mpp_direct_rhs (Q8_0).
-// C[tokens x out] = activation[tokens x in](f32, read DIRECTLY from device, no staging)
-// * dequant(W[out x in] Q8_0 -> half, staged in threadgroup). matmul2d float x half ->
-// float, NK=32 K-tile, weight-major 64(out) x 128(token) tile. Out is row-major
-// [tokens x out] (dst[token*out + o]), matching the simdgroup mul_mm output.
+// C[tokens x out] = activation[tokens x in](f32, read direct from device)
+// * dequant(W[out x in] Q8_0 -> half, staged in threadgroup).  Out is row-major
+// [tokens x out].
 struct ds4_mm_args {
     int32_t ne00, ne02; uint64_t nb01, nb02, nb03; int32_t ne12;
     uint64_t nb10, nb11, nb12, nb13; int32_t ne0, ne1; int16_t r2, r3;

@@ -56,10 +56,22 @@ int ds4_gpu_tensor_copy_pair(ds4_gpu_tensor *dst0, uint64_t dst0_offset,
                              ds4_gpu_tensor *dst1, uint64_t dst1_offset,
                              const ds4_gpu_tensor *src1, uint64_t src1_offset,
                              uint64_t bytes1);
+/* Row-major F32 feature concat: dst[row] = [src0[row], src1[row]]. */
+int ds4_gpu_concat_f32_rows_tensor(ds4_gpu_tensor *dst,
+                                   const ds4_gpu_tensor *src0,
+                                   const ds4_gpu_tensor *src1,
+                                   uint32_t src0_cols,
+                                   uint32_t src1_cols,
+                                   uint32_t rows);
 
 int ds4_gpu_begin_commands(void);
 int ds4_gpu_flush_commands(void);
 int ds4_gpu_submit_commands(void);
+/* Commit the current batch and reopen encoding while limiting total command
+ * buffers to max_in_flight.  The reopened batch reserves one slot, so this
+ * waits/removes only the oldest committed buffer when the pending queue fills.
+ * Transient resources remain retained until the normal final synchronize. */
+int ds4_gpu_flush_commands_bounded(uint32_t max_in_flight);
 /* Like ds4_gpu_flush_commands, but waits for the committed batch to finish
  * before opening the next one. Caps in-flight depth to one command buffer so
  * the driver only keeps a single split's resources wired at a time. */
@@ -123,6 +135,9 @@ ds4_gpu_tensor *ds4_gpu_mmap_tensor_view(const void *map,
                                          uint64_t    offset,
                                          uint64_t    bytes);
 void ds4_gpu_set_model_residency_mode(bool request_residency, bool warm_views);
+/* Force per-tensor mmap wrappers instead of a few full-model Metal buffers.
+ * This must be selected before ds4_gpu_set_model_map_range(). */
+void ds4_gpu_set_model_lazy_views(bool enabled);
 int ds4_gpu_flash_slot_bank_residency_begin(uint32_t initial_capacity);
 int ds4_gpu_flash_slot_bank_residency_add(ds4_gpu_tensor *tensor);
 int ds4_gpu_flash_slot_bank_residency_commit(void);
@@ -194,6 +209,89 @@ int ds4_gpu_embed_tokens_hc_tensor(
         uint32_t                n_tokens,
         uint32_t                n_embd,
         uint32_t                n_hc);
+
+int ds4_gpu_hy3_get_row_q4_k_tensor(
+        ds4_gpu_tensor *out,
+        const void     *model_map,
+        uint64_t        model_size,
+        uint64_t        row_offset,
+        uint32_t        n_cols);
+
+int ds4_gpu_hy3_get_rows_q4_k_tensor(
+        ds4_gpu_tensor *out,
+        const void     *model_map,
+        uint64_t        model_size,
+        uint64_t        weight_offset,
+        uint32_t        n_vocab,
+        const int      *tokens,
+        uint32_t        n_tokens,
+        uint32_t        n_cols);
+
+int ds4_gpu_hy3_gqa_attention_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *scratch,
+        ds4_gpu_tensor       *k_cache,
+        ds4_gpu_tensor       *v_cache,
+        const ds4_gpu_tensor *query,
+        const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value,
+        uint32_t              pos,
+        uint32_t              ctx,
+        uint32_t              n_head,
+        uint32_t              n_head_kv,
+        uint32_t              head_dim,
+        float                 scale);
+
+int ds4_gpu_hy3_gqa_attention_batch_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *scratch,
+        ds4_gpu_tensor       *k_cache,
+        ds4_gpu_tensor       *v_cache,
+        const ds4_gpu_tensor *query,
+        const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value,
+        uint32_t              pos0,
+        uint32_t              n_tokens,
+        uint32_t              ctx,
+        uint32_t              n_head,
+        uint32_t              n_head_kv,
+        uint32_t              head_dim,
+        float                 scale);
+
+/* HY3 direct NAX-half attention.  K/V are stored persistently as head-major
+ * F16 and consumed in place; there is no context-sized conversion pass. */
+int ds4_gpu_hy3_nax_f16_supported(void);
+
+int ds4_gpu_hy3_gqa_attention_f16_nax_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *scratch,
+        ds4_gpu_tensor       *k_cache,
+        ds4_gpu_tensor       *v_cache,
+        const ds4_gpu_tensor *query,
+        const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value,
+        uint32_t              pos,
+        uint32_t              ctx,
+        uint32_t              n_head,
+        uint32_t              n_head_kv,
+        uint32_t              head_dim,
+        float                 scale);
+
+int ds4_gpu_hy3_gqa_attention_f16_nax_batch_tensor(
+        ds4_gpu_tensor       *out,
+        ds4_gpu_tensor       *scratch,
+        ds4_gpu_tensor       *k_cache,
+        ds4_gpu_tensor       *v_cache,
+        const ds4_gpu_tensor *query,
+        const ds4_gpu_tensor *key,
+        const ds4_gpu_tensor *value,
+        uint32_t              pos0,
+        uint32_t              n_tokens,
+        uint32_t              ctx,
+        uint32_t              n_head,
+        uint32_t              n_head_kv,
+        uint32_t              head_dim,
+        float                 scale);
 
 int ds4_gpu_indexer_score_one_tensor(
         ds4_gpu_tensor       *scores,
@@ -298,6 +396,7 @@ typedef enum {
     DS4_MM_AUTO = 0,    /* env-gated: W8A8 when DS4_GPU_DENSE_I8 + n_tok-eligible */
     DS4_MM_PREFER_I8,   /* W8A8-friendly part (projections, shared expert) */
     DS4_MM_NO_I8,       /* quality-sensitive (lm_head): never int8 */
+    DS4_MM_STABLE_Q8,   /* deterministic simdgroup Q8: no W8A8 or direct-RHS NAX */
 } ds4_mm_hint;
 
 int ds4_gpu_matmul_q8_0_tensor_ex(
@@ -739,6 +838,17 @@ int ds4_gpu_rope_tail_tensor(
         float             attn_factor,
         float             beta_fast,
         float             beta_slow);
+
+int ds4_gpu_rope_neox_tensor(
+        ds4_gpu_tensor *x,
+        uint32_t          n_tok,
+        uint32_t          n_head,
+        uint32_t          head_dim,
+        uint32_t          n_rot,
+        uint32_t          pos0,
+        uint32_t          n_ctx_orig,
+        float             freq_base,
+        float             freq_scale);
 
 /* Release decode fused KV finalizer: after the standalone RoPE kernel, this
  * performs DS4's FP8 non-RoPE KV round trip and writes the F16-rounded raw

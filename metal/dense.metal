@@ -1633,7 +1633,12 @@ kernel void kernel_mul_mm(
         ushort sgitg[[simdgroup_index_in_threadgroup]]) {
 
     threadgroup S0 * sa = (threadgroup S0 *)(shmem);
-    threadgroup S1 * sb = (threadgroup S1 *)(shmem + 4096);
+    /* The original F16/Q8 paths stage a 64x32 half tile (4096 bytes).
+     * F32 weights use the same kernel geometry but need an 8192-byte tile, so
+     * derive the RHS offset from the accumulator-input type instead of baking
+     * in the half-only size. */
+    threadgroup S1 * sb =
+        (threadgroup S1 *)(shmem + 64 * 32 * sizeof(S0));
 
     constexpr int NR0 = 64;
     constexpr int NR1 = 32;
@@ -1825,6 +1830,9 @@ kernel void kernel_mul_mm(
 
 typedef decltype(kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, float4x4, 1, dequantize_f32, float, float4x4, float, float2x4>) mul_mm_t;
 
-// Host-visible prefill matmul variants for F16 and Q8_0 weights.
+// Host-visible prefill matmul variants.  The F32 form keeps both staged inputs
+// in float and uses float SIMD-group matrices; HY3 uses it for the small
+// 4096x192 router projection instead of encoding one matvec per prompt token.
+template [[host_name("kernel_mul_mm_f32_f32")]] kernel mul_mm_t kernel_mul_mm<float, float4x4, simdgroup_float8x8, float, float2x4, simdgroup_float8x8, float4x4, 1, dequantize_f32, float, float4x4, float, float2x4>;
 template [[host_name("kernel_mul_mm_f16_f32")]]  kernel mul_mm_t kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, half4x4, 1, dequantize_f16,  half,  half4x4,  float, float2x4>;
 template [[host_name("kernel_mul_mm_q8_0_f32")]] kernel mul_mm_t kernel_mul_mm<half, half4x4, simdgroup_half8x8, half, half2x4, simdgroup_half8x8, block_q8_0, 2, dequantize_q8_0, float, float4x4, float, float2x4>;
