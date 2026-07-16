@@ -1,9 +1,11 @@
 # ds4-ssd
 
-`ds4-ssd` is an alpha fork of antirez's DwarfStar 4 (`ds4`) inference engine
-for DeepSeek V4 Flash. The fork keeps the narrow, self-contained DS4 runtime and
-adds an SSD-streamed routed-MoE sidecar path for Apple Silicon systems where a
-fully resident model is not practical.
+`ds4-ssd` is an alpha fork of antirez's DwarfStar 4 (`ds4`) inference engine.
+Its primary target remains DeepSeek V4 Flash: the fork keeps the narrow,
+self-contained DS4 runtime and adds an SSD-streamed routed-MoE sidecar path for
+Apple Silicon systems where a fully resident model is not practical. This tree
+also includes DSpark speculative decoding for matching DeepSeek V4 Flash
+targets and a DS4-native, Metal-only full-GGUF runtime for Hunyuan HY3.
 
 The main alpha feature is SSD streaming: dense tensors stay in a normal GGUF,
 while routed experts live in a sidecar directory and are paged through a
@@ -23,6 +25,12 @@ Alpha means:
 
 - SSD sidecar mode is the release headline.
 - Resident full-GGUF mode remains available.
+- DSpark provides strict greedy speculative decoding for a matching DeepSeek V4
+  Flash target/draft pair; non-byte and alternate-verifier modes are explicitly
+  experimental.
+- HY3 full-GGUF supports `ds4`, `ds4-agent`, native Hunyuan tool framing,
+  NAX-half or Q8_0 KV, batched prefill, session snapshots, and an optional
+  block-80 NextN/MTP correctness path on Metal.
 - Correctness vectors and an executable 16K sidecar smoke are the current test
   bar.
 - Broader mode coverage, CI, and performance regression automation are planned
@@ -203,10 +211,22 @@ Use that id in API calls unless you intentionally want a compatibility alias:
 HY3 full-GGUF models are detected from `general.architecture=hy_v3` and use a
 DS4-native Metal runtime. The implementation keeps all mapped GGUF tensors on
 the existing DS4 quantized-matmul path. It executes each token's selected top-8
-routes together, fuses gate/up/SwiGLU work, and uses a direct top-8 IQ3_XXS
-down-and-sum kernel. Attention defaults to a direct head-major F16 NAX-half KV
-cache on supported Metal systems. The lower-memory Q8_0 split-KV path remains
-available with `--hy3-q8`.
+routes together, fuses gate/up/SwiGLU work, and, for the tested IQ1_M tensor
+layout, uses a direct top-8 IQ3_XXS down-and-sum kernel. Attention defaults to a
+direct head-major F16 NAX-half KV cache on supported Metal systems. The
+lower-memory Q8_0 split-KV path remains available with `--hy3-q8`.
+
+This checkout is qualified against AngelSlim `Hy3-IQ1_M.gguf`: the loader
+requires the expected 80-layer, 4,096-wide, 192-expert HY3 shape and supported
+tensor layouts, so arbitrary `hy_v3` GGUF variants are not implied. Download
+the target and optional block-80 model with the Hugging Face CLI:
+
+```sh
+mkdir -p "$HOME/Models/Hy3-GGUF_1b"
+hf download AngelSlim/Hy3-GGUF \
+  Hy3-IQ1_M.gguf Hy3-IQ1_M-mtp.gguf \
+  --local-dir "$HOME/Models/Hy3-GGUF_1b"
+```
 
 Recommended interactive agent command on M5 Max:
 
@@ -218,6 +238,11 @@ Recommended interactive agent command on M5 Max:
   --nothink \
   --temp 0
 ```
+
+On M5 Max, keep the default F16 NAX-half path for the qualified speed and most
+conservative KV numerics. `--hy3-q8` is primarily a memory-saving option: it
+quantizes both K and V and can change logits or continuations, so qualify it on
+the target workload.
 
 Use the same model with the lower-memory Q8_0 KV cache:
 
@@ -243,12 +268,16 @@ For one-shot CLI generation:
   -p "Make a game of Space invaders in C++"
 ```
 
-The current HY3 path is Metal-only. It supports normal CLI and interactive
-generation, uses the model's Hunyuan tokenizer/chat framing, and intentionally
-does not use llama.cpp-specific CLI flags. `-sys ''` disables DS4's default
-`You are a helpful assistant` system message and can be omitted when that
-default is wanted. Prompt ingestion uses a 256-token layer-major Metal path and
-only computes vocabulary logits for the final prompt row. Set
+The current HY3 path is Metal-only. Use `ds4` or `ds4-agent`; HY3 chat/tool
+rendering is not yet supported by `ds4-server`. HY3 uses the model's Hunyuan
+tokenizer/chat framing and intentionally does not use llama.cpp-specific CLI
+flags. `-sys ''` disables only the frontend's extra system text and can be
+omitted when that text is wanted. In `ds4-agent`, the native HY3 tool schema and
+reasoning control remain active. Prompt ingestion uses layer-major batched
+Metal prefill and only computes vocabulary logits for the final prompt row.
+The conservative default is 256 tokens per outer batch; the qualified M5 Max
+profile raises that outer batch to 1,024 while retaining exact 256-row
+attention stripes. Set
 `DS4_HY3_DISABLE_BATCH_PREFILL=1` to use the diagnostic token path, or use
 `--quality` to select the conservative one-token prefill and serial-attention
 fallbacks. `--moe-mode stock` is an anemll-flash-llama.cpp option and is neither
@@ -256,6 +285,14 @@ needed nor accepted by DS4's full-GGUF HY3 path. `ds4-agent` persists HY3's
 active Q8_0 or F16 KV state in its normal `~/.ds4/kvcache/sysprompt.kv`, so
 subsequent launches restore a matching system/tool prompt instead of
 prefilling it again.
+
+Do not pass `--resident` for HY3. That flag selects Flash-MoE sidecar residency;
+HY3 instead demand-pages tensors directly from its full GGUF.
+
+Completed `ds4` and `ds4-agent` turns print separate prefill and generation
+throughput summaries in tokens per second. The interactive agent footer shows
+the live phase and rate while a turn is running; compare the final summary, not
+the transient footer, when qualifying a kernel or KV layout.
 
 For long interactive sessions, keep a larger physical KV allocation while
 compacting the normal transcript earlier:
@@ -281,6 +318,11 @@ the matching argument/response tokens). It does not prompt HY3 to imitate
 DSML or GLM XML. This matters for file-writing prompts: mixed protocols can
 look like model-quality or KV-precision corruption even when the sampled
 content itself is sound.
+
+With `--nothink`, `ds4-agent` emits HY3's native
+`reasoning_effort:no_think`, suppresses think-control tokens, and retries one
+semantic deliberation loop with a direct-response reminder. A second violation
+stops the turn instead of spending the rest of the context reasoning.
 
 During live `write`, `edit`, and `bash` arguments, `ds4-agent` also stops an
 exact short byte pattern that repeats for at least 512 bytes (for example a
@@ -353,9 +395,9 @@ ending at 4k from 104.93 to 141.98 t/s (+35.3%), and aggregate prefill through
 4k from 107.38 to 142.82 t/s (+33.0%). The 1,024 cap uses about 513 MiB more
 activation workspace than cap 256 in the measured 8k allocation.
 
-For a resident full-GGUF HY3 suffix of at most 17 new tokens, the measured M5
-Max profile instead uses the canonical one-row token-major path. Warm-RAM
-measurements were 26.86 versus 11.23 t/s at two tokens, 29.26 versus 19.42 at
+For a warm-RAM full-GGUF HY3 suffix of at most 17 new tokens, the measured M5
+Max profile instead uses the canonical one-row token-major path. Measurements
+were 26.86 versus 11.23 t/s at two tokens, 29.26 versus 19.42 at
 eight, and 29.13 versus 28.38 at 17; batching wins from 19 tokens onward. Set
 `DS4_HY3_TOKEN_MAJOR_MAX_SYNC=0` to force layer-major batching for every
 multi-token suffix, or change the value when re-qualifying another machine.
@@ -403,10 +445,14 @@ decoding and a two-token draft:
   --temp 0
 ```
 
-HY3 only activates block 80 when `--mtp-draft` is greater than one and
-speculative greedy decoding is available. The default `--mtp-draft 1`,
-`DS4_MTP_SPEC_DISABLE=1`, and nonzero `--temp` keep MTP inactive so prompt and
-decode do not maintain an unused predictor cache.
+This command is a load/compatibility smoke on the current M5 Max profile: it
+requests a two-token draft, but the measured auto-fallback selects target-only
+decode before prompt sync and does not build the block-80 cache. Block 80 can
+activate only when `--mtp-draft` is greater than one, speculative greedy
+decoding is available, and the reference or explicitly unsafe experimental
+route is selected. The default `--mtp-draft 1`, `DS4_MTP_SPEC_DISABLE=1`, and
+nonzero `--temp` also keep MTP inactive so prompt and decode do not maintain an
+unused predictor cache.
 
 The block-80 implementation keeps its own KV cache, keeps target hidden state
 on Metal, and uses the same fused selected top-8 GGUF MoE path as the target.
@@ -423,7 +469,7 @@ a speedup: it still evaluates one complete target row per emitted token and
 adds the block-80 work. DS4 therefore defaults to a session-local one-way plain
 target route before prompt sync, which preserves target output and throughput
 without building an unused predictor cache. Force the exact reference MTP path
-for acceptance and timing measurements with:
+for acceptance and timing measurements only with:
 
 ```sh
 DS4_HY3_MTP_AUTO_FALLBACK=0 \
@@ -534,7 +580,9 @@ was measured slower than exact decode2:
 ```sh
 DS4_MTP_HYBRID_BATCH_VERIFY_EXPERIMENT=1 \
 DS4_MTP_SIDECAR_BATCH_VERIFY=1 \
-./ds4 -m "$DS4_SIDECAR_DIR" --resident --mtp "$DS4_MTP_GGUF" --mtp-draft 2
+./ds4 -m "$DS4_SIDECAR_DIR" --resident \
+  --mtp "$DS4_MTP_GGUF" --mtp-draft 2 \
+  --temp 0 --nothink
 ```
 
 MTP is only expected to help when the target verifier is cheaper than the
@@ -553,8 +601,8 @@ with Flash sidecars, not the Pro DSpark checkpoint.
 Use these paths in the examples below:
 
 ```sh
-export DS4_SIDECAR_DIR=/Users/anemll/Models/flash/dsv4-iq2xxs-expert-major
-export DS4_DSPARK_DRAFT=/Users/anemll/Models/DSv4-Flash-DSpark-draft
+export DS4_SIDECAR_DIR="${DS4_SIDECAR_DIR:-$PWD/models/dsv4-iq2xxs-expert-major}"
+export DS4_DSPARK_DRAFT="${DS4_DSPARK_DRAFT:-$PWD/models/DSv4-Flash-DSpark-draft}"
 export TEST_PROMPT='Make a game of Space Invader in Pygame'
 ```
 
@@ -570,9 +618,10 @@ from the original DeepSeek shards instead, download only the Flash DSpark draft
 shards:
 
 ```sh
-mkdir -p /Volumes/TB36/Models/DS/DeepSeek-V4-Flash-DSpark
+export DSPARK_SOURCE_DIR="${DSPARK_SOURCE_DIR:-$HOME/Models/DeepSeek-V4-Flash-DSpark}"
+mkdir -p "$DSPARK_SOURCE_DIR"
 hf download deepseek-ai/DeepSeek-V4-Flash-DSpark \
-  --local-dir /Volumes/TB36/Models/DS/DeepSeek-V4-Flash-DSpark \
+  --local-dir "$DSPARK_SOURCE_DIR" \
   --include config.json \
   --include model.safetensors.index.json \
   --include model-00046-of-00048.safetensors \
@@ -584,7 +633,7 @@ Export the DS4-owned draft package:
 
 ```sh
 scripts/export_dspark_draft.sh \
-  --source-dir /Volumes/TB36/Models/DS/DeepSeek-V4-Flash-DSpark \
+  --source-dir "$DSPARK_SOURCE_DIR" \
   --out-dir "$DS4_DSPARK_DRAFT" \
   --variant flash \
   --force
@@ -604,12 +653,11 @@ Validate the package against the Flash sidecar target:
 The expected package metadata is DSpark-5: block size 5, target layers
 `40,41,42`, three draft layers, 256 experts, and Markov rank 256. DSpark-5
 means the checkpoint can draft up to 5 tokens per block; it does not require
-every run to verify all 5. For current Flash sidecar runs, pin
-`--draft-verify 4`: in static mode the active proposal length is
-`min(block_size, --draft-verify)`, so the loader prints `block=5 verify=4
-active=4`. This avoids the slowest fifth draft position while still emitting
-the normal target token before each DSpark block. Use `--draft-verify 2`, `3`,
-or `5` for fixed-budget A/B tests.
+every run to verify all 5. `ds4` and `ds4-agent` default to the full five-token
+budget; `ds4-server` currently defaults to four. The strict reference examples
+below pass `--draft-verify 5` explicitly. Use `2`, `3`, or `4` only for a
+fixed-budget A/B; in static mode the active proposal length is
+`min(block_size, --draft-verify)`.
 
 Run a paired sidecar baseline first:
 
@@ -632,8 +680,7 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 ./ds4 \
   --resident \
   --draft dspark \
   --draft-path "$DS4_DSPARK_DRAFT" \
-  --draft-verify 4 \
-  --draft-scheduler static \
+  --draft-verify 5 \
   --temp 0 \
   --nothink \
   -n 1000 \
@@ -642,12 +689,22 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 ./ds4 \
 ```
 
 The sidecar command is the current clean reference path. DS4 selects the strict
-commit-safe hybrid verifier by default for DSpark greedy runs unless
-`--quality`, `DS4_DSPARK_EXACT_VERIFY=1`, or `DS4_DSPARK_FAST_VERIFY_DISABLE=1`
-is set. A successful run prints:
+commit-safe hybrid verifier by default for DSpark greedy runs. With the normal
+implicit `confidence` scheduler and no explicit DSpark tuning, it also enables
+the measured champion scheduling profile:
+`DS4_DSPARK_FORCE_TARGET_FIRST=1`, `DS4_DSPARK_CONF_SCALE=0.85`,
+`DS4_DSPARK_CONF_THRESHOLD=0.50`, and
+`DS4_DSPARK_EVAL_MARGIN_GATE_THRESHOLD=6`. These knobs change only proposal
+and scheduling decisions; the target argmax still owns every committed token.
+Set `DS4_DSPARK_CHAMPION_DEFAULTS_DISABLE=1` to restore the legacy confidence
+defaults. An explicit non-confidence scheduler, confidence threshold/tuning
+environment, `--quality`, exact-verifier request, or experimental batch/unified
+mode bypasses the promotion. Use `--draft-scheduler static` only when a fixed
+budget is intentional. A successful default run prints:
 
 ```text
-ds4: DSpark draft package loaded: ... (block=5 verify=4 active=4 ...)
+ds4: DSpark champion defaults enabled ...
+ds4: DSpark draft package loaded: ... (block=5 verify=5 active=5 ...)
 ds4: DSpark draft inference enabled: MPP 4.1 FP8/MXFP4 draft kernels ...
 ds4: dspark perf: draft=... verify=... block=... tau=...
 ds4: dspark acceptance: ...
@@ -655,10 +712,29 @@ ds4: dspark acceptance by position: ...
 ds4: dspark avg scheduled: ...
 ```
 
-Here `tau` in the DSpark perf line means accepted draft tokens per DSpark
-speculation block. End-to-end generated tokens also include the leading target
-token that seeded the block. With `--draft-verify 4`, the DSpark perf `tau` cap
-is therefore `4.0`; use `--draft-verify 5` to test the full DSpark-5 block.
+Here `tau` means committed DSpark draft tokens divided by speculation blocks.
+It excludes the leading target token that seeds a block. With
+`--draft-verify 5`, the DSpark perf `tau` cap is therefore `5.0`.
+
+`--draft-mode strict` is the production contract: only target-verified greedy
+tokens are committed. Always qualify it against a paired no-draft run using the
+same binary, target, prompt, and settings; `tests/dspark_parity_smoke.sh` is the
+committed static/confidence/rate parity gate for `ds4`. The saved 100-prompt
+[DSpark report card](gguf-tools/quality-testing/DSPARK_REPORT_CARD.md) measured
+strict DSpark byte-equal to its paired no-draft target in 100/100 cases, while
+fast-relaxed was byte-equal in 2/100. Those speed and quality numbers are
+historical and workload-specific, not a promise for another model or prompt.
+`--draft-mode batch|unified`, forced-MMA attention, rows-6/three-way routing,
+and relaxed acceptance remain opt-in research paths.
+
+The experimental strict-acceptance route selector is enabled with
+`DS4_DSPARK_THREE_WAY=1`. It periodically measures plain target decode,
+frontier verification, and rows-6 verification, then keeps the locally faster
+route. Add `DS4_DSPARK_THREE_WAY_LOG=1` to inspect probes; use
+`DS4_DSPARK_THREE_WAY_PROBE_INTERVAL` and
+`DS4_DSPARK_THREE_WAY_PROBE_BLOCKS` only for controlled experiments. It is
+default-off and still requires the same paired parity and long-context gates as
+any verifier change.
 
 For adaptive budget experiments, keep `--draft-verify` as the cap and add
 `--draft-verify-dynamic`. The default controller is measured-throughput based:
@@ -720,8 +796,9 @@ too often it wastes draft time and behaves like baseline plus overhead.
 to choose that zero-verify escape hatch.
 
 Relaxed fast-mode experiments can raise `tau` by accepting target-supported
-non-argmax draft tokens, but this changes the greedy contract and is not
-recommended for demos or agent coding tasks. The default relaxed gate now
+non-argmax draft tokens, but this changes the greedy contract. Treat their
+output as untrusted until it passes a separate quality gate; they are not a
+production or agent-coding preset. The default relaxed gate now
 requires target uncertainty before a non-argmax token is accepted:
 `top1-top2 <= DS4_DSPARK_RELAXED_TARGET_MARGIN` and
 `top1-draft <= DS4_DSPARK_RELAXED_DRAFT_MARGIN` in addition to the configured
@@ -738,7 +815,7 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
   --resident \
   --draft dspark \
   --draft-path "$DS4_DSPARK_DRAFT" \
-  --draft-verify 4 \
+  --draft-verify 5 \
   --temp 0 \
   --nothink \
   --ctx 24096 \
@@ -785,10 +862,11 @@ too; set `DS4_DSPARK_RELAXED_ALLOW_TARGET_TOP_REPEAT=1` only to reproduce the
 older looser behavior.
 `DS4_DSPARK_RELAXED_MAX_OFFARGMAX_PER_BLOCK=N` caps how many non-argmax but
 target-supported draft tokens one block may accept. Start with `N=1` when
-testing loose gates. The current `--draft-fast-relaxed` preset uses
-`TOPK=256` / `LOGIT_DELTA=10`; it kept the 1000-token Space Invaders smoke
-canary-clean in local testing and was the best point in the local relaxed
-sweep, but it still measured below the >60 t/s goal. `DS4_DSPARK_RELAXED_OFFARGMAX_COOLDOWN_BLOCKS=N`
+testing loose gates. `--draft-fast-relaxed` expands to frontend-specific,
+experimental environment defaults; do not assume the `ds4`, `ds4-agent`, and
+`ds4-server` presets are numerically identical. Record the selected frontend
+and compare generated output, not only throughput.
+`DS4_DSPARK_RELAXED_OFFARGMAX_COOLDOWN_BLOCKS=N`
 can also force a short target-argmax-only cooldown after any off-argmax accept.
 
 For `ds4-server`, use the same resident sidecar target. DSpark is greedy-only,
@@ -801,7 +879,7 @@ DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 \
   --resident \
   --draft dspark \
   --draft-path "$DS4_DSPARK_DRAFT" \
-  --draft-verify 4 \
+  --draft-verify 5 \
   --ctx 4096 \
   --tokens 4096 \
   --host 127.0.0.1 \
@@ -831,14 +909,14 @@ If a demo must use a GGUF main model, keep DSpark as the same external draft
 package and pass `--draft-path` explicitly:
 
 ```sh
-export DS4_GGUF=/Users/anemll/Models/antirez/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf
+export DS4_GGUF=/path/to/DeepSeek-V4-Flash-IQ2XXS-w2Q2K-AProjQ8-SExpQ8-OutQ8-chat-v2.gguf
 
 DS4_AGENT_ALLOW_BACKEND_STATS=1 DS4_DSPARK_PERF=1 DS4_AGENT_TURN_STATS=1 \
 ./ds4-agent \
   --model "$DS4_GGUF" \
   --draft dspark \
   --draft-path "$DS4_DSPARK_DRAFT" \
-  --draft-verify 4 \
+  --draft-verify 5 \
   --temp 0 \
   --nothink \
   --ctx 24096 \
@@ -856,15 +934,19 @@ Operational notes:
 - The Flash DSpark draft package is kept resident by default. A normal run
   refuses to fall back to disk-backed draft experts, so speed measurements do
   not silently switch paths.
-- `--draft-verify 5` is the recommended Flash sidecar fast-preset budget. Use
-  `--draft-verify 2`, `3`, or `4` only for explicit A/B sweeps.
+- `--draft-verify 5` is the full strict DSpark-5 reference and the `ds4` /
+  `ds4-agent` default. `ds4-server` defaults to 4; pass 5 explicitly when
+  comparing it with the CLI or agent. Use 2-4 only for explicit A/B sweeps.
 - `--dspark-attn-force-mma` is a faster demo/Mode-B diagnostic. It is not the
   strict byte-identical verifier path.
-- `--draft-fast-relaxed` enables the current fast demo preset, including the
-  frontier draft path, relaxed suffix accept (`TOPK=256`, `LOGIT_DELTA=10`),
-  GPU-queue draft prefetch, MMA attention, and fast Q2 down. It is a
-  non-byte-identical diagnostic mode, not the strict verifier. The prefetch
-  hides only queue/readback slack; it is not true ANE/separate-engine overlap.
+- `--draft-fast-relaxed` enables a frontend-specific diagnostic stack including
+  frontier drafting, relaxed suffix acceptance, MMA attention, and fast Q2
+  down. It is not the strict verifier and its output requires a separate
+  quality gate. Its prefetch hides only queue/readback slack; it is not true
+  ANE/separate-engine overlap.
+- There is no DSpark-specific strict-safe ANE draft path. Broad `--ane` /
+  `DS4_ANE=1` controls target/profile acceleration and should not be described
+  as a DSpark verifier speedup.
 - DSpark can run against a streaming/direct-mmap sidecar, but that path is not
   the speed target: verifier work becomes SSD/VM-bound. Use `--resident` for
   DSpark throughput measurements.
@@ -874,18 +956,25 @@ Useful DSpark diagnostics:
 ```sh
 DS4_DSPARK_PERF=1                 # print draft/verify/block timing
 DS4_DSPARK_BLOCK_TIMING=1         # per-block diagnostic timing
-DS4_DSPARK_BASELINE_TPS=<t/s>     # normalize against a paired no-draft run
+DS4_DSPARK_BASELINE_TPS=35.0      # paired no-draft rate for normalization
 N=160 scripts/dspark_phase0_sweep.sh
 ```
 
+The strict verifier defaults to four-layer command-buffer splits
+(`DS4_DSPARK_VERIFY_SPLIT_LAYERS=4`) and split draft-block submission; set the
+former or `DS4_DSPARK_DRAFT_SPLIT_BLOCKS` to `0` for rollback A/Bs. The shared
+non-quality fast verifier also defaults `DS4_DSPARK_DRAFT_PREFETCH=1` for every
+frontend; set it to `0` to disable prefetch explicitly.
+
 The final `generation:` line is the headline speed. DSpark also prints
 acceptance, acceptance by draft position, average scheduled draft length, and
-`tau`, where `tau = accepted/emitted draft tokens per DSpark block`.
+`tau`, where `tau = committed DSpark draft tokens / speculation blocks`.
 
-### Experimental Pro Support
+## Experimental DeepSeek V4 Pro Sidecar Support
 
-DeepSeek V4 Pro sidecar support is experimental. For Pro agent runs, use
-`--nothink`, keep the slot bank at or below 32 slots while tuning, and keep
+This is plain Pro sidecar support, not DSpark; it does not load a DSpark draft
+package. DeepSeek V4 Pro sidecar support is experimental. For Pro agent runs,
+use `--nothink`, keep the slot bank at or below 32 slots while tuning, and keep
 shared-down decode prefetch enabled:
 
 ```sh
@@ -948,7 +1037,10 @@ The alpha validation gate is:
 ```sh
 make clean
 make
+make ds4_test
 ./ds4_test --server --metal-kernels
+./ds4-agent --self-test-tools
+python3 -m unittest tests/test_export_hy3_mtp_sidecar.py
 make ane-smoke
 DS4_SIDECAR_DIR=/path/to/dsv4-iq2xxs-expert-major make sidecar-smoke
 ```
@@ -957,8 +1049,35 @@ The sidecar smoke uses `tests/test-vectors/prompts/long_code_audit.txt`, a
 shorter 4K-class prompt, and generates 64 deterministic tokens with a 4K
 prefill chunk cap.
 
+The HY3 exporter test uses small synthetic GGUFs; running the exporter itself
+requires the Python `gguf` package that provides `GGUFReader`. Model-dependent
+HY3 and DSpark smoke gates can then be run explicitly:
+
+```sh
+./ds4 -m /path/to/Hy3-IQ1_M.gguf --ctx 2048 \
+  -sys '' --nothink --temp 0 -n 16 -p "Hello"
+
+DS4_PARITY_MODEL=/path/to/DeepSeek-V4-Flash.gguf \
+DS4_PARITY_DRAFT=/path/to/DSv4-Flash-DSpark-draft \
+  tests/dspark_parity_smoke.sh 300
+```
+
 ## Docs
 
+- [HY3 runtime guide](#run-hy3): supported full-GGUF shape, agent/CLI
+  commands, KV layouts, long-context prefill, tools, snapshots, and NextN/MTP.
+- [DSpark runtime guide](#run-dspark-with-a-sidecar): package setup, strict
+  commands, effective defaults, metrics, server/agent usage, and experimental
+  safety boundaries.
+- [docs/DSPARK_VERIFIER_HANDOFF.md](docs/DSPARK_VERIFIER_HANDOFF.md):
+  chronological verifier engineering record and rejected/experimental paths.
+- [docs/DSPARK_PLUS10_LOOP.md](docs/DSPARK_PLUS10_LOOP.md): append-only
+  long-context optimization log; dated status entries may predate current
+  source defaults.
+- [gguf-tools/quality-testing/DSPARK_REPORT_CARD.md](gguf-tools/quality-testing/DSPARK_REPORT_CARD.md):
+  saved 100-prompt strict versus relaxed quality/speed evidence.
+- [tests/dspark_parity_smoke.sh](tests/dspark_parity_smoke.sh): paired
+  no-draft/static/confidence/rate greedy parity gate.
 - [docs/MODEL_SETUP.md](docs/MODEL_SETUP.md): model files, downloads, and
   sidecar package expectations.
 - [docs/SIDECAR.md](docs/SIDECAR.md): SSD streaming mode and smoke test.
