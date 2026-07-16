@@ -30580,6 +30580,9 @@ int ds4_gpu_hy3_get_row_q4_k_tensor(
     return 1;
 }
 
+_Static_assert(DS4_HY3_PREFILL_CAP_MAX * sizeof(int) <= 4096u,
+               "HY3 token IDs must fit Metal's inline-byte limit");
+
 int ds4_gpu_hy3_get_rows_q4_k_tensor(
         ds4_gpu_tensor *out,
         const void     *model_map,
@@ -30591,7 +30594,8 @@ int ds4_gpu_hy3_get_rows_q4_k_tensor(
         uint32_t        n_cols) {
     if (!g_initialized && !ds4_gpu_init()) return 0;
     if (!out || !model_map || !tokens || n_vocab == 0 || n_tokens == 0 ||
-        n_tokens > 1024u || n_cols == 0 || (n_cols % 256u) != 0 ||
+        n_tokens > DS4_HY3_PREFILL_CAP_MAX ||
+        n_cols == 0 || (n_cols % 256u) != 0 ||
         ds4_gpu_tensor_bytes(out) < (uint64_t)n_tokens * n_cols * sizeof(float)) {
         return 0;
     }
@@ -30805,7 +30809,9 @@ int ds4_gpu_hy3_gqa_attention_batch_tensor(
     const uint64_t kv_count = (uint64_t)n_tokens * n_head_kv * head_dim;
     const uint64_t cache_bytes = (uint64_t)ctx * n_head_kv *
                                  (head_dim / 32u) * 34u;
-    const uint64_t scratch_bytes = (uint64_t)n_tokens * n_head * 32u *
+    const uint32_t scratch_tokens =
+        MIN(n_tokens, (uint32_t)DS4_HY3_PREFILL_ATTN_STRIPE);
+    const uint64_t scratch_bytes = (uint64_t)scratch_tokens * n_head * 32u *
                                    (head_dim + 2u) * sizeof(float);
     if (ds4_gpu_tensor_bytes(out) < q_count * sizeof(float) ||
         ds4_gpu_tensor_bytes(query) < q_count * sizeof(float) ||
@@ -30830,18 +30836,17 @@ int ds4_gpu_hy3_gqa_attention_batch_tensor(
         int owned = 0;
         id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
         if (!cb) return 0;
-        const uint32_t last_pos = pos0 + n_tokens - 1u;
-        struct {
+        struct hy3_prefill_args {
             uint32_t pos, ctx, n_head, n_head_kv, head_dim, nwg, n_tokens;
             float scale;
-        } args = {
-            pos0, ctx, n_head, n_head_kv, head_dim,
-            MIN(32u, MAX(1u, (last_pos + 32u) / 32u)), n_tokens, scale
+        };
+        const struct hy3_prefill_args store_args = {
+            pos0, ctx, n_head, n_head_kv, head_dim, 1u, n_tokens, scale
         };
 
         id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
         [enc setComputePipelineState:store];
-        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBytes:&store_args length:sizeof(store_args) atIndex:0];
         [enc setBuffer:ds4_gpu_tensor_buffer(key)
                 offset:ds4_gpu_tensor_offset(key) atIndex:1];
         [enc setBuffer:ds4_gpu_tensor_buffer(value)
@@ -30856,31 +30861,51 @@ int ds4_gpu_hy3_gqa_attention_batch_tensor(
           threadsPerThreadgroup:MTLSizeMake(store_threads, 1, 1)];
         ds4_gpu_end_compute_encoder(cb, enc);
 
-        enc = ds4_gpu_compute_encoder(cb);
-        [enc setComputePipelineState:attention];
-        [enc setBytes:&args length:sizeof(args) atIndex:0];
-        [enc setBuffer:ds4_gpu_tensor_buffer(query)
-                offset:ds4_gpu_tensor_offset(query) atIndex:1];
-        [enc setBuffer:ds4_gpu_tensor_buffer(k_cache)
-                offset:ds4_gpu_tensor_offset(k_cache) atIndex:2];
-        [enc setBuffer:ds4_gpu_tensor_buffer(v_cache)
-                offset:ds4_gpu_tensor_offset(v_cache) atIndex:3];
-        [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
-                offset:ds4_gpu_tensor_offset(scratch) atIndex:4];
-        [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_tokens * n_head * args.nwg, 1, 1)
-             threadsPerThreadgroup:MTLSizeMake(32u, 1, 1)];
-        ds4_gpu_end_compute_encoder(cb, enc);
+        const NSUInteger q_row_bytes =
+            (NSUInteger)n_head * head_dim * sizeof(float);
+        for (uint32_t token0 = 0; token0 < n_tokens;
+             token0 += DS4_HY3_PREFILL_ATTN_STRIPE) {
+            const uint32_t stripe_tokens = MIN(
+                (uint32_t)DS4_HY3_PREFILL_ATTN_STRIPE, n_tokens - token0);
+            const uint32_t stripe_pos = pos0 + token0;
+            const uint32_t last_pos = stripe_pos + stripe_tokens - 1u;
+            const struct hy3_prefill_args args = {
+                stripe_pos, ctx, n_head, n_head_kv, head_dim,
+                MIN(32u, MAX(1u, (last_pos + 32u) / 32u)),
+                stripe_tokens, scale
+            };
+            const NSUInteger stripe_offset = (NSUInteger)token0 * q_row_bytes;
 
-        enc = ds4_gpu_compute_encoder(cb);
-        [enc setComputePipelineState:reduce];
-        [enc setBytes:&args length:sizeof(args) atIndex:0];
-        [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
-                offset:ds4_gpu_tensor_offset(scratch) atIndex:1];
-        [enc setBuffer:ds4_gpu_tensor_buffer(out)
-                offset:ds4_gpu_tensor_offset(out) atIndex:2];
-        [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_tokens * n_head, 1, 1)
-             threadsPerThreadgroup:MTLSizeMake(head_dim, 1, 1)];
-        ds4_gpu_end_compute_encoder(cb, enc);
+            enc = ds4_gpu_compute_encoder(cb);
+            [enc setComputePipelineState:attention];
+            [enc setBytes:&args length:sizeof(args) atIndex:0];
+            [enc setBuffer:ds4_gpu_tensor_buffer(query)
+                    offset:ds4_gpu_tensor_offset(query) + stripe_offset
+                   atIndex:1];
+            [enc setBuffer:ds4_gpu_tensor_buffer(k_cache)
+                    offset:ds4_gpu_tensor_offset(k_cache) atIndex:2];
+            [enc setBuffer:ds4_gpu_tensor_buffer(v_cache)
+                    offset:ds4_gpu_tensor_offset(v_cache) atIndex:3];
+            [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
+                    offset:ds4_gpu_tensor_offset(scratch) atIndex:4];
+            [enc dispatchThreadgroups:MTLSizeMake(
+                     (NSUInteger)stripe_tokens * n_head * args.nwg, 1, 1)
+                 threadsPerThreadgroup:MTLSizeMake(32u, 1, 1)];
+            ds4_gpu_end_compute_encoder(cb, enc);
+
+            enc = ds4_gpu_compute_encoder(cb);
+            [enc setComputePipelineState:reduce];
+            [enc setBytes:&args length:sizeof(args) atIndex:0];
+            [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
+                    offset:ds4_gpu_tensor_offset(scratch) atIndex:1];
+            [enc setBuffer:ds4_gpu_tensor_buffer(out)
+                    offset:ds4_gpu_tensor_offset(out) + stripe_offset
+                   atIndex:2];
+            [enc dispatchThreadgroups:MTLSizeMake(
+                     (NSUInteger)stripe_tokens * n_head, 1, 1)
+                 threadsPerThreadgroup:MTLSizeMake(head_dim, 1, 1)];
+            ds4_gpu_end_compute_encoder(cb, enc);
+        }
         if (!had_batch && !ds4_gpu_end_commands()) return 0;
     }
     return 1;
@@ -31054,7 +31079,9 @@ int ds4_gpu_hy3_gqa_attention_f16_nax_batch_tensor(
     const uint64_t kv_count = (uint64_t)n_tokens * n_head_kv * head_dim;
     const uint64_t cache_bytes = (uint64_t)ctx_pad * n_head_kv *
                                  head_dim * sizeof(uint16_t);
-    const uint64_t scratch_bytes = (uint64_t)n_tokens * n_head * 32u *
+    const uint32_t scratch_tokens =
+        MIN(n_tokens, (uint32_t)DS4_HY3_PREFILL_ATTN_STRIPE);
+    const uint64_t scratch_bytes = (uint64_t)scratch_tokens * n_head * 32u *
                                    (head_dim + 2u) * sizeof(float);
     if (ds4_gpu_tensor_bytes(out) < q_count * sizeof(float) ||
         ds4_gpu_tensor_bytes(query) < q_count * sizeof(float) ||
@@ -31109,18 +31136,17 @@ int ds4_gpu_hy3_gqa_attention_f16_nax_batch_tensor(
         int owned = 0;
         id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
         if (!cb) return 0;
-        const uint32_t last_pos = pos0 + n_tokens - 1u;
-        struct {
+        struct hy3_nax_prefill_args {
             uint32_t pos, ctx, n_head, n_head_kv, head_dim, nwg, n_tokens;
             float scale;
-        } args = {
-            pos0, ctx, n_head, n_head_kv, head_dim,
-            MIN(32u, MAX(1u, (last_pos + 32u) / 32u)), n_tokens, scale
+        };
+        const struct hy3_nax_prefill_args store_args = {
+            pos0, ctx, n_head, n_head_kv, head_dim, 1u, n_tokens, scale
         };
 
         id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
         [enc setComputePipelineState:store];
-        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBytes:&store_args length:sizeof(store_args) atIndex:0];
         [enc setBuffer:ds4_gpu_tensor_buffer(key)
                 offset:ds4_gpu_tensor_offset(key) atIndex:1];
         [enc setBuffer:ds4_gpu_tensor_buffer(value)
@@ -31137,37 +31163,59 @@ int ds4_gpu_hy3_gqa_attention_f16_nax_batch_tensor(
           threadsPerThreadgroup:MTLSizeMake(store_threads, 1, 1)];
         ds4_gpu_end_compute_encoder(cb, enc);
 
-        enc = ds4_gpu_compute_encoder(cb);
-        [enc setComputePipelineState:attention];
-        [enc setBytes:&args length:sizeof(args) atIndex:0];
-        [enc setBuffer:ds4_gpu_tensor_buffer(query)
-                offset:ds4_gpu_tensor_offset(query) atIndex:1];
-        [enc setBuffer:ds4_gpu_tensor_buffer(k_cache)
-                offset:ds4_gpu_tensor_offset(k_cache) atIndex:2];
-        [enc setBuffer:ds4_gpu_tensor_buffer(v_cache)
-                offset:ds4_gpu_tensor_offset(v_cache) atIndex:3];
-        const bool direct_out = args.nwg == 1u;
-        [enc setBuffer:ds4_gpu_tensor_buffer(direct_out ? out : scratch)
-                offset:ds4_gpu_tensor_offset(direct_out ? out : scratch)
-               atIndex:4];
-        const NSUInteger attention_token_groups = use_group2
-            ? ((NSUInteger)n_tokens + 1u) / 2u : (NSUInteger)n_tokens;
-        [enc dispatchThreadgroups:MTLSizeMake(
-                 attention_token_groups * n_head_kv * args.nwg, 1, 1)
-             threadsPerThreadgroup:MTLSizeMake(128u, 1, 1)];
-        ds4_gpu_end_compute_encoder(cb, enc);
+        const NSUInteger q_row_bytes =
+            (NSUInteger)n_head * head_dim * sizeof(float);
+        for (uint32_t token0 = 0; token0 < n_tokens;
+             token0 += DS4_HY3_PREFILL_ATTN_STRIPE) {
+            const uint32_t stripe_tokens = MIN(
+                (uint32_t)DS4_HY3_PREFILL_ATTN_STRIPE, n_tokens - token0);
+            const uint32_t stripe_pos = pos0 + token0;
+            const uint32_t last_pos = stripe_pos + stripe_tokens - 1u;
+            const struct hy3_nax_prefill_args args = {
+                stripe_pos, ctx, n_head, n_head_kv, head_dim,
+                MIN(32u, MAX(1u, (last_pos + 32u) / 32u)),
+                stripe_tokens, scale
+            };
+            const NSUInteger stripe_offset = (NSUInteger)token0 * q_row_bytes;
+            const bool direct_out = args.nwg == 1u;
 
-        if (!direct_out) {
             enc = ds4_gpu_compute_encoder(cb);
-            [enc setComputePipelineState:reduce];
+            [enc setComputePipelineState:attention];
             [enc setBytes:&args length:sizeof(args) atIndex:0];
-            [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
-                    offset:ds4_gpu_tensor_offset(scratch) atIndex:1];
-            [enc setBuffer:ds4_gpu_tensor_buffer(out)
-                    offset:ds4_gpu_tensor_offset(out) atIndex:2];
-            [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_tokens * n_head, 1, 1)
-                 threadsPerThreadgroup:MTLSizeMake(head_dim, 1, 1)];
+            [enc setBuffer:ds4_gpu_tensor_buffer(query)
+                    offset:ds4_gpu_tensor_offset(query) + stripe_offset
+                   atIndex:1];
+            [enc setBuffer:ds4_gpu_tensor_buffer(k_cache)
+                    offset:ds4_gpu_tensor_offset(k_cache) atIndex:2];
+            [enc setBuffer:ds4_gpu_tensor_buffer(v_cache)
+                    offset:ds4_gpu_tensor_offset(v_cache) atIndex:3];
+            [enc setBuffer:ds4_gpu_tensor_buffer(direct_out ? out : scratch)
+                    offset:direct_out
+                        ? ds4_gpu_tensor_offset(out) + stripe_offset
+                        : ds4_gpu_tensor_offset(scratch)
+                   atIndex:4];
+            const NSUInteger attention_token_groups = use_group2
+                ? ((NSUInteger)stripe_tokens + 1u) / 2u
+                : (NSUInteger)stripe_tokens;
+            [enc dispatchThreadgroups:MTLSizeMake(
+                     attention_token_groups * n_head_kv * args.nwg, 1, 1)
+                 threadsPerThreadgroup:MTLSizeMake(128u, 1, 1)];
             ds4_gpu_end_compute_encoder(cb, enc);
+
+            if (!direct_out) {
+                enc = ds4_gpu_compute_encoder(cb);
+                [enc setComputePipelineState:reduce];
+                [enc setBytes:&args length:sizeof(args) atIndex:0];
+                [enc setBuffer:ds4_gpu_tensor_buffer(scratch)
+                        offset:ds4_gpu_tensor_offset(scratch) atIndex:1];
+                [enc setBuffer:ds4_gpu_tensor_buffer(out)
+                        offset:ds4_gpu_tensor_offset(out) + stripe_offset
+                       atIndex:2];
+                [enc dispatchThreadgroups:MTLSizeMake(
+                         (NSUInteger)stripe_tokens * n_head, 1, 1)
+                     threadsPerThreadgroup:MTLSizeMake(head_dim, 1, 1)];
+                ds4_gpu_end_compute_encoder(cb, enc);
+            }
         }
         if (!had_batch && !ds4_gpu_end_commands()) return 0;
     }

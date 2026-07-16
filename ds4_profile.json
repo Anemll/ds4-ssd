@@ -29,6 +29,7 @@
         "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
         "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
         "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_HY3_PREFILL_CHUNK": "1024",
         "DS4_GPU_DENSE_NAX": "1"
       },
       "_sidecar_comment": "M5 Max 128G streaming (Flash-MoE slot-bank) — applied when --moe-mode slot-bank + --moe-sidecar (g_profile_sidecar_mode). MEASURED 2026-06-02 (slots=96, prompts coding_*, single gen tok): routed-on-ANE beats routed-on-GPU/NAX-int8 across the board (4K +14.8%, 2K chunk +18.7%; shrinks to +3% by 16K chunk as the SSD I/O bubble closes). Single-cluster M5: ANE_DUAL=0 THREADS=1, shared-expert+O-proj ANE off. min_refs 32-64 (NOT 384 — too conservative). Resident path (env+prefill_by_tokens above) stays SINGLE-SEGMENT nax_int8: a crossover (ane_gpu for <8K chunks) is tempting from per-chunk data but the ane* segment forces ANE_HYBRID=1 globally -> 2048 scratch tile -> sync bridge on the 16384 nax_int8 chunk too. MEASURED 2026-06-02 (same 17K-token prompt): crossover '8191:ane_gpu,99999:nax_int8' = 185 t/s vs pure nax_int8 = 494 t/s (-63%). Do NOT multi-segment resident on M5. HYBRID_ANE_MIN_REFS=64 confirmed by the slots=99 sweep (best at 4K/8K/16K).",
@@ -259,6 +260,7 @@
         "DS4_RESIDENT_MOE_MPP_COMPACT_BRIDGE": "1",
         "DS4_RESIDENT_MOE_MPP_FUSED_DEQUANT": "1",
         "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_HY3_PREFILL_CHUNK": "1024",
         "DS4_GPU_DENSE_NAX": "1"
       },
       "_sidecar_comment": "M5 Max 96G streaming — mirrors the 128G sidecar_env (same single-ANE-cluster silicon). Routed-on-ANE streaming config; resident env/prefill_by_tokens stays nax_int8.",
@@ -320,10 +322,13 @@
       ]
     },
     {
-      "_comment": "M5 Max <96G — STREAMING ONLY. The 81G IQ2_XXS model cannot be resident under 96G RAM, so this entry has NO resident env/prefill_by_tokens; only sidecar_env (Flash-MoE slot-bank). Same single-ANE-cluster streaming config as the 128G/96G sidecar_env, validated end-to-end (slots=99: 'applied sidecar tuning profile [Apple M5 Max]' + 'routed experts = ANE i8i8 (W8A8)', no env flags). Slot count is a CLI arg (--moe-slot-bank), pick for your RAM (slots=99 ~ 40G RSS). Catches 48-95G M5 Max; ordered after the >=96G entries so they win for resident-capable machines.",
+      "_comment": "M5 Max <96G — STREAMING ONLY for the 81G IQ2_XXS model. This entry has no generic resident-MoE env/prefill_by_tokens; its sole normal env is the independently qualified HY3-only prefill cap. Flash-MoE uses sidecar_env. Same single-ANE-cluster streaming config as the 128G/96G sidecar_env, validated end-to-end (slots=99: 'applied sidecar tuning profile [Apple M5 Max]' + 'routed experts = ANE i8i8 (W8A8)'). Slot count is a CLI arg (--moe-slot-bank), pick for your RAM (slots=99 ~ 40G RSS). Catches 48-95G M5 Max; ordered after the >=96G entries so they win for resident-capable machines.",
       "match": {
         "chip": "Apple M5 Max",
         "min_ram_gib": 48
+      },
+      "env": {
+        "DS4_HY3_PREFILL_CHUNK": "1024"
       },
       "sidecar_env": {
         "DS4_CTX_GROW": "1",

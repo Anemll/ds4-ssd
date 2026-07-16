@@ -23566,9 +23566,11 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
             char *end = NULL;
             const unsigned long parsed = strtoul(hy3_chunk, &end, 10);
             if (end != hy3_chunk && *end == '\0' && parsed != 0ul) {
-                pc = parsed > 256ul ? 256u : (uint64_t)parsed;
+                pc = ds4_hy3_prefill_cap_normalize(parsed);
             }
         }
+        const uint64_t attn_pc = pc < DS4_HY3_PREFILL_ATTN_STRIPE
+            ? pc : DS4_HY3_PREFILL_ATTN_STRIPE;
         const uint64_t e = DS4_N_EMBD;
         const uint64_t q_dim = (uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM;
         const uint64_t kv_dim = (uint64_t)DS4_N_HEAD_KV * DS4_N_HEAD_DIM;
@@ -23590,7 +23592,7 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
         const uint64_t scratch_f32 =
             8u * pc * e + e +
             3u * pc * q_dim + 3u * pc * kv_dim +
-            pc * DS4_N_HEAD * 32u * (DS4_N_HEAD_DIM + 2u) +
+            attn_pc * DS4_N_HEAD * 32u * (DS4_N_HEAD_DIM + 2u) +
             2u * pc * DS4_N_EXPERT + 2u * pc * active +
             3u * pc * active * expert_ff + pc * active * e +
             3u * pc * expert_ff +

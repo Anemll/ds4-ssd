@@ -227,6 +227,25 @@ int ds4_gpu_hy3_get_rows_q4_k_tensor(
         uint32_t        n_tokens,
         uint32_t        n_cols);
 
+/* HY3 may process a wider layer-major prefill superbatch while preserving the
+ * qualified 256-row attention launch geometry in fixed-size stripes. */
+enum {
+    DS4_HY3_PREFILL_CAP_MAX = 1024u,
+    DS4_HY3_PREFILL_ATTN_STRIPE = 256u,
+};
+
+/* Wide HY3 batches must stay on a qualified 256-row boundary.  Smaller
+ * diagnostic chunks remain available unchanged. */
+static inline uint32_t ds4_hy3_prefill_cap_normalize(uint64_t requested) {
+    if (requested > DS4_HY3_PREFILL_CAP_MAX) {
+        requested = DS4_HY3_PREFILL_CAP_MAX;
+    }
+    if (requested > DS4_HY3_PREFILL_ATTN_STRIPE) {
+        requested -= requested % DS4_HY3_PREFILL_ATTN_STRIPE;
+    }
+    return (uint32_t)requested;
+}
+
 int ds4_gpu_hy3_gqa_attention_tensor(
         ds4_gpu_tensor       *out,
         ds4_gpu_tensor       *scratch,

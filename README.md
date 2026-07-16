@@ -341,10 +341,22 @@ projection is both faster and stable. `DS4_HY3_ENABLE_DENSE_NAX=1` is an
 audit-only override. It is independent of `DS4_HY3_NAX_HALF_ATTN`, which
 selects the F16 NAX attention/KV path by default.
 
-HY3 prompt prefill is layer-major and uses 256-token chunks by default. Set
-`DS4_HY3_PREFILL_CHUNK=32`, `64`, `128`, or `256` to benchmark a fixed chunk
-size; values above 256 are clamped because the attention and selected-expert
-workspaces grow linearly with the chunk. `--quality`,
+HY3 prompt prefill is layer-major. The measured Apple M5 Max profile uses a
+1,024-token outer batch; other machines retain the conservative 256-token
+default until qualified. The wider path stores each outer K/V batch once but
+runs causal attention in fixed 256-row stripes, so attention scratch does not
+grow with the outer batch. It also splits the last work into 256-row multiples
+plus the same short tail used by the baseline. On M5 Max this keeps the full
+top-20 logprob trace byte-identical to cap 256. In an order-balanced M5 Max
+pair, it improved 1k prefill from 115.48 to 145.37 t/s (+25.9%), the 3k suffix
+ending at 4k from 104.93 to 141.98 t/s (+35.3%), and aggregate prefill through
+4k from 107.38 to 142.82 t/s (+33.0%). The 1,024 cap uses about 513 MiB more
+activation workspace than cap 256 in the measured 8k allocation.
+
+Set `DS4_HY3_PREFILL_CHUNK=256` to restore the old memory/performance point, or
+use `32`, `64`, or `128` for diagnostics. Qualified wide values are `512`,
+`768`, and `1024`; larger values clamp to 1,024 and other values above 256
+round down to a 256-row boundary. `--quality`,
 `DS4_HY3_DISABLE_BATCH_PREFILL`, or `DS4_HY3_DISABLE_FLASH_ATTN` disables this
 batched path. Chunks of at least 128 tokens also use a true batched F32 router
 projection; `DS4_HY3_F32_ROUTER_MM_MIN_TOKENS=N` changes that crossover and

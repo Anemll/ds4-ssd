@@ -11,7 +11,6 @@
 #define HY3_Q_DIM ((uint64_t)DS4_N_HEAD * DS4_N_HEAD_DIM)
 #define HY3_KV_DIM ((uint64_t)DS4_N_HEAD_KV * DS4_N_HEAD_DIM)
 #define HY3_PREFILL_CAP_DEFAULT 256u
-#define HY3_PREFILL_CAP_MAX 256u
 #define HY3_MTP_MAX_DRAFT 16u
 
 typedef struct {
@@ -180,8 +179,7 @@ static uint32_t hy3_prefill_cap_requested(void) {
         char *end = NULL;
         const unsigned long parsed = strtoul(env, &end, 10);
         if (end != env && *end == '\0' && parsed != 0ul) {
-            cap = parsed > HY3_PREFILL_CAP_MAX
-                ? HY3_PREFILL_CAP_MAX : (uint32_t)parsed;
+            cap = ds4_hy3_prefill_cap_normalize(parsed);
         }
     }
     return cap;
@@ -352,6 +350,8 @@ static bool hy3_runtime_alloc(ds4_session *s) {
     const uint64_t e = DS4_N_EMBD;
     const uint64_t active = DS4_N_EXPERT_USED;
     const uint64_t pc = s->prefill_cap;
+    const uint64_t attn_pc = pc < DS4_HY3_PREFILL_ATTN_STRIPE
+        ? pc : DS4_HY3_PREFILL_ATTN_STRIPE;
     rt->kv_ctx_pad = ((uint32_t)s->ctx_size + 31u) & ~31u;
     rt->nax_f16_kv = false;
     if (hy3_nax_half_requested()) {
@@ -373,7 +373,8 @@ static bool hy3_runtime_alloc(ds4_session *s) {
     HY3_ALLOC(q_raw, pc * HY3_Q_DIM, float); HY3_ALLOC(q, pc * HY3_Q_DIM, float);
     HY3_ALLOC(k_raw, pc * HY3_KV_DIM, float); HY3_ALLOC(k, pc * HY3_KV_DIM, float);
     HY3_ALLOC(v, pc * HY3_KV_DIM, float); HY3_ALLOC(heads, pc * HY3_Q_DIM, float);
-    HY3_ALLOC(attn_scratch, pc * DS4_N_HEAD * 32u * (DS4_N_HEAD_DIM + 2u), float);
+    HY3_ALLOC(attn_scratch,
+              attn_pc * DS4_N_HEAD * 32u * (DS4_N_HEAD_DIM + 2u), float);
     HY3_ALLOC(attn_out, pc * e, float);
     HY3_ALLOC(router_logits, pc * DS4_N_EXPERT, float);
     HY3_ALLOC(router_probs, pc * DS4_N_EXPERT, float);
@@ -436,8 +437,8 @@ static bool hy3_runtime_alloc(ds4_session *s) {
         ok = rt->layer_k[il] && rt->layer_v[il];
     }
     if (ok) {
-        int32_t zero[HY3_PREFILL_CAP_MAX] = {0};
-        float one[HY3_PREFILL_CAP_MAX];
+        int32_t zero[DS4_HY3_PREFILL_CAP_MAX] = {0};
+        float one[DS4_HY3_PREFILL_CAP_MAX];
         for (uint32_t i = 0; i < s->prefill_cap; ++i) one[i] = 1.0f;
         ok = ds4_gpu_tensor_write(rt->one_selected, 0, zero,
                                   pc * sizeof(zero[0])) &&
@@ -867,7 +868,8 @@ static int hy3_eval_batch_ex(ds4_session *s, const int *tokens, uint32_t n_token
     hy3_runtime *rt = hy3_rt(s);
     ds4_engine *e = s ? s->engine : NULL;
     if (!s || !rt || !e || !tokens || n_tokens < 2u ||
-        n_tokens > s->prefill_cap || n_tokens > HY3_PREFILL_CAP_MAX) return 1;
+        n_tokens > s->prefill_cap ||
+        n_tokens > DS4_HY3_PREFILL_CAP_MAX) return 1;
     if (all_logits && (n_tokens > HY3_MTP_MAX_DRAFT || !row_tops ||
                        !e->mtp_ready)) return 1;
     const ds4_model *m = &e->model;
@@ -1114,10 +1116,19 @@ static int hy3_session_sync(ds4_session *s, const ds4_tokens *prompt,
                                getenv("DS4_HY3_DISABLE_FLASH_ATTN") == NULL;
     for (int i = start; i < prompt->len;) {
         const int remaining = prompt->len - i;
-        const uint32_t n = batch_enabled && remaining >= 2
+        uint32_t n = batch_enabled && remaining >= 2
             ? ((uint32_t)remaining < s->prefill_cap
                    ? (uint32_t)remaining : s->prefill_cap)
             : 1u;
+        /* Preserve the qualified 256-row tail geometry across wider outer
+         * batches.  Without this split, e.g. a 3898-token prompt ends in 314
+         * rows at cap 512 instead of the baseline 256 + 58, changing row-batch
+         * matmul arithmetic even though attention itself is striped. */
+        if (n > DS4_HY3_PREFILL_ATTN_STRIPE &&
+            (uint32_t)remaining <= s->prefill_cap) {
+            const uint32_t tail = n % DS4_HY3_PREFILL_ATTN_STRIPE;
+            if (tail != 0u) n -= tail;
+        }
         const bool need_logits = i + (int)n == prompt->len;
         const int rc = n == 1u
             ? hy3_eval_token_ex(s, prompt->v[i],
