@@ -353,6 +353,15 @@ ending at 4k from 104.93 to 141.98 t/s (+35.3%), and aggregate prefill through
 4k from 107.38 to 142.82 t/s (+33.0%). The 1,024 cap uses about 513 MiB more
 activation workspace than cap 256 in the measured 8k allocation.
 
+For a resident full-GGUF HY3 suffix of at most 17 new tokens, the measured M5
+Max profile instead uses the canonical one-row token-major path. Warm-RAM
+measurements were 26.86 versus 11.23 t/s at two tokens, 29.26 versus 19.42 at
+eight, and 29.13 versus 28.38 at 17; batching wins from 19 tokens onward. Set
+`DS4_HY3_TOKEN_MAJOR_MAX_SYNC=0` to force layer-major batching for every
+multi-token suffix, or change the value when re-qualifying another machine.
+The crossover is chosen once for the whole newly synchronized suffix, so it
+does not change the qualified short-tail geometry of a large prefill.
+
 Set `DS4_HY3_PREFILL_CHUNK=256` to restore the old memory/performance point, or
 use `32`, `64`, or `128` for diagnostics. Qualified wide values are `512`,
 `768`, and `1024`; larger values clamp to 1,024 and other values above 256

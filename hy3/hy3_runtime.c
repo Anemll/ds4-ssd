@@ -185,6 +185,19 @@ static uint32_t hy3_prefill_cap_requested(void) {
     return cap;
 }
 
+/* Full-GGUF HY3 already has persistent lazy Metal views, so a very small
+ * prompt suffix can be cheaper through the canonical one-row decode kernels
+ * than through the layer-major batch setup.  This remains profile-tuned and
+ * off by default on unqualified machines. */
+static uint32_t hy3_token_major_max_sync_requested(void) {
+    const char *env = getenv("DS4_HY3_TOKEN_MAJOR_MAX_SYNC");
+    if (!env || !env[0]) return 0u;
+    char *end = NULL;
+    const unsigned long parsed = strtoul(env, &end, 10);
+    if (end == env || *end != '\0') return 0u;
+    return parsed > 64ul ? 64u : (uint32_t)parsed;
+}
+
 static ds4_mm_hint hy3_q8_matmul_hint(void) {
     /* Keep the precision policy at the call site as well as engine startup:
      * Metal backend selectors are process-global and may already be cached if
@@ -538,6 +551,13 @@ static int hy3_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
                     ? ", HY3 MTP block80 enabled"
                     : ", HY3 MTP block80 loaded but inactive")
                 : "");
+    const uint32_t token_major_max = hy3_token_major_max_sync_requested();
+    if (token_major_max != 0u) {
+        fprintf(stderr,
+                "ds4: HY3 resident small-sync route: token-major at <=%u "
+                "new tokens (override: DS4_HY3_TOKEN_MAJOR_MAX_SYNC)\n",
+                token_major_max);
+    }
     *out = s;
     return 0;
 #endif
@@ -1114,9 +1134,13 @@ static int hy3_session_sync(ds4_session *s, const ds4_tokens *prompt,
     const bool batch_enabled = s->prefill_cap > 1u &&
                                getenv("DS4_HY3_DISABLE_BATCH_PREFILL") == NULL &&
                                getenv("DS4_HY3_DISABLE_FLASH_ATTN") == NULL;
+    const uint32_t sync_tokens = (uint32_t)(prompt->len - start);
+    const uint32_t token_major_max = hy3_token_major_max_sync_requested();
+    const bool token_major_sync = batch_enabled && token_major_max != 0u &&
+                                  sync_tokens <= token_major_max;
     for (int i = start; i < prompt->len;) {
         const int remaining = prompt->len - i;
-        uint32_t n = batch_enabled && remaining >= 2
+        uint32_t n = batch_enabled && !token_major_sync && remaining >= 2
             ? ((uint32_t)remaining < s->prefill_cap
                    ? (uint32_t)remaining : s->prefill_cap)
             : 1u;
