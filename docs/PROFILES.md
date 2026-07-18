@@ -102,3 +102,19 @@ public enough to tune, see [STREAMING_KNOBS.md](STREAMING_KNOBS.md).
 For quality-preserving runs, `--no-int8` disables current int8 dense, NAX,
 Flash-MoE, and ANE accelerator paths after profile defaults are applied.
 `--quality` implies `--no-int8`.
+
+`DS4_FORCE_ANE=1` is the explicit higher-precedence diagnostic escape hatch.
+It enables the machine's ANE profile, clears `DS4_NO_INT8`, forces every
+eligible routed group, including short-prefill groups, to ANE, and enables
+fail-closed ANE validation. In particular it lowers the resume-prefill
+crossover from 32 tokens to 1, so a short tool-result suffix no longer takes
+the yellow token-by-token decode path. It currently requires Metal Flash-MoE
+sidecar mode; both streaming and `--resident` full-slot-bank layouts are
+supported because they share the verified sidecar executor. Full-GGUF resident,
+GLM/HY3, non-Metal, and legacy sidecars without the v2 FP16 per-output-channel
+scale contract are rejected. Force explicitly selects the per-channel FP16-X,
+output-factored ANE graph. Structural
+model/type/shape/backend eligibility is never bypassed. In `ds4-agent`, forced
+runs rebuild the system prompt on ANE and disable conversation KV save/resume;
+`ds4-server` disables its disk KV cache. The legacy cache headers do not prove
+model/sidecar/scale-policy provenance.

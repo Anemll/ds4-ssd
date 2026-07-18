@@ -2847,8 +2847,12 @@ typedef struct {
     uint64_t family_file_bytes[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_plane_data_bytes[DS4_FLASH_FAMILY_COUNT];
     uint64_t family_plane_scale_bytes[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_ane_i8_scale_offset[DS4_FLASH_FAMILY_COUNT];
+    uint64_t family_ane_i8_scale_bytes[DS4_FLASH_FAMILY_COUNT];
+    uint32_t family_ane_i8_scale_count[DS4_FLASH_FAMILY_COUNT];
     uint32_t family_type[DS4_FLASH_FAMILY_COUNT];
     bool family_mxfp4_plane_split[DS4_FLASH_FAMILY_COUNT];
+    bool family_ane_i8_scale_available[DS4_FLASH_FAMILY_COUNT];
     uint64_t expert_stride;
     bool family_major;
     bool present[DS4_FLASH_FAMILY_COUNT];
@@ -18858,6 +18862,18 @@ static bool metal_graph_encode_layer_ffn_batch_ex(
         bool                    skip_shared_gate_up,
         bool                    skip_routed_moe) {
     if (n_tokens == 0 || n_tokens > g->prefill_cap) return false;
+    if (env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") &&
+        !g->flash_moe) {
+        static bool warned_nax_pc_requires_sidecar = false;
+        if (!warned_nax_pc_requires_sidecar) {
+            fprintf(stderr,
+                    "ds4: ERROR: NAX INT8 per-channel REQUIRE needs a v2 "
+                    "Flash-MoE sidecar; full-GGUF resident weights have no "
+                    "per-expert scale tensor\n");
+            warned_nax_pc_requires_sidecar = true;
+        }
+        return false;
+    }
 
     const uint64_t hc_dim = (uint64_t)DS4_N_HC * DS4_N_EMBD;
     const uint64_t mix_hc = 2ull * DS4_N_HC + (uint64_t)DS4_N_HC * DS4_N_HC;
@@ -19425,7 +19441,9 @@ static bool metal_graph_encode_layer_ffn_batch_ex(
 	                                        (uint32_t)routed_out_dim,
 	                                        s_outer_w_scratch,
 	                                        s_outer_x_scratch,
-	                                        hottest_refs);
+	                                        hottest_refs,
+	                                        NULL,
+	                                        0);
 	                                }
 	                                const double ane_wall_ms = (now_sec() * 1000.0) - ane_t0;
 	                                if (ane_job && _pending_ane_count < 256) {
@@ -22196,6 +22214,15 @@ static bool metal_graph_reset_prefill_state(ds4_gpu_graph *g) {
     return true;
 }
 
+static bool metal_graph_flash_moe_ane_per_channel_default(
+        const ds4_gpu_graph *g) {
+    if (!g || !g->flash_moe || DS4_N_DENSE_LEAD >= DS4_N_LAYER) return false;
+    return flash_moe_layer_has_per_channel_scale_contract(
+        &g->flash_moe->layer[DS4_N_DENSE_LEAD],
+        (uint32_t)DS4_N_FF_EXP,
+        (uint32_t)DS4_N_EMBD);
+}
+
 /* Display-only prefill progress: inside a large chunk, KV state is not yet a
  * durable checkpoint boundary, but completed layers give a useful fraction for
  * TUI progress and t/s estimates. */
@@ -22305,7 +22332,9 @@ static bool metal_graph_prefill_layer_major(
                                                     weights->layer[0].ffn_gate_exps ?
                                                         weights->layer[0].ffn_gate_exps->type : 0u,
                                                     weights->layer[0].ffn_down_exps ?
-                                                        weights->layer[0].ffn_down_exps->type : 0u);
+                                                        weights->layer[0].ffn_down_exps->type : 0u,
+                                                    flash_ane_executable &&
+                                                        metal_graph_flash_moe_ane_per_channel_default(g));
         metal_graph_prefill_trace_phase("layer-major", "ANE compile", "end",
                                         0, (uint32_t)n_tokens, prompt->len,
                                         ane_t0);
@@ -22705,6 +22734,7 @@ static void metal_graph_log_prefill_compute_once(
         ds4_gpu_has_native_mxfp4();
     const bool try_ane_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool try_ane =
+        !env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") &&
         !plane_split_prefill &&
         try_ane_requested &&
         flash_moe_ane_prefill_tensor_types_supported(layer);
@@ -22713,8 +22743,12 @@ static void metal_graph_log_prefill_compute_once(
     const bool mpp_w8a8_prefill =
         mxfp4_native_dequant_experiment &&
         flash_moe_mpp_int8_prefill_enabled();
+    const bool nax_int8_per_channel =
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE");
+    const bool mpp_int8_prefill = flash_moe_mpp_int8_prefill_enabled();
     const bool try_mpp =
-        native_plane_prefill || mpp_w8a8_prefill;
+        native_plane_prefill || mpp_w8a8_prefill || mpp_int8_prefill;
     const bool no_int8 = ds4_no_int8_paths_enabled();
     const bool hybrid = try_ane && try_mpp && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     const bool resident_ane_hybrid_env = env_flag_enabled("DS4_RESIDENT_MOE_ANE_HYBRID");
@@ -22771,7 +22805,7 @@ static void metal_graph_log_prefill_compute_once(
         }
     } else if (try_ane) {
         routed = "ANE i8i8 (W8A8)";
-    } else if (try_ane_requested) {
+    } else if (try_ane_requested && !nax_int8_per_channel) {
         char reason[240];
         snprintf(unsupported_routed,
                  sizeof(unsupported_routed),
@@ -22782,6 +22816,10 @@ static void metal_graph_log_prefill_compute_once(
         routed = unsupported_routed;
     } else if (try_mpp && no_int8) {
         routed = "NAX-half (no int8; GPU fallback for unsafe chunks)";
+    } else if (try_mpp && nax_int8_per_channel) {
+        routed = env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") ?
+            "NAX INT8 per-channel (W8A8; strict 64-row padded groups)" :
+            "NAX INT8 per-channel (W8A8; classic GPU partial-tile tails)";
     } else if (try_mpp) {
         routed = "GPU MPP-int8 / NAX (W8A8)";
     } else if (g && g->flash_direct_mmap_bank) {
@@ -22961,7 +22999,9 @@ static bool metal_graph_prefill_chunked_range(
                                                     weights->layer[0].ffn_gate_exps ?
                                                         weights->layer[0].ffn_gate_exps->type : 0u,
                                                     weights->layer[0].ffn_down_exps ?
-                                                        weights->layer[0].ffn_down_exps->type : 0u);
+                                                        weights->layer[0].ffn_down_exps->type : 0u,
+                                                    flash_ane_executable &&
+                                                        metal_graph_flash_moe_ane_per_channel_default(g));
         metal_graph_prefill_trace_phase("chunked", "ANE compile", "end",
                                         start, first_chunk, prompt->len, ane_t0);
         metal_graph_prefill_trace_ane_decision("chunked", "end",
@@ -31913,6 +31953,67 @@ static void ds4_engine_options_apply_sidecar_manifest_defaults(
     }
 }
 
+bool ds4_force_ane_enabled(void) {
+    return env_flag_enabled("DS4_FORCE_ANE");
+}
+
+void ds4_force_ane_apply(const char *program_name) {
+    if (!ds4_force_ane_enabled()) return;
+
+    /* This is deliberately an override, not a profile default.  It is the
+     * single escape hatch for proving ANE execution through policy gates that
+     * normally prefer GPU/NAX or exact/no-int8 paths.  Machine-specific ANE
+     * topology (dual cluster, thread count, batch buckets) remains owned by
+     * the selected profile. */
+    static const struct {
+        const char *name;
+        const char *value;
+    } forced[] = {
+        { "DS4_ANE", "1" },
+        { "DS4_NO_INT8", "0" },
+        { "DS4_FLASH_MOE_ANE_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL_FP16X", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL_FP16X_OUTPUT_FACTORED", "1" },
+        { "DS4_FLASH_MOE_ANE_FORCE_ALL_GROUPS", "1" },
+        { "DS4_FLASH_MOE_ANE_ALL_GROUPS_MIN_TOKENS", "0" },
+        { "DS4_FLASH_MOE_ANE_MIN_REFS", "1" },
+        { "DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS", "1" },
+        { "DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS", "1" },
+        { "DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL", "0" },
+        { "DS4_FLASH_MOE_ANE_REQUIRE", "1" },
+        { "DS4_METAL_RESUME_PREFILL_MIN", "1" },
+        { "DS4_MTP_SIDECAR_BATCH_SLOTBANK_DISABLE", "1" },
+        { "DS4_FLASH_MOE_OVERLAP_PREFILL", "1" },
+        { "DS4_FLASH_MOE_OVERLAP_SCHEDULER", "1" },
+        { "DS4_FLASH_MOE_HYBRID_PREFILL", "0" },
+        { "DS4_FLASH_MOE_MPP_INT8_PREFILL", "0" },
+        { "DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL", "0" },
+        { "DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE", "0" },
+        { "DS4_AGENT_SYSPROMPT_ANE_PREFILL", "1" },
+        { "DS4_RESIDENT_MOE_BACKEND", "ane_gpu" },
+        { "DS4_RESIDENT_MOE_ANE_HYBRID", "1" },
+        { "DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1" },
+        { "DS4_RESIDENT_MOE_ANE_MIN_REFS", "1" },
+    };
+    for (size_t i = 0; i < sizeof(forced) / sizeof(forced[0]); i++) {
+        ds4_setenv_override(forced[i].name, forced[i].value);
+    }
+
+    static bool announced = false;
+    if (!announced) {
+        fprintf(stderr,
+                "%s: DS4_FORCE_ANE=1 active: overriding no-int8/profile/"
+                "system-prompt/scheduler policy; strict ANE REQUIRE will fail "
+                "closed when the model, type, shape, or backend is ineligible\n",
+                program_name && program_name[0] ? program_name : "ds4");
+        announced = true;
+    }
+}
+
 #ifndef DS4_NO_GPU
 static bool ds4_flash_moe_all_routed_mxfp4_plane_split(
         const ds4_flash_moe_sidecar *sidecar) {
@@ -31946,6 +32047,39 @@ static bool ds4_flash_moe_has_iq2_mxfp4_down_plane_split(
         }
     }
     return false;
+}
+
+static bool ds4_flash_moe_force_ane_scale_contract_valid(
+        const ds4_flash_moe_sidecar *sidecar) {
+    if (!sidecar) return false;
+    uint32_t routed_layers = 0;
+    for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
+        const ds4_flash_moe_layer_sidecar *layer = &sidecar->layer[il];
+        const bool present =
+            layer->present[DS4_FLASH_FAMILY_GATE] ||
+            layer->present[DS4_FLASH_FAMILY_UP] ||
+            layer->present[DS4_FLASH_FAMILY_DOWN];
+        if (!present) continue;
+        routed_layers++;
+        uint64_t required_record_end = 0;
+        if (!flash_moe_validate_ane_i8_scale_layer(layer,
+                                                    il,
+                                                    &required_record_end)) {
+            fprintf(stderr,
+                    "ds4: DS4_FORCE_ANE=1 requires the v2 per-output-channel "
+                    "FP16 scale contract on gate/up/down for every expert "
+                    "(failed at routed layer %u)\n",
+                    il);
+            return false;
+        }
+    }
+    if (routed_layers == 0) {
+        fprintf(stderr,
+                "ds4: DS4_FORCE_ANE=1 found no routed sidecar layers with "
+                "ANE INT8 scales\n");
+        return false;
+    }
+    return true;
 }
 #endif
 
@@ -32003,7 +32137,33 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_engine_options_apply_sidecar_manifest_defaults(&resolved, "ds4");
     opt = &resolved;
 
-    if (opt->quality || opt->no_int8) {
+    const bool force_ane = ds4_force_ane_enabled();
+    if (force_ane) {
+#ifdef DS4_NO_GPU
+        fprintf(stderr,
+                "ds4: DS4_FORCE_ANE=1 requires a Metal graph build with a "
+                "Flash-MoE sidecar\n");
+        *out = NULL;
+        return 1;
+#else
+        /* REQUIRE accounting covers the Flash-MoE sidecar executor in both
+         * streaming and --resident full-slot-bank layouts.  A full-GGUF
+         * resident run has no sidecar/slot-bank contract and is rejected by
+         * the checks below rather than being allowed to fall back to GPU. */
+        if (opt->backend != DS4_BACKEND_METAL ||
+            opt->moe_mode != DS4_MOE_MODE_SLOT_BANK ||
+            !opt->moe_sidecar_path || !opt->moe_sidecar_path[0]) {
+            fprintf(stderr,
+                    "ds4: DS4_FORCE_ANE=1 is fail-closed and currently requires "
+                    "Metal Flash-MoE sidecar mode (streaming or --resident "
+                    "slot-bank); refusing a path that can fall back to GPU\n");
+            *out = NULL;
+            return 1;
+        }
+#endif
+        ds4_force_ane_apply("ds4");
+    }
+    if (!force_ane && (opt->quality || opt->no_int8)) {
         ds4_setenv_override("DS4_NO_INT8", "1");
     }
     /* Apply the machine tuning profile before any knob is read (env still wins). */
@@ -32011,7 +32171,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     ds4_profile_load_and_apply();
     ds4_apply_dspark_champion_defaults(opt);
     const double t_profile = now_sec();
-    if (opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled()) {
+    if (!force_ane &&
+        (opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled())) {
         ds4_apply_no_int8_paths();
     }
     ds4_engine *e = xcalloc(1, sizeof(*e));
@@ -32019,7 +32180,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     e->mtp_model.fd = -1;
     e->backend = opt->backend;
     e->quality = opt->quality;
-    e->no_int8 = opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled();
+    e->no_int8 = !force_ane &&
+        (opt->quality || opt->no_int8 || ds4_no_int8_paths_enabled());
     e->mtp_draft_tokens = opt->mtp_draft_tokens > 0 ? opt->mtp_draft_tokens : 1;
     if (e->mtp_draft_tokens > 16) e->mtp_draft_tokens = 16;
     e->mtp_margin = opt->mtp_margin >= 0.0f ? opt->mtp_margin : 3.0f;
@@ -32080,6 +32242,18 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
     }
     vocab_load(&e->vocab, &e->model);
     config_validate_model(&e->model);
+    if (force_ane &&
+        DS4_MODEL_VARIANT != DS4_VARIANT_FLASH &&
+        DS4_MODEL_VARIANT != DS4_VARIANT_PRO) {
+        fprintf(stderr,
+                "ds4: DS4_FORCE_ANE=1 supports DeepSeek4 Flash/Pro streaming "
+                "sidecars only; model variant '%s' has a separate prefill "
+                "runtime without routed ANE REQUIRE accounting\n",
+                g_ds4_shape.name ? g_ds4_shape.name : "unknown");
+        ds4_engine_close(e);
+        *out = NULL;
+        return 1;
+    }
     if (DS4_MODEL_VARIANT == DS4_VARIANT_HY3) {
         /* Machine profiles target the resident/sidecar DS4 model families.
          * HY3 binds selected experts directly from its full GGUF, so allowing
@@ -32144,6 +32318,12 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         !ds4_flash_moe_sidecar_open(&e->flash_moe,
                                     opt->moe_sidecar_path,
                                     e->moe_slot_bank)) {
+        ds4_engine_close(e);
+        *out = NULL;
+        return 1;
+    }
+    if (force_ane &&
+        !ds4_flash_moe_force_ane_scale_contract_valid(e->flash_moe)) {
         ds4_engine_close(e);
         *out = NULL;
         return 1;
@@ -33584,6 +33764,14 @@ int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out) {
     out->logit = s->logits[token];
     out->logprob = isfinite(out->logit) ? (float)((double)out->logit - logsum) : DS4_NEG_INF;
     return 1;
+}
+
+size_t ds4_session_copy_logits(ds4_session *s, float *out, size_t capacity) {
+    if (!s || !s->logits) return 0;
+    if (!out) return (size_t)DS4_N_VOCAB;
+    if (capacity < (size_t)DS4_N_VOCAB) return 0;
+    memcpy(out, s->logits, (size_t)DS4_N_VOCAB * sizeof(out[0]));
+    return (size_t)DS4_N_VOCAB;
 }
 
 static int ds4_session_eval_internal(ds4_session *s, int token, bool probe_mtp,

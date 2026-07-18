@@ -578,6 +578,13 @@ bool ds4_kvstore_open(ds4_kvstore *kc, const char *dir, uint64_t budget_mb,
     kc->log_name = log_name;
     kc->log = log;
     kc->log_ud = log_ud;
+    if (ds4_force_ane_enabled()) {
+        kv_logf(kc, DS4_KVSTORE_LOG_KVCACHE,
+                "%s: KV disk cache disabled under DS4_FORCE_ANE=1 because "
+                "legacy entries do not record ANE/model/scale provenance",
+                kv_log_name(kc));
+        return true;
+    }
     if (!kv_mkdir_p(dir)) {
         kv_logf(kc, DS4_KVSTORE_LOG_DEFAULT,
                 "%s: failed to create KV cache directory %s: %s",
@@ -893,6 +900,13 @@ bool ds4_kvstore_store_live_prefix_text(ds4_kvstore *kc,
                                         const ds4_kvstore_trailer_hooks *hooks,
                                         char *err,
                                         size_t err_len) {
+    if (ds4_force_ane_enabled()) {
+        if (err && err_len) {
+            snprintf(err, err_len,
+                     "persistent KV save disabled under DS4_FORCE_ANE=1");
+        }
+        return false;
+    }
     if (!kc->enabled) return false;
     if (!tokens || store_len < kc->opt.min_tokens) return false;
     const int original_len = tokens->len;
@@ -1153,6 +1167,7 @@ int ds4_kvstore_try_load_text(ds4_kvstore *kc,
                               bool responses_protocol) {
     if (result) memset(result, 0, sizeof(*result));
     if (effective_prompt) effective_prompt->len = 0;
+    if (ds4_force_ane_enabled()) return 0;
     if (!kc->enabled || !prompt_text) return 0;
     const int quant_bits = ds4_engine_routed_quant_bits(engine);
     if (quant_bits != 2 && quant_bits != 4) return 0;

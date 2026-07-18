@@ -692,9 +692,9 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where available; implies --no-int8.\n"
         "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
-        "  --ane                  Enable ANE prefill profile defaults (off by default:\n"
-        "                         the async ANE i8 arm is lower precision and\n"
-        "                         non-reproducible run to run).\n"
+        "  --ane                  Enable ANE prefill profile defaults.\n"
+        "  DS4_FORCE_ANE=1        Force all sidecar prefill (streaming or resident),\n"
+        "                         including short/system prefill, to ANE; fail closed.\n"
         "  --warm-weights         Touch mapped tensor pages before generation.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -6630,6 +6630,8 @@ static bool agent_mkdir_p(const char *path) {
 }
 
 static char *agent_default_cache_dir(void) {
+    const char *override = getenv("DS4_AGENT_CACHE_DIR");
+    if (override && override[0]) return xstrdup(override);
     const char *home = getenv("HOME");
     if (!home || !home[0]) home = ".";
     agent_buf b = {0};
@@ -7072,9 +7074,11 @@ static int agent_worker_sync_tokens(agent_worker *w, const ds4_tokens *tokens,
     return rc;
 }
 
-/* Start a new session at the system/tool prompt.  A fixed sysprompt.kv
- * checkpoint avoids paying this prefill cost repeatedly, but only when the
- * rendered prompt text still matches the file. */
+/* Start a new session at the system/tool prompt.  A fixed checkpoint avoids
+ * paying this prefill cost repeatedly, but only when the rendered prompt text
+ * still matches the file. DS4_FORCE_ANE bypasses KV load/save entirely: the
+ * current header cannot prove model/sidecar/scale-policy provenance, and a
+ * force diagnostic must execute ANE rather than trust an old payload. */
 static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t err_len) {
     ds4_tokens sys = {0};
     agent_worker_build_system_tokens(w, &sys);
@@ -7095,9 +7099,10 @@ static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t e
         return false;
     }
 
+    const bool force_ane = ds4_force_ane_enabled();
     bool loaded = false;
     char load_err[160] = {0};
-    if (w->sysprompt_path) {
+    if (w->sysprompt_path && !force_ane) {
         loaded = agent_kv_load_path(w, w->sysprompt_path, NULL,
                                     text, text_len, &w->transcript,
                                     load_err, sizeof(load_err));
@@ -7105,42 +7110,80 @@ static bool agent_worker_reset_to_sysprompt(agent_worker *w, char *err, size_t e
             agent_trace(w, "sysprompt kv hit file=%s tokens=%d",
                         w->sysprompt_path, w->transcript.len);
         }
+    } else if (force_ane) {
+        agent_trace(w,
+                    "sysprompt kv bypass force_global=1 reason=unverified-provenance");
     }
 
     if (!loaded) {
-        if (w->sysprompt_path)
-            agent_publish_system_status(w, "Updating system prompt cache...");
+        if (w->sysprompt_path) {
+            agent_publish_system_status(
+                w,
+                force_ane ? "Running system prompt on forced ANE..." :
+                            "Updating system prompt cache...");
+        }
         ds4_tokens_free(&w->transcript);
         ds4_tokens_copy(&w->transcript, &sys);
-        /* This checkpoint is persisted to sysprompt.kv and reloaded by every
-         * future session, so its KV must be reproducible.  The async
-         * Flash-MoE ANE prefill arm is non-deterministic run to run (the
-         * ANE/GPU work split depends on queue timing, and the ANE i8 arm uses
-         * static activation scales), so it would freeze one random numeric
-         * draw into the shared bootstrap cache.  Prefill this one checkpoint
-         * on the deterministic GPU arm; ANE prefill is restored for normal
-         * turn prefills.  DS4_AGENT_SYSPROMPT_ANE_PREFILL=1 opts out. */
+        /* This checkpoint is persisted and reloaded by future sessions using
+         * the same bootstrap policy, so its KV must be reproducible. Unless
+         * explicitly requested otherwise, prefill the default checkpoint on
+         * the deterministic GPU arm and restore ANE for normal turn prefills.
+         * Suppress ANE output projection at the same time: routed-ANE policy
+         * normally suppresses it, and merely disabling routed ANE here must
+         * not make output projection become eligible halfway through a run.
+         * DS4_AGENT_SYSPROMPT_ANE_PREFILL=1 opts out for this checkpoint;
+         * DS4_FORCE_ANE=1 is the global, fail-closed override. */
         const char *ane_env = getenv("DS4_FLASH_MOE_ANE_PREFILL");
+        const char *ane_oproj_env = getenv("DS4_FLASH_MOE_ANE_OUTPUT_PROJ");
+        const bool sysprompt_ane = force_ane ||
+            agent_parse_bool_default(
+                getenv("DS4_AGENT_SYSPROMPT_ANE_PREFILL"), false);
         char ane_saved[32] = {0};
+        char ane_oproj_saved[32] = {0};
         bool ane_forced_off = false;
+        bool ane_oproj_forced_off = false;
         if (w->sysprompt_path && ane_env && atoi(ane_env) != 0 &&
-            !agent_parse_bool_default(getenv("DS4_AGENT_SYSPROMPT_ANE_PREFILL"),
-                                      false)) {
+            !sysprompt_ane) {
             snprintf(ane_saved, sizeof(ane_saved), "%s", ane_env);
             agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", "0");
             ane_forced_off = true;
+            if (ane_oproj_env && atoi(ane_oproj_env) != 0) {
+                snprintf(ane_oproj_saved, sizeof(ane_oproj_saved), "%s",
+                         ane_oproj_env);
+                agent_setenv_or_die("DS4_FLASH_MOE_ANE_OUTPUT_PROJ", "0");
+                ane_oproj_forced_off = true;
+            }
+            agent_trace(w,
+                        "sysprompt prefill backend=gpu routed_ane_saved=%s "
+                        "ane_oproj_saved=%s",
+                        ane_saved,
+                        ane_oproj_forced_off ? ane_oproj_saved : "off");
+        } else if (w->sysprompt_path && ane_env && atoi(ane_env) != 0 &&
+                   sysprompt_ane) {
+            agent_trace(w,
+                        "sysprompt prefill backend=ane force_global=%u "
+                        "require=%s cache=%s",
+                        force_ane ? 1u : 0u,
+                        getenv("DS4_FLASH_MOE_ANE_REQUIRE") ?: "0",
+                        w->sysprompt_path);
         }
         if (agent_worker_sync_tokens(w, &w->transcript, true,
                                      "sync system", err, err_len) != 0) {
+            if (ane_oproj_forced_off)
+                agent_setenv_or_die("DS4_FLASH_MOE_ANE_OUTPUT_PROJ",
+                                    ane_oproj_saved);
             if (ane_forced_off)
                 agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", ane_saved);
             free(text);
             ds4_tokens_free(&sys);
             return false;
         }
+        if (ane_oproj_forced_off)
+            agent_setenv_or_die("DS4_FLASH_MOE_ANE_OUTPUT_PROJ",
+                                ane_oproj_saved);
         if (ane_forced_off)
             agent_setenv_or_die("DS4_FLASH_MOE_ANE_PREFILL", ane_saved);
-        if (w->sysprompt_path) {
+        if (w->sysprompt_path && !force_ane) {
             char save_err[160] = {0};
             char ignored_sha[41];
             if (!agent_kv_save_path(w, w->sysprompt_path, &w->transcript,
@@ -7199,6 +7242,7 @@ static bool agent_worker_has_user_session(agent_worker *w) {
 }
 
 static bool agent_worker_needs_save(agent_worker *w) {
+    if (ds4_force_ane_enabled()) return false;
     pthread_mutex_lock(&w->mu);
     bool yes = w->user_activity && w->session_dirty;
     pthread_mutex_unlock(&w->mu);
@@ -7211,6 +7255,12 @@ static bool agent_worker_needs_save(agent_worker *w) {
 static bool agent_worker_save_session_now(agent_worker *w, char sha_out[41],
                                           int *tokens_out,
                                           char *err, size_t err_len) {
+    if (ds4_force_ane_enabled()) {
+        snprintf(err, err_len,
+                 "session save is disabled under DS4_FORCE_ANE=1 because "
+                 "legacy checkpoints do not record ANE/model/scale provenance");
+        return false;
+    }
     if (!agent_worker_has_user_session(w)) {
         snprintf(err, err_len, "nothing to save");
         return false;
@@ -7781,8 +7831,8 @@ static bool agent_worker_show_history(agent_worker *w, int user_turns,
     return true;
 }
 
-/* Print resumable sessions from ~/.ds4/kvcache.  sysprompt.kv is intentionally
- * ignored because it is an implementation cache, not a user session. */
+/* Print resumable sessions from ~/.ds4/kvcache. System-prompt checkpoints are
+ * intentionally ignored because their names are not SHA session names. */
 static void agent_worker_list_sessions(agent_worker *w) {
     DIR *d = opendir(w->cache_dir);
     if (!d) {
@@ -7961,6 +8011,12 @@ static bool agent_worker_switch_session(agent_worker *w, const char *prefix,
                                         agent_switch_announce announce,
                                         bool require_idle,
                                         char *err, size_t err_len) {
+    if (ds4_force_ane_enabled()) {
+        snprintf(err, err_len,
+                 "saved KV resume is disabled under DS4_FORCE_ANE=1 because "
+                 "legacy checkpoints do not prove ANE/model/scale provenance");
+        return false;
+    }
     if (require_idle && !worker_is_idle(w)) {
         snprintf(err, err_len, "model is busy");
         return false;
@@ -14686,7 +14742,14 @@ static int agent_worker_init(agent_worker *w, ds4_engine *engine, agent_config *
         .cancel_privdata = w,
     };
     w->web = ds4_web_create(&web_cfg);
-    w->sysprompt_path = ds4_kvstore_path_join(w->cache_dir, "sysprompt.kv");
+    const bool force_ane_cache = ds4_force_ane_enabled();
+    const bool sysprompt_ane_cache = force_ane_cache ||
+        agent_parse_bool_default(
+            getenv("DS4_AGENT_SYSPROMPT_ANE_PREFILL"), false);
+    w->sysprompt_path = ds4_kvstore_path_join(
+        w->cache_dir,
+        force_ane_cache ? "sysprompt-force-ane-v1.kv" :
+        (sysprompt_ane_cache ? "sysprompt-ane-v1.kv" : "sysprompt.kv"));
     if (cfg->gen.trace_path && cfg->gen.trace_path[0]) {
         w->trace = fopen(cfg->gen.trace_path, "ab");
         if (!w->trace) {

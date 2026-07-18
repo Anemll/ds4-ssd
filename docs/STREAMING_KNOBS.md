@@ -165,6 +165,7 @@ SSD behavior, or quality.
 | `DS4_METAL_GRAPH_RAW_CAP` | none | Auto | Usually unset | Raw KV row cap. Leave unset unless debugging chunk clamps. For true 16K prefill, use auto or at least `16640`; `8704` clamps the effective chunk to `8576`. |
 | `--ctx N` | `-c N`, `--ctx N` | `32768` for CLI/server, `100000` for agent | User-selected | Total context ceiling. Larger contexts reserve or grow more KV memory, so slot-bank choices should leave room for it. |
 | `DS4_NO_INT8` | `--no-int8`; `--quality` implies it | `0` | User opt-in | Disables current int8 dense, NAX, Flash-MoE, and ANE accelerator paths for quality-preserving runs. Streaming remains available, but prefill may fall back to GPU/NAX-half paths and slow down. |
+| `DS4_FORCE_ANE` | none | `0` | Diagnostic user override; higher precedence than `DS4_NO_INT8`, profiles, scheduler thresholds, short-prefill gates, and the agent system-prompt GPU gate | In Metal DeepSeek4 Flash/Pro sidecar mode, streaming and `--resident` full-slot-bank layouts force every routed group onto the per-channel FP16-X/output-factored ANE graph with strict `ANE_REQUIRE`. Every routed layer must carry the v2 FP16 gate/up/down output-channel scale contract. It sets resume-prefill minimum to 1, replacing the yellow token-by-token path for every non-empty suffix. Full-GGUF resident, legacy unscaled sidecars, non-Metal, GLM, and HY3 paths fail instead of silently falling back. Persistent KV caches are disabled because legacy metadata cannot prove ANE provenance. |
 
 ## Sidecar Mode
 

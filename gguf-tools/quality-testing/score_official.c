@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static void die(const char *msg) {
     fprintf(stderr, "%s\n", msg);
@@ -30,6 +31,28 @@ static char *read_file(const char *path) {
     return buf;
 }
 
+static char *resolve_corpus_path(const char *root, const char *path) {
+    if (!root || !root[0] || !path || path[0] == '/') {
+        const size_t n = path ? strlen(path) : 0;
+        char *out = malloc(n + 1);
+        if (!out) die("out of memory");
+        if (n) memcpy(out, path, n);
+        out[n] = '\0';
+        return out;
+    }
+
+    const size_t nr = strlen(root);
+    const size_t np = strlen(path);
+    const bool need_slash = nr > 0 && root[nr - 1] != '/';
+    char *out = malloc(nr + (need_slash ? 1 : 0) + np + 1);
+    if (!out) die("out of memory");
+    memcpy(out, root, nr);
+    size_t off = nr;
+    if (need_slash) out[off++] = '/';
+    memcpy(out + off, path, np + 1);
+    return out;
+}
+
 static void strip_newline(char *s) {
     size_t n = strlen(s);
     while (n && (s[n - 1] == '\n' || s[n - 1] == '\r')) s[--n] = '\0';
@@ -45,6 +68,8 @@ static void usage(const char *prog) {
         "  --quality        Exact kernels; implies --no-int8\n"
         "  --ssd-cache S    SSD cache budget (e.g. 25GB or auto)\n"
         "  --resident       Load a sidecar package as an all-expert resident bank\n"
+        "  --corpus-root D  Resolve relative prompt/continuation paths below D\n"
+        "  --dump-logits-dir D  Write final-prefill full logits as case_ID.f32\n"
         "  --limit N        Score at most N cases (0 = all, default: all)\n"
         "  --first-token-only  Score only the first target token\n"
         "  --moe-slot-bank N  Streaming slots per layer (default 32; resident defaults to 256)\n",
@@ -60,6 +85,8 @@ int main(int argc, char **argv) {
     bool quality = false;
     bool resident = false;
     const char *ssd_cache = NULL;
+    const char *corpus_root = NULL;
+    const char *dump_logits_dir = NULL;
     int moe_slot_bank = 32;
     bool moe_slot_bank_explicit = false;
     int limit = 0;
@@ -84,6 +111,12 @@ int main(int argc, char **argv) {
         } else if (!strcmp(a, "--ssd-cache")) {
             if (i + 1 >= argc) die("--ssd-cache needs a value");
             ssd_cache = argv[++i];
+        } else if (!strcmp(a, "--corpus-root")) {
+            if (i + 1 >= argc) die("--corpus-root needs a value");
+            corpus_root = argv[++i];
+        } else if (!strcmp(a, "--dump-logits-dir")) {
+            if (i + 1 >= argc) die("--dump-logits-dir needs a value");
+            dump_logits_dir = argv[++i];
         } else if (!strcmp(a, "--limit")) {
             if (i + 1 >= argc) die("--limit needs a value");
             limit = atoi(argv[++i]);
@@ -118,6 +151,10 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (ctx_size < 1024) ctx_size = 1024;
+    if (dump_logits_dir && mkdir(dump_logits_dir, 0775) != 0 && errno != EEXIST) {
+        fprintf(stderr, "mkdir %s: %s\n", dump_logits_dir, strerror(errno));
+        return 1;
+    }
 
     ds4_engine_options opt = {
         .model_path = model_path,
@@ -172,8 +209,12 @@ int main(int argc, char **argv) {
         char *cont_path = strtok(NULL, "\t");
         if (!id || !prompt_path || !cont_path) die("bad manifest row");
 
-        char *prompt_text = read_file(prompt_path);
-        char *cont_text = read_file(cont_path);
+        char *resolved_prompt_path = resolve_corpus_path(corpus_root, prompt_path);
+        char *resolved_cont_path = resolve_corpus_path(corpus_root, cont_path);
+        char *prompt_text = read_file(resolved_prompt_path);
+        char *cont_text = read_file(resolved_cont_path);
+        free(resolved_prompt_path);
+        free(resolved_cont_path);
 
         ds4_tokens prompt = {0};
         ds4_tokens target = {0};
@@ -187,6 +228,29 @@ int main(int argc, char **argv) {
         if (ds4_session_sync(session, &prompt, err, sizeof(err)) != 0) {
             fprintf(stderr, "%s sync failed: %s\n", id, err);
             return 1;
+        }
+        if (dump_logits_dir) {
+            const size_t n_logits = ds4_session_copy_logits(session, NULL, 0);
+            float *all_logits = n_logits ? malloc(n_logits * sizeof(all_logits[0])) : NULL;
+            if (!all_logits || ds4_session_copy_logits(session, all_logits, n_logits) != n_logits) {
+                free(all_logits);
+                die("failed to copy full logits");
+            }
+            const size_t path_len = strlen(dump_logits_dir) + strlen(id) + 7;
+            char *logit_path = malloc(path_len);
+            if (!logit_path) die("out of memory");
+            snprintf(logit_path, path_len, "%s/%s.f32", dump_logits_dir, id);
+            FILE *lf = fopen(logit_path, "wb");
+            if (!lf || fwrite(all_logits, sizeof(all_logits[0]), n_logits, lf) != n_logits) {
+                fprintf(stderr, "write %s: %s\n", logit_path, strerror(errno));
+                if (lf) fclose(lf);
+                free(logit_path);
+                free(all_logits);
+                return 1;
+            }
+            fclose(lf);
+            free(logit_path);
+            free(all_logits);
         }
 
         double nll = 0.0;

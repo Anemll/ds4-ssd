@@ -71,6 +71,401 @@ static bool flash_moe_resident_grouped_prefill_enabled(void) {
     return value && value[0] && atoi(value) != 0;
 }
 
+static bool flash_moe_f16_scales_positive_finite(
+        const uint16_t *values,
+        uint64_t        count) {
+    if (!values && count != 0) return false;
+    uint64_t i = 0;
+#if defined(__ARM_NEON)
+    const uint16x8_t sign_mask = vdupq_n_u16(0x8000u);
+    const uint16x8_t abs_mask = vdupq_n_u16(0x7fffu);
+    const uint16x8_t exp_mask = vdupq_n_u16(0x7c00u);
+    const uint16x8_t zero = vdupq_n_u16(0);
+    for (; i + 8u <= count; i += 8u) {
+        const uint16x8_t v = vld1q_u16(values + i);
+        const uint16x8_t sign_bad = vcgtq_u16(vandq_u16(v, sign_mask), zero);
+        const uint16x8_t zero_bad = vceqq_u16(vandq_u16(v, abs_mask), zero);
+        const uint16x8_t finite_bad =
+            vceqq_u16(vandq_u16(v, exp_mask), exp_mask);
+        const uint16x8_t bad = vorrq_u16(sign_bad,
+                                         vorrq_u16(zero_bad, finite_bad));
+        const uint64x2_t bad64 = vreinterpretq_u64_u16(bad);
+        if ((vgetq_lane_u64(bad64, 0) | vgetq_lane_u64(bad64, 1)) != 0) {
+            return false;
+        }
+    }
+#endif
+    for (; i < count; i++) {
+        const uint16_t bits = values[i];
+        if ((bits & 0x8000u) != 0 ||
+            (bits & 0x7fffu) == 0 ||
+            (bits & 0x7c00u) == 0x7c00u) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool flash_moe_per_channel_scales_for_expert(
+        const ds4_flash_moe_layer_sidecar *flash_layer,
+        int32_t                            expert,
+        uint32_t                           expert_mid_dim,
+        uint32_t                           out_dim,
+        const uint8_t                     *resident_record,
+        uint16_t                          *streaming_scratch_f16,
+        uint64_t                           streaming_scratch_count,
+        const uint16_t                   **scales_f16_out,
+        uint32_t                          *scale_count_out,
+        const char                       **reason_out) {
+    if (scales_f16_out) *scales_f16_out = NULL;
+    if (scale_count_out) *scale_count_out = 0;
+    if (reason_out) *reason_out = "unknown";
+    if (!flash_layer || !scales_f16_out || !scale_count_out ||
+        expert < 0 || expert >= (int32_t)DS4_N_EXPERT) {
+        if (reason_out) *reason_out = "bad_args";
+        return false;
+    }
+    if (flash_layer->family_major || flash_layer->expert_stride == 0) {
+        if (reason_out) *reason_out = "invalid_expert_stride";
+        return false;
+    }
+
+    const uint32_t expected_count[DS4_FLASH_FAMILY_COUNT] = {
+        [DS4_FLASH_FAMILY_GATE] = expert_mid_dim,
+        [DS4_FLASH_FAMILY_UP]   = expert_mid_dim,
+        [DS4_FLASH_FAMILY_DOWN] = out_dim,
+    };
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        const uint64_t expected_bytes =
+            (uint64_t)expected_count[fam] * sizeof(uint16_t);
+        if (!flash_layer->family_ane_i8_scale_available[fam]) {
+            if (reason_out) *reason_out = "missing_metadata";
+            return false;
+        }
+        if (flash_layer->family_ane_i8_scale_count[fam] != expected_count[fam]) {
+            if (reason_out) *reason_out = "unexpected_count";
+            return false;
+        }
+        if (flash_layer->family_ane_i8_scale_bytes[fam] != expected_bytes) {
+            if (reason_out) *reason_out = "unexpected_bytes";
+            return false;
+        }
+        const uint64_t offset = flash_layer->family_ane_i8_scale_offset[fam];
+        const uint64_t bytes = flash_layer->family_ane_i8_scale_bytes[fam];
+        if (offset > flash_layer->expert_stride ||
+            bytes > flash_layer->expert_stride - offset) {
+            if (reason_out) *reason_out = "scale_outside_expert_stride";
+            return false;
+        }
+    }
+
+    const uint64_t gate_offset =
+        flash_layer->family_ane_i8_scale_offset[DS4_FLASH_FAMILY_GATE];
+    const uint64_t gate_bytes =
+        flash_layer->family_ane_i8_scale_bytes[DS4_FLASH_FAMILY_GATE];
+    const uint64_t up_offset =
+        flash_layer->family_ane_i8_scale_offset[DS4_FLASH_FAMILY_UP];
+    const uint64_t up_bytes =
+        flash_layer->family_ane_i8_scale_bytes[DS4_FLASH_FAMILY_UP];
+    const uint64_t down_offset =
+        flash_layer->family_ane_i8_scale_offset[DS4_FLASH_FAMILY_DOWN];
+    const uint64_t down_bytes =
+        flash_layer->family_ane_i8_scale_bytes[DS4_FLASH_FAMILY_DOWN];
+    if (gate_offset > UINT64_MAX - gate_bytes ||
+        gate_offset + gate_bytes != up_offset ||
+        up_offset > UINT64_MAX - up_bytes ||
+        up_offset + up_bytes != down_offset ||
+        down_offset > UINT64_MAX - down_bytes) {
+        if (reason_out) *reason_out = "noncontiguous_scale_regions";
+        return false;
+    }
+
+    const uint64_t scale_count64 =
+        (uint64_t)expert_mid_dim * 2u + out_dim;
+    if (scale_count64 == 0 || scale_count64 > UINT32_MAX ||
+        scale_count64 > UINT64_MAX / sizeof(uint16_t)) {
+        if (reason_out) *reason_out = "scale_count_overflow";
+        return false;
+    }
+    const uint64_t scale_bytes64 = scale_count64 * sizeof(uint16_t);
+    const uint64_t down_end = down_offset + down_bytes;
+    if (down_end < gate_offset || down_end - gate_offset != scale_bytes64) {
+        if (reason_out) *reason_out = "unexpected_packed_scale_bytes";
+        return false;
+    }
+    const uint64_t expert_u64 = (uint64_t)expert;
+    if (expert_u64 != 0 &&
+        flash_layer->expert_stride > UINT64_MAX / expert_u64) {
+        if (reason_out) *reason_out = "expert_offset_overflow";
+        return false;
+    }
+    const uint64_t record_offset = expert_u64 * flash_layer->expert_stride;
+    if (record_offset > UINT64_MAX - gate_offset) {
+        if (reason_out) *reason_out = "scale_offset_overflow";
+        return false;
+    }
+    const uint64_t scale_offset = record_offset + gate_offset;
+    if (scale_offset > UINT64_MAX - scale_bytes64) {
+        if (reason_out) *reason_out = "scale_range_overflow";
+        return false;
+    }
+    const uint64_t scale_end = scale_offset + scale_bytes64;
+    if (scale_end > flash_layer->file_size ||
+        (scale_offset & (sizeof(uint16_t) - 1u)) != 0) {
+        if (reason_out) *reason_out = "scale_outside_sidecar_file";
+        return false;
+    }
+
+    const uint8_t *scale_bytes = NULL;
+    if (resident_record) {
+        /* A fully preloaded mixed bank contains the complete v2 expert record,
+         * including its packed [gate I | up I | down H] F16 tail.  The bank is
+         * shared-storage and graph-owned, so this pointer remains valid through
+         * ANE or NAX submission.  The backend still copies the 16-KiB vector
+         * into its per-dispatch FP16 scale tensor; no scale value is baked into
+         * the graph or kernel. */
+        if (gate_offset > (uint64_t)SIZE_MAX) {
+            if (reason_out) *reason_out = "resident_scale_offset_overflow";
+            return false;
+        }
+        scale_bytes = resident_record + (size_t)gate_offset;
+        if (((uintptr_t)scale_bytes & (sizeof(uint16_t) - 1u)) != 0) {
+            if (reason_out) *reason_out = "resident_scale_misaligned";
+            return false;
+        }
+    } else if (flash_layer->map && flash_layer->map_size != 0) {
+        if (scale_end > flash_layer->map_size ||
+            scale_offset > (uint64_t)SIZE_MAX) {
+            if (reason_out) *reason_out = "scale_outside_mapped_file";
+            return false;
+        }
+        /* Preserve the direct-mmap fast path: the immutable sidecar mapping is
+         * already suitably aligned and remains live for the graph lifetime. */
+        scale_bytes = flash_layer->map + (size_t)scale_offset;
+    } else {
+        /* Streaming mode has already read the complete expert record, but the
+         * async slot that owns that record is released as soon as the weights
+         * are uploaded.  Do not retain a pointer into that reusable slot.  The
+         * packed v2 tail is small, so read only [gate I | up I | down H] into a
+         * caller-owned buffer whose lifetime covers both ANE and NAX dispatch. */
+        if (!streaming_scratch_f16 ||
+            streaming_scratch_count < scale_count64) {
+            if (reason_out) *reason_out = "streaming_scale_scratch_too_small";
+            return false;
+        }
+        if (flash_layer->fd < 0 || scale_offset > (uint64_t)INT64_MAX ||
+            scale_bytes64 > (uint64_t)SIZE_MAX) {
+            if (reason_out) *reason_out = "streaming_scale_pread_unavailable";
+            return false;
+        }
+        if (!flash_moe_pread_full(flash_layer->fd,
+                                  scale_offset,
+                                  (uint8_t *)streaming_scratch_f16,
+                                  scale_bytes64)) {
+            if (reason_out) *reason_out = "streaming_scale_pread_failed";
+            return false;
+        }
+        scale_bytes = (const uint8_t *)streaming_scratch_f16;
+    }
+    if (!flash_moe_f16_scales_positive_finite(
+            (const uint16_t *)scale_bytes,
+            scale_count64)) {
+        if (reason_out) *reason_out = "nonpositive_or_nonfinite_scale";
+        return false;
+    }
+
+    *scales_f16_out = (const uint16_t *)scale_bytes;
+    *scale_count_out = (uint32_t)scale_count64;
+    if (reason_out) *reason_out = NULL;
+    return true;
+}
+
+/* A v2 expert-major sidecar advertises one packed F16 dequant scale vector
+ * per expert: [gate I | up I | down H].  Use only the immutable manifest
+ * geometry here; the expert accessor above still validates the mapped range
+ * and every scale value before a group is submitted to ANE or NAX. */
+static bool flash_moe_layer_has_per_channel_scale_contract(
+        const ds4_flash_moe_layer_sidecar *flash_layer,
+        uint32_t                           expert_mid_dim,
+        uint32_t                           out_dim) {
+    if (!flash_layer || flash_layer->family_major ||
+        flash_layer->expert_stride == 0) {
+        return false;
+    }
+    const uint32_t expected_count[DS4_FLASH_FAMILY_COUNT] = {
+        [DS4_FLASH_FAMILY_GATE] = expert_mid_dim,
+        [DS4_FLASH_FAMILY_UP]   = expert_mid_dim,
+        [DS4_FLASH_FAMILY_DOWN] = out_dim,
+    };
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        if (!flash_layer->family_ane_i8_scale_available[fam] ||
+            flash_layer->family_ane_i8_scale_count[fam] != expected_count[fam] ||
+            flash_layer->family_ane_i8_scale_bytes[fam] !=
+                (uint64_t)expected_count[fam] * sizeof(uint16_t)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/* A fully preloaded identity-mapped mixed bank is a storage contract, not a
+ * quantization-mode contract.  Once all 256 records are resident, every
+ * per-expert gather/scatter backend (scalar h-i8, NAX-half, half+ALU, and PC)
+ * must consume zero-copy slot views instead of rereading the same records into
+ * transient banks.  Direct mmap, chunked/per-slot/per-expert layouts, streaming
+ * sidecars, and full-GGUF execution remain on their existing paths. */
+static bool flash_moe_full_resident_identity_bank_ready(
+        ds4_gpu_graph                     *g,
+        const ds4_flash_moe_layer_sidecar *flash_layer,
+        uint32_t                           il) {
+    if (!g || !flash_layer || il >= DS4_N_LAYER ||
+        !flash_moe_preload_slot_bank_enabled() ||
+        !g->flash_mixed_slot_bank || g->flash_chunked_mixed_bank ||
+        g->flash_direct_mmap_bank || g->flash_per_expert_buffers ||
+        g->flash_per_slot_buffers || g->flash_slot_bank != DS4_N_EXPERT ||
+        !g->flash_gate_bank[il] || !g->flash_up_bank[il] ||
+        !g->flash_down_bank[il] ||
+        !metal_graph_flash_moe_sidecar_layer_has_records(flash_layer)) {
+        return false;
+    }
+    for (int32_t expert = 0; expert < (int32_t)DS4_N_EXPERT; expert++) {
+        int32_t slot = -1;
+        if (!metal_graph_flash_moe_find_resident_slot(g, il, expert, &slot) ||
+            slot != expert ||
+            !metal_graph_flash_moe_mixed_slot_ptr(g, il, slot)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool flash_moe_full_resident_scale_bank_ready(
+        bool                               resident_identity_bank_ready,
+        const ds4_flash_moe_layer_sidecar *flash_layer,
+        uint32_t                           expert_mid_dim,
+        uint32_t                           out_dim) {
+    return resident_identity_bank_ready &&
+        flash_moe_layer_has_per_channel_scale_contract(flash_layer,
+                                                       expert_mid_dim,
+                                                       out_dim);
+}
+
+static const char *flash_moe_nax_pc_mode_name(void) {
+    const char *i8_i8 = getenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL");
+    const char *i8_act = getenv("DS4_FLASH_MOE_MPP_INT8_ACT");
+    return ((i8_i8 && i8_i8[0] && atoi(i8_i8) != 0) ||
+            (i8_act && i8_act[0] && atoi(i8_act) != 0)) ?
+        "i8i8-pc" : "h-i8-pc";
+}
+
+static const char *flash_moe_resident_nax_mode_name(void) {
+    if (!flash_moe_mpp_int8_prefill_requested()) return "gpu/no-mpp";
+    if (env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE")) {
+        return flash_moe_nax_pc_mode_name();
+    }
+    if (env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF") ||
+        ds4_no_int8_paths_enabled()) {
+        return env_flag_enabled("DS4_RESIDENT_MOE_NAX_FUSED_GATE_UP") ?
+            "nax-half+alu-configured" : "nax-half";
+    }
+    const char *i8_i8 = getenv("DS4_FLASH_MOE_MPP_I8I8_PREFILL");
+    const char *i8_act = getenv("DS4_FLASH_MOE_MPP_INT8_ACT");
+    return ((i8_i8 && i8_i8[0] && atoi(i8_i8) != 0) ||
+            (i8_act && i8_act[0] && atoi(i8_act) != 0)) ?
+        "i8i8" : "h-i8";
+}
+
+/* Strict NAX quality validation must exercise every logical expert row, even
+ * when a routed group is smaller than the MPP/NAX 64-row M tile.  The graph's
+ * streaming scratch tensors are allocated to prefill_cap rows, so zero-pad the
+ * disjoint tail in-place and, for GPU-compacted routing weights, copy the real
+ * prefix into the full-sized streaming weight scratch.  The caller still
+ * scatters only logical_refs rows; padded rows carry zero x and zero route
+ * weight and are never exposed as model output. */
+static bool flash_moe_prepare_strict_nax_pc_padding(
+        ds4_gpu_graph         *g,
+        const ds4_gpu_tensor *logical_weights,
+        uint32_t              logical_refs,
+        uint32_t              expert_in_dim,
+        uint32_t              expert_mid_dim,
+        uint32_t              out_dim,
+        const ds4_gpu_tensor **dispatch_weights_out,
+        uint32_t             *dispatch_refs_out,
+        const char          **reason_out) {
+    const uint32_t tile = 64u;
+    if (dispatch_weights_out) *dispatch_weights_out = logical_weights;
+    if (dispatch_refs_out) *dispatch_refs_out = logical_refs;
+    if (reason_out) *reason_out = "unknown";
+    if (!g || !logical_weights || !dispatch_weights_out ||
+        !dispatch_refs_out || logical_refs == 0) {
+        if (reason_out) *reason_out = "bad_args";
+        return false;
+    }
+    if ((logical_refs % tile) == 0) {
+        if (reason_out) *reason_out = NULL;
+        return true;
+    }
+    if (logical_refs > UINT32_MAX - (tile - 1u)) {
+        if (reason_out) *reason_out = "padded_ref_overflow";
+        return false;
+    }
+    const uint32_t padded_refs =
+        (logical_refs + (tile - 1u)) & ~(tile - 1u);
+    if (padded_refs > g->prefill_cap ||
+        !g->flash_prefill_x || !g->flash_prefill_gate ||
+        !g->flash_prefill_up || !g->flash_prefill_mid ||
+        !g->flash_prefill_out || !g->flash_prefill_weights ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_x) <
+            (uint64_t)padded_refs * expert_in_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_gate) <
+            (uint64_t)padded_refs * expert_mid_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_up) <
+            (uint64_t)padded_refs * expert_mid_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_mid) <
+            (uint64_t)padded_refs * expert_mid_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_out) <
+            (uint64_t)padded_refs * out_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(g->flash_prefill_weights) <
+            (uint64_t)padded_refs * sizeof(float)) {
+        if (reason_out) *reason_out = "insufficient_streaming_scratch";
+        return false;
+    }
+
+    const uint32_t tail_refs = padded_refs - logical_refs;
+    ds4_gpu_tensor *x_tail = ds4_gpu_tensor_view(
+        g->flash_prefill_x,
+        (uint64_t)logical_refs * expert_in_dim * sizeof(float),
+        (uint64_t)tail_refs * expert_in_dim * sizeof(float));
+    ds4_gpu_tensor *weight_tail = ds4_gpu_tensor_view(
+        g->flash_prefill_weights,
+        (uint64_t)logical_refs * sizeof(float),
+        (uint64_t)tail_refs * sizeof(float));
+    bool ok = x_tail && weight_tail &&
+        ds4_gpu_tensor_fill_f32(x_tail,
+                                0.0f,
+                                (uint64_t)tail_refs * expert_in_dim) != 0 &&
+        ds4_gpu_tensor_fill_f32(weight_tail, 0.0f, tail_refs) != 0;
+    if (ok && logical_weights != g->flash_prefill_weights) {
+        ok = ds4_gpu_tensor_copy(g->flash_prefill_weights,
+                                 0,
+                                 logical_weights,
+                                 0,
+                                 (uint64_t)logical_refs * sizeof(float)) != 0;
+    }
+    ds4_gpu_tensor_free(weight_tail);
+    ds4_gpu_tensor_free(x_tail);
+    if (!ok) {
+        if (reason_out) *reason_out = "padding_or_weight_copy_failed";
+        return false;
+    }
+
+    *dispatch_weights_out = g->flash_prefill_weights;
+    *dispatch_refs_out = padded_refs;
+    if (reason_out) *reason_out = NULL;
+    return true;
+}
+
 /* IQ2_XXS/Q2_K grouped mul_mm_id defaults to 32 rows.  Mirror an explicit
  * override here so the tiled caller never encodes a large prefix and then
  * discovers that its final tile is too small for the GPU kernel. */
@@ -125,6 +520,10 @@ static bool metal_graph_flash_moe_resident_grouped_prefill_eligible(
      * grouped path owns the complete output, so preserve those explicit
      * experiments rather than silently dropping their work split. */
     return !env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL") &&
+           !flash_moe_ane_force_all_groups_enabled() &&
+           !flash_moe_ane_require_enabled() &&
+           !env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") &&
+           !env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") &&
            !env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL") &&
            !env_flag_enabled("DS4_FLASH_MOE_CONCURRENT_PREFILL") &&
            !env_flag_enabled("DS4_FLASH_MOE_ANE_PIPELINE_PREFILL") &&
@@ -145,7 +544,11 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
         uint32_t             expert_in_dim,
         uint32_t             expert_mid_dim,
         uint32_t             out_dim) {
-    if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+    if (flash_moe_ane_force_all_groups_enabled() ||
+        flash_moe_ane_require_enabled() ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") ||
+        !g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
         n_tokens == 0 || n_tokens > 5u ||
         !g->flash_prefill_selected ||
         !g->batch_router_selected ||
@@ -272,7 +675,11 @@ static bool metal_graph_flash_moe_run_resident_batch_slotbank(
         uint32_t             expert_in_dim,
         uint32_t             expert_mid_dim,
         uint32_t             out_dim) {
-    if (!g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
+    if (flash_moe_ane_force_all_groups_enabled() ||
+        flash_moe_ane_require_enabled() ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") ||
+        !g || !g->flash_moe || !layer || il >= DS4_N_LAYER ||
         n_tokens == 0 || n_tokens > 5u ||
         !g->batch_router_selected ||
         !g->batch_router_weights ||
@@ -366,6 +773,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         n_tokens == 0 || n_tokens > g->prefill_cap) {
         return false;
     }
+    const ds4_flash_moe_layer_sidecar *flash_layer =
+        &g->flash_moe->layer[il];
 
     if (metal_graph_flash_moe_resident_grouped_prefill_eligible(g,
                                                                  layer,
@@ -420,12 +829,30 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     for (uint32_t i = 0; i < DS4_N_EXPERT; i++) expert_to_index[i] = -1;
 
     const bool backend_logs = !backend_diagnostic_logs_suppressed();
+    const bool resident_identity_bank_ready =
+        flash_moe_full_resident_identity_bank_ready(g, flash_layer, il);
+    const bool resident_scale_bank_ready =
+        flash_moe_full_resident_scale_bank_ready(resident_identity_bank_ready,
+                                                 flash_layer,
+                                                 expert_mid_dim,
+                                                 out_dim);
     const bool prefill_slot_bank_cache_enabled =
         !g->flash_per_expert_buffers &&
         !g->flash_direct_mmap_bank &&
-        g->flash_slot_bank < DS4_N_EXPERT;
+        (g->flash_slot_bank < DS4_N_EXPERT || resident_identity_bank_ready);
     const bool profile = backend_logs && env_flag_enabled("DS4_FLASH_MOE_PROFILE");
     const bool use_gpu_dedup = getenv("DS4_FLASH_MOE_GPU_DEDUP") == NULL || atoi(getenv("DS4_FLASH_MOE_GPU_DEDUP")) != 0;
+    if (resident_identity_bank_ready && backend_logs) {
+        static bool logged_resident_identity_prefill = false;
+        if (!logged_resident_identity_prefill) {
+            fprintf(stderr,
+                    "ds4: resident sidecar identity prefill active: "
+                    "slots=%u weights=zero-copy-slot-views "
+                    "transient_expert_stage=off\n",
+                    g->flash_slot_bank);
+            logged_resident_identity_prefill = true;
+        }
+    }
 
     const double t0 = profile ? now_sec() : 0.0;
     bool ok = ds4_gpu_end_commands() != 0;
@@ -614,17 +1041,94 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     const bool ane_prefill_requested = env_flag_enabled("DS4_FLASH_MOE_ANE_PREFILL");
     const bool ane_prefill_supported =
         flash_moe_ane_prefill_tensor_types_supported(layer);
+    const bool nax_int8_per_channel_require =
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE");
+    const bool nax_int8_per_channel_requested =
+        nax_int8_per_channel_require ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL");
+    const bool nax_int8_per_channel_profile =
+        env_flag_enabled("DS4_FLASH_MOE_NAX_PC_PROFILE");
     const bool try_ane_prefill =
+        !nax_int8_per_channel_require &&
         !plane_split_prefill && ane_prefill_requested && ane_prefill_supported;
+    if (nax_int8_per_channel_require && ane_prefill_requested) {
+        static bool logged_nax_require_suppresses_ane = false;
+        if (!logged_nax_require_suppresses_ane) {
+            fprintf(stderr,
+                    "ds4: NAX INT8 per-channel REQUIRE suppresses routed ANE "
+                    "prefill so every routed expert group is verified on NAX\n");
+            logged_nax_require_suppresses_ane = true;
+        }
+    }
+    const char *ane_per_channel_env =
+        getenv("DS4_FLASH_MOE_ANE_PER_CHANNEL");
+    const bool ane_per_channel_explicit = ane_per_channel_env != NULL;
+    const bool sidecar_has_per_channel_scales =
+        flash_moe_layer_has_per_channel_scale_contract(
+            flash_layer,
+            expert_mid_dim,
+            out_dim);
+    const bool ane_per_channel_requested =
+        try_ane_prefill &&
+        (ane_per_channel_explicit ? atoi(ane_per_channel_env) != 0 :
+                                    sidecar_has_per_channel_scales);
+    uint16_t *streaming_weight_scales_f16 = NULL;
+    uint64_t streaming_weight_scale_capacity = 0;
+    if ((ane_per_channel_requested || nax_int8_per_channel_requested) &&
+        !resident_scale_bank_ready &&
+        (!flash_layer->map || flash_layer->map_size == 0)) {
+        const uint64_t expected_scale_count =
+            (uint64_t)expert_mid_dim * 2u + out_dim;
+        if (expected_scale_count != 0 &&
+            expected_scale_count <= UINT32_MAX &&
+            expected_scale_count <= SIZE_MAX / sizeof(uint16_t)) {
+            streaming_weight_scales_f16 =
+                xmalloc((size_t)expected_scale_count * sizeof(uint16_t));
+            streaming_weight_scale_capacity = expected_scale_count;
+        }
+    }
+    const bool ane_test_force_all_groups =
+        flash_moe_ane_force_all_groups_enabled();
+    const uint32_t ane_all_groups_min_tokens =
+        flash_moe_ane_all_groups_min_tokens();
+    const bool ane_long_force_all_groups =
+        ane_all_groups_min_tokens != 0 && n_tokens >= ane_all_groups_min_tokens;
+    const bool ane_force_all_groups =
+        ane_test_force_all_groups || ane_long_force_all_groups;
+    const bool ane_require = flash_moe_ane_require_enabled();
+    if (ane_test_force_all_groups || ane_require) {
+        static bool logged_ane_test_policy = false;
+        if (!logged_ane_test_policy) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE test policy force_all_groups=%u require=%u "
+                    "(normal ANE model/type/backend eligibility remains active)\n",
+                    ane_test_force_all_groups ? 1u : 0u,
+                    ane_require ? 1u : 0u);
+            logged_ane_test_policy = true;
+        }
+    }
+    if (ane_long_force_all_groups) {
+        static bool logged_ane_long_policy = false;
+        if (!logged_ane_long_policy) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE long-prefill all-groups active "
+                    "n_tokens=%u min_tokens=%u\n",
+                    n_tokens,
+                    ane_all_groups_min_tokens);
+            logged_ane_long_policy = true;
+        }
+    }
     if (plane_split_prefill && ane_prefill_requested && backend_logs) {
         static bool warned_plane_split_ane_prefill = false;
         if (!warned_plane_split_ane_prefill) {
             fprintf(stderr,
                     "ds4: Flash-MoE ANE prefill disabled for MXFP4_NATIVE "
-                    "plane-split sidecar; using native MXFP4 MPP prefill "
+                    "plane-split sidecar; %s "
                     "(set DS4_MXFP4_NATIVE_DEQUANT_PREFILL_EXPERIMENT=1 to "
                     "try the diagnostic MPP/NAX dequant route; it may change "
-                    "routing/quality)\n");
+                    "routing/quality)\n",
+                    ane_require ? "strict ANE REQUIRE will fail" :
+                                  "using native MXFP4 MPP prefill");
             warned_plane_split_ane_prefill = true;
         }
     }
@@ -634,15 +1138,51 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             char reason[256];
             fprintf(stderr,
                     "ds4: Flash-MoE ANE prefill requested but disabled: %s; "
-                    "actual Flash-MoE ANE eval calls=0, using GPU/MPP fallback\n",
+                    "actual Flash-MoE ANE eval calls=0, %s\n",
                     flash_moe_ane_prefill_unsupported_reason(layer,
                                                              reason,
-                                                             sizeof(reason)));
+                                                             sizeof(reason)),
+                    ane_require ? "strict ANE REQUIRE will fail" :
+                                  "using GPU/MPP fallback");
             warned_unsupported_flash_ane = true;
+        }
+    }
+    if (ane_require && !try_ane_prefill) {
+        char unsupported_reason[256];
+        const char *reason = "routed ANE prefill is unavailable";
+        if (!ane_prefill_requested) {
+            reason = "DS4_FLASH_MOE_ANE_PREFILL is not enabled";
+        } else if (plane_split_prefill) {
+            reason = "MXFP4 plane-split routed prefill is not ANE-eligible";
+        } else if (!ane_prefill_supported) {
+            reason = flash_moe_ane_prefill_unsupported_reason(layer,
+                                                               unsupported_reason,
+                                                               sizeof(unsupported_reason));
+        }
+        fprintf(stderr,
+                "ds4: ERROR: DS4_FLASH_MOE_ANE_REQUIRE=1 cannot be satisfied "
+                "at layer %u: %s\n",
+                il,
+                reason);
+        ok = false;
+    } else if (ane_force_all_groups && !try_ane_prefill) {
+        static bool warned_force_unavailable = false;
+        if (!warned_force_unavailable) {
+            fprintf(stderr,
+                    "ds4: DS4_FLASH_MOE_ANE_FORCE_ALL_GROUPS ignored because "
+                    "routed ANE prefill is not eligible\n");
+            warned_force_unavailable = true;
         }
     }
     const bool try_mpp_int8_prefill =
         native_plane_prefill || flash_moe_mpp_int8_prefill_enabled();
+    if (nax_int8_per_channel_require && !try_mpp_int8_prefill) {
+        fprintf(stderr,
+                "ds4: ERROR: required NAX INT8 per-channel prefill is not "
+                "available at layer %u (MPP/NAX device gate rejected it)\n",
+                il);
+        ok = false;
+    }
     const bool hybrid_prefill =
         try_ane_prefill && try_mpp_int8_prefill && env_flag_enabled("DS4_FLASH_MOE_HYBRID_PREFILL");
     /* Relaxed for ANE-only async exploration. */
@@ -665,6 +1205,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
          env_flag_enabled("DS4_FLASH_MOE_SCHED_DEBUG"));
     uint64_t hybrid_ane_refs = 0;
     uint64_t hybrid_gpu_refs = 0;
+    uint64_t required_ane_expected_refs =
+        (ane_require && ane_force_all_groups) ? n_pairs : 0;
+    uint64_t required_ane_completed_refs = 0;
     uint64_t planned_ane_refs = 0;
     uint64_t planned_gpu_refs = 0;
     uint32_t planned_ane_groups = 0;
@@ -675,6 +1218,14 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     uint32_t hybrid_ane_groups = 0;
     uint32_t hybrid_gpu_groups = 0;
     uint32_t hybrid_fp32_groups = 0;
+    uint32_t resident_mpp_groups = 0;
+    uint64_t resident_mpp_refs = 0;
+    uint64_t resident_mpp_dispatch_refs = 0;
+    uint32_t resident_mpp_padded_groups = 0;
+    uint64_t resident_mpp_tail_zero_bytes = 0;
+    uint32_t required_ane_expected_groups =
+        (ane_require && ane_force_all_groups) ? n_unique : 0;
+    uint32_t required_ane_completed_groups = 0;
     uint32_t concurrent_ane_groups = 0;
     uint32_t concurrent_gpu_overlap_groups = 0;
     uint32_t concurrent_finishes = 0;
@@ -692,6 +1243,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                   offsets,
                                                   slot_cache_expert,
                                                   hybrid_ane_min_refs,
+                                                  ane_force_all_groups,
                                                   &planned_gpu_cost,
                                                   &planned_ane_cost,
                                                   &planned_ane_groups,
@@ -709,7 +1261,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     const uint32_t exec_n = plan ? plan_n : n_unique;
     const double t_execute0 = scheduler_stats ? now_sec() : 0.0;
     const bool async_pread_enabled =
-        prefill_slot_bank_cache_enabled &&
+        prefill_slot_bank_cache_enabled && !resident_identity_bank_ready &&
         env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD");
     const bool async_pread_after_stage =
         async_pread_enabled && env_flag_enabled("DS4_FLASH_MOE_ASYNC_PREAD_AFTER_STAGE");
@@ -852,6 +1404,10 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             job_var = NULL; \
             if (ok && pending_ok) { \
                 concurrent_finishes++; \
+                if (ane_require) { \
+                    required_ane_completed_groups++; \
+                    required_ane_completed_refs += refs_var; \
+                } \
                 if (!commands_open) { \
                     ok = ds4_gpu_begin_commands() != 0; \
                     commands_open = ok; \
@@ -993,6 +1549,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         ds4_gpu_tensor *slot_gate_view = NULL;
         ds4_gpu_tensor *slot_up_view = NULL;
         ds4_gpu_tensor *slot_down_view = NULL;
+        int32_t resident_slot = -1;
+        const uint8_t *resident_scale_record = NULL;
 
         ds4_gpu_tensor *gate_b = NULL;
         ds4_gpu_tensor *up_b = NULL;
@@ -1023,7 +1581,20 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         const bool valid_expert = expert >= 0 && expert < (int32_t)DS4_N_EXPERT;
         const bool use_slot_cache =
             prefill_slot_bank_cache_enabled &&
-            valid_expert && metal_graph_flash_moe_find_resident_slot(g, il, expert, NULL);
+            valid_expert &&
+            metal_graph_flash_moe_find_resident_slot(g,
+                                                     il,
+                                                     expert,
+                                                     &resident_slot);
+        if (resident_identity_bank_ready && !use_slot_cache) {
+            fprintf(stderr,
+                    "ds4: ERROR: resident sidecar identity slot "
+                    "lost layer=%u expert=%d; refusing transient-stage fallback\n",
+                    il,
+                    expert);
+            ok = false;
+            break;
+        }
         const bool wants_slot_prefetch =
             prefill_slot_bank_cache_enabled &&
             valid_expert && slot_cache_expert[expert] && !use_slot_cache;
@@ -1053,19 +1624,22 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             weights_for_refs = weight_view;
 
             if (use_slot_cache) {
-                int32_t slot = -1;
                 const uint64_t slot_hits_before = g->flash_hits;
                 const uint64_t slot_misses_before = g->flash_misses;
                 ok = token_view && weight_view &&
-                     metal_graph_flash_moe_install(g, il, expert, NULL, &slot);
+                     metal_graph_flash_moe_install(g,
+                                                   il,
+                                                   expert,
+                                                   NULL,
+                                                   &resident_slot);
                 if (ok) {
                     metal_graph_flash_moe_record_prefill_slot_cache(g,
                                                                      refs,
                                                                      slot_hits_before,
                                                                      slot_misses_before);
-                    slot_gate_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_GATE, slot);
-                    slot_up_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_UP, slot);
-                    slot_down_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_DOWN, slot);
+                    slot_gate_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_GATE, resident_slot);
+                    slot_up_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_UP, resident_slot);
+                    slot_down_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_DOWN, resident_slot);
                     ok = slot_gate_view && slot_up_view && slot_down_view;
                     gate_b = slot_gate_view;
                     up_b = slot_up_view;
@@ -1108,18 +1682,21 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             }
         } else {
             if (use_slot_cache) {
-                int32_t slot = -1;
                 const uint64_t slot_hits_before = g->flash_hits;
                 const uint64_t slot_misses_before = g->flash_misses;
-                ok = metal_graph_flash_moe_install(g, il, expert, NULL, &slot);
+                ok = metal_graph_flash_moe_install(g,
+                                                   il,
+                                                   expert,
+                                                   NULL,
+                                                   &resident_slot);
                 if (ok) {
                     metal_graph_flash_moe_record_prefill_slot_cache(g,
                                                                      refs,
                                                                      slot_hits_before,
                                                                      slot_misses_before);
-                    slot_gate_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_GATE, slot);
-                    slot_up_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_UP, slot);
-                    slot_down_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_DOWN, slot);
+                    slot_gate_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_GATE, resident_slot);
+                    slot_up_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_UP, resident_slot);
+                    slot_down_view = metal_graph_flash_moe_family_slot_view(g, il, DS4_FLASH_FAMILY_DOWN, resident_slot);
                     ok = slot_gate_view && slot_up_view && slot_down_view;
                     gate_b = slot_gate_view;
                     up_b = slot_up_view;
@@ -1159,6 +1736,15 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 }
                 if (ok && !already_staged) staged_prefill_expert[bank_set] = expert;
             }
+            /* CPU dedup reuses one shared token/weight scratch for every
+             * expert.  The previous expert's SwiGLU and scatter still read
+             * those buffers until its command batch completes, so drain it
+             * before overwriting the next expert's rows.  GPU dedup uses
+             * immutable per-expert views and keeps the overlap fast path. */
+            if (ok && commands_open) {
+                ok = ds4_gpu_end_commands() != 0;
+                commands_open = false;
+            }
             ok = ok &&
                  ds4_gpu_tensor_write(g->flash_prefill_tokens, 0,
                                       ref_tokens + begin,
@@ -1179,6 +1765,26 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
             ds4_gpu_tensor_free(weight_view);
             ds4_gpu_tensor_free(token_view);
             break;
+        }
+        if (resident_scale_bank_ready && use_slot_cache &&
+            (ane_per_channel_requested || nax_int8_per_channel_requested)) {
+            resident_scale_record =
+                metal_graph_flash_moe_mixed_slot_ptr(g, il, resident_slot);
+            if (!resident_scale_record) {
+                fprintf(stderr,
+                        "ds4: ERROR: resident per-channel expert record "
+                        "unavailable layer=%u expert=%d slot=%d\n",
+                        il,
+                        expert,
+                        resident_slot);
+                ok = false;
+                ds4_gpu_tensor_free(slot_down_view);
+                ds4_gpu_tensor_free(slot_up_view);
+                ds4_gpu_tensor_free(slot_gate_view);
+                ds4_gpu_tensor_free(weight_view);
+                ds4_gpu_tensor_free(token_view);
+                break;
+            }
         }
         if (ok && wants_slot_prefetch && slot_prefetch_src) {
             if (commands_open) {
@@ -1256,9 +1862,120 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         commands_open = true;
 
         bool mid_is_f16 = false;
+        bool force_group_can_chunk = false;
+        if (ane_force_all_groups) {
+            prefill_ane_chunk_refs_for_group(refs, NULL, &force_group_can_chunk);
+        }
         const bool try_ane_for_group = try_ane_prefill &&
-            (!split_prefill || refs >= hybrid_ane_min_refs) &&
-            (!overlap_scheduler || planned_lane == DS4_PREFILL_LANE_ANE);
+            (ane_force_all_groups ?
+                force_group_can_chunk :
+                ((!split_prefill || refs >= hybrid_ane_min_refs) &&
+                 (!overlap_scheduler || planned_lane == DS4_PREFILL_LANE_ANE)));
+        const bool ane_weight_scales_needed =
+            ane_per_channel_requested && try_ane_for_group;
+        const bool nax_weight_scales_needed =
+            nax_int8_per_channel_requested && try_mpp_int8_prefill;
+        const uint16_t *expert_weight_scales_f16 = NULL;
+        uint32_t expert_weight_scale_count = 0;
+        if (ane_weight_scales_needed || nax_weight_scales_needed) {
+            const char *scale_reason = NULL;
+            const bool scale_ok =
+                flash_moe_per_channel_scales_for_expert(
+                    flash_layer,
+                    expert,
+                    expert_mid_dim,
+                    out_dim,
+                    resident_scale_record,
+                    streaming_weight_scales_f16,
+                    streaming_weight_scale_capacity,
+                    &expert_weight_scales_f16,
+                    &expert_weight_scale_count,
+                    &scale_reason);
+            if (!scale_ok) {
+                static bool warned_ane_per_channel_fallback = false;
+                if (ane_weight_scales_needed &&
+                    (ane_require || !warned_ane_per_channel_fallback)) {
+                    fprintf(stderr,
+                            "ds4: %s: ANE per-channel scales unavailable "
+                            "layer=%u expert=%d reason=%s%s\n",
+                            ane_require ? "ERROR" : "warning",
+                            il,
+                            expert,
+                            scale_reason ? scale_reason : "unknown",
+                            ane_require ? "" : "; using scalar ANE weight scale");
+                    warned_ane_per_channel_fallback = true;
+                }
+                static bool warned_nax_per_channel_fallback = false;
+                if (nax_weight_scales_needed &&
+                    (nax_int8_per_channel_require ||
+                     !warned_nax_per_channel_fallback)) {
+                    fprintf(stderr,
+                            "ds4: %s: NAX INT8 per-channel scales unavailable "
+                            "layer=%u expert=%d reason=%s%s\n",
+                            nax_int8_per_channel_require ? "ERROR" : "warning",
+                            il,
+                            expert,
+                            scale_reason ? scale_reason : "unknown",
+                            nax_int8_per_channel_require ? "" :
+                                "; using scalar NAX INT8 weight scale");
+                    warned_nax_per_channel_fallback = true;
+                }
+                if ((ane_weight_scales_needed && ane_require) ||
+                    (nax_weight_scales_needed &&
+                     nax_int8_per_channel_require)) {
+                    ok = false;
+                }
+            } else {
+                static bool logged_per_channel_scales = false;
+                if (ane_weight_scales_needed &&
+                    !logged_per_channel_scales && backend_logs) {
+                    fprintf(stderr,
+                            "ds4: Flash-MoE ANE per-channel scales active: "
+                            "packed gate/up/down count=%u (%u/%u/%u)\n",
+                            expert_weight_scale_count,
+                            expert_mid_dim,
+                            expert_mid_dim,
+                            out_dim);
+                    logged_per_channel_scales = true;
+                }
+                static bool logged_resident_ane_scale_source = false;
+                if (ane_weight_scales_needed && resident_scale_record &&
+                    !logged_resident_ane_scale_source && backend_logs) {
+                    fprintf(stderr,
+                            "ds4: resident sidecar ANE per-channel scale source: "
+                            "weights=preloaded-identity-bank "
+                            "scales=F16-resident-record scale_count=%u "
+                            "transient_expert_stage=off scale_upload=per-expert\n",
+                            expert_weight_scale_count);
+                    logged_resident_ane_scale_source = true;
+                }
+            }
+        }
+        const uint16_t *ane_weight_scales_f16 =
+            ane_weight_scales_needed ? expert_weight_scales_f16 : NULL;
+        const uint32_t ane_weight_scale_count =
+            ane_weight_scales_f16 ? expert_weight_scale_count : 0;
+        const uint16_t *nax_weight_scales_f16 =
+            nax_weight_scales_needed ? expert_weight_scales_f16 : NULL;
+        const uint32_t nax_weight_scale_count =
+            nax_weight_scales_f16 ? expert_weight_scale_count : 0;
+        const bool ane_required_for_group =
+            ane_require && (ane_force_all_groups || try_ane_for_group);
+        if (ane_required_for_group && !ane_force_all_groups) {
+            required_ane_expected_groups++;
+            required_ane_expected_refs += refs;
+        }
+        if (ane_required_for_group && !try_ane_for_group) {
+            fprintf(stderr,
+                    "ds4: ERROR: required ANE prefill group is not executable "
+                    "layer=%u expert=%d refs=%u chunkable=%u lane=%s\n",
+                    il,
+                    expert,
+                    refs,
+                    force_group_can_chunk ? 1u : 0u,
+                    planned_lane == DS4_PREFILL_LANE_ANE ? "ane" : "gpu");
+            ok = false;
+        }
         const bool try_mpp_for_group = try_mpp_int8_prefill &&
             (!overlap_scheduler || planned_lane == DS4_PREFILL_LANE_GPU);
         const bool try_pipelined_ane_for_group =
@@ -1266,11 +1983,13 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         const bool try_concurrent_ane_for_group =
             !try_pipelined_ane_for_group &&
             concurrent_prefill && gpu_compacted && try_ane_for_group;
-        ok = ds4_gpu_gather_rows_f32_tensor(g->flash_prefill_x,
-                                            g->batch_ffn_norm,
-                                            tokens_for_refs,
-                                            refs,
-                                            DS4_N_EMBD) != 0;
+        if (ok) {
+            ok = ds4_gpu_gather_rows_f32_tensor(g->flash_prefill_x,
+                                                g->batch_ffn_norm,
+                                                tokens_for_refs,
+                                                refs,
+                                                DS4_N_EMBD) != 0;
+        }
         if (!ok && getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] flashmoe FAIL gather_rows il=%u exec_i=%u expert=%d refs=%u tok_for_refs=%d\n", il, exec_i, expert, refs, tokens_for_refs!=NULL);
         bool deferred_ane = false;
         if (ok) {
@@ -1306,7 +2025,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                                 out_dim,
                                                                                 weights_for_refs,
                                                                                 g->flash_prefill_x,
-                                                                                refs);
+                                                                                refs,
+                                                                                ane_weight_scales_f16,
+                                                                                ane_weight_scale_count);
                     if (active_ane_job) {
                         active_ane_tokens = tokens_for_refs;
                         token_view = NULL;
@@ -1333,7 +2054,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 }
             } else if (try_concurrent_ane_for_group) {
                 if (active_ane_job &&
-                    concurrent_gpu_groups_since_ane >= concurrent_min_gpu_groups) {
+                    (ane_force_all_groups ||
+                     concurrent_gpu_groups_since_ane >= concurrent_min_gpu_groups)) {
                     DS4_FINISH_ANE_SLOT(active_ane_job, active_ane_tokens, active_ane_refs);
                 }
                 if (ok && !active_ane_job) {
@@ -1353,7 +2075,9 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                                 out_dim,
                                                                                 weights_for_refs,
                                                                                 g->flash_prefill_x,
-                                                                                refs);
+                                                                                refs,
+                                                                                ane_weight_scales_f16,
+                                                                                ane_weight_scale_count);
                     if (active_ane_job) {
                         active_ane_tokens = tokens_for_refs;
                         token_view = NULL;
@@ -1396,15 +2120,69 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                            DS4_SWIGLU_CLAMP_EXP,
                                                                            g->flash_prefill_x,
                                                                            refs,
+                                                                           ane_weight_scales_f16,
+                                                                           ane_weight_scale_count,
                                                                            &mid_is_f16) != 0;
                 used_ane = ane_ok;
+                if (ane_ok && ane_required_for_group) {
+                    required_ane_completed_groups++;
+                    required_ane_completed_refs += refs;
+                }
                 if (ane_debug) {
                     fprintf(stderr,
                             "ds4: ANE prefill %s layer=%u expert=%d refs=%u\n",
                             ane_ok ? "ok" : "failed", il, expert, refs);
                 }
             }
-            if (!deferred_ane && !ane_ok && (try_mpp_for_group || try_mpp_int8_prefill)) {
+            if (!deferred_ane && !ane_ok && ane_required_for_group) {
+                fprintf(stderr,
+                        "ds4: ERROR: required ANE prefill dispatch failed; "
+                        "GPU/MPP fallback disabled layer=%u expert=%d refs=%u attempted=%u\n",
+                        il,
+                        expert,
+                        refs,
+                        attempted_ane ? 1u : 0u);
+                ok = false;
+            }
+            if (ok && !deferred_ane && !ane_ok &&
+                (try_mpp_for_group || try_mpp_int8_prefill)) {
+                const ds4_gpu_tensor *nax_dispatch_weights = weights_for_refs;
+                uint32_t nax_dispatch_refs = refs;
+                if (nax_int8_per_channel_require) {
+                    const char *padding_reason = NULL;
+                    if (!flash_moe_prepare_strict_nax_pc_padding(
+                            g,
+                            weights_for_refs,
+                            refs,
+                            expert_in_dim,
+                            expert_mid_dim,
+                            out_dim,
+                            &nax_dispatch_weights,
+                            &nax_dispatch_refs,
+                            &padding_reason)) {
+                        fprintf(stderr,
+                                "ds4: ERROR: strict NAX INT8 per-channel "
+                                "padding failed layer=%u expert=%d refs=%u "
+                                "reason=%s\n",
+                                il,
+                                expert,
+                                refs,
+                                padding_reason ? padding_reason : "unknown");
+                        ok = false;
+                    } else if (nax_dispatch_refs != refs) {
+                        static bool logged_nax_pc_padding = false;
+                        if (!logged_nax_pc_padding) {
+                            fprintf(stderr,
+                                    "ds4: strict NAX INT8 per-channel M-tile "
+                                    "padding active: logical_refs=%u "
+                                    "dispatch_refs=%u tile=64\n",
+                                    refs,
+                                    nax_dispatch_refs);
+                            logged_nax_pc_padding = true;
+                        }
+                    }
+                }
+                if (ok) {
                 ane_ok = flash_moe_run_mpp_int8_safe_tensor(g->flash_prefill_out,
                                                             g->flash_prefill_gate,
                                                             g->flash_prefill_up,
@@ -1422,14 +2200,59 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                             expert_mid_dim,
                                                             out_dim,
                                                             g->flash_prefill_selected,
-                                                            weights_for_refs,
+                                                            nax_dispatch_weights,
                                                             DS4_SWIGLU_CLAMP_EXP,
                                                             g->flash_prefill_x,
-                                                            refs,
+                                                            nax_dispatch_refs,
+                                                            nax_weight_scales_f16,
+                                                            nax_weight_scale_count,
                                                             &mid_is_f16) != 0;
+                }
                 used_mpp = ane_ok;
+                if (used_mpp && resident_identity_bank_ready) {
+                    resident_mpp_groups++;
+                    resident_mpp_refs += refs;
+                    if (resident_scale_bank_ready &&
+                        nax_int8_per_channel_requested) {
+                        resident_mpp_dispatch_refs += nax_dispatch_refs;
+                        if (nax_dispatch_refs > refs) {
+                            const uint64_t tail_refs =
+                                (uint64_t)nax_dispatch_refs - refs;
+                            resident_mpp_padded_groups++;
+                            resident_mpp_tail_zero_bytes +=
+                                tail_refs *
+                                ((uint64_t)expert_in_dim * sizeof(float) +
+                                 sizeof(float));
+                        }
+                    }
+                }
+                if (used_mpp && resident_scale_bank_ready &&
+                    resident_scale_record && nax_weight_scales_f16) {
+                    static bool logged_resident_nax_pc = false;
+                    if (!logged_resident_nax_pc) {
+                        fprintf(stderr,
+                                "ds4: resident sidecar NAX INT8 per-channel active: "
+                                "mode=%s weights=preloaded-identity-bank "
+                                "scales=F16-resident-record scale_count=%u "
+                                "transient_expert_stage=off "
+                                "scale_upload=per-expert\n",
+                                flash_moe_nax_pc_mode_name(),
+                                nax_weight_scale_count);
+                        logged_resident_nax_pc = true;
+                    }
+                }
+                if (!ane_ok && nax_int8_per_channel_require) {
+                    fprintf(stderr,
+                            "ds4: ERROR: required NAX INT8 per-channel dispatch "
+                            "failed; classic GPU fallback disabled "
+                            "layer=%u expert=%d refs=%u\n",
+                            il,
+                            expert,
+                            refs);
+                    ok = false;
+                }
             }
-            if (!deferred_ane && !ane_ok) {
+            if (ok && !deferred_ane && !ane_ok) {
                 if (attempted_ane && env_flag_enabled("DS4_FLASH_MOE_ANE_DEBUG")) {
                     fprintf(stderr, "ds4: ANE prefill falling back to fp32 GPU layer=%u expert=%d refs=%u\n",
                             il, expert, refs);
@@ -1600,6 +2423,25 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     while (ready_ane_count != 0) {
         DS4_FINISH_READY_ANE_HEAD();
     }
+    if (ane_require && try_ane_prefill) {
+        const bool require_verified =
+            ok &&
+            required_ane_expected_groups != 0 &&
+            required_ane_expected_refs != 0 &&
+            required_ane_completed_groups == required_ane_expected_groups &&
+            required_ane_completed_refs == required_ane_expected_refs;
+        fprintf(stderr,
+                "ds4: %sANE REQUIRE layer=%u expected_groups=%u completed_groups=%u "
+                "expected_refs=%" PRIu64 " completed_refs=%" PRIu64 " status=%s\n",
+                require_verified ? "" : "ERROR: ",
+                il,
+                required_ane_expected_groups,
+                required_ane_completed_groups,
+                required_ane_expected_refs,
+                required_ane_completed_refs,
+                require_verified ? "verified" : "failed");
+        if (!require_verified) ok = false;
+    }
 #undef DS4_WAIT_ACTIVE_ANE_PREDICT
 #undef DS4_QUEUE_READY_ANE
 #undef DS4_FINISH_READY_ANE_HEAD
@@ -1624,6 +2466,42 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 (t_done - t_plan) * 1000.0,
                 (uint32_t)(g->flash_misses - miss_before));
     }
+    if (ok && resident_identity_bank_ready && backend_logs &&
+        (profile || env_flag_enabled("DS4_FLASH_MOE_SCHED_STATS") ||
+         env_flag_enabled("DS4_FLASH_MOE_KERNEL_LOG") ||
+         env_flag_enabled("DS4_RESIDENT_MOE_KERNEL_LOG"))) {
+        fprintf(stderr,
+                "ds4: resident sidecar prefill layer=%u mode=%s "
+                "resident_groups=%u resident_refs=%" PRIu64 " "
+                "mpp_groups=%u mpp_logical_refs=%" PRIu64 " "
+                "slot_installs=%" PRIu64 " "
+                "transient_stage_calls=0 transient_stage_bytes=0\n",
+                il,
+                flash_moe_resident_nax_mode_name(),
+                n_unique,
+                n_pairs,
+                resident_mpp_groups,
+                resident_mpp_refs,
+                g->flash_misses - miss_before);
+    }
+    if (nax_int8_per_channel_profile &&
+        nax_int8_per_channel_requested && resident_identity_bank_ready) {
+        const double dispatch_util = resident_mpp_dispatch_refs ?
+            100.0 * (double)resident_mpp_refs /
+                (double)resident_mpp_dispatch_refs : 0.0;
+        fprintf(stderr,
+                "ds4: NAX PC resident profile layer=%u logical_refs=%" PRIu64
+                " dispatch_refs=%" PRIu64 " dispatch_util=%.2f%% "
+                "mpp_groups=%u padded_groups=%u tail_zero_bytes=%" PRIu64
+                "\n",
+                il,
+                resident_mpp_refs,
+                resident_mpp_dispatch_refs,
+                dispatch_util,
+                resident_mpp_groups,
+                resident_mpp_padded_groups,
+                resident_mpp_tail_zero_bytes);
+    }
     if (backend_logs &&
         (hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) &&
         (profile || env_flag_enabled("DS4_FLASH_MOE_HYBRID_STATS") ||
@@ -1632,7 +2510,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
         fprintf(stderr,
                 "ds4: Flash-MoE hybrid prefill layer=%u ane_groups=%u ane_refs=%" PRIu64
                 " gpu_i8_groups=%u gpu_i8_refs=%" PRIu64 " fp32_groups=%u ane_min_refs=%u"
-                " concurrent=%u ane_pipeline=%u output_queue=%u async_ane=%u gpu_overlap=%u finishes=%u waits=%u\n",
+                " concurrent=%u ane_pipeline=%u output_queue=%u async_ane=%u gpu_overlap=%u finishes=%u waits=%u"
+                " force_all=%u require=%u required_groups=%u required_refs=%" PRIu64 "\n",
                 il,
                 hybrid_ane_groups,
                 hybrid_ane_refs,
@@ -1646,7 +2525,11 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                 concurrent_ane_groups,
                 concurrent_gpu_overlap_groups,
                 concurrent_finishes,
-                concurrent_waits);
+                concurrent_waits,
+                ane_force_all_groups ? 1u : 0u,
+                ane_require ? 1u : 0u,
+                required_ane_completed_groups,
+                required_ane_completed_refs);
     }
     if (scheduler_stats && overlap_scheduler) {
         const double est_makespan =
@@ -1714,6 +2597,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
 #undef async_reader
 #undef DS4_SUBMIT_ASYNC_PREAD
     free(plan);
+    free(streaming_weight_scales_f16);
     free(ref_weights);
     free(ref_tokens);
     free(pair_weights);

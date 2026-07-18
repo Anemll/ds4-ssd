@@ -1620,6 +1620,8 @@ int ds4_gpu_routed_moe_banked_prefill_tensor(
         float                   clamp,
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens,
+        const uint16_t         *weight_scales_f16,
+        uint32_t                weight_scale_count,
         bool                   *mid_is_f16);
 
 int ds4_gpu_routed_moe_banked_rows_exact_tensor(
@@ -1921,6 +1923,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_ane_tensor(
         float                   clamp,
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens,
+        const uint16_t         *weight_scales_f16,
+        uint32_t                weight_scale_count,
         bool                   *mid_is_f16);
 
 typedef struct ds4_gpu_ane_prefill_job ds4_gpu_ane_prefill_job;
@@ -1941,7 +1945,9 @@ ds4_gpu_ane_prefill_job *ds4_gpu_routed_moe_expert_banked_batch_ane_start_tensor
         uint32_t                out_dim,
         const ds4_gpu_tensor *weights,
         const ds4_gpu_tensor *x,
-        uint32_t                n_tokens);
+        uint32_t                n_tokens,
+        const uint16_t         *weight_scales_f16,
+        uint32_t                weight_scale_count);
 
 int ds4_gpu_routed_moe_expert_banked_batch_ane_wait_predict_tensor(
         ds4_gpu_ane_prefill_job *job);
@@ -1955,7 +1961,8 @@ int ds4_gpu_ane_prefill_precompile_from_env(uint32_t expert_in_dim,
                                             uint32_t expert_mid_dim,
                                             uint32_t out_dim,
                                             uint32_t gate_type,
-                                            uint32_t down_type);
+                                            uint32_t down_type,
+                                            int      per_channel_default);
 
 /* Synchronous direct-eval probe kept for ad-hoc value checks. The routed
  * overlap experiment uses ds4_gpu_ane_direct_eval_one_expert_start below. */
@@ -2030,6 +2037,8 @@ int ds4_gpu_routed_moe_expert_banked_batch_mpp_int8_tensor(
         float                   clamp,
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens,
+        const uint16_t         *weight_scales_f16,
+        uint32_t                weight_scale_count,
         bool                   *mid_is_f16);
 
 /* GPU dedup for Flash-MoE prefill (histogram of router top-k over n_pairs) */

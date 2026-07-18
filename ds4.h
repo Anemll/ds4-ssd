@@ -160,6 +160,11 @@ bool ds4_engine_options_autodetect_sidecar_package(ds4_engine_options *opt,
                                                    const char *program_name);
 void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
                                               const char *program_name);
+/* Global streaming-sidecar diagnostic override. DS4_FORCE_ANE=1 wins over
+ * policy gates (including --no-int8/--quality, short-prefill scheduling, and
+ * the agent system-prompt GPU gate), then requires verified routed ANE work. */
+bool ds4_force_ane_enabled(void);
+void ds4_force_ane_apply(const char *program_name);
 void ds4_engine_summary(ds4_engine *e);
 bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e);
 bool ds4_engine_uses_hy3_tokenizer(const ds4_engine *e);
@@ -247,6 +252,10 @@ int ds4_session_argmax_excluding_many(ds4_session *s,
 int ds4_session_sample(ds4_session *s, float temperature, int top_k, float top_p, float min_p, uint64_t *rng);
 int ds4_session_top_logprobs(ds4_session *s, ds4_token_score *out, int k);
 int ds4_session_token_logprob(ds4_session *s, int token, ds4_token_score *out);
+/* Copy the current full-vocabulary logits. Passing out=NULL returns the
+ * required element count. Returns 0 when the session has no logits or when
+ * capacity is too small. */
+size_t ds4_session_copy_logits(ds4_session *s, float *out, size_t capacity);
 int ds4_session_eval(ds4_session *s, int token, char *err, size_t errlen);
 int ds4_session_eval_speculative_argmax(ds4_session *s, int first_token,
                                         int max_tokens, int eos_token,

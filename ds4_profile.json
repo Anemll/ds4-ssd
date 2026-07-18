@@ -168,7 +168,7 @@
       ]
     },
     {
-      "_comment": "M3 Ultra 96G — resident/full-model keeps the 1becf06 resident-memory growth block (2048) plus 16K prefill chunk. Re-baked 2026-06-02 on M3U/96G: resident GPU/ALU wins 1K-8K (255/299/335/324 t/s vs ANE 155/219/278/285), resident ANE wins the 16K full-chunk case (237 vs 196) and is roughly tied/slightly ahead at 32K (228 vs 226 on the generated 36.4K-token prompt). The resident table therefore routes tiny chunks to ANE, mid chunks to mulmm, and 16K-class chunks to ane_gpu; long prompts get ANE on full 16K chunks while their small tail stays on GPU/ALU. Do not force DS4_RESIDENT_MOE_BACKEND here: that env var has higher precedence and would bypass the table. Flash-MoE sidecar uses a separate sidecar_env so SSD slot-bank runs get GPU dedup + ANE/GPU overlap scheduler without inheriting resident-only knobs. 2026-06-15 Q2/IQ2 sidecar A/B vs antirez SSD streaming on this 96G M3U showed 16K sidecar ctx/prefill over-allocates decode memory and slows large banks; sidecar uses 4K ctx-grow/prefill for decode-footprint parity while ANE routing remains enabled.",
+      "_comment": "M3 Ultra 96G — resident/full-model retains its measured GPU/ANE routing table. Flash-MoE sidecar update 2026-07-16: a strict v2 per-channel ANE A/B on a 45,664-token prompt measured 4K direct mmap at 129.74 t/s, 16K direct mmap at 220.71 t/s, and 16K/32-slot async streaming at 239.04 t/s with zero ANE rejects. Keep 4K context growth but restore 16K prefill, disable direct-mmap auto so streaming can overlap expert reads, and route every group to ANE only for chunks of at least 8192 tokens so shorter prefills remain on the normal ANE/GPU cost model.",
       "match": {
         "chip": "Apple M3 Ultra",
         "min_ram_gib": 96
@@ -191,10 +191,11 @@
       "sidecar_env": {
         "DS4_CTX_GROW": "1",
         "DS4_CTX_GROW_BLOCK": "4096",
-        "DS4_METAL_PREFILL_CHUNK": "4096",
-        "DS4_FLASH_MOE_SLOT_BANK_SLOTS": "96",
+        "DS4_METAL_PREFILL_CHUNK": "16384",
+        "DS4_FLASH_MOE_SLOT_BANK_SLOTS": "32",
         "DS4_FLASH_MOE_MIXED_SLOT_BANK": "1",
         "DS4_FLASH_MOE_LAYER_SLOT_SLAB": "0",
+        "DS4_FLASH_MOE_DIRECT_MMAP_AUTO": "0",
         "DS4_FLASH_MOE_DIRECT_SLOT_PREAD": "1",
         "DS4_FLASH_MOE_DECODE_PREFETCH_MAX_LOADS": "0",
         "DS4_FLASH_MOE_STABLE_REPLAY": "0",
@@ -225,6 +226,7 @@
         "DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS": "1",
         "DS4_FLASH_MOE_ANE_MIN_REFS": "32",
         "DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS": "384",
+        "DS4_FLASH_MOE_ANE_ALL_GROUPS_MIN_TOKENS": "8192",
         "DS4_FLASH_MOE_SCHED_ANE_REL_SPEED": "99",
         "DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL": "0.0",
         "DS4_FLASH_MOE_ANE_SHARED_EXPERT": "0",

@@ -57,21 +57,52 @@ static const char *flash_moe_find_key(const char *begin, const char *end, const 
     return NULL;
 }
 
-static bool flash_moe_json_u64(const char *begin, const char *end, const char *key, uint64_t *out) {
-    const char *p = flash_moe_find_key(begin, end, key);
-    if (!p) return false;
-    while (p < end && isspace((unsigned char)*p)) p++;
-    if (p >= end || !isdigit((unsigned char)*p)) return false;
-    errno = 0;
-    char *stop = NULL;
-    unsigned long long v = strtoull(p, &stop, 10);
-    if (errno != 0 || stop == p || stop > end) return false;
-    *out = (uint64_t)v;
-    return true;
+static const char *flash_moe_find_top_level_key(
+        const char *begin,
+        const char *end,
+        const char *key) {
+    if (!begin || !end || begin >= end || !key) return NULL;
+    const size_t key_len = strlen(key);
+    int depth = 0;
+    for (const char *p = begin; p < end;) {
+        if (*p == '{' || *p == '[') {
+            depth++;
+            p++;
+            continue;
+        }
+        if (*p == '}' || *p == ']') {
+            depth--;
+            p++;
+            continue;
+        }
+        if (*p != '"') {
+            p++;
+            continue;
+        }
+        const char *text = ++p;
+        bool escaped = false;
+        while (p < end) {
+            if (*p == '\\') {
+                escaped = true;
+                p += (p + 1 < end) ? 2 : 1;
+                continue;
+            }
+            if (*p == '"') break;
+            p++;
+        }
+        if (p >= end) return NULL;
+        const char *after = p + 1;
+        while (after < end && isspace((unsigned char)*after)) after++;
+        if (depth == 1 && !escaped && after < end && *after == ':' &&
+            (size_t)(p - text) == key_len && !memcmp(text, key, key_len)) {
+            return after + 1;
+        }
+        p++;
+    }
+    return NULL;
 }
 
-static bool flash_moe_json_bool(const char *begin, const char *end, const char *key, bool *out) {
-    const char *p = flash_moe_find_key(begin, end, key);
+static bool flash_moe_json_bool_value(const char *p, const char *end, bool *out) {
     if (!p) return false;
     while (p < end && isspace((unsigned char)*p)) p++;
     if (p + 4 <= end && !strncmp(p, "true", 4)) {
@@ -85,8 +116,41 @@ static bool flash_moe_json_bool(const char *begin, const char *end, const char *
     return false;
 }
 
-static bool flash_moe_json_string(const char *begin, const char *end, const char *key, char **out) {
+static bool flash_moe_json_u64_value(const char *p, const char *end, uint64_t *out) {
+    if (!p) return false;
+    while (p < end && isspace((unsigned char)*p)) p++;
+    if (p >= end || !isdigit((unsigned char)*p)) return false;
+    errno = 0;
+    char *stop = NULL;
+    unsigned long long v = strtoull(p, &stop, 10);
+    if (errno != 0 || stop == p || stop > end) return false;
+    *out = (uint64_t)v;
+    return true;
+}
+
+static bool flash_moe_json_u64(const char *begin, const char *end, const char *key, uint64_t *out) {
     const char *p = flash_moe_find_key(begin, end, key);
+    return flash_moe_json_u64_value(p, end, out);
+}
+
+static bool flash_moe_json_i64_value(const char *p, const char *end, int64_t *out) {
+    if (!p) return false;
+    while (p < end && isspace((unsigned char)*p)) p++;
+    if (p >= end || (*p != '-' && !isdigit((unsigned char)*p))) return false;
+    errno = 0;
+    char *stop = NULL;
+    const long long v = strtoll(p, &stop, 10);
+    if (errno != 0 || stop == p || stop > end) return false;
+    *out = (int64_t)v;
+    return true;
+}
+
+static bool flash_moe_json_bool(const char *begin, const char *end, const char *key, bool *out) {
+    const char *p = flash_moe_find_key(begin, end, key);
+    return flash_moe_json_bool_value(p, end, out);
+}
+
+static bool flash_moe_json_string_value(const char *p, const char *end, char **out) {
     if (!p) return false;
     while (p < end && isspace((unsigned char)*p)) p++;
     if (p >= end || *p != '"') return false;
@@ -125,6 +189,170 @@ static bool flash_moe_json_string(const char *begin, const char *end, const char
     return true;
 }
 
+static bool flash_moe_json_string(const char *begin, const char *end, const char *key, char **out) {
+    const char *p = flash_moe_find_key(begin, end, key);
+    return flash_moe_json_string_value(p, end, out);
+}
+
+static bool flash_moe_json_object_bounds(
+        const char  *p,
+        const char  *end,
+        const char **object_begin_out,
+        const char **object_end_out) {
+    if (!p || !end || !object_begin_out || !object_end_out) return false;
+    while (p < end && isspace((unsigned char)*p)) p++;
+    if (p >= end || *p != '{') return false;
+    const char *object_begin = p;
+    int depth = 0;
+    bool in_string = false;
+    bool escaped = false;
+    for (; p < end; p++) {
+        const char c = *p;
+        if (in_string) {
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        if (c == '"') {
+            in_string = true;
+        } else if (c == '{') {
+            depth++;
+        } else if (c == '}') {
+            depth--;
+            if (depth == 0) {
+                *object_begin_out = object_begin;
+                *object_end_out = p + 1;
+                return true;
+            }
+            if (depth < 0) return false;
+        }
+    }
+    return false;
+}
+
+static bool flash_moe_json_top_level_u64_equals(
+        const char *begin,
+        const char *end,
+        const char *key,
+        uint64_t    expected) {
+    uint64_t value = 0;
+    return flash_moe_json_u64_value(
+               flash_moe_find_top_level_key(begin, end, key), end, &value) &&
+           value == expected;
+}
+
+static bool flash_moe_json_top_level_i64_equals(
+        const char *begin,
+        const char *end,
+        const char *key,
+        int64_t     expected) {
+    int64_t value = 0;
+    return flash_moe_json_i64_value(
+               flash_moe_find_top_level_key(begin, end, key), end, &value) &&
+           value == expected;
+}
+
+static bool flash_moe_json_top_level_string_equals(
+        const char *begin,
+        const char *end,
+        const char *key,
+        const char *expected) {
+    char *value = NULL;
+    const bool parsed = flash_moe_json_string_value(
+        flash_moe_find_top_level_key(begin, end, key), end, &value);
+    const bool matches = parsed && value && !strcmp(value, expected);
+    free(value);
+    return matches;
+}
+
+static bool flash_moe_validate_ane_i8_scale_scheme(
+        const char *scheme_value,
+        const char *json_end) {
+    const char *scheme_begin = NULL;
+    const char *scheme_end = NULL;
+    if (!flash_moe_json_object_bounds(scheme_value,
+                                      json_end,
+                                      &scheme_begin,
+                                      &scheme_end)) {
+        return false;
+    }
+    if (!flash_moe_json_top_level_u64_equals(scheme_begin,
+                                              scheme_end,
+                                              "schema_version",
+                                              1u) ||
+        !flash_moe_json_top_level_string_equals(scheme_begin,
+                                                 scheme_end,
+                                                 "storage",
+                                                 "appended_to_expert_record") ||
+        !flash_moe_json_top_level_string_equals(scheme_begin,
+                                                 scheme_end,
+                                                 "dtype",
+                                                 "F16") ||
+        !flash_moe_json_top_level_string_equals(scheme_begin,
+                                                 scheme_end,
+                                                 "endian",
+                                                 "little") ||
+        !flash_moe_json_top_level_string_equals(scheme_begin,
+                                                 scheme_end,
+                                                 "semantics",
+                                                 "dequant_multiplier") ||
+        !flash_moe_json_top_level_u64_equals(scheme_begin,
+                                              scheme_end,
+                                              "axis",
+                                              1u) ||
+        !flash_moe_json_top_level_string_equals(scheme_begin,
+                                                 scheme_end,
+                                                 "axis_name",
+                                                 "output_channel") ||
+        !flash_moe_json_top_level_u64_equals(scheme_begin,
+                                              scheme_end,
+                                              "group_size",
+                                              1u) ||
+        !flash_moe_json_top_level_u64_equals(scheme_begin,
+                                              scheme_end,
+                                              "record_alignment",
+                                              64u)) {
+        return false;
+    }
+
+    const char *quantization_begin = NULL;
+    const char *quantization_end = NULL;
+    if (!flash_moe_json_object_bounds(
+            flash_moe_find_top_level_key(scheme_begin,
+                                         scheme_end,
+                                         "quantization"),
+            scheme_end,
+            &quantization_begin,
+            &quantization_end)) {
+        return false;
+    }
+    return flash_moe_json_top_level_string_equals(quantization_begin,
+                                                   quantization_end,
+                                                   "method",
+                                                   "symmetric_absmax") &&
+           flash_moe_json_top_level_i64_equals(quantization_begin,
+                                                quantization_end,
+                                                "qmin",
+                                                -127) &&
+           flash_moe_json_top_level_i64_equals(quantization_begin,
+                                                quantization_end,
+                                                "qmax",
+                                                127) &&
+           flash_moe_json_top_level_i64_equals(quantization_begin,
+                                                quantization_end,
+                                                "zero_point",
+                                                0) &&
+           flash_moe_json_top_level_string_equals(quantization_begin,
+                                                   quantization_end,
+                                                   "rounding",
+                                                   "nearest_even");
+}
+
 static bool flash_moe_json_u64_array3(const char *begin, const char *end, const char *key, uint64_t out[3]) {
     const char *p = flash_moe_find_key(begin, end, key);
     if (!p) return false;
@@ -155,6 +383,19 @@ static int flash_moe_family_id(const char *family) {
     if (!strcmp(family, "ffn_up_exps")) return DS4_FLASH_FAMILY_UP;
     if (!strcmp(family, "ffn_down_exps")) return DS4_FLASH_FAMILY_DOWN;
     return -1;
+}
+
+static const char *flash_moe_family_name(uint32_t fam) {
+    switch (fam) {
+    case DS4_FLASH_FAMILY_GATE: return "ffn_gate_exps";
+    case DS4_FLASH_FAMILY_UP:   return "ffn_up_exps";
+    case DS4_FLASH_FAMILY_DOWN: return "ffn_down_exps";
+    default:                    return "unknown";
+    }
+}
+
+static uint32_t flash_moe_expected_ane_i8_scale_count(uint32_t fam) {
+    return fam == DS4_FLASH_FAMILY_DOWN ? DS4_N_EMBD : DS4_N_FF_EXP;
 }
 
 static uint32_t flash_moe_quant_type_id(const char *quant, bool *mxfp4_plane_split) {
@@ -270,6 +511,8 @@ typedef struct {
     ds4_flash_moe_sidecar *sidecar;
     const char *dir;
     uint32_t seen_entries;
+    uint32_t seen_ane_i8_scale_entries;
+    bool require_ane_i8_scales;
 } flash_moe_parse_ctx;
 
 static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
@@ -279,6 +522,11 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
     uint64_t exact_bytes = 0;
     uint64_t offset = 0;
     uint64_t stride = 0;
+    uint64_t ane_i8_scale_offset = 0;
+    uint64_t ane_i8_scale_bytes = 0;
+    uint64_t ane_i8_scale_count = 0;
+    uint64_t ane_i8_scale_axis = 0;
+    uint64_t ane_i8_scale_group_size = 0;
     uint64_t shape[3] = {0, 0, 0};
     char *family = NULL;
     char *file = NULL;
@@ -315,6 +563,76 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
         free(quant);
         free(storage_layout);
         return false;
+    }
+    bool has_ane_i8_scales = false;
+    if (ctx->require_ane_i8_scales) {
+        char *ane_i8_scale_dtype = NULL;
+        char *ane_i8_scale_semantics = NULL;
+        const bool fields_valid =
+            flash_moe_json_u64_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_offset"),
+                end,
+                &ane_i8_scale_offset) &&
+            flash_moe_json_u64_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_bytes"),
+                end,
+                &ane_i8_scale_bytes) &&
+            flash_moe_json_u64_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_count"),
+                end,
+                &ane_i8_scale_count) &&
+            flash_moe_json_string_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_dtype"),
+                end,
+                &ane_i8_scale_dtype) &&
+            flash_moe_json_string_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_semantics"),
+                end,
+                &ane_i8_scale_semantics) &&
+            flash_moe_json_u64_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_axis"),
+                end,
+                &ane_i8_scale_axis) &&
+            flash_moe_json_u64_value(
+                flash_moe_find_top_level_key(obj, end, "ane_i8_scale_group_size"),
+                end,
+                &ane_i8_scale_group_size);
+        const uint32_t expected_count =
+            flash_moe_expected_ane_i8_scale_count((uint32_t)fam);
+        const uint64_t expected_bytes = (uint64_t)expected_count * sizeof(uint16_t);
+        const bool contract_valid =
+            fields_valid &&
+            ane_i8_scale_dtype && !strcmp(ane_i8_scale_dtype, "F16") &&
+            ane_i8_scale_semantics &&
+                !strcmp(ane_i8_scale_semantics, "dequant_multiplier") &&
+            ane_i8_scale_axis == 1u &&
+            ane_i8_scale_group_size == 1u &&
+            ane_i8_scale_count == expected_count &&
+            ane_i8_scale_bytes == expected_bytes &&
+            ane_i8_scale_offset != 0 &&
+            stride != 0 &&
+            ane_i8_scale_offset <= stride &&
+            ane_i8_scale_bytes <= stride - ane_i8_scale_offset &&
+            !family_major;
+        free(ane_i8_scale_dtype);
+        free(ane_i8_scale_semantics);
+        if (!contract_valid) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE INT8 scale layer %" PRIu64
+                    " %s has missing or invalid "
+                    "ANE INT8 scale metadata (expected count=%u bytes=%" PRIu64
+                    " dtype=F16 semantics=dequant_multiplier axis=1 group_size=1)\n",
+                    layer_u64,
+                    family,
+                    expected_count,
+                    expected_bytes);
+            free(family);
+            free(file);
+            free(quant);
+            free(storage_layout);
+            return false;
+        }
+        has_ane_i8_scales = true;
     }
     if (mxfp4_plane_split &&
         (!storage_layout || strcmp(storage_layout, "mxfp4_plane_split_v1") != 0)) {
@@ -400,6 +718,13 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
     layer->family_file_bytes[fam] = family_major ? exact_bytes : bytes;
     layer->family_plane_data_bytes[fam] = plane_data_bytes;
     layer->family_plane_scale_bytes[fam] = plane_scale_bytes;
+    if (has_ane_i8_scales) {
+        layer->family_ane_i8_scale_offset[fam] = ane_i8_scale_offset;
+        layer->family_ane_i8_scale_bytes[fam] = ane_i8_scale_bytes;
+        layer->family_ane_i8_scale_count[fam] = (uint32_t)ane_i8_scale_count;
+        layer->family_ane_i8_scale_available[fam] = true;
+        ctx->seen_ane_i8_scale_entries++;
+    }
     layer->family_type[fam] = type;
     layer->family_mxfp4_plane_split[fam] = mxfp4_plane_split;
     layer->family_major = layer->family_major || family_major;
@@ -419,6 +744,111 @@ static bool flash_moe_parse_entry(const char *obj, const char *end, void *ud) {
     free(file);
     free(quant);
     free(storage_layout);
+    return true;
+}
+
+static bool flash_moe_range_end(uint64_t offset, uint64_t bytes, uint64_t *end_out) {
+    if (bytes == 0 || offset > UINT64_MAX - bytes) return false;
+    *end_out = offset + bytes;
+    return true;
+}
+
+static bool flash_moe_ranges_overlap(
+        uint64_t a_offset,
+        uint64_t a_end,
+        uint64_t b_offset,
+        uint64_t b_end) {
+    return a_offset < b_end && b_offset < a_end;
+}
+
+static bool flash_moe_validate_ane_i8_scale_layer(
+        const ds4_flash_moe_layer_sidecar *layer,
+        uint32_t                           il,
+        uint64_t                          *required_record_end_out) {
+    if (!layer || !required_record_end_out || layer->family_major ||
+        layer->expert_stride == 0) {
+        fprintf(stderr,
+                "ds4: Flash-MoE ANE INT8 scale layer %u requires finite "
+                "expert-major geometry\n",
+                il);
+        return false;
+    }
+
+    uint64_t weight_end[DS4_FLASH_FAMILY_COUNT] = {0};
+    uint64_t scale_end[DS4_FLASH_FAMILY_COUNT] = {0};
+    uint64_t required_record_end = *required_record_end_out;
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        const uint32_t expected_count = flash_moe_expected_ane_i8_scale_count(fam);
+        const uint64_t expected_bytes = (uint64_t)expected_count * sizeof(uint16_t);
+        if (!layer->family_ane_i8_scale_available[fam] ||
+            layer->family_ane_i8_scale_count[fam] != expected_count ||
+            layer->family_ane_i8_scale_bytes[fam] != expected_bytes ||
+            !flash_moe_range_end(layer->family_offset[fam],
+                                 layer->family_bytes[fam],
+                                 &weight_end[fam]) ||
+            !flash_moe_range_end(layer->family_ane_i8_scale_offset[fam],
+                                 layer->family_ane_i8_scale_bytes[fam],
+                                 &scale_end[fam]) ||
+            weight_end[fam] > layer->expert_stride ||
+            scale_end[fam] > layer->expert_stride) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE INT8 scale layer %u %s has geometry outside "
+                    "expert_stride=%" PRIu64 "\n",
+                    il,
+                    flash_moe_family_name(fam),
+                    layer->expert_stride);
+            return false;
+        }
+        if (weight_end[fam] > required_record_end) required_record_end = weight_end[fam];
+        if (scale_end[fam] > required_record_end) required_record_end = scale_end[fam];
+    }
+
+    for (uint32_t fam = 0; fam < DS4_FLASH_FAMILY_COUNT; fam++) {
+        for (uint32_t other = fam + 1; other < DS4_FLASH_FAMILY_COUNT; other++) {
+            if (flash_moe_ranges_overlap(layer->family_offset[fam],
+                                         weight_end[fam],
+                                         layer->family_offset[other],
+                                         weight_end[other])) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE ANE INT8 scale layer %u weight regions "
+                        "overlap: %s and %s\n",
+                        il,
+                        flash_moe_family_name(fam),
+                        flash_moe_family_name(other));
+                return false;
+            }
+            if (flash_moe_ranges_overlap(layer->family_ane_i8_scale_offset[fam],
+                                         scale_end[fam],
+                                         layer->family_ane_i8_scale_offset[other],
+                                         scale_end[other])) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE ANE INT8 scale layer %u scale regions "
+                        "overlap: %s and %s\n",
+                        il,
+                        flash_moe_family_name(fam),
+                        flash_moe_family_name(other));
+                return false;
+            }
+        }
+        for (uint32_t weight_fam = 0;
+             weight_fam < DS4_FLASH_FAMILY_COUNT;
+             weight_fam++) {
+            if (flash_moe_ranges_overlap(layer->family_ane_i8_scale_offset[fam],
+                                         scale_end[fam],
+                                         layer->family_offset[weight_fam],
+                                         weight_end[weight_fam])) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE ANE INT8 scale layer %u %s scale region "
+                        "overlaps %s weights\n",
+                        il,
+                        flash_moe_family_name(fam),
+                        flash_moe_family_name(weight_fam));
+                return false;
+            }
+        }
+    }
+
+    *required_record_end_out = required_record_end;
     return true;
 }
 
@@ -511,6 +941,56 @@ static bool ds4_flash_moe_sidecar_open(
     }
     free(manifest_path);
 
+    const char *json_end = json + json_len;
+    const char *ane_i8_scale_scheme_value =
+        flash_moe_find_top_level_key(json, json_end, "ane_i8_scale_scheme");
+    const char *storage_layout_value =
+        flash_moe_find_top_level_key(json, json_end, "storage_layout");
+    char *top_level_storage_layout = NULL;
+    const bool has_top_level_storage_layout =
+        flash_moe_json_string_value(storage_layout_value,
+                                    json_end,
+                                    &top_level_storage_layout);
+    const bool has_locked_ane_i8_scale_scheme =
+        flash_moe_validate_ane_i8_scale_scheme(ane_i8_scale_scheme_value,
+                                               json_end);
+    const bool has_locked_ane_i8_storage_layout =
+        has_top_level_storage_layout &&
+        !strcmp(top_level_storage_layout,
+                "expert_major_weights_plus_ane_i8_output_scales_v1");
+    const bool advertises_ane_i8_scale_contract =
+        ane_i8_scale_scheme_value != NULL || has_locked_ane_i8_storage_layout;
+    if (advertises_ane_i8_scale_contract &&
+        (!has_locked_ane_i8_scale_scheme ||
+         !has_locked_ane_i8_storage_layout)) {
+        fprintf(stderr,
+                "ds4: Flash-MoE sidecar has an incomplete or unsupported top-level "
+                "ANE INT8 scale contract\n");
+        free(top_level_storage_layout);
+        free(json);
+        free(sidecar_dir);
+        return false;
+    }
+    const bool require_ane_i8_scales =
+        has_locked_ane_i8_scale_scheme && has_locked_ane_i8_storage_layout;
+    free(top_level_storage_layout);
+    if (require_ane_i8_scales) {
+        bool runtime_loadable = false;
+        const char *runtime_loadable_value =
+            flash_moe_find_top_level_key(json, json_end, "runtime_loadable");
+        if (!flash_moe_json_bool_value(runtime_loadable_value,
+                                       json_end,
+                                       &runtime_loadable) ||
+            !runtime_loadable) {
+            fprintf(stderr,
+                    "ds4: Flash-MoE ANE INT8 scale sidecar is not marked "
+                    "runtime_loadable=true at top level\n");
+            free(json);
+            free(sidecar_dir);
+            return false;
+        }
+    }
+
     ds4_flash_moe_sidecar *s = xcalloc(1, sizeof(*s));
     s->dir = ds4_strdup(sidecar_dir);
     s->slot_bank = slot_bank;
@@ -535,12 +1015,18 @@ static bool ds4_flash_moe_sidecar_open(
         .sidecar = s,
         .dir = sidecar_dir,
         .seen_entries = 0,
+        .seen_ane_i8_scale_entries = 0,
+        .require_ane_i8_scales = require_ane_i8_scales,
     };
     const uint32_t first_routed_layer = DS4_N_DENSE_LEAD;
     const uint32_t expected_routed_layers =
         DS4_N_LAYER > first_routed_layer ? DS4_N_LAYER - first_routed_layer : 0;
+    const uint32_t expected_entries =
+        expected_routed_layers * DS4_FLASH_FAMILY_COUNT;
     if (!flash_moe_for_each_entry(json, json_len, flash_moe_parse_entry, &parse) ||
-        parse.seen_entries != expected_routed_layers * DS4_FLASH_FAMILY_COUNT) {
+        parse.seen_entries != expected_entries ||
+        (require_ane_i8_scales &&
+         parse.seen_ane_i8_scale_entries != expected_entries)) {
         fprintf(stderr, "ds4: Flash-MoE sidecar manifest does not contain the expected DS4 routed entries\n");
         free(json);
         free(sidecar_dir);
@@ -666,6 +1152,15 @@ static bool ds4_flash_moe_sidecar_open(
             ds4_flash_moe_sidecar_close(s);
             return false;
         }
+        uint64_t required_record_end = min_stride;
+        if (require_ane_i8_scales &&
+            !flash_moe_validate_ane_i8_scale_layer(layer,
+                                                    il,
+                                                    &required_record_end)) {
+            free(sidecar_dir);
+            ds4_flash_moe_sidecar_close(s);
+            return false;
+        }
         if (layer->expert_stride > s->max_expert_stride) s->max_expert_stride = layer->expert_stride;
         layer->fd = open(layer->path, O_RDONLY);
         if (layer->fd < 0) {
@@ -682,11 +1177,37 @@ static bool ds4_flash_moe_sidecar_open(
             return false;
         }
         layer->file_size = (uint64_t)st.st_size;
-        const uint64_t required = layer->family_major ?
-            required_file_size :
-            (uint64_t)(DS4_N_EXPERT - 1) * layer->expert_stride + min_stride;
+        uint64_t required = required_file_size;
+        if (!layer->family_major) {
+            const uint64_t last_expert = (uint64_t)(DS4_N_EXPERT - 1u);
+            if (last_expert != 0 &&
+                layer->expert_stride > UINT64_MAX / last_expert) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE sidecar layer %u record range overflows the file address space\n",
+                        il);
+                free(sidecar_dir);
+                ds4_flash_moe_sidecar_close(s);
+                return false;
+            }
+            const uint64_t last_record_offset = last_expert * layer->expert_stride;
+            if (last_record_offset > UINT64_MAX - required_record_end) {
+                fprintf(stderr,
+                        "ds4: Flash-MoE sidecar layer %u record range overflows the file address space\n",
+                        il);
+                free(sidecar_dir);
+                ds4_flash_moe_sidecar_close(s);
+                return false;
+            }
+            required = last_record_offset + required_record_end;
+        }
         if (layer->file_size < required) {
-            fprintf(stderr, "ds4: Flash-MoE sidecar layer %u is truncated\n", il);
+            fprintf(stderr,
+                    "ds4: Flash-MoE sidecar layer %u is truncated "
+                    "(required=%" PRIu64 " file=%" PRIu64 "%s)\n",
+                    il,
+                    required,
+                    layer->file_size,
+                    require_ane_i8_scales ? ", including ANE INT8 scales" : "");
             free(sidecar_dir);
             ds4_flash_moe_sidecar_close(s);
             return false;
@@ -739,6 +1260,16 @@ static bool ds4_flash_moe_sidecar_open(
             ds4_flash_moe_sidecar_close(s);
             return false;
         }
+    }
+
+    if (require_ane_i8_scales) {
+        fprintf(stderr,
+                "ds4: Flash-MoE ANE INT8 scales validated: entries=%u "
+                "counts=%u/%u/%u dtype=F16 semantics=dequant_multiplier axis=1 group_size=1\n",
+                parse.seen_ane_i8_scale_entries,
+                flash_moe_expected_ane_i8_scale_count(DS4_FLASH_FAMILY_GATE),
+                flash_moe_expected_ane_i8_scale_count(DS4_FLASH_FAMILY_UP),
+                flash_moe_expected_ane_i8_scale_count(DS4_FLASH_FAMILY_DOWN));
     }
 
     free(sidecar_dir);

@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
 #define DS4_BENCH_METAL_RAW_WINDOW_CUSHION 128
@@ -31,6 +32,7 @@ typedef struct {
     const char *chat_prompt_path;
     const char *system;
     const char *csv_path;
+    const char *dump_logits_dir;
     ds4_backend backend;
     int threads;
     int ctx_start;
@@ -84,7 +86,9 @@ static void usage(FILE *fp) {
         "  -t, --threads N        CPU helper threads.\n"
         "  --quality              Prefer exact kernels where applicable; implies --no-int8.\n"
         "  --no-int8              Disable int8 accelerator paths; use NAX-half/GPU fallbacks.\n"
-        "  --ane                  Enable ANE prefill profile defaults (off by default).\n"
+        "  --ane                  Enable ANE prefill profile defaults.\n"
+        "  DS4_FORCE_ANE=1        Force all sidecar prefill (streaming or resident),\n"
+        "                         including short prefill, to ANE; fail closed.\n"
         "  --warm-weights         Touch mapped tensor pages before benchmarking.\n"
         "  --resident-ane-prefill Enable prefill-only ANE for resident/full model.\n"
         "                         Runs with sidecar MoE off; shared expert stays on GPU.\n"
@@ -113,6 +117,8 @@ static void usage(FILE *fp) {
         "\n"
         "Output:\n"
         "  --csv FILE             Write CSV there instead of stdout.\n"
+        "  --dump-logits-dir DIR  Write post-prefill full-vocabulary FP32 logits\n"
+        "                         as ctx_NNNNNN.f32 at each measured frontier.\n"
         "  -h, --help             Show this help.\n");
 }
 
@@ -277,6 +283,92 @@ static char *read_file(const char *path) {
     return buf;
 }
 
+static bool bench_prepare_output_dir(const char *path) {
+    if (!path) return true;
+    if (mkdir(path, 0775) == 0) return true;
+    if (errno != EEXIST) {
+        fprintf(stderr, "ds4-bench: failed to create %s: %s\n", path, strerror(errno));
+        return false;
+    }
+
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        fprintf(stderr, "ds4-bench: failed to inspect %s: %s\n", path, strerror(errno));
+        return false;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        fprintf(stderr, "ds4-bench: --dump-logits-dir is not a directory: %s\n", path);
+        return false;
+    }
+    return true;
+}
+
+static bool bench_dump_logits(ds4_session *session, const char *dir, int frontier) {
+    if (!dir) return true;
+
+    const size_t n_logits = ds4_session_copy_logits(session, NULL, 0);
+    if (n_logits == 0 || n_logits > SIZE_MAX / sizeof(float)) {
+        fprintf(stderr, "ds4-bench: failed to query logits at frontier %d\n", frontier);
+        return false;
+    }
+
+    float *logits = malloc(n_logits * sizeof(logits[0]));
+    if (!logits) {
+        fprintf(stderr, "ds4-bench: out of memory copying logits at frontier %d\n", frontier);
+        return false;
+    }
+    if (ds4_session_copy_logits(session, logits, n_logits) != n_logits) {
+        fprintf(stderr, "ds4-bench: failed to copy logits at frontier %d\n", frontier);
+        free(logits);
+        return false;
+    }
+
+    const int suffix_len = snprintf(NULL, 0, "/ctx_%06d.f32", frontier);
+    const size_t dir_len = strlen(dir);
+    if (suffix_len < 0 || dir_len > SIZE_MAX - (size_t)suffix_len - 1) {
+        fprintf(stderr, "ds4-bench: logit output path is too long\n");
+        free(logits);
+        return false;
+    }
+    const size_t path_len = dir_len + (size_t)suffix_len + 1;
+    char *path = malloc(path_len);
+    if (!path) {
+        fprintf(stderr, "ds4-bench: out of memory building logit output path\n");
+        free(logits);
+        return false;
+    }
+    snprintf(path, path_len, "%s/ctx_%06d.f32", dir, frontier);
+
+    FILE *fp = fopen(path, "wb");
+    if (!fp) {
+        fprintf(stderr, "ds4-bench: failed to open %s: %s\n", path, strerror(errno));
+        free(path);
+        free(logits);
+        return false;
+    }
+
+    bool ok = true;
+    errno = 0;
+    if (fwrite(logits, sizeof(logits[0]), n_logits, fp) != n_logits) {
+        const int saved_errno = errno ? errno : EIO;
+        fprintf(stderr, "ds4-bench: failed to write %s: %s\n",
+                path, strerror(saved_errno));
+        ok = false;
+    }
+    if (fclose(fp) != 0) {
+        fprintf(stderr, "ds4-bench: failed to close %s: %s\n", path, strerror(errno));
+        ok = false;
+    }
+    if (ok) {
+        fprintf(stderr, "ds4-bench: wrote prefill logits at ctx=%d to %s\n",
+                frontier, path);
+    }
+
+    free(path);
+    free(logits);
+    return ok;
+}
+
 static bench_config parse_options(int argc, char **argv) {
     bench_config c = {
         .model_path = "ds4flash.gguf",
@@ -333,6 +425,8 @@ static bench_config parse_options(int argc, char **argv) {
             c.gen_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--csv")) {
             c.csv_path = need_arg(&i, argc, argv, arg);
+        } else if (!strcmp(arg, "--dump-logits-dir")) {
+            c.dump_logits_dir = need_arg(&i, argc, argv, arg);
         } else if (!strcmp(arg, "-t") || !strcmp(arg, "--threads")) {
             c.threads = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--backend")) {
@@ -471,6 +565,7 @@ static void log_context_memory(ds4_backend backend, int ctx_size) {
 
 int main(int argc, char **argv) {
     bench_config cfg = parse_options(argc, argv);
+    if (!bench_prepare_output_dir(cfg.dump_logits_dir)) return 1;
     ds4_profile_set_sidecar_mode(cfg.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.moe_sidecar_path);
     ds4_profile_load_and_apply();
     ds4_model_shape_select_for_path(cfg.model_path);
@@ -554,6 +649,10 @@ int main(int argc, char **argv) {
             break;
         }
         const double prefill_t1 = bench_now_sec();
+        if (!bench_dump_logits(session, cfg.dump_logits_dir, frontier)) {
+            rc = 1;
+            break;
+        }
         const double prefill_sec = prefill_t1 - prefill_t0;
         const int prefill_tokens =
             cfg.full_prefill_each_frontier ? frontier : frontier - previous;

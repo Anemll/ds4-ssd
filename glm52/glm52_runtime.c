@@ -698,6 +698,18 @@ static bool glm52_eval_moe_batch(
         !g->batch_routed_out || n_tokens == 0 || n_tokens > g->prefill_cap) {
         return false;
     }
+    if (env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") &&
+        (!s->engine->flash_moe || !g->flash_moe)) {
+        static bool warned_nax_pc_requires_sidecar = false;
+        if (!warned_nax_pc_requires_sidecar) {
+            fprintf(stderr,
+                    "ds4: ERROR: GLM NAX INT8 per-channel REQUIRE needs a v2 "
+                    "Flash-MoE sidecar; full-GGUF resident weights have no "
+                    "per-expert scale tensor\n");
+            warned_nax_pc_requires_sidecar = true;
+        }
+        return false;
+    }
 
     *stage = "moe.router_matmul_batch";
     if (!glm52_matmul_rows(g->batch_router_logits, m, layer->ffn_gate_inp,

@@ -32,10 +32,32 @@ static int flash_moe_run_mpp_int8_safe_tensor(
         float                   clamp,
         const ds4_gpu_tensor *x,
         uint32_t                n_tokens,
+        const uint16_t         *weight_scales_f16,
+        uint32_t                weight_scale_count,
         bool                   *mid_is_f16) {
     const uint32_t mpp_m_tile = 64u;
     if (mid_is_f16) *mid_is_f16 = false;
     if (n_tokens == 0) return 0;
+
+    /* REQUIRE is an execution contract, not merely a scale-metadata check.
+     * The legacy MPP/NAX INT8 kernels are not correct for a partial 64-row M
+     * tile.  The streaming sidecar caller pads strict per-channel groups before
+     * reaching this helper.  Reject any other partial strict call here so a
+     * 64-row prefix plus classic-GPU tail cannot be reported as full strict
+     * per-channel NAX engagement. */
+    if (env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE") &&
+        (n_tokens % mpp_m_tile) != 0) {
+        static bool warned_strict_partial = false;
+        if (!warned_strict_partial) {
+            fprintf(stderr,
+                    "ds4: ERROR: strict NAX INT8 per-channel dispatch received "
+                    "an unpadded partial M tile (tokens=%u tile=%u)\n",
+                    n_tokens,
+                    mpp_m_tile);
+            warned_strict_partial = true;
+        }
+        return 0;
+    }
 
     /* The MPP 4.1 native-MXFP4 arm handles partial 64-row tiles correctly
      * (matmul2d clamps to tensor extents; validated down to m=1 with full
@@ -73,6 +95,8 @@ static int flash_moe_run_mpp_int8_safe_tensor(
                                                                       clamp,
                                                                       x,
                                                                       n_tokens,
+                                                                      weight_scales_f16,
+                                                                      weight_scale_count,
                                                                       mid_is_f16);
     }
 
@@ -119,6 +143,8 @@ static int flash_moe_run_mpp_int8_safe_tensor(
                                                                clamp,
                                                                x,
                                                                full_tokens,
+                                                               weight_scales_f16,
+                                                               weight_scale_count,
                                                                &full_mid_is_f16)) {
         if (getenv("DS4_DEBUG_RESUME")) fprintf(stderr, "ds4: [resume-dbg] FAIL routed MPP-int8 FULL part full_tokens=%u (of n=%u)\n", full_tokens, n_tokens);
         return 0;
@@ -290,8 +316,12 @@ static bool resident_moe_nax_tail_one_expert(
                                                       expert_in_dim, expert_mid_dim, out_dim,
                                                       selected_zero_view, weights_view,
                                                       DS4_SWIGLU_CLAMP_EXP, x_tmp, refs,
+                                                      NULL, 0,
                                                       &mid_is_f16);
-        if (!used_mpp) {
+        if (!used_mpp &&
+            env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE")) {
+            ok = false;
+        } else if (!used_mpp) {
             ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(out_tmp, gate_tmp, up_tmp, mid_tmp,
                                                                gate_model, up_model, down_model,
                                                                layer->ffn_gate_exps->type,
@@ -559,6 +589,8 @@ static bool metal_graph_flash_moe_resident_grouped_prefill_tiled(
                  DS4_SWIGLU_CLAMP_EXP,
                  x_view,
                  nb,
+                 NULL,
+                 0,
                  &tile_mid_f16) != 0;
         if (tile_mid_f16) any_mid_f16 = true;
 
@@ -1259,7 +1291,9 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                         out_dim,
                         weights_view,
                         x_tmp,
-                        refs);
+                        refs,
+                        NULL,
+                        0);
                 if (ane_job) {
                     ane_queue[ane_queue_n++] = (resident_ane_pending_job){
                         .job = ane_job,
@@ -1713,7 +1747,9 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                     out_dim,
                     ane_weights,
                     ane_x,
-                    refs);
+                    refs,
+                    NULL,
+                    0);
             }
             if (ane_job && pending_ane_count < DS4_RESIDENT_ANE_PENDING_MAX) {
                 const uint32_t pi = pending_ane_count++;
@@ -1782,9 +1818,14 @@ static bool metal_graph_resident_moe_run_mpp_prefill_dedup(
                                                               DS4_SWIGLU_CLAMP_EXP,
                                                               x_tmp,
                                                               refs,
+                                                              NULL,
+                                                              0,
                                                               &mid_is_f16);
             }
-            if (!used_mpp) {
+            if (!used_mpp &&
+                env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE")) {
+                ok = false;
+            } else if (!used_mpp) {
                 ok = ds4_gpu_routed_moe_expert_banked_batch_tensor(out_tmp,
                                                                    gate_tmp,
                                                                    up_tmp,

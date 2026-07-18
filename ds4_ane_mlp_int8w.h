@@ -20,6 +20,27 @@ ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_fused_create(int H, int I, int B, flo
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_gateup_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_routed_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
+/* Experimental routed tiled-fused mode with dynamic fp16 per-output-channel
+ * weight scales.  Eval supplies one packed scale tensor in this order:
+ * [Wgate I | Wup I | Wdown H]. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_routed_per_channel_create(
+    int H, int I, int B, float x_scale, float mid_scale);
+/* Route-free sibling of the experimental per-channel mode.  It uses the same
+ * packed scale tensor but omits the route input and hidden route multiply. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_per_channel_create(
+    int H, int I, int B, float x_scale, float mid_scale);
+/* Mode 16 precision probe: the same packed per-output-channel weight scales,
+ * but fp16 X and an fp16 gate/up product (no middle int8 quantization). */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_fp16x_tiled_fused_per_channel_create(
+    int H, int I, int B);
+/* Mode 17: fixed scalar dequantization inside each weight matmul, with the
+ * packed per-channel corrections factored onto gate/up/down output channels. */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_per_channel_output_factored_create(
+    int H, int I, int B, float base_scale, float x_scale, float mid_scale);
+/* Mode 18: mode 17's output-factored per-channel weights with mode 16's
+ * fp16 X and fp16 hidden path (no activation quantization). */
+ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_fp16x_tiled_fused_per_channel_output_factored_create(
+    int H, int I, int B, float base_scale);
 /* Tiled-fused with int8 output (B*H bytes instead of B*H*2). */
 ds4_ane_mlp_int8w_ctx *ds4_ane_mlp_i8w_i8x_tiled_fused_i8out_create(int H, int I, int B, float w_scale, float x_scale, float mid_scale);
 /* Single-call fused fp16-weight MLP lowered as conv2d-1x1 (ANE-native pattern). */
@@ -211,6 +232,52 @@ bool ds4_ane_mlp_i8w_i8x_tiled_fused_routed_eval(
     const int8_t *Wdown_i8,
     const int8_t *input_i8,
     const uint16_t *route_f16,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_routed_per_channel_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    const uint16_t *weight_scales_f16,
+    const uint16_t *route_f16,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_per_channel_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    const uint16_t *weight_scales_f16,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_fp16x_tiled_fused_per_channel_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const uint16_t *input_f16,
+    const uint16_t *weight_scales_f16,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_i8x_tiled_fused_per_channel_output_factored_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const int8_t *input_i8,
+    const uint16_t *weight_scales_f16,
+    uint16_t *output_f16);
+
+bool ds4_ane_mlp_i8w_fp16x_tiled_fused_per_channel_output_factored_eval(
+    ds4_ane_mlp_int8w_ctx *ctx,
+    const int8_t *Wgate_i8,
+    const int8_t *Wup_i8,
+    const int8_t *Wdown_i8,
+    const uint16_t *input_f16,
+    const uint16_t *weight_scales_f16,
     uint16_t *output_f16);
 
 /* Mode 7: int8 output. Same i/o as tiled_fused_eval except output is int8. */

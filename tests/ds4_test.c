@@ -632,6 +632,85 @@ static void test_tool_call_quality(void) {
 
 #endif
 
+static void test_force_ane_policy(void) {
+    static const struct {
+        const char *name;
+        const char *forced_value;
+    } policy[] = {
+        { "DS4_ANE", "1" },
+        { "DS4_NO_INT8", "0" },
+        { "DS4_FLASH_MOE_ANE_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_PIPELINE_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_I8I8_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_I8I8_TILED_FUSED_PREFILL", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL_FP16X", "1" },
+        { "DS4_FLASH_MOE_ANE_PER_CHANNEL_FP16X_OUTPUT_FACTORED", "1" },
+        { "DS4_FLASH_MOE_ANE_FORCE_ALL_GROUPS", "1" },
+        { "DS4_FLASH_MOE_ANE_ALL_GROUPS_MIN_TOKENS", "0" },
+        { "DS4_FLASH_MOE_ANE_MIN_REFS", "1" },
+        { "DS4_FLASH_MOE_HYBRID_ANE_MIN_REFS", "1" },
+        { "DS4_FLASH_MOE_ANE_CHUNK_BIG_REFS", "1" },
+        { "DS4_FLASH_MOE_SCHED_ANE_MIN_UTIL", "0" },
+        { "DS4_FLASH_MOE_ANE_REQUIRE", "1" },
+        { "DS4_METAL_RESUME_PREFILL_MIN", "1" },
+        { "DS4_MTP_SIDECAR_BATCH_SLOTBANK_DISABLE", "1" },
+        { "DS4_FLASH_MOE_OVERLAP_PREFILL", "1" },
+        { "DS4_FLASH_MOE_OVERLAP_SCHEDULER", "1" },
+        { "DS4_FLASH_MOE_HYBRID_PREFILL", "0" },
+        { "DS4_FLASH_MOE_MPP_INT8_PREFILL", "0" },
+        { "DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL", "0" },
+        { "DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE", "0" },
+        { "DS4_AGENT_SYSPROMPT_ANE_PREFILL", "1" },
+        { "DS4_RESIDENT_MOE_BACKEND", "ane_gpu" },
+        { "DS4_RESIDENT_MOE_ANE_HYBRID", "1" },
+        { "DS4_RESIDENT_MOE_MPP_DEDUP_PREFILL", "1" },
+        { "DS4_RESIDENT_MOE_ANE_MIN_REFS", "1" },
+    };
+    const size_t count = sizeof(policy) / sizeof(policy[0]);
+    char *saved_force = getenv("DS4_FORCE_ANE") ?
+        strdup(getenv("DS4_FORCE_ANE")) : NULL;
+    char *saved[count];
+    bool existed[count];
+    for (size_t i = 0; i < count; i++) {
+        const char *value = getenv(policy[i].name);
+        existed[i] = value != NULL;
+        saved[i] = value ? strdup(value) : NULL;
+    }
+
+    TEST_ASSERT(setenv("DS4_FORCE_ANE", "0", 1) == 0);
+    TEST_ASSERT(setenv("DS4_ANE", "disabled-sentinel", 1) == 0);
+    ds4_force_ane_apply("ds4-test");
+    TEST_ASSERT(!strcmp(getenv("DS4_ANE"), "disabled-sentinel"));
+
+    TEST_ASSERT(setenv("DS4_FORCE_ANE", "1", 1) == 0);
+    for (size_t i = 0; i < count; i++) {
+        TEST_ASSERT(setenv(policy[i].name, "conflict", 1) == 0);
+    }
+    ds4_force_ane_apply("ds4-test");
+    TEST_ASSERT(ds4_force_ane_enabled());
+    for (size_t i = 0; i < count; i++) {
+        const char *actual = getenv(policy[i].name);
+        TEST_ASSERT(actual != NULL);
+        TEST_ASSERT(actual && !strcmp(actual, policy[i].forced_value));
+    }
+
+    if (saved_force) {
+        TEST_ASSERT(setenv("DS4_FORCE_ANE", saved_force, 1) == 0);
+    } else {
+        TEST_ASSERT(unsetenv("DS4_FORCE_ANE") == 0);
+    }
+    free(saved_force);
+    for (size_t i = 0; i < count; i++) {
+        if (existed[i]) {
+            TEST_ASSERT(setenv(policy[i].name, saved[i], 1) == 0);
+        } else {
+            TEST_ASSERT(unsetenv(policy[i].name) == 0);
+        }
+        free(saved[i]);
+    }
+}
+
 static void test_server_unit_group(void) {
     ds4_server_unit_tests_run();
 }
@@ -652,6 +731,7 @@ static const ds4_test_entry test_entries[] = {
     {"--logprob-vectors", "logprob-vectors", "official API top-logprob vector comparison", test_official_logprob_vectors},
     {"--metal-kernels", "metal-kernels", "isolated Metal kernel numeric regressions", test_metal_f16_matvec_fast_nr0_4},
 #endif
+    {"--force-ane-policy", "force-ane-policy", "DS4_FORCE_ANE policy precedence (no accelerator)", test_force_ane_policy},
     {"--server", "server", "server parser/rendering/cache unit tests", test_server_unit_group},
 };
 

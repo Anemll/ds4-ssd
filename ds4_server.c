@@ -9013,6 +9013,12 @@ static void kv_cache_evict(kv_disk_cache *kc, const ds4_tokens *live,
 static bool kv_cache_open(kv_disk_cache *kc, const char *dir, uint64_t budget_mb,
                           bool reject_different_quant, kv_cache_options opt) {
     memset(kc, 0, sizeof(*kc));
+    if (ds4_force_ane_enabled()) {
+        server_log(DS4_LOG_KVCACHE,
+                   "ds4-server: KV disk cache disabled under DS4_FORCE_ANE=1 "
+                   "because legacy entries do not record ANE/model/scale provenance");
+        return true;
+    }
     if (!dir) return false;
     if (!mkdir_p(dir)) {
         server_log(DS4_LOG_DEFAULT, "ds4-server: failed to create KV cache directory %s: %s", dir, strerror(errno));
@@ -12593,8 +12599,9 @@ static void usage(FILE *fp) {
         "  --no-int8\n"
         "      Disable int8 accelerator paths; use NAX-half/GPU fallbacks for quality-preserving runs.\n"
         "  --ane\n"
-        "      Enable ANE prefill profile defaults (off by default: the async ANE i8 arm\n"
-        "      is lower precision and non-reproducible run to run).\n"
+        "      Enable ANE prefill profile defaults.\n"
+        "  DS4_FORCE_ANE=1 (environment)\n"
+        "      Force all sidecar prefill (streaming or resident), including short prefill, to ANE; fail closed.\n"
         "  --dir-steering-file FILE\n"
         "      Load one f32 direction vector per layer for directional steering.\n"
         "  --dir-steering-ffn F\n"
@@ -15667,6 +15674,30 @@ static void test_kv_cache_store_len_uses_configured_boundary(void) {
     TEST_ASSERT(kv_cache_store_len(&kc, 3500) == 3500);
 }
 
+static void test_force_ane_disables_legacy_disk_kv(void) {
+    const char *old = getenv("DS4_FORCE_ANE");
+    char *saved = old ? xstrdup(old) : NULL;
+    TEST_ASSERT(setenv("DS4_FORCE_ANE", "1", 1) == 0);
+
+    kv_disk_cache kc;
+    memset(&kc, 0xA5, sizeof(kc));
+    TEST_ASSERT(kv_cache_open(&kc,
+                              "/tmp/ds4-force-ane-cache-must-not-open",
+                              1,
+                              true,
+                              kv_cache_default_options()));
+    TEST_ASSERT(!kc.enabled);
+    TEST_ASSERT(kc.dir == NULL);
+    kv_cache_close(&kc);
+
+    if (saved) {
+        TEST_ASSERT(setenv("DS4_FORCE_ANE", saved, 1) == 0);
+    } else {
+        TEST_ASSERT(unsetenv("DS4_FORCE_ANE") == 0);
+    }
+    free(saved);
+}
+
 static void test_kv_cache_chat_anchor_uses_last_user_before_assistant(void) {
     const int user = 9001;
     const int assistant = 9002;
@@ -16554,6 +16585,7 @@ static void ds4_server_unit_tests_run(void) {
     test_thinking_checkpoint_remember_gate();
     test_tool_marker_state_ignores_orphan_end();
     test_canonical_rewrite_rebuilds_when_live_tail_changes();
+    test_force_ane_disables_legacy_disk_kv();
     test_kv_cache_store_len_uses_configured_boundary();
     test_kv_cache_chat_anchor_uses_last_user_before_assistant();
     test_kv_cache_chat_anchor_ignores_multiturn_tail();

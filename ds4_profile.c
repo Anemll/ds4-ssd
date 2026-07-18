@@ -24,15 +24,17 @@ static bool profile_env_flag_enabled(const char *name) {
     return env && env[0] && atoi(env) != 0;
 }
 
-/* ANE compute paths are off by default until the ANE i8 arms reach GPU
- * precision: the async ANE prefill work split is queue-timing dependent and
- * the i8 arm uses static activation scales, so ANE-computed prefills drift
- * run to run (measured 2026-07-03: 35% deep-layer KV rms on the agent
- * sysprompt vs bit-exact without ANE).  The frontends' --ane flag (or
- * DS4_ANE=1) opts back in; explicitly exported per-path ANE env vars always
- * win over profile defaults either way. */
+static bool profile_force_ane_enabled(void) {
+    return profile_env_flag_enabled("DS4_FORCE_ANE");
+}
+
+/* ANE compute paths are normally opt-in.  The frontends' --ane flag (or
+ * DS4_ANE=1) enables machine-profile defaults.  DS4_FORCE_ANE=1 is stronger:
+ * it also wins over no-int8 and hardcoded frontend policy gates; the engine
+ * installs its fail-closed execution overrides before inference begins. */
 static bool profile_ane_allowed(void) {
-    return profile_env_flag_enabled("DS4_ANE");
+    return profile_env_flag_enabled("DS4_ANE") ||
+           profile_force_ane_enabled();
 }
 
 /* ------------------------------------------------------------------ */
@@ -347,7 +349,8 @@ static bool profile_matches(const jval *match, const char *chip, uint64_t ram_by
 }
 
 static void apply_resident_ane_prefill_defaults(void) {
-    if (profile_env_flag_enabled("DS4_NO_INT8")) return;
+    if (profile_env_flag_enabled("DS4_NO_INT8") &&
+        !profile_force_ane_enabled()) return;
     if (!profile_ane_allowed()) return;
 
     /* Profile-level equivalent of the safe parts of --resident-ane-prefill.
@@ -462,7 +465,8 @@ void ds4_profile_load_and_apply(void) {
         if (ane_skipped > 0) {
             fprintf(stderr,
                     "ds4: profile: %d ANE env defaults skipped (ANE off by default "
-                    "until precision work lands; enable with --ane or DS4_ANE=1)\n",
+                    "until explicitly enabled; use --ane, DS4_ANE=1, or "
+                    "DS4_FORCE_ANE=1)\n",
                     ane_skipped);
         }
 
@@ -508,8 +512,8 @@ void ds4_profile_load_and_apply(void) {
             if (ane_remapped) {
                 fprintf(stderr,
                         "ds4: profile prefill_by_tokens: ane* ranges remapped to mulmm "
-                        "(ANE off by default until precision work lands; enable with "
-                        "--ane or DS4_ANE=1)\n");
+                        "(ANE is not enabled; use --ane, DS4_ANE=1, or "
+                        "DS4_FORCE_ANE=1)\n");
             }
             /* The engine's per-chunk resolver (precedence: param > this table > gates). */
             if (tl > 0 && getenv("DS4_RESIDENT_MOE_PREFILL_BY_TOKENS") == NULL) {
@@ -519,7 +523,9 @@ void ds4_profile_load_and_apply(void) {
             /* If any range selects an ANE backend, ingest the resident ANE prefill
              * defaults. The per-chunk router still sends only ane* chunks there; other
              * chunks stay on the grouped path. Defaults; user env still wins. */
-            if (has_ane && !profile_env_flag_enabled("DS4_NO_INT8")) {
+            if (has_ane &&
+                (!profile_env_flag_enabled("DS4_NO_INT8") ||
+                 profile_force_ane_enabled())) {
                 apply_resident_ane_prefill_defaults();
                 fprintf(stderr, "ds4: profile prefill_by_tokens: ANE backend present -> resident ANE prefill defaults enabled for ane* chunks\n");
             } else if (has_ane) {

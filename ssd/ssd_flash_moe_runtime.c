@@ -143,6 +143,10 @@ static bool flash_moe_mpp_nax_allowed(void) {
 }
 
 static bool flash_moe_mpp_int8_prefill_requested(void) {
+    if (env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ||
+        env_flag_enabled("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL_REQUIRE")) {
+        return true;
+    }
     if (ds4_no_int8_paths_enabled()) {
         return env_flag_enabled("DS4_RESIDENT_MOE_NAX_HALF");
     }
@@ -159,10 +163,11 @@ static bool flash_moe_mpp_int8_prefill_enabled(void) {
             logged = true;
             fprintf(stderr,
                     "ds4: Flash-MoE MPP prefill gate: requested=%d allowed=%d "
-                    "flash=%s force=%s force_flash=%s force_nax=%s\n",
+                    "flash=%s nax_pc=%s force=%s force_flash=%s force_nax=%s\n",
                     requested ? 1 : 0,
                     allowed ? 1 : 0,
                     getenv("DS4_FLASH_MOE_MPP_INT8_PREFILL") ?: "",
+                    getenv("DS4_FLASH_MOE_NAX_INT8_PER_CHANNEL") ?: "",
                     getenv("DS4_MPP_NAX_FORCE_NON_M5") ?: "",
                     getenv("DS4_FLASH_MOE_MPP_FORCE_NON_M5") ?: "",
                     getenv("DS4_FLASH_MOE_NAX_FORCE_NON_M5") ?: "");
@@ -250,6 +255,38 @@ static uint32_t get_prefill_hybrid_ane_min_refs(void) {
     }
     cached = (int)min_refs;
     return min_refs;
+}
+
+/* Explicit test policy only.  These knobs intentionally do not enable ANE
+ * prefill by themselves; the normal model/type/backend eligibility gates must
+ * already have selected routed ANE prefill. */
+static bool flash_moe_ane_force_all_groups_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_ANE_FORCE_ALL_GROUPS");
+}
+
+/* Production long-prefill policy.  Unlike the explicit FORCE knob above,
+ * this keeps short chunks on the normal ANE/GPU cost model while avoiding a
+ * slow classic-GPU tail once a large sidecar chunk has enough work to keep
+ * ANE busy.  It does not enable ANE by itself. */
+static uint32_t flash_moe_ane_all_groups_min_tokens(void) {
+    static uint32_t cached = UINT32_MAX;
+    if (cached != UINT32_MAX) return cached;
+
+    uint32_t min_tokens = 0;
+    const char *env = getenv("DS4_FLASH_MOE_ANE_ALL_GROUPS_MIN_TOKENS");
+    if (env && env[0]) {
+        char *end = NULL;
+        const unsigned long long parsed = strtoull(env, &end, 10);
+        if (end != env && parsed <= UINT32_MAX) {
+            min_tokens = (uint32_t)parsed;
+        }
+    }
+    cached = min_tokens;
+    return min_tokens;
+}
+
+static bool flash_moe_ane_require_enabled(void) {
+    return env_flag_enabled("DS4_FLASH_MOE_ANE_REQUIRE");
 }
 
 static uint32_t get_prefill_concurrent_min_gpu_groups(void) {
@@ -411,6 +448,7 @@ static uint32_t build_flash_prefill_overlap_plan(
         const int32_t               *offsets,
         const bool                  *slot_cache_expert,
         uint32_t                     hybrid_ane_min_refs,
+        bool                         force_all_ane_groups,
         double                     *planned_gpu_cost_out,
         double                     *planned_ane_cost_out,
         uint32_t                   *planned_ane_groups_out,
@@ -469,6 +507,7 @@ static uint32_t build_flash_prefill_overlap_plan(
             slot_cache_expert && expert >= 0 && expert < (int32_t)DS4_N_EXPERT && slot_cache_expert[expert];
         const double stage_cost = slot_cached ? 0.0 : ssd_refs;
         const bool split_low_util_tail =
+            !force_all_ane_groups &&
             can_chunk && refs >= hybrid_ane_min_refs && group_util < ane_min_util &&
             refs > chunk_refs && chunk_refs > 0;
         const uint32_t ane_refs =
@@ -488,8 +527,10 @@ static uint32_t build_flash_prefill_overlap_plan(
                 .ane_cost = ((double)ane_padded_refs / ane_rel_speed) + ane_call_refs + stage_cost,
                 .ssd_cost = stage_cost,
                 .slot_cached = slot_cached,
-                .ane_eligible = can_chunk && ane_refs >= hybrid_ane_min_refs &&
-                                ((double)ane_refs / (double)ane_padded_refs) >= ane_min_util,
+                .ane_eligible = can_chunk &&
+                                (force_all_ane_groups ||
+                                 (ane_refs >= hybrid_ane_min_refs &&
+                                  ((double)ane_refs / (double)ane_padded_refs) >= ane_min_util)),
             };
             work[work_n++] = item;
         }
@@ -540,7 +581,7 @@ static uint32_t build_flash_prefill_overlap_plan(
             const double if_ane = ane_load + item.ane_cost;
             const double make_gpu = if_gpu > ane_load ? if_gpu : ane_load;
             const double make_ane = gpu_load > if_ane ? gpu_load : if_ane;
-            if (make_ane < make_gpu) {
+            if (force_all_ane_groups || make_ane < make_gpu) {
                 item.lane = DS4_PREFILL_LANE_ANE;
                 ane_load = if_ane;
                 ane[ane_n++] = item;
