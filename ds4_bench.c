@@ -50,6 +50,7 @@ typedef struct {
     bool resident_ane_oproj;
     int resident_ane_cache_layers;
     bool full_prefill_each_frontier;
+    bool prefill_abba_force_mm_id;
 } bench_config;
 
 static double bench_now_sec(void) {
@@ -109,6 +110,9 @@ static void usage(FILE *fp) {
         "  --full-prefill-each-frontier\n"
         "                         Reset before each row; reports full frontier prefill,\n"
         "                         not just the newest suffix interval.\n"
+        "  --prefill-abba-force-mm-id\n"
+        "                         Diagnostic: load once and measure current/grouped/\n"
+        "                         grouped/current full-prefill rows at each frontier.\n"
         "  --gen-tokens N         Greedy decode tokens per frontier. Default: 128\n"
         "\n"
         "Output:\n"
@@ -329,6 +333,9 @@ static bench_config parse_options(int argc, char **argv) {
                    !strcmp(arg, "--full-prefill") ||
                    !strcmp(arg, "--reset-each-frontier")) {
             c.full_prefill_each_frontier = true;
+        } else if (!strcmp(arg, "--prefill-abba-force-mm-id")) {
+            c.prefill_abba_force_mm_id = true;
+            c.full_prefill_each_frontier = true;
         } else if (!strcmp(arg, "--gen-tokens") || !strcmp(arg, "--tokens") || !strcmp(arg, "-n")) {
             c.gen_tokens = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "--csv")) {
@@ -528,7 +535,13 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    fprintf(out, "ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes\n");
+    if (cfg.prefill_abba_force_mm_id) {
+        fprintf(out,
+                "run,arm,ctx_tokens,prefill_tokens,prefill_tps,"
+                "gen_tokens,gen_tps,kvcache_bytes\n");
+    } else {
+        fprintf(out, "ctx_tokens,prefill_tokens,prefill_tps,gen_tokens,gen_tps,kvcache_bytes\n");
+    }
     fflush(out);
 
     const int eos = ds4_token_eos(engine);
@@ -537,76 +550,146 @@ int main(int argc, char **argv) {
     int previous = 0;
     int rc = 0;
 
-    for (int frontier = cfg.ctx_start; ; frontier = next_frontier(&cfg, frontier)) {
+    /* Pipeline creation and first-page faults can dominate the 128-token row.
+     * Warm both diagnostic arms inside the already-loaded process so the ABBA
+     * means compare routing work rather than one arm's first use. */
+    if (cfg.prefill_abba_force_mm_id) {
+        ds4_tokens warm_prefix = {
+            .v = prompt.v,
+            .len = cfg.ctx_start,
+            .cap = cfg.ctx_start,
+        };
+        for (int grouped = 0; grouped <= 1; grouped++) {
+            const int env_rc = grouped ?
+                setenv("DS4_METAL_FLASH_MOE_FORCE_MM_ID", "1", 1) :
+                unsetenv("DS4_METAL_FLASH_MOE_FORCE_MM_ID");
+            if (env_rc != 0) {
+                perror("ds4-bench: configure ABBA warmup arm");
+                rc = 1;
+                break;
+            }
+            ds4_session_invalidate(session);
+            if (ds4_session_sync(session, &warm_prefix, err, sizeof(err)) != 0) {
+                fprintf(stderr,
+                        "ds4-bench: ABBA warmup to %d failed: %s\n",
+                        cfg.ctx_start,
+                        err);
+                rc = 1;
+                break;
+            }
+        }
+    }
+
+    for (int frontier = cfg.ctx_start; rc == 0;
+         frontier = next_frontier(&cfg, frontier)) {
         ds4_tokens prefix = {
             .v = prompt.v,
             .len = frontier,
             .cap = frontier,
         };
 
-        if (cfg.full_prefill_each_frontier) {
-            ds4_session_invalidate(session);
-        }
-        const double prefill_t0 = bench_now_sec();
-        if (ds4_session_sync(session, &prefix, err, sizeof(err)) != 0) {
-            fprintf(stderr, "ds4-bench: prefill to %d failed: %s\n", frontier, err);
-            rc = 1;
-            break;
-        }
-        const double prefill_t1 = bench_now_sec();
-        const double prefill_sec = prefill_t1 - prefill_t0;
-        const int prefill_tokens =
-            cfg.full_prefill_each_frontier ? frontier : frontier - previous;
+        const int measure_count = cfg.prefill_abba_force_mm_id ? 4 : 1;
+        for (int measure = 0; measure < measure_count; measure++) {
+            const bool grouped = cfg.prefill_abba_force_mm_id &&
+                (measure == 1 || measure == 2);
+            if (cfg.prefill_abba_force_mm_id) {
+                if (grouped) {
+                    if (setenv("DS4_METAL_FLASH_MOE_FORCE_MM_ID", "1", 1) != 0) {
+                        perror("ds4-bench: setenv DS4_METAL_FLASH_MOE_FORCE_MM_ID");
+                        rc = 1;
+                        break;
+                    }
+                } else if (unsetenv("DS4_METAL_FLASH_MOE_FORCE_MM_ID") != 0) {
+                    perror("ds4-bench: unsetenv DS4_METAL_FLASH_MOE_FORCE_MM_ID");
+                    rc = 1;
+                    break;
+                }
+            }
 
-        if (ds4_session_save_snapshot(session, &snap, err, sizeof(err)) != 0) {
-            fprintf(stderr, "ds4-bench: snapshot at %d failed: %s\n", frontier, err);
-            rc = 1;
-            break;
-        }
+            if (cfg.full_prefill_each_frontier) {
+                ds4_session_invalidate(session);
+            }
+            const double prefill_t0 = bench_now_sec();
+            if (ds4_session_sync(session, &prefix, err, sizeof(err)) != 0) {
+                fprintf(stderr, "ds4-bench: prefill to %d failed: %s\n", frontier, err);
+                rc = 1;
+                break;
+            }
+            const double prefill_t1 = bench_now_sec();
+            const double prefill_sec = prefill_t1 - prefill_t0;
+            const int prefill_tokens =
+                cfg.full_prefill_each_frontier ? frontier : frontier - previous;
 
-        const double gen_t0 = bench_now_sec();
-        for (int i = 0; i < cfg.gen_tokens; i++) {
-            if (ds4_session_pos(session) + 1 >= ds4_session_ctx(session)) {
-                fprintf(stderr, "ds4-bench: generation would exceed allocated context at frontier %d\n", frontier);
+            if (ds4_session_save_snapshot(session, &snap, err, sizeof(err)) != 0) {
+                fprintf(stderr, "ds4-bench: snapshot at %d failed: %s\n", frontier, err);
                 rc = 1;
                 break;
             }
-            const int token = ds4_session_argmax_excluding(session, eos);
-            if (token < 0) {
-                fprintf(stderr, "ds4-bench: failed to choose non-EOS token at frontier %d\n", frontier);
+
+            const double gen_t0 = bench_now_sec();
+            for (int i = 0; i < cfg.gen_tokens; i++) {
+                if (ds4_session_pos(session) + 1 >= ds4_session_ctx(session)) {
+                    fprintf(stderr, "ds4-bench: generation would exceed allocated context at frontier %d\n", frontier);
+                    rc = 1;
+                    break;
+                }
+                const int token = ds4_session_argmax_excluding(session, eos);
+                if (token < 0) {
+                    fprintf(stderr, "ds4-bench: failed to choose non-EOS token at frontier %d\n", frontier);
+                    rc = 1;
+                    break;
+                }
+                if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
+                    fprintf(stderr,
+                            "ds4-bench: decode at frontier %d failed: %s\n",
+                            frontier,
+                            err);
+                    rc = 1;
+                    break;
+                }
+            }
+            const double gen_t1 = bench_now_sec();
+            if (rc != 0) break;
+
+            if (ds4_session_load_snapshot(session, &snap, err, sizeof(err)) != 0) {
+                fprintf(stderr, "ds4-bench: restore at %d failed: %s\n", frontier, err);
                 rc = 1;
                 break;
             }
-            if (ds4_session_eval(session, token, err, sizeof(err)) != 0) {
-                fprintf(stderr, "ds4-bench: decode at frontier %d failed: %s\n", frontier, err);
-                rc = 1;
-                break;
+
+            const double gen_sec = gen_t1 - gen_t0;
+            if (cfg.prefill_abba_force_mm_id) {
+                fprintf(out,
+                        "%d,%s,%d,%d,%.2f,%d,%.2f,%llu\n",
+                        measure + 1,
+                        grouped ? "grouped" : "current",
+                        frontier,
+                        prefill_tokens,
+                        prefill_sec > 0.0 ? (double)prefill_tokens / prefill_sec : 0.0,
+                        cfg.gen_tokens,
+                        gen_sec > 0.0 ? (double)cfg.gen_tokens / gen_sec : 0.0,
+                        (unsigned long long)snap.len);
+            } else {
+                fprintf(out,
+                        "%d,%d,%.2f,%d,%.2f,%llu\n",
+                        frontier,
+                        prefill_tokens,
+                        prefill_sec > 0.0 ? (double)prefill_tokens / prefill_sec : 0.0,
+                        cfg.gen_tokens,
+                        gen_sec > 0.0 ? (double)cfg.gen_tokens / gen_sec : 0.0,
+                        (unsigned long long)snap.len);
             }
+            fflush(out);
         }
-        const double gen_t1 = bench_now_sec();
         if (rc != 0) break;
-
-        if (ds4_session_load_snapshot(session, &snap, err, sizeof(err)) != 0) {
-            fprintf(stderr, "ds4-bench: restore at %d failed: %s\n", frontier, err);
-            rc = 1;
-            break;
-        }
-
-        const double gen_sec = gen_t1 - gen_t0;
-        fprintf(out,
-                "%d,%d,%.2f,%d,%.2f,%llu\n",
-                frontier,
-                prefill_tokens,
-                prefill_sec > 0.0 ? (double)prefill_tokens / prefill_sec : 0.0,
-                cfg.gen_tokens,
-                gen_sec > 0.0 ? (double)cfg.gen_tokens / gen_sec : 0.0,
-                (unsigned long long)snap.len);
-        fflush(out);
 
         previous = frontier;
         if (frontier >= cfg.ctx_max) break;
     }
 
+    if (cfg.prefill_abba_force_mm_id) {
+        unsetenv("DS4_METAL_FLASH_MOE_FORCE_MM_ID");
+    }
     if (out != stdout) fclose(out);
     ds4_session_snapshot_free(&snap);
     ds4_session_free(session);
