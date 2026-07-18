@@ -482,6 +482,56 @@ static uint32_t flash_moe_resident_grouped_prefill_min_tokens(void) {
     return minimum;
 }
 
+/* Direct-mmap sidecars historically prefer per-expert mul_mv regardless of
+ * the total prefill chunk.  Allow an M3U-scoped profile to select grouped ALU
+ * only in the short-prefill window where it wins, while hard-limiting this
+ * knob below the production ANE boundary.  Absent/invalid env keeps the
+ * legacy direct-mmap route. */
+static bool flash_moe_direct_mmap_prefers_mul_mv(
+        const ds4_gpu_graph *g,
+        uint32_t             n_tokens) {
+    if (!g || !g->flash_direct_mmap_bank) return false;
+
+    const char *min_value =
+        getenv("DS4_FLASH_MOE_DIRECT_MMAP_GROUPED_MIN_TOKENS");
+    if (!min_value || !min_value[0]) return true;
+
+    char *end = NULL;
+    const unsigned long parsed_min = strtoul(min_value, &end, 10);
+    if (end == min_value || *end != '\0' ||
+        parsed_min == 0ul || parsed_min > 8191ul) {
+        return true;
+    }
+
+    uint32_t max_tokens = 8191u;
+    const char *max_value =
+        getenv("DS4_FLASH_MOE_DIRECT_MMAP_GROUPED_MAX_TOKENS");
+    if (max_value && max_value[0]) {
+        end = NULL;
+        const unsigned long parsed_max = strtoul(max_value, &end, 10);
+        if (end == max_value || *end != '\0' || parsed_max == 0ul) {
+            return true;
+        }
+        max_tokens = parsed_max < 8191ul ? (uint32_t)parsed_max : 8191u;
+    }
+
+    const uint32_t min_tokens = (uint32_t)parsed_min;
+    if (max_tokens < min_tokens) return true;
+
+    if (!backend_diagnostic_logs_suppressed()) {
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            fprintf(stderr,
+                    "ds4: direct-mmap grouped ALU window: %u..%u total prefill tokens "
+                    "(>=8192 route unchanged)\n",
+                    min_tokens,
+                    max_tokens);
+        }
+    }
+    return n_tokens < min_tokens || n_tokens > max_tokens;
+}
+
 static bool metal_graph_flash_moe_resident_grouped_prefill_eligible(
         const ds4_gpu_graph       *g,
         const ds4_layer_weights   *layer,
@@ -1272,6 +1322,8 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
      * the rest of this function reference whichever one is active unchanged. */
     ds4_flash_prefill_async_reader local_async_reader;
     const bool xlayer_prefetch = flash_moe_xlayer_prefetch_enabled(n_tokens);
+    const bool direct_mmap_prefer_mul_mv =
+        flash_moe_direct_mmap_prefers_mul_mv(g, n_tokens);
     ds4_flash_prefill_async_reader *p_async_reader = &local_async_reader;
     bool xlayer_reader_ready = false;
     if (xlayer_prefetch) {
@@ -2280,7 +2332,7 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
                                                                       g->flash_prefill_x,
                                                                       refs,
                                                                       &mid_is_f16,
-                                                                      g->flash_direct_mmap_bank) != 0;
+                                                                      direct_mmap_prefer_mul_mv) != 0;
                 if (ok && hybrid_prefill) hybrid_fp32_groups++;
             }
             if ((hybrid_prefill || concurrent_prefill || ane_pipeline_prefill) && ane_ok) {
