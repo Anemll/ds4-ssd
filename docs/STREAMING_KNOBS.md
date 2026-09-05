@@ -32,6 +32,29 @@ ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... b
 ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
+## Slot ownership and interruption safety
+
+Decode and tiny-batch slot-bank prefill hard-reserve **all resident experts in
+the current request before choosing slots for misses**. Miss installs start
+only after the whole request has been resolved; duplicate expert IDs share a
+slot. The picker cannot evict a requested hit or a slot promised to another
+miss, including when the bank is full.
+
+This protection is always enabled and is independent of
+`DS4_FLASH_MOE_PREPROTECT_TOPK`. That existing opt-in setting supplies only soft
+cache hints. Larger expert-major prefill still stages one expert at a time and
+may evict soft-protected cache entries after synchronizing their GPU use; a
+prompt may reference more unique experts than the bank holds.
+
+Outstanding SSD jobs are drained before failed decode/prefill work can reuse
+their buffers or reset the graph. Failed or discarded direct-to-slot reads
+invalidate destination ownership and replay state, so partially overwritten
+weights cannot be reported as cache hits. Cancellation can therefore wait for
+in-flight reads to finish and can require cache refills on retry.
+
+These correctness changes introduce no knobs or default/profile changes. See
+[PORT.md](../PORT.md) for the source-commit mapping.
+
 ## Decode-bank shrink (page-cache cliff fix)
 
 On a RAM-limited machine (sidecar larger than physical RAM) a big wired slot

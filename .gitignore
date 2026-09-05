@@ -27,3 +27,7 @@ fp4_samples/*
 /COMPARE_*.log
 tests/ane_ds4_mlp_i8i8_precision_smoke
 tests/mxfp4_native_probe
+tests/test_flash_moe_slots
+tests/test_flash_moe_slots_sanitize
+tests/test_flash_moe_io
+tests/test_flash_moe_session

@@ -7,6 +7,13 @@ The dense model remains a GGUF. Routed experts are stored outside the GGUF in a
 sidecar directory with a manifest and expert records. At runtime, DS4 keeps a
 configurable slot-bank of expert weights resident and streams the rest from SSD.
 
+Slot-bank requests protect every required resident expert before reserving
+misses and install only after resolving the full request. Failed/interrupted
+reads are drained before buffer reuse; partially written destinations are
+invalidated. This is automatic and does not require a tuning flag. See
+[streaming safety](STREAMING_KNOBS.md#slot-ownership-and-interruption-safety)
+for decode versus expert-major prefill semantics.
+
 ## Required Files
 
 ```text

@@ -49,20 +49,10 @@ static const char *flash_moe_ane_prefill_unsupported_reason(
     return buf;
 }
 
-/* Single eviction policy shared by every slot-acquisition path over the one
- * per-layer slot bank (prefill install + decode reserve). The bank is shared
- * between prefill and decode, so both MUST agree on how a slot is chosen or the
- * decode->resume-prefill transition desyncs. Order:
- *   1. an empty, non-reserved slot;
- *   2. the LRU non-reserved, non-protected slot;
- *   3. the LRU non-reserved slot (protection is a SOFT prefetch hint -- evicting
- *      a protected expert only costs one SSD re-read, never correctness).
- * reserved_slots / protected_experts may be NULL.
- *   - install passes reserved_slots == NULL  -> step 3 scans every slot, so it
- *     CANNOT fail when slot_bank > 0 (no more spurious resume-prefill aborts).
- *   - reserve passes reserved_slots (in-flight this decode step, a HARD
- *     constraint) -> fails only if every slot is reserved, i.e. the step routed
- *     more distinct experts than the bank holds. */
+#include "ssd_flash_moe_slots.h"
+
+/* Prefetch hints remain soft; every victim-selection pass excludes the hard
+ * reservations held by a complete decode or grouped-prefill request. */
 static uint32_t metal_graph_flash_moe_pick_slot(
         ds4_gpu_graph  *g,
         const int32_t  *slot_to_expert,
@@ -70,96 +60,31 @@ static uint32_t metal_graph_flash_moe_pick_slot(
         const bool     *protected_experts,
         const bool     *reserved_slots) {
     if (!g || g->flash_slot_bank == 0) return UINT32_MAX;
-    /* 1. empty, non-reserved */
-    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-        if (reserved_slots && reserved_slots[i]) continue;
-        if (slot_to_expert[i] < 0) return i;
-    }
-    /* 2. LRU among non-reserved, non-protected */
-    uint32_t slot = UINT32_MAX;
-    uint64_t oldest = UINT64_MAX;
-    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-        if (reserved_slots && reserved_slots[i]) continue;
-        const int32_t resident = slot_to_expert[i];
-        if (protected_experts &&
-            resident >= 0 && resident < (int32_t)DS4_N_EXPERT &&
-            protected_experts[resident]) {
-            continue;
-        }
-        if (slot_age[i] < oldest) { oldest = slot_age[i]; slot = i; }
-    }
-    if (slot != UINT32_MAX) return slot;
-    /* 3. LRU among non-reserved (ignore soft protection) */
-    oldest = UINT64_MAX;
-    for (uint32_t i = 0; i < g->flash_slot_bank; i++) {
-        if (reserved_slots && reserved_slots[i]) continue;
-        if (slot_age[i] < oldest) { oldest = slot_age[i]; slot = i; }
-    }
-    return slot;
+    return ds4_flash_moe_select_slot(g->flash_slot_bank, DS4_N_EXPERT,
+            slot_to_expert, slot_age, protected_experts, reserved_slots);
 }
 
-static bool metal_graph_flash_moe_install(
+static void metal_graph_flash_moe_invalidate_decode_slot(
+        ds4_gpu_graph *g, uint32_t il, int32_t slot);
+static void metal_graph_flash_moe_commit_decode_slot(
+        ds4_gpu_graph *g, uint32_t il, int32_t true_expert,
+        int32_t slot, int32_t evicted);
+
+/* Install only a destination chosen by the completed reservation pass. */
+static bool metal_graph_flash_moe_install_reserved(
         ds4_gpu_graph *g,
         uint32_t       il,
         int32_t        true_expert,
-        const bool    *protected_experts,
-        int32_t       *slot_out) {
-    if (!g || !g->flash_moe || !slot_out ||
-        il >= DS4_N_LAYER ||
-        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
-        return false;
-    }
-
-    int32_t *slot_to_expert = flash_moe_slot_to_expert(g, il);
-    int32_t *expert_to_slot = flash_moe_expert_to_slot(g, il);
-    uint64_t *slot_age = flash_moe_slot_age(g, il);
-    if (g->flash_direct_mmap_bank) {
-        const int32_t slot = true_expert;
-        if (slot < 0 || slot >= (int32_t)g->flash_slot_bank) return false;
-        slot_to_expert[slot] = true_expert;
-        expert_to_slot[true_expert] = slot;
-        slot_age[slot] = ++g->flash_age;
-        g->flash_hits++;
-        *slot_out = slot;
-        return true;
-    }
-    if (g->flash_per_expert_buffers) {
-        const int32_t slot = true_expert;
-        if (slot < 0 || slot >= (int32_t)g->flash_slot_bank ||
-            !g->flash_expert_bank[il][true_expert]) {
-            return false;
-        }
-        slot_to_expert[slot] = true_expert;
-        expert_to_slot[true_expert] = slot;
-        slot_age[slot] = ++g->flash_age;
-        g->flash_hits++;
-        *slot_out = slot;
-        return true;
-    }
-    const int32_t existing = expert_to_slot[true_expert];
-    if (existing >= 0 && existing < (int32_t)g->flash_slot_bank &&
-        slot_to_expert[existing] == true_expert) {
-        slot_age[existing] = ++g->flash_age;
-        g->flash_hits++;
-        *slot_out = existing;
-        return true;
-    }
-
-    g->flash_misses++;
-    /* Prefill install: no per-step reservations; protection is a soft hint.
-     * pick_slot() never fails here when slot_bank > 0, so a resume-prefill over a
-     * decode-populated bank can no longer hard-fail (which would abort the whole
-     * extend and trip the "metal resumed prefill failed" path). */
-    const uint32_t slot = metal_graph_flash_moe_pick_slot(
-            g, slot_to_expert, slot_age, protected_experts, NULL);
-    if (slot == UINT32_MAX) return false;  /* only reachable if slot_bank == 0 */
-
-    const int32_t evicted = slot_to_expert[slot];
-
+        int32_t        slot,
+        int32_t        evicted) {
+    if (!g || !g->flash_moe || il >= DS4_N_LAYER ||
+        true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT ||
+        slot < 0 || slot >= (int32_t)g->flash_slot_bank) return false;
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
     bool wrote = false;
     bool wrote_from_gpu_l2 = false;
     bool direct_metal_write = false;
+    metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
     if (g->flash_gpu_l2_slot_bank) {
         wrote = metal_graph_flash_moe_gpu_l2_promote_to_l1(g,
                                                            il,
@@ -167,7 +92,6 @@ static bool metal_graph_flash_moe_install(
                                                            (int32_t)slot);
         wrote_from_gpu_l2 = wrote;
     }
-    metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, (int32_t)slot);
     if (!wrote && g->flash_shared_l2_slot_bank) {
         const uint8_t *l2_src = NULL;
         if (metal_graph_flash_moe_shared_l2_lookup(g, il, true_expert, &l2_src) && l2_src) {
@@ -212,6 +136,7 @@ static bool metal_graph_flash_moe_install(
                     il,
                     true_expert,
                     strerror(errno));
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, slot);
             return false;
         }
     }
@@ -225,6 +150,7 @@ static bool metal_graph_flash_moe_install(
                     il,
                     true_expert,
                     strerror(errno));
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, slot);
             return false;
         }
         wrote = metal_graph_flash_moe_write_slot_from_buf(g,
@@ -239,30 +165,23 @@ static bool metal_graph_flash_moe_install(
                                                          (int32_t)slot);
     }
     if (!wrote) {
-        fprintf(stderr, "ds4: Flash-MoE failed to upload layer %u expert %d into slot %u\n",
+        fprintf(stderr, "ds4: Flash-MoE failed to upload layer %u expert %d into slot %d\n",
                 il,
                 true_expert,
                 slot);
+        metal_graph_flash_moe_invalidate_decode_slot(g, il, slot);
         return false;
     }
     if (direct_metal_write && !metal_graph_flash_moe_mark_slot_modified(g, il, (int32_t)slot)) {
-        fprintf(stderr, "ds4: Flash-MoE failed to mark layer %u slot %u modified\n",
+        fprintf(stderr, "ds4: Flash-MoE failed to mark layer %u slot %d modified\n",
                 il,
                 slot);
+        metal_graph_flash_moe_invalidate_decode_slot(g, il, slot);
         return false;
     }
 
-    metal_graph_flash_moe_replay_invalidate_slot(g, il, (int32_t)slot);
-    if (evicted >= 0 && evicted < (int32_t)DS4_N_EXPERT &&
-        expert_to_slot[evicted] == (int32_t)slot) {
-        expert_to_slot[evicted] = -1;
-    }
-    slot_to_expert[slot] = true_expert;
-    expert_to_slot[true_expert] = (int32_t)slot;
-    slot_age[slot] = ++g->flash_age;
-    metal_graph_flash_moe_replay_mark_resident_missing(g, il, (int32_t)slot, true_expert);
+    metal_graph_flash_moe_commit_decode_slot(g, il, true_expert, slot, evicted);
     g->flash_installed_bytes += layer->expert_stride;
-    *slot_out = (int32_t)slot;
     return true;
 }
 
@@ -289,8 +208,7 @@ static bool metal_graph_flash_moe_reserve_decode_slot(
     uint64_t *slot_age = flash_moe_slot_age(g, il);
     if (g->flash_direct_mmap_bank) {
         const int32_t slot = true_expert;
-        if (slot < 0 || slot >= (int32_t)g->flash_slot_bank ||
-            (reserved_slots && reserved_slots[slot])) {
+        if (slot < 0 || slot >= (int32_t)g->flash_slot_bank) {
             return false;
         }
         slot_to_expert[slot] = true_expert;
@@ -304,8 +222,7 @@ static bool metal_graph_flash_moe_reserve_decode_slot(
     if (g->flash_per_expert_buffers) {
         const int32_t slot = true_expert;
         if (slot < 0 || slot >= (int32_t)g->flash_slot_bank ||
-            !g->flash_expert_bank[il][true_expert] ||
-            (reserved_slots && reserved_slots[slot])) {
+            !g->flash_expert_bank[il][true_expert]) {
             return false;
         }
         slot_to_expert[slot] = true_expert;
@@ -318,8 +235,7 @@ static bool metal_graph_flash_moe_reserve_decode_slot(
     }
     const int32_t existing = expert_to_slot[true_expert];
     if (existing >= 0 && existing < (int32_t)g->flash_slot_bank &&
-        slot_to_expert[existing] == true_expert &&
-        !(reserved_slots && reserved_slots[existing])) {
+        slot_to_expert[existing] == true_expert) {
         slot_age[existing] = ++g->flash_age;
         g->flash_hits++;
         *slot_out = existing;
@@ -328,10 +244,8 @@ static bool metal_graph_flash_moe_reserve_decode_slot(
     }
 
     g->flash_misses++;
-    /* Decode reserve: reserved_slots are in-flight this step (HARD); protection
-     * is a soft hint. Same picker as prefill install -> the shared bank evicts
-     * identically on both sides. Fails only if every slot is reserved (the step
-     * routed more distinct experts than the bank holds). */
+    /* A matching resident hit may already be hard-reserved by the request
+     * prepass. Only miss victim selection must skip reserved slots. */
     const uint32_t slot = metal_graph_flash_moe_pick_slot(
             g, slot_to_expert, slot_age, protected_experts, reserved_slots);
     if (slot == UINT32_MAX) return false;
@@ -352,6 +266,81 @@ static void metal_graph_flash_moe_protect_routed_experts(
             protected_experts[true_ids[k]] = true;
         }
     }
+}
+
+/* A plan never installs or changes mappings. Validate all inputs and protect
+ * all resident hits before selecting the first miss destination. */
+static bool metal_graph_flash_moe_resolve_request(
+        ds4_gpu_graph *g, uint32_t il, const int32_t *true_ids, uint32_t n_ids,
+        const bool *protected_experts, int32_t *slot_ids,
+        int32_t *evicted, bool *misses) {
+    if (!g || !g->flash_moe || il >= DS4_N_LAYER || !true_ids ||
+        !slot_ids || !evicted || !misses || n_ids > DS4_MAX_EXPERT ||
+        g->flash_slot_bank == 0 || g->flash_slot_bank > DS4_MAX_EXPERT) return false;
+    if (g->flash_direct_mmap_bank || g->flash_per_expert_buffers) {
+        for (uint32_t k = 0; k < n_ids; k++) {
+            const int32_t expert = true_ids[k];
+            if (expert < 0 || expert >= (int32_t)DS4_N_EXPERT ||
+                expert >= (int32_t)g->flash_slot_bank ||
+                (g->flash_per_expert_buffers && !g->flash_expert_bank[il][expert])) {
+                return false;
+            }
+        }
+        for (uint32_t k = 0; k < n_ids; k++) {
+            slot_ids[k] = true_ids[k];
+            evicted[k] = -1;
+            misses[k] = false;
+        }
+        return true;
+    }
+    bool reserved_slots[DS4_MAX_EXPERT] = { false };
+    return ds4_flash_moe_resolve_request_slots(true_ids, n_ids, DS4_N_EXPERT,
+            flash_moe_expert_to_slot(g, il), flash_moe_slot_to_expert(g, il),
+            flash_moe_slot_age(g, il), g->flash_slot_bank, protected_experts,
+            reserved_slots, slot_ids, evicted, misses);
+}
+
+static void metal_graph_flash_moe_note_request_slot(
+        ds4_gpu_graph *g, uint32_t il, int32_t expert, int32_t slot, bool miss) {
+    if (miss) {
+        g->flash_misses++;
+    } else {
+        if (g->flash_direct_mmap_bank || g->flash_per_expert_buffers) {
+            flash_moe_slot_to_expert(g, il)[slot] = expert;
+            flash_moe_expert_to_slot(g, il)[expert] = slot;
+        }
+        flash_moe_slot_age(g, il)[slot] = ++g->flash_age;
+        g->flash_hits++;
+    }
+}
+
+static bool metal_graph_flash_moe_install_request(
+        ds4_gpu_graph *g, uint32_t il, const int32_t *true_ids, uint32_t n_ids,
+        const bool *protected_experts, int32_t *slot_ids) {
+    int32_t evicted[DS4_MAX_EXPERT];
+    bool misses[DS4_MAX_EXPERT];
+    if (!metal_graph_flash_moe_resolve_request(g, il, true_ids, n_ids,
+            protected_experts, slot_ids, evicted, misses)) return false;
+    for (uint32_t k = 0; k < n_ids; k++) {
+        bool duplicate = false;
+        for (uint32_t prev = 0; prev < k; prev++) {
+            if (true_ids[prev] == true_ids[k]) { duplicate = true; break; }
+        }
+        if (duplicate) continue;
+        metal_graph_flash_moe_note_request_slot(g, il, true_ids[k], slot_ids[k], misses[k]);
+        if (misses[k] && !metal_graph_flash_moe_install_reserved(g, il,
+                true_ids[k], slot_ids[k], evicted[k])) return false;
+    }
+    return true;
+}
+
+/* Expert-major prefill consumes one expert before reusing the shared bank;
+ * its single-expert request intentionally permits soft-hint fallback. */
+static bool metal_graph_flash_moe_install(
+        ds4_gpu_graph *g, uint32_t il, int32_t true_expert,
+        const bool *protected_experts, int32_t *slot_out) {
+    return metal_graph_flash_moe_install_request(g, il, &true_expert, 1,
+            protected_experts, slot_out);
 }
 
 static void metal_graph_flash_moe_commit_decode_slot(
@@ -399,6 +388,9 @@ static void metal_graph_flash_moe_invalidate_decode_slot(
     }
     slot_to_expert[slot] = -1;
     slot_age[slot] = 0;
+    /* Routing IDs can be recorded before an async read starts. A failed or
+     * abandoned destination invalidates that recorded compute plan as well. */
+    g->flash_decode_ids_valid[il] = 0;
 }
 
 static bool metal_graph_flash_moe_upload_decode_slot(
@@ -510,13 +502,21 @@ static bool metal_graph_flash_moe_prefetch_slot_from_buf(
     return ok;
 }
 
-static void metal_graph_flash_moe_decode_prefetch_cleanup(ds4_flash_decode_prefetch *pf) {
+static void metal_graph_flash_moe_decode_prefetch_cleanup(
+        ds4_gpu_graph *g,
+        uint32_t il,
+        ds4_flash_decode_prefetch *pf) {
     if (!pf) return;
-    pf->stop_requested = 1;
+    __atomic_store_n(&pf->stop_requested, 1, __ATOMIC_RELEASE);
     for (uint32_t i = 0; i < pf->n_loads; i++) {
         if (pf->thread_started[i]) {
             pthread_join(pf->thread[i], NULL);
             pf->thread_started[i] = false;
+        }
+        /* Cleanup abandons every uncommitted load. A direct read can have
+         * overwritten part or all of the old resident even when it failed. */
+        if (pf->job[i].direct_record || pf->job[i].direct_slot) {
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, pf->load_slot[i]);
         }
         if (pf->job[i].buf_owned) free(pf->job[i].buf);
         pf->job[i].buf = NULL;
@@ -542,6 +542,9 @@ static bool metal_graph_flash_moe_decode_prefetch_finish(
         if (pf->sequential_scratch &&
             (job->canceled || !ds4_flash_decode_read_job_is_complete(job))) {
             pf->needs_sync_prepare = true;
+            if (job->direct_record || job->direct_slot) {
+                metal_graph_flash_moe_invalidate_decode_slot(g, il, pf->load_slot[i]);
+            }
             if (job->buf_owned) free(job->buf);
             job->buf = NULL;
             job->buf_owned = false;
@@ -582,11 +585,14 @@ static bool metal_graph_flash_moe_decode_prefetch_finish(
                                                               job->buf);
             }
         }
+        if (!ok && (job->direct_record || job->direct_slot)) {
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, pf->load_slot[i]);
+        }
         if (job->buf_owned) free(job->buf);
         job->buf = NULL;
         job->buf_owned = false;
     }
-    pf->stop_requested = 0;
+    __atomic_store_n(&pf->stop_requested, 0, __ATOMIC_RELEASE);
     pf->n_loads = 0;
     pf->active = false;
     return ok;
@@ -602,9 +608,9 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
     memset(pf, 0, sizeof(*pf));
 
     bool protected_experts[DS4_MAX_EXPERT];
-    bool reserved_slots[DS4_MAX_EXPERT];
+    int32_t request_evicted[DS4_MAX_EXPERT_USED];
+    bool request_misses[DS4_MAX_EXPERT_USED];
     memset(protected_experts, 0, sizeof(protected_experts));
-    memset(reserved_slots, 0, sizeof(reserved_slots));
     bool ok = true;
     const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
     const uint32_t active_expert_used = DS4_N_EXPERT_ACTIVE_USED;
@@ -616,43 +622,24 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                                                      active_expert_used,
                                                      protected_experts);
     }
+    ok = metal_graph_flash_moe_resolve_request(g, il, true_ids,
+            active_expert_used, protected_experts, pf->slot_ids,
+            request_evicted, request_misses);
     for (uint32_t k = 0; ok && k < active_expert_used; k++) {
-        int32_t slot = -1;
-        int32_t evicted = -1;
-        bool miss = false;
+        bool duplicate = false;
         for (uint32_t prev = 0; prev < k; prev++) {
-            if (true_ids[prev] == true_ids[k]) {
-                slot = pf->slot_ids[prev];
-                miss = false;
-                break;
-            }
+            if (true_ids[prev] == true_ids[k]) { duplicate = true; break; }
         }
-        if (slot < 0) {
-            const uint64_t misses_before_reserve = g->flash_misses;
-            ok = metal_graph_flash_moe_reserve_decode_slot(g,
-                                                           il,
-                                                           true_ids[k],
-                                                           protected_experts,
-                                                           reserved_slots,
-                                                           &slot,
-                                                           &evicted,
-                                                           &miss);
-            if (ok && miss) {
-                metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
-            }
-            if (ok && miss && pf->n_loads >= max_async_loads) {
-                g->flash_misses = misses_before_reserve;
-                pf->needs_sync_prepare = true;
-                break;
-            }
+        if (duplicate) continue;
+        const int32_t slot = pf->slot_ids[k];
+        const int32_t evicted = request_evicted[k];
+        const bool miss = request_misses[k];
+        if (miss && pf->n_loads >= max_async_loads) {
+            pf->needs_sync_prepare = true;
+            break;
         }
-        pf->slot_ids[k] = slot;
-        if (ok && slot >= 0 && slot < (int32_t)g->flash_slot_bank) {
-            reserved_slots[slot] = true;
-        }
-        if (ok && true_ids[k] >= 0 && true_ids[k] < (int32_t)DS4_N_EXPERT) {
-            protected_experts[true_ids[k]] = true;
-        }
+        metal_graph_flash_moe_note_request_slot(g, il, true_ids[k], slot, miss);
+        if (miss) metal_graph_flash_moe_store_evicted_l1_slot(g, il, evicted, slot);
         if (ok && miss) {
             if (pf->n_loads >= active_expert_used) {
                 ok = false;
@@ -714,16 +701,6 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                 job->buf = xmalloc((size_t)layer->expert_stride);
                 job->buf_owned = true;
             }
-            if (!scratch_only) {
-                if (pthread_create(&pf->thread[li],
-                                   NULL,
-                                   ds4_flash_decode_read_thread,
-                                   job) == 0) {
-                    pf->thread_started[li] = true;
-                } else {
-                    ds4_flash_decode_read_thread(job);
-                }
-            }
             g->flash_decode_prefetch_loads++;
             g->flash_decode_prefetch_bytes += layer->expert_stride;
             if (pf->n_loads >= max_async_loads && k + 1u < active_expert_used) {
@@ -746,8 +723,20 @@ static bool metal_graph_flash_moe_prepare_decode_prefetch_ids(
                                                   active_expert_used);
     }
     if (!ok) {
-        metal_graph_flash_moe_decode_prefetch_cleanup(pf);
+        metal_graph_flash_moe_decode_prefetch_cleanup(g, il, pf);
         return false;
+    }
+    /* No worker may overwrite a victim until every request slot and every
+     * staged job has been resolved successfully. */
+    if (!scratch_only) {
+        for (uint32_t li = 0; li < pf->n_loads; li++) {
+            if (pthread_create(&pf->thread[li], NULL,
+                    ds4_flash_decode_read_thread, &pf->job[li]) == 0) {
+                pf->thread_started[li] = true;
+            } else {
+                ds4_flash_decode_read_thread(&pf->job[li]);
+            }
+        }
     }
     if (scratch_only && pf->n_loads > 0) {
         if (pthread_create(&pf->thread[0],
@@ -1243,8 +1232,13 @@ static bool metal_graph_flash_moe_prepare_decode(ds4_gpu_graph *g, uint32_t il, 
         if (ok) g->flash_hits += active_expert_used;
     } else if (six_slot_baseline) {
         int32_t *slot_to_expert = flash_moe_slot_to_expert(g, il);
-        int32_t *expert_to_slot = flash_moe_expert_to_slot(g, il);
         const ds4_flash_moe_layer_sidecar *layer = &g->flash_moe->layer[il];
+        /* This diagnostic mode reloads every routed expert into a fixed
+         * destination; it does not consume cached hits. Reject invalid IDs
+         * before writing and invalidate each destination before any read. */
+        for (uint32_t k = 0; ok && k < active_expert_used; k++) {
+            ok = true_ids[k] >= 0 && true_ids[k] < (int32_t)DS4_N_EXPERT;
+        }
         for (uint32_t k = 0; ok && k < active_expert_used; k++) {
             const int32_t true_expert = true_ids[k];
             const int32_t slot = (int32_t)k;
@@ -1253,6 +1247,7 @@ static bool metal_graph_flash_moe_prepare_decode(ds4_gpu_graph *g, uint32_t il, 
                 break;
             }
             const int32_t evicted = slot_to_expert[slot];
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, slot);
             bool wrote = false;
             bool direct_metal_write = false;
             if (flash_moe_direct_slot_pread_enabled()) {
@@ -1312,22 +1307,14 @@ static bool metal_graph_flash_moe_prepare_decode(ds4_gpu_graph *g, uint32_t il, 
                 ok = false;
                 break;
             }
-            if (evicted >= 0 && evicted < (int32_t)DS4_N_EXPERT &&
-                expert_to_slot[evicted] == slot) {
-                expert_to_slot[evicted] = -1;
-            }
             metal_graph_flash_moe_commit_decode_slot(g, il, true_expert, slot, evicted);
             slot_ids[k] = slot;
             g->flash_misses++;
             g->flash_installed_bytes += layer->expert_stride;
         }
     } else {
-        for (uint32_t k = 0; ok && k < active_expert_used; k++) {
-            ok = metal_graph_flash_moe_install(g, il, true_ids[k], protected_experts, &slot_ids[k]);
-            if (ok && true_ids[k] >= 0 && true_ids[k] < (int32_t)DS4_N_EXPERT) {
-                protected_experts[true_ids[k]] = true;
-            }
-        }
+        if (ok) ok = metal_graph_flash_moe_install_request(g, il, true_ids,
+                active_expert_used, protected_experts, slot_ids);
     }
     if (ok) {
         ok = ds4_gpu_tensor_write(g->router_slot_selected,
@@ -1374,6 +1361,8 @@ typedef struct ds4_flash_decode_async_load {
 } ds4_flash_decode_async_load;
 
 static void metal_graph_flash_moe_async_load_cleanup(
+        ds4_gpu_graph *g,
+        uint32_t il,
         ds4_flash_decode_async_load *loads,
         uint32_t                     n_loads) {
     if (!loads) return;
@@ -1382,6 +1371,9 @@ static void metal_graph_flash_moe_async_load_cleanup(
         if (load->thread_started && !load->joined) {
             pthread_join(load->thread, NULL);
             load->joined = true;
+        }
+        if (!load->uploaded && (load->job.direct_record || load->job.direct_slot)) {
+            metal_graph_flash_moe_invalidate_decode_slot(g, il, load->slot);
         }
         if (load->job.buf_owned) free(load->job.buf);
         load->job.buf = NULL;
@@ -2261,9 +2253,9 @@ static bool metal_graph_flash_moe_decode_async_handout(
     flash_moe_decode_trace_record(pos, il, true_ids);
 
     bool protected_experts[DS4_MAX_EXPERT];
-    bool reserved_slots[DS4_MAX_EXPERT];
+    int32_t request_evicted[DS4_MAX_EXPERT_USED];
+    bool request_misses[DS4_MAX_EXPERT_USED];
     memset(protected_experts, 0, sizeof(protected_experts));
-    memset(reserved_slots, 0, sizeof(reserved_slots));
     if (flash_moe_preprotect_topk_enabled()) {
         metal_graph_flash_moe_protect_routed_experts(true_ids,
                                                      active_expert_used,
@@ -2274,34 +2266,24 @@ static bool metal_graph_flash_moe_decode_async_handout(
     uint32_t n_loads = 0;
     const ds4_flash_moe_layer_sidecar *sidecar_layer = &g->flash_moe->layer[il];
 
+    ok = metal_graph_flash_moe_resolve_request(g, il, true_ids,
+            active_expert_used, protected_experts, slot_ids,
+            request_evicted, request_misses);
     for (uint32_t k = 0; ok && k < active_expert_used; k++) {
+        bool duplicate = false;
         for (uint32_t prev = 0; prev < k; prev++) {
             if (true_ids[prev] == true_ids[k]) {
-                slot_ids[k] = slot_ids[prev];
                 route_load_idx[k] = route_load_idx[prev];
                 resident_route[k] = resident_route[prev];
+                duplicate = true;
                 break;
             }
         }
-        if (slot_ids[k] >= 0) continue;
-
-        int32_t slot = -1;
-        int32_t evicted = -1;
-        bool miss = false;
-        ok = metal_graph_flash_moe_reserve_decode_slot(g,
-                                                       il,
-                                                       true_ids[k],
-                                                       protected_experts,
-                                                       reserved_slots,
-                                                       &slot,
-                                                       &evicted,
-                                                       &miss);
-        if (!ok) break;
-        slot_ids[k] = slot;
-        if (slot >= 0 && slot < (int32_t)g->flash_slot_bank) reserved_slots[slot] = true;
-        if (true_ids[k] >= 0 && true_ids[k] < (int32_t)DS4_N_EXPERT) {
-            protected_experts[true_ids[k]] = true;
-        }
+        if (duplicate) continue;
+        const int32_t slot = slot_ids[k];
+        const int32_t evicted = request_evicted[k];
+        const bool miss = request_misses[k];
+        metal_graph_flash_moe_note_request_slot(g, il, true_ids[k], slot, miss);
         if (!miss) {
             resident_route[k] = true;
             continue;
@@ -2385,7 +2367,7 @@ static bool metal_graph_flash_moe_decode_async_handout(
             metal_graph_flash_moe_note_replay_plan_use(g, il, active_expert_used);
             if (done_out) *done_out = true;
         }
-        metal_graph_flash_moe_async_load_cleanup(loads, n_loads);
+        metal_graph_flash_moe_async_load_cleanup(g, il, loads, n_loads);
         return ok;
     }
 
@@ -2440,7 +2422,7 @@ static bool metal_graph_flash_moe_decode_async_handout(
             metal_graph_flash_moe_note_replay_plan_use(g, il, active_expert_used);
             if (done_out) *done_out = true;
         }
-        metal_graph_flash_moe_async_load_cleanup(loads, n_loads);
+        metal_graph_flash_moe_async_load_cleanup(g, il, loads, n_loads);
         return ok;
     }
 
@@ -2452,7 +2434,7 @@ static bool metal_graph_flash_moe_decode_async_handout(
             g->flash_async_handout_sync_miss_calls++;
             ok = ds4_gpu_begin_commands() != 0;
         }
-        metal_graph_flash_moe_async_load_cleanup(loads, n_loads);
+        metal_graph_flash_moe_async_load_cleanup(g, il, loads, n_loads);
         return ok;
     }
 
@@ -2571,6 +2553,6 @@ static bool metal_graph_flash_moe_decode_async_handout(
         ds4_gpu_end_commands();
         commands_open = false;
     }
-    metal_graph_flash_moe_async_load_cleanup(loads, n_loads);
+    metal_graph_flash_moe_async_load_cleanup(g, il, loads, n_loads);
     return ok;
 }

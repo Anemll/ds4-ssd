@@ -611,11 +611,11 @@ static bool flash_moe_pread_full_interruptible(
         uint64_t      offset,
         uint8_t      *dst,
         uint64_t      bytes,
-        volatile int *stop_requested) {
+        int          *stop_requested) {
     const uint64_t max_chunk = 1ull << 20;
     uint64_t done = 0;
     while (done < bytes) {
-        if (stop_requested && *stop_requested) {
+        if (stop_requested && __atomic_load_n(stop_requested, __ATOMIC_ACQUIRE)) {
             errno = ECANCELED;
             return false;
         }
@@ -2598,7 +2598,7 @@ typedef struct {
     bool active;
     bool needs_sync_prepare;
     bool sequential_scratch;
-    volatile int stop_requested;
+    int stop_requested;
     uint32_t n_loads;
     int32_t slot_ids[DS4_MAX_EXPERT_USED];
     int32_t load_expert[DS4_MAX_EXPERT_USED];
@@ -2719,7 +2719,7 @@ static void *ds4_flash_decode_scratch_prefetch_worker(void *arg) {
     if (!pf) return NULL;
     for (uint32_t i = 0; i < pf->n_loads; i++) {
         ds4_flash_decode_read_job *job = &pf->job[i];
-        if (pf->stop_requested) {
+        if (__atomic_load_n(&pf->stop_requested, __ATOMIC_ACQUIRE)) {
             job->canceled = true;
             job->err = ECANCELED;
             continue;
@@ -2751,7 +2751,7 @@ static void *ds4_flash_decode_scratch_prefetch_worker(void *arg) {
         }
         job->pread_t1_ms = now_sec() * 1000.0;
         if (!ok) {
-            if (errno == ECANCELED || pf->stop_requested) {
+            if (errno == ECANCELED || __atomic_load_n(&pf->stop_requested, __ATOMIC_ACQUIRE)) {
                 job->canceled = true;
                 job->err = ECANCELED;
                 continue;
@@ -3087,6 +3087,43 @@ static void ds4_flash_prefill_async_cancel_all(ds4_flash_prefill_async_reader *r
     }
     pthread_cond_broadcast(&r->cv);
     pthread_mutex_unlock(&r->mu);
+}
+
+/* Request/graph boundary: cancellation alone is not a drain. Workers retain
+ * sidecar pointers and write their buffers until every claimed chunk returns.
+ * Keep the pool reusable, but discard all queued/completed work from the old
+ * request before graph/session state or its source can be reused. */
+static void ds4_flash_prefill_async_cancel_and_drain(ds4_flash_prefill_async_reader *r) {
+    if (!r || !r->initialized) return;
+    ds4_flash_prefill_async_cancel_all(r);
+    pthread_mutex_lock(&r->mu);
+    for (;;) {
+        bool reading = false;
+        for (int i = 0; i < DS4_FLASH_PREFILL_ASYNC_SLOTS; i++) {
+            ds4_flash_prefill_async_slot *slot = &r->slots[i];
+            if (slot->state != DS4_FLASH_ASYNC_READING) continue;
+            if (slot->chunks_done != slot->chunks_claimed) {
+                reading = true;
+            } else {
+                /* Paused split reads may have no outstanding worker to finish
+                 * their cancellation. Unclaimed chunks must not keep us live. */
+                slot->state = DS4_FLASH_ASYNC_EMPTY;
+                slot->canceled = false;
+                r->canceled_finished++;
+            }
+        }
+        if (!reading) break;
+        pthread_cond_wait(&r->cv, &r->mu);
+    }
+    r->xlayer_paused = 0;
+    pthread_mutex_unlock(&r->mu);
+}
+
+static void metal_graph_flash_moe_drain_prefill_reads(ds4_gpu_graph *g) {
+    if (g && g->flash_prefill_xreader) {
+        ds4_flash_prefill_async_cancel_and_drain(
+                (ds4_flash_prefill_async_reader *)g->flash_prefill_xreader);
+    }
 }
 
 static void ds4_flash_prefill_async_cancel_expert(

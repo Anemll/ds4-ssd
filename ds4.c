@@ -11633,7 +11633,7 @@ static bool metal_graph_encode_decode_layer_ex(
     }
     if (ok && decode_pf_active) {
         const bool needs_sync_prepare = decode_pf.needs_sync_prepare;
-        decode_pf.stop_requested = 1;
+        __atomic_store_n(&decode_pf.stop_requested, 1, __ATOMIC_RELEASE);
         ok = metal_graph_flash_moe_decode_prefetch_finish(g, il, &decode_pf);
         decode_pf_active = false;
         if (ok && (needs_sync_prepare || decode_pf.needs_sync_prepare)) {
@@ -12016,7 +12016,7 @@ static bool metal_graph_encode_decode_layer_ex(
     }
 decode_layer_done:
     if (decode_pf_active) {
-        metal_graph_flash_moe_decode_prefetch_cleanup(&decode_pf);
+        metal_graph_flash_moe_decode_prefetch_cleanup(g, il, &decode_pf);
     }
     if (!ok && decode_debug) {
         fprintf(stderr,
@@ -22176,6 +22176,7 @@ static bool imatrix_collector_save(
 }
 
 static bool metal_graph_reset_prefill_state(ds4_gpu_graph *g) {
+    metal_graph_flash_moe_drain_prefill_reads(g);
     memset(g->layer_n_index_comp, 0, sizeof(g->layer_n_index_comp));
     g->mtp_n_raw = 0;
     for (uint32_t il = 0; il < DS4_N_LAYER; il++) {
@@ -22218,7 +22219,7 @@ static void metal_graph_report_prefill_display_progress(
 
 /* Execute Metal prefill in layer-major order so intermediate activations stay
  * on the GPU and cache state is built exactly once. */
-static bool metal_graph_prefill_layer_major(
+static bool metal_graph_prefill_layer_major_impl(
         ds4_gpu_graph *g,
         const ds4_model       *model,
         const ds4_weights     *weights,
@@ -22611,6 +22612,27 @@ static bool metal_graph_prefill_layer_major(
     return ok;
 }
 
+/* Keep speculative SSD reads within this graph request, including every early
+ * return above. Cross-layer overlap is preserved inside the implementation. */
+static bool metal_graph_prefill_layer_major(
+        ds4_gpu_graph *g,
+        const ds4_model       *model,
+        const ds4_weights     *weights,
+        const token_vec       *prompt,
+        int                    n_tokens,
+        float                 *logits,
+        bool                   show_progress,
+        ds4_imatrix_collector *imatrix,
+        ds4_session_progress_fn display_progress,
+        void                  *display_progress_ud) {
+    metal_graph_flash_moe_drain_prefill_reads(g);
+    const bool ok = metal_graph_prefill_layer_major_impl(
+            g, model, weights, prompt, n_tokens, logits, show_progress,
+            imatrix, display_progress, display_progress_ud);
+    metal_graph_flash_moe_drain_prefill_reads(g);
+    return ok;
+}
+
 static bool metal_graph_prefill_raw_swa(
         ds4_gpu_graph *g,
         const ds4_model       *model,
@@ -22869,7 +22891,7 @@ static void metal_graph_log_prefill_compute_once(
             slot_bank);
 }
 
-static bool metal_graph_prefill_chunked_range(
+static bool metal_graph_prefill_chunked_range_impl(
         ds4_gpu_graph *g,
         const ds4_model       *model,
         const ds4_weights     *weights,
@@ -23160,6 +23182,30 @@ static bool metal_graph_prefill_chunked_range(
         fprintf(stderr, "ds4: prefill %s: %u tokens in %.1f ms (%.1f t/s)\n",
                 start > 0 ? "resume" : "full", n_tokens, prefill_ms, tps);
     }
+    return ok;
+}
+
+/* Keep speculative SSD reads within this graph request, including every early
+ * return above. Cross-layer overlap is preserved inside the implementation. */
+static bool metal_graph_prefill_chunked_range(
+        ds4_gpu_graph *g,
+        const ds4_model       *model,
+        const ds4_weights     *weights,
+        const token_vec       *prompt,
+        uint32_t               start,
+        uint32_t               n_tokens,
+        float                 *logits,
+        bool                   show_progress,
+        ds4_session_progress_fn progress,
+        void                  *progress_ud,
+        ds4_session_progress_fn display_progress,
+        void                  *display_progress_ud,
+        ds4_imatrix_collector *imatrix) {
+    metal_graph_flash_moe_drain_prefill_reads(g);
+    const bool ok = metal_graph_prefill_chunked_range_impl(
+            g, model, weights, prompt, start, n_tokens, logits, show_progress,
+            progress, progress_ud, display_progress, display_progress_ud, imatrix);
+    metal_graph_flash_moe_drain_prefill_reads(g);
     return ok;
 }
 

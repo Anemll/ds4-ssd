@@ -177,8 +177,6 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
 
     int32_t true_ids[5u * DS4_N_EXPERT_ACTIVE_USED];
     int32_t slot_ids[5u * DS4_N_EXPERT_ACTIVE_USED];
-    bool protected_experts[DS4_MAX_EXPERT];
-    memset(protected_experts, 0, sizeof(protected_experts));
     const bool identity_selected =
         metal_graph_flash_moe_identity_gpu_selected_active(g, il);
 
@@ -189,22 +187,21 @@ static bool metal_graph_flash_moe_run_tiny_batch_slotbank(
                              true_ids,
                              n_pairs * sizeof(true_ids[0])) != 0;
     const uint64_t miss_before = g->flash_misses;
-    for (uint64_t pair = 0; ok && pair < n_pairs; pair++) {
-        const int32_t true_expert = true_ids[pair];
-        if (true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
-            ok = false;
-            break;
-        }
-        if (identity_selected) {
+    if (ok && identity_selected) {
+        for (uint64_t pair = 0; ok && pair < n_pairs; pair++) {
+            const int32_t true_expert = true_ids[pair];
+            if (true_expert < 0 || true_expert >= (int32_t)DS4_N_EXPERT) {
+                ok = false;
+                break;
+            }
             slot_ids[pair] = true_expert;
-        } else {
-            ok = metal_graph_flash_moe_install(g,
-                                               il,
-                                               true_expert,
-                                               protected_experts,
-                                               &slot_ids[pair]);
-            if (ok) protected_experts[true_expert] = true;
         }
+    } else if (ok) {
+        /* All rows consume these slots together. Resolve the complete union
+         * before any write; capacity failure leaves the bank intact so the
+         * caller can use expert-major prefill instead. */
+        ok = metal_graph_flash_moe_install_request(g, il, true_ids,
+                (uint32_t)n_pairs, NULL, slot_ids);
     }
     if (ok) {
         ok = ds4_gpu_tensor_write(g->flash_prefill_selected,
@@ -1709,7 +1706,11 @@ static bool metal_graph_flash_moe_run_prefill_dedup(
     /* The persistent cross-layer reader is kept alive (it still holds the next
      * layer's queued reads, and its threads are reused); it is torn down in
      * metal_graph_free. Only a per-layer local reader is destroyed here. */
-    if (!xlayer_prefetch) ds4_flash_prefill_async_destroy(&async_reader);
+    if (!xlayer_prefetch) {
+        ds4_flash_prefill_async_destroy(&async_reader);
+    } else if (!ok) {
+        ds4_flash_prefill_async_cancel_and_drain(p_async_reader);
+    }
     free(async_submitted);
 #undef async_reader
 #undef DS4_SUBMIT_ASYNC_PREAD

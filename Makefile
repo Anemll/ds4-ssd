@@ -32,7 +32,7 @@ CPU_CORE_OBJS = ds4_cpu.o ds4_profile.o
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression ane-smoke sidecar-smoke
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression ane-smoke sidecar-smoke flash-moe-slot-test flash-moe-slot-test-sanitize flash-moe-io-test
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
@@ -44,6 +44,8 @@ help:
 	@echo "  make ane-smoke    Build and run the ANE int8 MLP precision smoke"
 	@echo "  make sidecar-smoke Run the 4K SSD sidecar smoke (requires DS4_SIDECAR_DIR)"
 	@echo "  make test         Build and run tests"
+	@echo "  make flash-moe-slot-test Run model-free Flash-MoE slot regressions"
+	@echo "  make flash-moe-io-test Run model-free Flash-MoE I/O lifecycle regressions"
 	@echo "  make clean        Remove build outputs"
 
 ds4: ds4_cli.o linenoise.o $(CORE_OBJS)
@@ -100,6 +102,7 @@ help:
 	@echo "  make ane-smoke           Requires macOS private ANE framework"
 	@echo "  make sidecar-smoke       Requires macOS Metal"
 	@echo "  make test                Build and run tests"
+	@echo "  make flash-moe-slot-test Run model-free Flash-MoE slot regressions"
 	@echo "  make clean               Remove build outputs"
 
 ane-smoke:
@@ -165,6 +168,7 @@ DS4_INCLUDED_SRCS = \
 	ssd/ssd_flash_moe_runtime.c \
 	ssd/ssd_flash_moe_resident_prefill.c \
 	ssd/ssd_flash_moe_slot_cache.c \
+	ssd/ssd_flash_moe_slots.h \
 	ssd/ssd_flash_moe_decode.c \
 	ssd/ssd_flash_moe_prefill.c \
 	ssd/ssd_flash_moe_diagnostics.c \
@@ -243,8 +247,46 @@ else
 	$(NVCC) $(NVCCFLAGS) -o $@ ds4_test.o rax.o $(CORE_OBJS) $(CUDA_LDLIBS)
 endif
 
-test: ds4_test
+tests/test_flash_moe_slots: tests/test_flash_moe_slots.c ssd/ssd_flash_moe_slots.h
+	$(CC) $(CFLAGS) -o $@ $<
+
+tests/test_flash_moe_slots_sanitize: tests/test_flash_moe_slots.c ssd/ssd_flash_moe_slots.h
+	$(CC) -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ $<
+
+flash-moe-slot-test: tests/test_flash_moe_slots
+	./tests/test_flash_moe_slots
+
+flash-moe-slot-test-sanitize: tests/test_flash_moe_slots_sanitize
+	./tests/test_flash_moe_slots_sanitize
+
+ifeq ($(UNAME_S),Darwin)
+tests/test_flash_moe_io.o: tests/test_flash_moe_io.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h ds4_profile.h
+	$(CC) $(CFLAGS) -O1 -UNDEBUG -Wno-unused-function -Wno-unused-parameter -c -o $@ $<
+
+tests/test_flash_moe_io: tests/test_flash_moe_io.o ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -o $@ $^ $(METAL_LDLIBS)
+
+flash-moe-io-test: tests/test_flash_moe_io
+	./tests/test_flash_moe_io
+
+# Explicit opt-in: callers choose a local DS4 sidecar and I/O settings.
+tests/test_flash_moe_session: tests/test_flash_moe_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+.PHONY: flash-moe-session-test
+flash-moe-session-test: tests/test_flash_moe_session
+	@test -n "$(DS4_SIDECAR_DIR)" || (echo "set DS4_SIDECAR_DIR to a local DS4 package"; exit 2)
+	./tests/test_flash_moe_session "$(DS4_SIDECAR_DIR)"
+
+test: flash-moe-io-test
+else
+flash-moe-io-test:
+	@echo "flash-moe-io-test requires macOS Metal support objects"
+	@exit 2
+endif
+
+test: ds4_test flash-moe-slot-test
 	./ds4_test
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/ane_ds4_mlp_i8i8_precision_smoke
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/ane_ds4_mlp_i8i8_precision_smoke tests/test_flash_moe_slots tests/test_flash_moe_slots_sanitize tests/test_flash_moe_io tests/test_flash_moe_io.o tests/test_flash_moe_session
