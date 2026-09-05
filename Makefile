@@ -162,6 +162,9 @@ DS4_INCLUDED_SRCS = \
 	glm52/glm52_runtime.c \
 	hy3/hy3_model.c \
 	hy3/hy3_runtime.c \
+	hy4/hy4_model.c \
+	hy4/hy4_runtime.c \
+	hy4/hy4_math.h \
 	ssd/ssd_flash_moe_sidecar.c \
 	ssd/ssd_flash_moe_streaming.c \
 	ssd/ssd_flash_moe_allocation.c \
@@ -290,3 +293,39 @@ test: ds4_test flash-moe-slot-test
 
 clean:
 	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/ane_ds4_mlp_i8i8_precision_smoke tests/test_flash_moe_slots tests/test_flash_moe_slots_sanitize tests/test_flash_moe_io tests/test_flash_moe_io.o tests/test_flash_moe_session
+
+.PHONY: hy4-math-test hy4-quant-test
+tests/test_hy4_math: tests/test_hy4_math.c hy4/hy4_math.h
+	$(CC) $(CFLAGS) -o $@ $< -lm
+hy4-math-test: tests/test_hy4_math
+	./tests/test_hy4_math
+
+tests/test_hy4_quants: tests/test_hy4_quants.c hy4/hy4_quants.c hy4/hy4_quants.h hy4/hy4_quant_tables.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_quants.c hy4/hy4_quants.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+hy4-quant-test: tests/test_hy4_quants
+	./tests/test_hy4_quants --metal
+
+tests/test_hy4_session: tests/test_hy4_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+tests/test_hy4_metadata: tests/test_hy4_metadata.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 $(NATIVE_CPU_FLAG) -std=c99 -ffunction-sections -fdata-sections -Wno-unused-function -Wno-unused-parameter -Wl,-dead_strip -o $@ $< ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-metadata-test
+hy4-metadata-test: tests/test_hy4_metadata
+	@test -n "$(HY4_MODEL)" || (echo "set HY4_MODEL to the HY4 dense GGUF"; exit 2)
+	./tests/test_hy4_metadata "$(HY4_MODEL)"
+
+tests/test_hy4_attention: tests/test_hy4_attention.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-attention-test
+hy4-attention-test: tests/test_hy4_attention
+	./tests/test_hy4_attention
+
+tests/test_hy4_math_sanitize: tests/test_hy4_math.c hy4/hy4_math.h
+	$(CC) -O1 -g -std=c99 -Wall -Wextra -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ $< -lm
+tests/test_hy4_quants_sanitize: tests/test_hy4_quants.c hy4/hy4_quants.c hy4/hy4_quants.h hy4/hy4_quant_tables.h
+	$(CC) -O1 -g -std=c99 -Wall -Wextra -DHY4_TEST_CPU_ONLY -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ tests/test_hy4_quants.c hy4/hy4_quants.c -lm
+.PHONY: hy4-sanitize-test
+hy4-sanitize-test: tests/test_hy4_math_sanitize tests/test_hy4_quants_sanitize
+	./tests/test_hy4_math_sanitize
+	./tests/test_hy4_quants_sanitize

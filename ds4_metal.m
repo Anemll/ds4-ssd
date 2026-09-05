@@ -2753,6 +2753,7 @@ static NSString *ds4_gpu_full_source(void) {
         @[@"DS4_METAL_HY3_SOURCE",        @"metal/hy3.metal"],
         @[@"DS4_METAL_GLM_QUANT_TABLES_SOURCE", @"metal/glm_quant_tables.metal"],
         @[@"DS4_METAL_MOE_SOURCE",        @"metal/moe.metal"],
+        @[@"DS4_METAL_HY4_SOURCE",        @"metal/hy4.metal"],
         @[@"DS4_METAL_DSV4_HC_SOURCE",    @"metal/dsv4_hc.metal"],
         @[@"DS4_METAL_UNARY_SOURCE",      @"metal/unary.metal"],
         @[@"DS4_METAL_DSV4_KV_SOURCE",    @"metal/dsv4_kv.metal"],
@@ -14231,6 +14232,78 @@ int ds4_gpu_glm52_attention_decode_tensor(
         ds4_gpu_end_compute_encoder(cb, enc);
 
         if (!ds4_gpu_finish_command_buffer(cb, owned, "GLM decode attention")) return 0;
+    }
+    return 1;
+}
+
+int ds4_gpu_hy4_attention_decode_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *q_abs,
+        const ds4_gpu_tensor *q_raw,
+        const ds4_gpu_tensor *kv_cache,
+        const ds4_gpu_tensor *kpe_cache,
+        ds4_gpu_tensor       *scores,
+        const ds4_gpu_tensor *sinks,
+        uint32_t                n_keys,
+        uint32_t                ctx,
+        uint32_t                n_head,
+        float                   scale) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if (!out || !q_abs || !q_raw || !kv_cache || !kpe_cache || !scores || !sinks ||
+        n_keys == 0 || ctx == 0 || n_keys > ctx || n_head == 0 ||
+        (uint64_t)n_head * ctx > UINT64_MAX / sizeof(float)) {
+        return 0;
+    }
+
+    @autoreleasepool {
+        id<MTLBuffer> outbuf = ds4_gpu_tensor_buffer(out);
+        id<MTLBuffer> qabuf = ds4_gpu_tensor_buffer(q_abs);
+        id<MTLBuffer> qrbuf = ds4_gpu_tensor_buffer(q_raw);
+        id<MTLBuffer> kvbuf = ds4_gpu_tensor_buffer(kv_cache);
+        id<MTLBuffer> kpebuf = ds4_gpu_tensor_buffer(kpe_cache);
+        id<MTLBuffer> scorebuf = ds4_gpu_tensor_buffer(scores);
+        id<MTLBuffer> sinkbuf = ds4_gpu_tensor_buffer(sinks);
+        if (!outbuf || !qabuf || !qrbuf || !kvbuf || !kpebuf || !scorebuf || !sinkbuf ||
+            ds4_gpu_tensor_bytes(out) < (uint64_t)n_head * 512u * sizeof(float) ||
+            ds4_gpu_tensor_bytes(q_abs) < (uint64_t)n_head * 512u * sizeof(float) ||
+            ds4_gpu_tensor_bytes(q_raw) < (uint64_t)n_head * 256u * sizeof(float) ||
+            ds4_gpu_tensor_bytes(kv_cache) < (uint64_t)ctx * 512u * sizeof(float) ||
+            ds4_gpu_tensor_bytes(kpe_cache) < (uint64_t)ctx * 64u * sizeof(float) ||
+            ds4_gpu_tensor_bytes(sinks) < (uint64_t)n_head * sizeof(float) ||
+            ds4_gpu_tensor_bytes(scores) < (uint64_t)n_head * ctx * sizeof(float)) {
+            fprintf(stderr, "ds4: HY4 sink attention received undersized buffers\n");
+            return 0;
+        }
+
+        id<MTLComputePipelineState> pipeline =
+            ds4_gpu_get_pipeline("kernel_hy4_attention_decode");
+        if (!pipeline) return 0;
+
+        ds4_gpu_glm52_attention_decode_args args = {
+            .n_past = n_keys,
+            .ctx = ctx,
+            .n_head = n_head,
+            .scale = scale,
+        };
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:pipeline];
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:qabuf offset:ds4_gpu_tensor_offset(q_abs) atIndex:1];
+        [enc setBuffer:qrbuf offset:ds4_gpu_tensor_offset(q_raw) atIndex:2];
+        [enc setBuffer:kvbuf offset:ds4_gpu_tensor_offset(kv_cache) atIndex:3];
+        [enc setBuffer:kpebuf offset:ds4_gpu_tensor_offset(kpe_cache) atIndex:4];
+        [enc setBuffer:scorebuf offset:ds4_gpu_tensor_offset(scores) atIndex:5];
+        [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:6];
+        [enc setBuffer:sinkbuf offset:ds4_gpu_tensor_offset(sinks) atIndex:7];
+        [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_head, 1, 1)
+             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        ds4_gpu_end_compute_encoder(cb, enc);
+
+        if (!ds4_gpu_finish_command_buffer(cb, owned, "HY4 sink attention")) return 0;
     }
     return 1;
 }
@@ -50780,5 +50853,46 @@ int ds4_gpu_flash_moe_dedup_compact(const ds4_gpu_tensor *selected,
         ds4_gpu_end_compute_encoder(cb, enc);
         if (owned) ds4_gpu_finish_command_buffer(cb, 1, "dedup-compact");
         return 1;
+    }
+}
+
+/* Deliberately narrow HY4 quantized matvec; does not alter DS4 fused kernels. */
+int ds4_gpu_hy4_quant_matvec_tensor(ds4_gpu_tensor *out,
+                                     const ds4_gpu_tensor *weights,
+                                     const ds4_gpu_tensor *x,
+                                     uint32_t type, uint32_t in_dim,
+                                     uint32_t out_dim, uint64_t row_bytes) {
+    const uint64_t block_bytes = type == 43 ? 42 : type == 16 ? 66 : type == 18 ? 98 : type == 23 ? 136 : 0;
+    if (!block_bytes || !in_dim || !out_dim || in_dim % 256 ||
+        row_bytes < ((uint64_t)in_dim / 256) * block_bytes ||
+        row_bytes % 2 || out_dim > UINT64_MAX / row_bytes ||
+        ds4_gpu_tensor_bytes(weights) < row_bytes * out_dim ||
+        ds4_gpu_tensor_bytes(x) < (uint64_t)in_dim * sizeof(float) ||
+        ds4_gpu_tensor_bytes(out) < (uint64_t)out_dim * sizeof(float)) return 0;
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    @autoreleasepool {
+        id<MTLBuffer> wbuf = ds4_gpu_tensor_buffer(weights);
+        id<MTLBuffer> xbuf = ds4_gpu_tensor_buffer(x);
+        id<MTLBuffer> obuf = ds4_gpu_tensor_buffer(out);
+        if (!wbuf || !xbuf || !obuf || (ds4_gpu_tensor_offset(weights) & 1u)) return 0;
+        // Cached by the existing generic function/pipeline cache, which cleanup owns.
+        id<MTLComputePipelineState> pipeline = ds4_gpu_get_mul_mv_pipeline("kernel_hy4_quant_matvec", 1);
+        if (!pipeline) return 0;
+        struct { uint32_t in_dim, out_dim, type, pad; uint64_t row_bytes; } args =
+            { in_dim, out_dim, type, 0, row_bytes };
+        int owned = 0;
+        id<MTLCommandBuffer> cb = ds4_gpu_command_buffer(&owned);
+        if (!cb) return 0;
+        id<MTLComputeCommandEncoder> enc = ds4_gpu_compute_encoder(cb);
+        if (!enc) return 0;
+        [enc setComputePipelineState:pipeline];
+        [enc setBytes:&args length:sizeof(args) atIndex:0];
+        [enc setBuffer:wbuf offset:ds4_gpu_tensor_offset(weights) atIndex:1];
+        [enc setBuffer:xbuf offset:ds4_gpu_tensor_offset(x) atIndex:2];
+        [enc setBuffer:obuf offset:ds4_gpu_tensor_offset(out) atIndex:3];
+        [enc dispatchThreadgroups:MTLSizeMake(out_dim, 1, 1)
+             threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        ds4_gpu_end_compute_encoder(cb, enc);
+        return ds4_gpu_finish_command_buffer(cb, owned, "HY4 routed quant matvec");
     }
 }

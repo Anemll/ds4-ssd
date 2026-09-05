@@ -163,6 +163,7 @@ void ds4_engine_options_apply_resident_preset(ds4_engine_options *opt,
 void ds4_engine_summary(ds4_engine *e);
 bool ds4_engine_uses_glm_tokenizer(const ds4_engine *e);
 bool ds4_engine_uses_hy3_tokenizer(const ds4_engine *e);
+bool ds4_engine_uses_hy4_tokenizer(const ds4_engine *e);
 const char *ds4_backend_name(ds4_backend backend);
 bool ds4_think_mode_enabled(ds4_think_mode mode);
 const char *ds4_think_mode_name(ds4_think_mode mode);
@@ -170,6 +171,7 @@ const char *ds4_think_max_prefix(void);
 uint32_t ds4_think_max_min_context(void);
 ds4_think_mode ds4_think_mode_for_context(ds4_think_mode mode, int ctx_size);
 bool ds4_model_shape_select_for_path(const char *model_path);
+bool ds4_model_shape_is_hy4(void);
 ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size);
 bool ds4_log_is_tty(FILE *fp);
 void ds4_log(FILE *fp, ds4_log_type type, const char *fmt, ...);
@@ -220,6 +222,8 @@ int ds4_token_assistant(ds4_engine *e);
 int ds4_session_create(ds4_session **out, ds4_engine *e, int ctx_size);
 void ds4_session_free(ds4_session *s);
 void ds4_session_set_progress(ds4_session *s, ds4_session_progress_fn fn, void *ud);
+/* HY4 polls this at completed token boundaries; NULL disables cancellation. */
+void ds4_session_set_cancel(ds4_session *s, bool (*fn)(void *), void *ud);
 void ds4_session_set_display_progress(ds4_session *s, ds4_session_progress_fn fn, void *ud);
 
 typedef enum {

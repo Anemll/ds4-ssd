@@ -75,6 +75,7 @@ static void metal_graph_flash_moe_record_decode_slots(
     const ds4_flash_moe_layer_sidecar *flash_layer =
         (g && g->flash_moe && il < DS4_N_LAYER) ? &g->flash_moe->layer[il] : NULL;
     const bool needs_decode_ids =
+        DS4_MODEL_VARIANT == DS4_VARIANT_HY4 ||
         flash_moe_replay_plan_enabled() ||
         flash_moe_mixed_slots6_grouped_enabled() ||
         flash_moe_layer_all_mxfp4_plane_split(flash_layer) ||

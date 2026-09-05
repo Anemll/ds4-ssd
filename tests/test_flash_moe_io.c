@@ -229,13 +229,56 @@ static void test_direct_read_failures(void) {
     free(g);
 }
 
+/* HY4 consumes host slot IDs without requesting the DS4 replay/grouped
+ * kernels. Previously the recorder silently skipped this native path,
+ * leaving every selected expert bound to zero-initialized slot zero. */
+static void test_hy4_native_decode_slot_ids(void) {
+    const ds4_shape saved_shape = g_ds4_shape;
+    g_ds4_shape = DS4_SHAPE_HY4;
+    ds4_gpu_graph *g = calloc(1, sizeof(*g));
+    ds4_flash_moe_sidecar *sidecar = calloc(1, sizeof(*sidecar));
+    assert(g && sidecar);
+    g->flash_moe = sidecar;
+    g->flash_slot_bank = 8;
+    g->flash_mixed_slot_bank = true;
+    const uint32_t layer = 1;
+    const int32_t ids[8] = {250, 65, 132, 66, 241, 199, 90, 137};
+    const int32_t slots[8] = {3, 0, 7, 4, 1, 6, 5, 2};
+    assert(!flash_moe_replay_plan_enabled());
+    assert(!flash_moe_mixed_slots6_grouped_enabled());
+    for (unsigned pass = 0; pass < 2; ++pass) {
+        int32_t requested[8], mapped[8];
+        for (unsigned k = 0; k < 8; ++k) {
+            requested[k] = ids[(k + pass) % 8];
+            mapped[k] = slots[(k + pass) % 8];
+        }
+        g->flash_decode_ids_valid[layer] = 0;
+        metal_graph_flash_moe_record_decode_slots(g, layer, requested, mapped, 8);
+        assert(g->flash_decode_ids_valid[layer]);
+        for (unsigned k = 0; k < 8; ++k) {
+            assert(g->flash_decode_true_ids[layer][k] == requested[k]);
+            assert(g->flash_decode_slot_ids[layer][k] == mapped[k]);
+            for (unsigned j = 0; j < k; ++j)
+                assert(g->flash_decode_slot_ids[layer][k] != g->flash_decode_slot_ids[layer][j]);
+        }
+    }
+    free(sidecar);
+    free(g);
+    g_ds4_shape = saved_shape;
+}
+
 int main(void) {
     alarm(20); /* A lifecycle regression should fail instead of hanging CI. */
+    setenv("DS4_FLASH_MOE_BAKED_SLOT_DECODE", "0", 1);
+    setenv("DS4_FLASH_MOE_STABLE_REPLAY", "0", 1);
+    setenv("DS4_FLASH_MOE_MIXED_SLOTS6_GROUPED", "0", 1);
+    setenv("DS4_FLASH_MOE_MIXED_SLOTS6", "0", 1);
     setenv("DS4_FLASH_MOE_PREAD_THREADS", "1", 1);
     setenv("DS4_FLASH_MOE_PREFILL_IO_SPLIT", "1", 1);
+    test_hy4_native_decode_slot_ids();
     test_prefill_drain();
     test_scratch_stop();
     test_direct_read_failures();
-    puts("PASS Flash-MoE I/O: blocked reader drain, scratch stop, paused split, reuse, direct-read invalidation");
+    puts("PASS Flash-MoE I/O: blocked reader drain, scratch stop, paused split, reuse, direct-read invalidation, HY4 native eight-slot IDs");
     return 0;
 }

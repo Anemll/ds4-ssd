@@ -31,3 +31,11 @@ tests/test_flash_moe_slots
 tests/test_flash_moe_slots_sanitize
 tests/test_flash_moe_io
 tests/test_flash_moe_session
+
+tests/test_hy4_math
+tests/test_hy4_math_sanitize
+tests/test_hy4_quants
+tests/test_hy4_quants_sanitize
+tests/test_hy4_session
+tests/test_hy4_metadata
+tests/test_hy4_attention

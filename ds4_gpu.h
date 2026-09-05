@@ -692,6 +692,15 @@ int ds4_gpu_matmul_fp8_e4m3_strided_rows5_tensor(
         uint64_t                out_stride,
         uint64_t                group_rows);
 
+/* HY4 routed sidecar matvec for IQ2_XXS/IQ3_XXS/IQ4_XS/STQ1_0.
+ * weights may be a view of one resident expert. Input/output are F32;
+ * row_bytes can include padding. This joins the normal GPU command lifetime. */
+int ds4_gpu_hy4_quant_matvec_tensor(ds4_gpu_tensor *out,
+                                     const ds4_gpu_tensor *weights,
+                                     const ds4_gpu_tensor *x,
+                                     uint32_t type, uint32_t in_dim,
+                                     uint32_t out_dim, uint64_t row_bytes);
+
 int ds4_gpu_matmul_gguf_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
@@ -761,6 +770,22 @@ int ds4_gpu_glm52_attention_decode_tensor(
         const ds4_gpu_tensor *kpe_cache,
         ds4_gpu_tensor       *scores,
         uint32_t                n_past,
+        uint32_t                ctx,
+        uint32_t                n_head,
+        float                   scale);
+
+/* HY4 absorbed MLA: F32 KV512 + RoPE64, per-head zero-value softmax sink.
+ * n_keys includes the current token; only that causal prefix is read.
+ * scores is scratch [n_head][ctx], sinks is F32 [n_head]. */
+int ds4_gpu_hy4_attention_decode_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *q_abs,
+        const ds4_gpu_tensor *q_raw,
+        const ds4_gpu_tensor *kv_cache,
+        const ds4_gpu_tensor *kpe_cache,
+        ds4_gpu_tensor       *scores,
+        const ds4_gpu_tensor *sinks,
+        uint32_t                n_keys,
         uint32_t                ctx,
         uint32_t                n_head,
         float                   scale);

@@ -32,6 +32,22 @@ ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... b
 ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
+## HY4 native SSD path
+
+HY4 uses the same hard slot protection and existing sidecar format. Start with
+8 slots, explicit dense/sidecar paths, and `DS4_PROFILE=none`. Initial/resumed
+prefill is token-wise; optional DS4 DeDup/ANE prefill kernels are not HY4
+execution paths. The native runtime requires top-8 and limits context to 2048
+until DSA is implemented. `ds4-agent` defaults HY4 context to 2048 only when the
+user omitted `--ctx`; existing DS4 profile defaults do not change. See [HY4.md](HY4.md)
+for the actual HY4 package command and validation.
+
+HY4 sink-aware attention runs in Metal by default. For numerical debugging,
+`DS4_HY4_CPU_ATTENTION=1` selects the scalar F32 attention reference; unset or 0
+uses Metal. This does not change slot count, routing, or the 2048-key limit.
+The two implementations are compared on deterministic buffers before native
+model validation.
+
 ## Slot ownership and interruption safety
 
 Decode and tiny-batch slot-bank prefill hard-reserve **all resident experts in

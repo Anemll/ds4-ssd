@@ -60,6 +60,7 @@ typedef struct {
     uint64_t seed;
     ds4_think_mode think_mode;
     bool think_mode_explicit;
+    bool ctx_explicit;
 } agent_generation_options;
 
 typedef struct {
@@ -329,6 +330,7 @@ typedef struct {
     agent_dsml_state state;
     bool glm_native;
     bool hy3_native;
+    bool hy4_native;
     char search_tail[64];
     size_t search_len;
     char *raw;
@@ -385,6 +387,7 @@ typedef struct {
     agent_tool_visualizer viz;
     bool glm_tools;
     bool hy3_tools;
+    bool hy4_tools;
     bool forbid_think_open;
     bool no_think_violation;
     agent_no_think_guard *no_think_guard;
@@ -991,6 +994,7 @@ static agent_config parse_options(int argc, char **argv) {
             }
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
+            c.gen.ctx_explicit = true;
         } else if (!strcmp(arg, "--working-context")) {
             c.gen.working_ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-n") || !strcmp(arg, "--tokens")) {
@@ -1582,9 +1586,50 @@ static char *agent_build_tools_prompt(bool glm_tools, bool hy3_tools,
     return out;
 }
 
+static char *agent_build_tools_prompt_hy4(void) {
+    const char *schema = strstr(agent_tools_prompt_after_edit_glm, "<tools>\n");
+    const char *end = schema ? strstr(schema, "</tools>\n") : NULL;
+    if (!end) { fprintf(stderr, "ds4-agent: missing HY4 tool schemas\n"); exit(1); }
+    end += strlen("</tools>\n");
+    static const char intro[] =
+        "You are a coding agent. Use tools to inspect or change files. Keep reads and output bounded. "
+        "After a running bash job, use bash_status or bash_stop.\n\n# Tools\n\n"
+        "You are provided with function signatures within <tools></tools> XML tags:\n";
+    static const char tail[] =
+        "\nCall exactly one function per response using the native HY4 tokens:\n"
+        "<tool_calls:6124c78e><tool_call:6124c78e>{function-name}"
+        "<arg_key:6124c78e>{argument-name}</arg_key:6124c78e>"
+        "<arg_value:6124c78e>{argument-value}</arg_value:6124c78e>"
+        "</tool_call:6124c78e></tool_calls:6124c78e>\n"
+        "Repeat the arg_key/arg_value pair for each argument. Close thinking before tools. "
+        "Use these dedicated tokens, without DSML, tool_sep, unsuffixed XML, or markdown fences. "
+        "When no_think is active, call the needed tool or answer concisely.\n";
+    const size_t n = (size_t)(end-schema);
+    char *out = xmalloc(sizeof(intro)-1 + n + sizeof(tail));
+    memcpy(out, intro, sizeof(intro)-1);
+    memcpy(out+sizeof(intro)-1, schema, n);
+    memcpy(out+sizeof(intro)-1+n, tail, sizeof(tail));
+    return out;
+}
+
 static void agent_append_system_prompt(ds4_engine *engine, ds4_tokens *tokens,
                                        const char *extra,
                                        ds4_think_mode think_mode) {
+    if (ds4_engine_uses_hy4_tokenizer(engine)) {
+        ds4_tokenize_rendered_chat(engine, "<｜hy_start:6124c78e｜>system<｜hy_middle:6124c78e｜>", tokens);
+        char *tools = agent_build_tools_prompt_hy4();
+        ds4_tokenize_rendered_chat(engine, tools, tokens);
+        free(tools);
+        if (extra && extra[0]) {
+            ds4_tokenize_text(engine, "\n\n", tokens);
+            ds4_tokenize_text(engine, extra, tokens);
+        }
+        ds4_tokenize_rendered_chat(engine, "<｜reasoning_mode:6124c78e｜>", tokens);
+        ds4_tokenize_text(engine, ds4_think_mode_enabled(think_mode) ?
+                          "reasoning_effort:high" : "reasoning_effort:no_think", tokens);
+        ds4_tokenize_rendered_chat(engine, "<｜hy_end:6124c78e｜>", tokens);
+        return;
+    }
     /* The built-in tool prompt is trusted DS4 control text.  Tokenize it like a
      * rendered chat prompt so the literal ｜DSML｜ markers in the examples become
      * the model's dedicated DSML token.  Do not apply that tokenizer to user
@@ -3190,48 +3235,59 @@ static void agent_hy3_tool_start(agent_dsml_parser *p) {
     p->parse_pos = sizeof(start) - 1;
 }
 
+static void agent_hy4_tool_start(agent_dsml_parser *p) {
+    static const char start[] = "<tool_calls:6124c78e>";
+    agent_dsml_parser_free(p);
+    p->hy3_native = true;  /* common Hunyuan key/value parser */
+    p->hy4_native = true;
+    p->state = AGENT_DSML_STRUCTURAL;
+    agent_dsml_raw_append(p, start, sizeof(start)-1);
+    p->parse_pos = sizeof(start)-1;
+}
+
 static const char *agent_hy3_skip_space(const char *p, const char *end) {
     while (p < end && isspace((unsigned char)*p)) p++;
     return p;
 }
 
 static void agent_hy3_tool_parse(agent_dsml_parser *p) {
-    static const char calls_open[] = "<tool_calls:opensource>";
-    static const char calls_close[] = "</tool_calls:opensource>";
-    static const char call_open[] = "<tool_call:opensource>";
-    static const char call_close[] = "</tool_call:opensource>";
-    static const char tool_sep[] = "<tool_sep:opensource>";
-    static const char key_open[] = "<arg_key:opensource>";
-    static const char key_close[] = "</arg_key:opensource>";
-    static const char value_open[] = "<arg_value:opensource>";
-    static const char value_close[] = "</arg_value:opensource>";
+    const char *calls_open = p && p->hy4_native ? "<tool_calls:6124c78e>" : "<tool_calls:opensource>";
+    const char *calls_close = p && p->hy4_native ? "</tool_calls:6124c78e>" : "</tool_calls:opensource>";
+    const char *call_open = p && p->hy4_native ? "<tool_call:6124c78e>" : "<tool_call:opensource>";
+    const char *call_close = p && p->hy4_native ? "</tool_call:6124c78e>" : "</tool_call:opensource>";
+    const char *tool_sep = p && p->hy4_native ? "<tool_sep:6124c78e>" : "<tool_sep:opensource>";
+    const char *key_open = p && p->hy4_native ? "<arg_key:6124c78e>" : "<arg_key:opensource>";
+    const char *key_close = p && p->hy4_native ? "</arg_key:6124c78e>" : "</arg_key:opensource>";
+    const char *value_open = p && p->hy4_native ? "<arg_value:6124c78e>" : "<arg_value:opensource>";
+    const char *value_close = p && p->hy4_native ? "</arg_value:6124c78e>" : "</arg_value:opensource>";
 
     if (!p || !p->hy3_native ||
         p->state == AGENT_DSML_DONE || p->state == AGENT_DSML_ERROR)
         return;
-    if (!p->raw || strncmp(p->raw, calls_open, sizeof(calls_open) - 1) != 0) {
+    if (!p->raw || strncmp(p->raw, calls_open, strlen(calls_open)) != 0) {
         agent_glm_tool_set_error(p, "native HY3 tool call missing tool_calls start");
         return;
     }
 
-    const char *block_end = strstr(p->raw + sizeof(calls_open) - 1, calls_close);
+    const char *block_end = strstr(p->raw + strlen(calls_open), calls_close);
     if (!block_end) return;
-    const char *pos = p->raw + sizeof(calls_open) - 1;
+    const char *pos = p->raw + strlen(calls_open);
     pos = agent_hy3_skip_space(pos, block_end);
 
     while (pos < block_end) {
-        if ((size_t)(block_end - pos) < sizeof(call_open) - 1 ||
-            memcmp(pos, call_open, sizeof(call_open) - 1) != 0) {
+        if ((size_t)(block_end - pos) < strlen(call_open) ||
+            memcmp(pos, call_open, strlen(call_open)) != 0) {
             agent_glm_tool_set_error(p, "native HY3 tool_calls contains unexpected text");
             return;
         }
-        const char *body = pos + sizeof(call_open) - 1;
+        const char *body = pos + strlen(call_open);
         const char *call_end = strstr(body, call_close);
         if (!call_end || call_end > block_end) {
             agent_glm_tool_set_error(p, "native HY3 tool call is not closed");
             return;
         }
-        const char *sep = strstr(body, tool_sep);
+        const char *sep = strstr(body, p->hy4_native ? key_open : tool_sep);
+        if (p->hy4_native && (!sep || sep > call_end)) sep = call_end;
         if (!sep || sep > call_end) {
             agent_glm_tool_set_error(p, "native HY3 tool call is missing tool_sep");
             return;
@@ -3248,16 +3304,16 @@ static void agent_hy3_tool_parse(agent_dsml_parser *p) {
         call.name = xstrdup(agent_canonical_tool_name(raw_name));
         free(raw_name);
 
-        const char *arg = sep + sizeof(tool_sep) - 1;
+        const char *arg = p->hy4_native ? sep : sep + strlen(tool_sep);
         arg = agent_hy3_skip_space(arg, call_end);
         while (arg < call_end) {
-            if ((size_t)(call_end - arg) < sizeof(key_open) - 1 ||
-                memcmp(arg, key_open, sizeof(key_open) - 1) != 0) {
+            if ((size_t)(call_end - arg) < strlen(key_open) ||
+                memcmp(arg, key_open, strlen(key_open)) != 0) {
                 agent_tool_call_free(&call);
                 agent_glm_tool_set_error(p, "native HY3 tool call expected arg_key");
                 return;
             }
-            const char *key = arg + sizeof(key_open) - 1;
+            const char *key = arg + strlen(key_open);
             const char *key_end = strstr(key, key_close);
             if (!key_end || key_end > call_end) {
                 agent_tool_call_free(&call);
@@ -3273,15 +3329,15 @@ static void agent_hy3_tool_parse(agent_dsml_parser *p) {
             }
 
             const char *value_tag = agent_hy3_skip_space(
-                key_end + sizeof(key_close) - 1, call_end);
-            if ((size_t)(call_end - value_tag) < sizeof(value_open) - 1 ||
-                memcmp(value_tag, value_open, sizeof(value_open) - 1) != 0) {
+                key_end + strlen(key_close), call_end);
+            if ((size_t)(call_end - value_tag) < strlen(value_open) ||
+                memcmp(value_tag, value_open, strlen(value_open)) != 0) {
                 free(key_text);
                 agent_tool_call_free(&call);
                 agent_glm_tool_set_error(p, "native HY3 arg_key is missing arg_value");
                 return;
             }
-            const char *value = value_tag + sizeof(value_open) - 1;
+            const char *value = value_tag + strlen(value_open);
             const char *value_end = strstr(value, value_close);
             if (!value_end || value_end > call_end) {
                 free(key_text);
@@ -3293,12 +3349,12 @@ static void agent_hy3_tool_parse(agent_dsml_parser *p) {
                                     (size_t)(value_end - value), true);
             free(key_text);
             arg = agent_hy3_skip_space(
-                value_end + sizeof(value_close) - 1, call_end);
+                value_end + strlen(value_close), call_end);
         }
 
         agent_tool_calls_push(&p->calls, &call);
         pos = agent_hy3_skip_space(
-            call_end + sizeof(call_close) - 1, block_end);
+            call_end + strlen(call_close), block_end);
     }
 
     if (p->calls.len == 0) {
@@ -3310,12 +3366,12 @@ static void agent_hy3_tool_parse(agent_dsml_parser *p) {
             p, "native HY3 tool_calls must contain exactly one call");
         return;
     }
-    p->parse_pos = (size_t)(block_end - p->raw) + sizeof(calls_close) - 1;
+    p->parse_pos = (size_t)(block_end - p->raw) + strlen(calls_close);
     p->state = AGENT_DSML_DONE;
 }
 
 static void agent_hy3_tool_feed(agent_dsml_parser *p, const char *s, size_t n) {
-    static const char calls_close[] = "</tool_calls:opensource>";
+    const char *calls_close = p && p->hy4_native ? "</tool_calls:6124c78e>" : "</tool_calls:opensource>";
     if (!p || p->state == AGENT_DSML_DONE || p->state == AGENT_DSML_ERROR) return;
     const size_t old_len = p->raw_len;
     agent_dsml_raw_append(p, s, n);
@@ -3325,7 +3381,7 @@ static void agent_hy3_tool_feed(agent_dsml_parser *p, const char *s, size_t n) {
      * large) write body after every byte only creates quadratic overhead.
      * Scan just the newly extended suffix for the close marker and perform
      * the one full structural parse when it arrives. */
-    const size_t close_len = sizeof(calls_close) - 1;
+    const size_t close_len = strlen(calls_close);
     const size_t scan = old_len >= close_len - 1 ?
         old_len - (close_len - 1) : 0;
     for (size_t i = scan; i + close_len <= p->raw_len; i++) {
@@ -3367,6 +3423,9 @@ static bool agent_hy3_generated_role_marker(const char *text, size_t len) {
         "<｜hy_User:opensource｜>",
         "<｜hy_Assistant:opensource｜>",
         "<｜reasoning_mode:opensource｜>",
+        "<｜hy_start:6124c78e｜>",
+        "<｜hy_middle:6124c78e｜>",
+        "<｜reasoning_mode:6124c78e｜>",
     };
     for (size_t i = 0; i < sizeof(markers) / sizeof(markers[0]); i++) {
         const size_t n = strlen(markers[i]);
@@ -5568,8 +5627,8 @@ static void agent_stream_tool_events(agent_stream_renderer *sr) {
 }
 
 static bool agent_stream_hy3_viz_emit_value(agent_stream_renderer *sr) {
-    static const char value_close[] = "</arg_value:opensource>";
     agent_dsml_parser *p = sr->parser;
+    const char *value_close = p && p->hy4_native ? "</arg_value:6124c78e>" : "</arg_value:opensource>";
     if (!sr->glm_viz_value_active || !p || !p->raw ||
         sr->glm_viz_value_emit_pos >= p->raw_len)
         return false;
@@ -5584,7 +5643,7 @@ static bool agent_stream_hy3_viz_emit_value(agent_stream_renderer *sr) {
         agent_tool_viz_param_end(sr);
         sr->glm_viz_value_active = false;
         sr->glm_viz_value_emit_pos =
-            (size_t)(close - p->raw) + sizeof(value_close) - 1;
+            (size_t)(close - p->raw) + strlen(value_close);
         sr->glm_viz_scan_pos = sr->glm_viz_value_emit_pos;
         return true;
     }
@@ -5602,20 +5661,20 @@ static bool agent_stream_hy3_viz_emit_value(agent_stream_renderer *sr) {
 /* Execution still waits for the complete outer wrapper, but display and
  * write-part staging follow the native argument stream incrementally. */
 static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
-    static const char calls_open[] = "<tool_calls:opensource>";
-    static const char call_open[] = "<tool_call:opensource>";
-    static const char call_close[] = "</tool_call:opensource>";
-    static const char tool_sep[] = "<tool_sep:opensource>";
-    static const char key_open[] = "<arg_key:opensource>";
-    static const char key_close[] = "</arg_key:opensource>";
-    static const char value_open[] = "<arg_value:opensource>";
     agent_dsml_parser *p = sr->parser;
+    const char *calls_open = p && p->hy4_native ? "<tool_calls:6124c78e>" : "<tool_calls:opensource>";
+    const char *call_open = p && p->hy4_native ? "<tool_call:6124c78e>" : "<tool_call:opensource>";
+    const char *call_close = p && p->hy4_native ? "</tool_call:6124c78e>" : "</tool_call:opensource>";
+    const char *tool_sep = p && p->hy4_native ? "<tool_sep:6124c78e>" : "<tool_sep:opensource>";
+    const char *key_open = p && p->hy4_native ? "<arg_key:6124c78e>" : "<arg_key:opensource>";
+    const char *key_close = p && p->hy4_native ? "</arg_key:6124c78e>" : "</arg_key:opensource>";
+    const char *value_open = p && p->hy4_native ? "<arg_value:6124c78e>" : "<arg_value:opensource>";
     if (!p || !p->hy3_native || !p->raw ||
-        p->raw_len < sizeof(calls_open) - 1)
+        p->raw_len < strlen(calls_open))
         return;
 
     if (!sr->glm_viz_scan_pos)
-        sr->glm_viz_scan_pos = sizeof(calls_open) - 1;
+        sr->glm_viz_scan_pos = strlen(calls_open);
 
     if (!sr->viz.tool_announced) {
         const char *call = agent_memmem_lit(
@@ -5623,9 +5682,13 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
             p->raw_len - sr->glm_viz_scan_pos,
             call_open);
         if (!call) return;
-        const char *name = call + sizeof(call_open) - 1;
+        const char *name = call + strlen(call_open);
         const char *sep = agent_memmem_lit(
-            name, p->raw_len - (size_t)(name - p->raw), tool_sep);
+            name, p->raw_len - (size_t)(name - p->raw), p->hy4_native ? key_open : tool_sep);
+        if (p->hy4_native) {
+            const char *end = agent_memmem_lit(name, p->raw_len - (size_t)(name-p->raw), call_close);
+            if (end && (!sep || end < sep)) sep = end;
+        }
         if (!sep) return;
         char *raw_name = agent_trimmed_copy(name, (size_t)(sep - name));
         agent_clean_tool_name_in_place(raw_name);
@@ -5633,7 +5696,7 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
             agent_tool_viz_tool(sr, agent_canonical_tool_name(raw_name));
         free(raw_name);
         sr->glm_viz_scan_pos =
-            (size_t)(sep - p->raw) + sizeof(tool_sep) - 1;
+            (size_t)(sep - p->raw) + (p->hy4_native ? 0 : strlen(tool_sep));
     }
 
     for (;;) {
@@ -5651,16 +5714,16 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
                 p->raw + scan, p->raw_len - scan, call_close);
             if (end_call && (!key || end_call < key)) {
                 sr->glm_viz_scan_pos =
-                    (size_t)(end_call - p->raw) + sizeof(call_close) - 1;
+                    (size_t)(end_call - p->raw) + strlen(call_close);
                 break;
             }
             if (!key) {
-                const size_t keep = sizeof(key_open) - 2;
+                const size_t keep = strlen(key_open) - 1;
                 sr->glm_viz_scan_pos = p->raw_len > keep ?
                     p->raw_len - keep : scan;
                 break;
             }
-            const char *key_text = key + sizeof(key_open) - 1;
+            const char *key_text = key + strlen(key_open);
             const char *key_end = agent_memmem_lit(
                 key_text, p->raw_len - (size_t)(key_text - p->raw), key_close);
             if (!key_end) {
@@ -5674,7 +5737,7 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
             free(trimmed);
             sr->glm_viz_have_key = true;
             sr->glm_viz_scan_pos =
-                (size_t)(key_end - p->raw) + sizeof(key_close) - 1;
+                (size_t)(key_end - p->raw) + strlen(key_close);
             continue;
         }
 
@@ -5682,7 +5745,7 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
         const char *value = agent_memmem_lit(
             p->raw + scan, p->raw_len - scan, value_open);
         if (!value) {
-            const size_t keep = sizeof(value_open) - 2;
+            const size_t keep = strlen(value_open) - 1;
             sr->glm_viz_scan_pos = p->raw_len > keep ?
                 p->raw_len - keep : scan;
             break;
@@ -5692,7 +5755,7 @@ static void agent_stream_hy3_tool_events(agent_stream_renderer *sr) {
         sr->glm_viz_have_key = false;
         sr->glm_viz_value_active = true;
         sr->glm_viz_value_emit_pos =
-            (size_t)(value - p->raw) + sizeof(value_open) - 1;
+            (size_t)(value - p->raw) + strlen(value_open);
         sr->glm_viz_scan_pos = sr->glm_viz_value_emit_pos;
     }
 }
@@ -5775,7 +5838,9 @@ static void agent_stream_start_tool(agent_stream_renderer *sr,
     agent_trace(sr->renderer->worker, "%s start detected%s",
                 hy3_native ? "hy3_tool" : glm_native ? "glm_tool" : "dsml",
                 ignored ? " inside thinking" : "");
-    if (hy3_native)
+    if (hy3_native && sr->hy4_tools)
+        agent_hy4_tool_start(sr->parser);
+    else if (hy3_native)
         agent_hy3_tool_start(sr->parser);
     else if (glm_native)
         agent_glm_tool_start(sr->parser);
@@ -6103,6 +6168,7 @@ static bool agent_stream_note_glm_bare_tool_byte(agent_stream_renderer *sr, char
 static bool agent_stream_tool_start_match(const char *tail, size_t len,
                                           bool glm_tools,
                                           bool hy3_tools,
+                                          bool hy4_tools,
                                           bool *complete,
                                           bool *glm_native,
                                           bool *hy3_native) {
@@ -6110,18 +6176,20 @@ static bool agent_stream_tool_start_match(const char *tail, size_t len,
     static const char missing_bar[] = "<DSML｜tool_calls>";
     static const char native_glm[] = "<tool_call>";
     static const char native_hy3[] = "<tool_calls:opensource>";
-    const char *forms[] = {canonical, missing_bar, native_glm, native_hy3};
+    static const char native_hy4[] = "<tool_calls:6124c78e>";
+    const char *forms[] = {canonical, missing_bar, native_glm, native_hy3, native_hy4};
     *complete = false;
     if (glm_native) *glm_native = false;
     if (hy3_native) *hy3_native = false;
     for (size_t i = 0; i < sizeof(forms)/sizeof(forms[0]); i++) {
         if (forms[i] == native_glm && !glm_tools) continue;
-        if (forms[i] == native_hy3 && !hy3_tools) continue;
+        if (forms[i] == native_hy3 && (!hy3_tools || hy4_tools)) continue;
+        if (forms[i] == native_hy4 && !hy4_tools) continue;
         size_t form_len = strlen(forms[i]);
         if (len <= form_len && memcmp(forms[i], tail, len) == 0) {
             *complete = len == form_len;
             if (glm_native) *glm_native = forms[i] == native_glm;
-            if (hy3_native) *hy3_native = forms[i] == native_hy3;
+            if (hy3_native) *hy3_native = forms[i] == native_hy3 || forms[i] == native_hy4;
             return true;
         }
     }
@@ -6298,6 +6366,7 @@ static void agent_stream_normal_byte(agent_stream_renderer *sr, char c) {
         if (agent_stream_tool_start_match(sr->dsml_start_tail, sr->dsml_start_len,
                                           sr->glm_tools,
                                           sr->hy3_tools,
+                                          sr->hy4_tools,
                                           &complete,
                                           &glm_native,
                                           &hy3_native))
@@ -6337,8 +6406,8 @@ static void agent_stream_normal_byte(agent_stream_renderer *sr, char c) {
  * from parser state changes.  The sampled transcript remains unchanged: only
  * the terminal projection is rewritten. */
 static void agent_stream_text(agent_stream_renderer *sr, const char *text, size_t len, bool finish) {
-    const char *think_open = sr->hy3_tools ? "<think:opensource>" : "<think>";
-    const char *think_close = sr->hy3_tools ? "</think:opensource>" : "</think>";
+    const char *think_open = sr->hy4_tools ? "<think:6124c78e>" : sr->hy3_tools ? "<think:opensource>" : "<think>";
+    const char *think_close = sr->hy4_tools ? "</think:6124c78e>" : sr->hy3_tools ? "</think:opensource>" : "</think>";
     size_t total = sr->pending_len + len;
     char *buf = xmalloc(total ? total : 1);
     if (sr->pending_len) memcpy(buf, sr->pending, sr->pending_len);
@@ -6630,6 +6699,8 @@ static bool agent_mkdir_p(const char *path) {
 }
 
 static char *agent_default_cache_dir(void) {
+    const char *override = getenv("DS4_AGENT_CACHE_DIR");
+    if (override && override[0]) return xstrdup(override);
     const char *home = getenv("HOME");
     if (!home || !home[0]) home = ".";
     agent_buf b = {0};
@@ -7000,7 +7071,7 @@ static void agent_web_log(void *privdata, const char *message) {
     agent_trace(w, "web: %s", message);
 }
 
-static bool agent_web_cancel(void *privdata) {
+static bool agent_worker_cancel(void *privdata) {
     return worker_should_interrupt(privdata);
 }
 
@@ -7644,7 +7715,8 @@ static void agent_history_render_assistant(agent_worker *w,
         .renderer = &renderer,
         .parser = &dsml,
         .glm_tools = ds4_engine_uses_glm_tokenizer(w->engine),
-        .hy3_tools = ds4_engine_uses_hy3_tokenizer(w->engine),
+        .hy3_tools = ds4_engine_uses_hy3_tokenizer(w->engine) || ds4_engine_uses_hy4_tokenizer(w->engine),
+        .hy4_tools = ds4_engine_uses_hy4_tokenizer(w->engine),
         .replay = true,
     };
 
@@ -10439,7 +10511,13 @@ static int agent_selftest_parse_case(const char *name,
     agent_dsml_parser p = {.state = AGENT_DSML_SEARCH};
     static const char glm_start[] = "<tool_call>";
     static const char hy3_start[] = "<tool_calls:opensource>";
-    if (!strncmp(dsml, hy3_start, sizeof(hy3_start) - 1)) {
+    static const char hy4_start[] = "<tool_calls:6124c78e>";
+    if (!strncmp(dsml, hy4_start, sizeof(hy4_start) - 1)) {
+        agent_hy4_tool_start(&p);
+        agent_hy3_tool_feed(&p, dsml + sizeof(hy4_start) - 1,
+                            strlen(dsml) - (sizeof(hy4_start) - 1));
+        agent_tool_parser_finish(&p);
+    } else if (!strncmp(dsml, hy3_start, sizeof(hy3_start) - 1)) {
         agent_hy3_tool_start(&p);
         agent_hy3_tool_feed(&p, dsml + sizeof(hy3_start) - 1,
                             strlen(dsml) - (sizeof(hy3_start) - 1));
@@ -10489,15 +10567,17 @@ done:
 static int agent_selftest_hy3_parse_error_case(const char *name,
                                                 const char *text,
                                                 const char *error_needle) {
-    static const char start[] = "<tool_calls:opensource>";
+    const bool hy4 = text && strstr(text, "<tool_calls:6124c78e>") == text;
+    const char *start = hy4 ? "<tool_calls:6124c78e>" : "<tool_calls:opensource>";
     agent_dsml_parser p = {.state = AGENT_DSML_SEARCH};
     int rc = 0;
-    if (!text || strncmp(text, start, sizeof(start) - 1) != 0) {
+    if (!text || strncmp(text, start, strlen(start)) != 0) {
         return agent_selftest_fail(name, "test input is missing native HY3 start");
     }
-    agent_hy3_tool_start(&p);
-    agent_hy3_tool_feed(&p, text + sizeof(start) - 1,
-                        strlen(text) - (sizeof(start) - 1));
+    if (hy4) agent_hy4_tool_start(&p);
+    else agent_hy3_tool_start(&p);
+    agent_hy3_tool_feed(&p, text + strlen(start),
+                        strlen(text) - (strlen(start)));
     (void)agent_tool_parser_finish(&p);
     if (p.state != AGENT_DSML_ERROR) {
         rc = agent_selftest_fail(name, "expected parser error, got state=%d calls=%d",
@@ -10601,6 +10681,7 @@ static int agent_selftest_stream_hy3_case(const char *name,
         .renderer = &renderer,
         .parser = &p,
         .hy3_tools = true,
+        .hy4_tools = strstr(text, "<tool_calls:6124c78e>") != NULL,
         .forbid_think_open = true,
         .no_think_guard = &no_think_guard,
         .payload_repeat_guard = &payload_repeat_guard,
@@ -10641,7 +10722,8 @@ static int agent_selftest_stream_hy3_case(const char *name,
             goto done;
         }
     }
-    if (visible && strstr(visible, "<tool_calls:opensource>")) {
+    if (visible && (strstr(visible, "<tool_calls:opensource>") ||
+                    strstr(visible, "<tool_calls:6124c78e>"))) {
         rc = agent_selftest_fail(name, "native wrapper leaked to display: %s", visible);
         goto done;
     }
@@ -10946,6 +11028,10 @@ static int agent_compact_tail_start_tokens(const ds4_tokens *transcript,
                                            int bottom, int sys_len,
                                            int ctx_size, int compacted_base_len,
                                            int user_id);
+static int agent_compact_tail_start_header(const ds4_tokens *transcript,
+                                           int bottom, int sys_len,
+                                           int ctx_size, int compacted_base_len,
+                                           const ds4_tokens *header);
 static bool agent_should_compact_tokens(int used, int physical_ctx,
                                         int working_ctx);
 
@@ -11001,6 +11087,21 @@ static int agent_selftest_compaction_tail_boundaries(void) {
         return agent_selftest_fail(
             "compaction-tail-no-boundary", "expected 20, got %d", got);
 
+    /* HY4 uses the same start token for every role. Only a complete user
+     * header may start a retained tail, never an assistant or tool header. */
+    memset(storage, 0, sizeof(storage));
+    const int user_header[] = {120000, 42, 120001};
+    ds4_tokens header = {.v = (int *)user_header, .len = 3, .cap = 3};
+    memcpy(storage + 12, user_header, sizeof(user_header));
+    storage[17] = 120000; storage[18] = 43; storage[19] = 120001;
+    got = agent_compact_tail_start_header(&transcript, 20, 2, 50, 10, &header);
+    if (got != 12)
+        return agent_selftest_fail("hy4-compaction-user-header", "expected 12, got %d", got);
+    storage[12] = 0;
+    got = agent_compact_tail_start_header(&transcript, 20, 2, 50, 10, &header);
+    if (got != 20)
+        return agent_selftest_fail("hy4-compaction-no-user-header", "expected 20, got %d", got);
+    printf("PASS prompt:hy4-compaction-user-boundaries\n");
     printf("PASS prompt:compaction-tail-boundaries\n");
     return 0;
 }
@@ -11293,8 +11394,28 @@ done:
     return rc;
 }
 
+static int agent_selftest_cache_dir(void) {
+    const char *saved_env = getenv("DS4_AGENT_CACHE_DIR");
+    char *saved = saved_env ? xstrdup(saved_env) : NULL;
+    unsetenv("DS4_AGENT_CACHE_DIR");
+    char *fallback = agent_default_cache_dir();
+    setenv("DS4_AGENT_CACHE_DIR", "", 1);
+    char *empty = agent_default_cache_dir();
+    setenv("DS4_AGENT_CACHE_DIR", "/tmp/ds4-agent-isolated-cache", 1);
+    char *explicit = agent_default_cache_dir();
+    bool ok = !strcmp(fallback, empty) &&
+              !strcmp(explicit, "/tmp/ds4-agent-isolated-cache");
+    if (saved) setenv("DS4_AGENT_CACHE_DIR", saved, 1);
+    else unsetenv("DS4_AGENT_CACHE_DIR");
+    free(saved); free(fallback); free(empty); free(explicit);
+    if (!ok) return agent_selftest_fail("cache-directory-override", "incorrect cache selection");
+    printf("PASS config:cache-directory-override\n");
+    return 0;
+}
+
 static int agent_run_tool_self_test(void) {
     int failures = 0;
+    failures += agent_selftest_cache_dir();
     failures += agent_selftest_shell_word_progress();
     failures += agent_selftest_working_context_frontier();
     failures += agent_selftest_compaction_tail_boundaries();
@@ -11353,6 +11474,48 @@ static int agent_run_tool_self_test(void) {
     failures += agent_selftest_stream_hy3_case("hy3-native-search-byte-split",
                                                valid_hy3_search,
                                                "search", search_args, 5);
+
+    const agent_selftest_arg hy4_search_args[] = {{"query", "tokens per second"}};
+    const char *valid_hy4_search =
+        "<tool_calls:6124c78e><tool_call:6124c78e>search"
+        "<arg_key:6124c78e>query</arg_key:6124c78e>"
+        "<arg_value:6124c78e>tokens per second</arg_value:6124c78e>"
+        "</tool_call:6124c78e></tool_calls:6124c78e>";
+    failures += agent_selftest_parse_case("hy4-native-search", valid_hy4_search,
+                                          "search", hy4_search_args, 1, 1);
+    failures += agent_selftest_stream_hy3_case("hy4-native-search-byte-split",
+                                               valid_hy4_search,
+                                               "search", hy4_search_args, 1);
+    const char *hy4_no_args =
+        "<tool_calls:6124c78e><tool_call:6124c78e>search"
+        "</tool_call:6124c78e></tool_calls:6124c78e>";
+    failures += agent_selftest_parse_case("hy4-native-no-args", hy4_no_args,
+                                          "search", NULL, 0, 1);
+    failures += agent_selftest_stream_hy3_case("hy4-native-no-args-byte-split",
+                                               hy4_no_args, "search", NULL, 0);
+    const agent_selftest_arg hy4_write_args[] = {
+        {"path", "/tmp/hy4-native.txt"},
+        {"content", "<think:6124c78e>\nLiteral </tool_call> remains data.\n</think:6124c78e>\n"},
+    };
+    const char *hy4_write =
+        "<tool_calls:6124c78e><tool_call:6124c78e>write"
+        "<arg_key:6124c78e>path</arg_key:6124c78e>"
+        "<arg_value:6124c78e>/tmp/hy4-native.txt</arg_value:6124c78e>"
+        "<arg_key:6124c78e>content</arg_key:6124c78e>"
+        "<arg_value:6124c78e><think:6124c78e>\n"
+        "Literal </tool_call> remains data.\n</think:6124c78e>\n"
+        "</arg_value:6124c78e></tool_call:6124c78e></tool_calls:6124c78e>";
+    failures += agent_selftest_parse_case("hy4-native-control-token-is-tool-data",
+                                          hy4_write, "write", hy4_write_args, 2, 1);
+    failures += agent_selftest_stream_hy3_case("hy4-native-multiline-write-byte-split",
+                                               hy4_write, "write", hy4_write_args, 2);
+    const char *hy4_unclosed =
+        "<tool_calls:6124c78e><tool_call:6124c78e>search"
+        "<arg_key:6124c78e>query</arg_key:6124c78e>"
+        "<arg_value:6124c78e>missing value close"
+        "</tool_call:6124c78e></tool_calls:6124c78e>";
+    failures += agent_selftest_hy3_parse_error_case(
+        "hy4-native-reject-unclosed-value", hy4_unclosed, "arg_value is not closed");
 
     const char *invalid_hy3_multiple_calls =
         "<tool_calls:opensource>\n"
@@ -11952,8 +12115,37 @@ static int agent_compact_tail_start_tokens(const ds4_tokens *transcript,
     return bottom;
 }
 
+/* Project complete role headers onto the same boundary search used by
+ * single-token role vocabularies. HY4 message-start alone is ambiguous. */
+static int agent_compact_tail_start_header(const ds4_tokens *transcript,
+                                           int bottom, int sys_len,
+                                           int ctx_size, int compacted_base_len,
+                                           const ds4_tokens *header) {
+    if (!transcript || !header || header->len <= 0) return bottom;
+    ds4_tokens boundaries = {0};
+    for (int i = 0; i < bottom; i++) {
+        bool match = i + header->len <= bottom &&
+            memcmp(transcript->v + i, header->v,
+                   (size_t)header->len * sizeof(header->v[0])) == 0;
+        ds4_tokens_push(&boundaries, match ? 1 : 0);
+    }
+    int start = agent_compact_tail_start_tokens(&boundaries, bottom, sys_len,
+                                                ctx_size, compacted_base_len, 1);
+    ds4_tokens_free(&boundaries);
+    return start;
+}
+
 static int agent_compact_tail_start(agent_worker *w, int bottom, int sys_len,
                                     int compacted_base_len) {
+    if (ds4_engine_uses_hy4_tokenizer(w->engine)) {
+        ds4_tokens header = {0};
+        ds4_tokenize_rendered_chat(w->engine,
+            "<｜hy_start:6124c78e｜>user<｜hy_middle:6124c78e｜>", &header);
+        int start = agent_compact_tail_start_header(&w->transcript, bottom, sys_len,
+            agent_working_context_limit(w->cfg), compacted_base_len, &header);
+        ds4_tokens_free(&header);
+        return start;
+    }
     return agent_compact_tail_start_tokens(
         &w->transcript, bottom, sys_len, agent_working_context_limit(w->cfg),
         compacted_base_len, ds4_token_user(w->engine));
@@ -12076,29 +12268,30 @@ static bool agent_worker_compact(agent_worker *w, const char *reason,
     agent_buf summary = {0};
     char eval_err[160] = {0};
     const bool hy3_tools = ds4_engine_uses_hy3_tokenizer(w->engine);
+    const bool hy4_tools = ds4_engine_uses_hy4_tokenizer(w->engine);
     int forbidden_ids[10] = {0};
     int forbidden_count = 0;
     agent_token_id_set_add(
         forbidden_ids, &forbidden_count, 10,
         agent_special_token_id(
-            w->engine, hy3_tools ? "<think:opensource>" : "<think>"));
+            w->engine, hy4_tools ? "<think:6124c78e>" : hy3_tools ? "<think:opensource>" : "<think>"));
     agent_token_id_set_add(
         forbidden_ids, &forbidden_count, 10,
         agent_special_token_id(
-            w->engine, hy3_tools ? "</think:opensource>" : "</think>"));
+            w->engine, hy4_tools ? "</think:6124c78e>" : hy3_tools ? "</think:opensource>" : "</think>"));
     agent_token_id_set_add(
         forbidden_ids, &forbidden_count, 10,
         agent_special_token_id(
-            w->engine, hy3_tools ? "<tool_calls:opensource>" : "｜DSML｜"));
+            w->engine, hy4_tools ? "<tool_calls:6124c78e>" : hy3_tools ? "<tool_calls:opensource>" : "｜DSML｜"));
     agent_token_id_set_add(forbidden_ids, &forbidden_count, 10,
                            ds4_token_user(w->engine));
     agent_token_id_set_add(forbidden_ids, &forbidden_count, 10,
                            ds4_token_assistant(w->engine));
-    if (hy3_tools) {
+    if (hy3_tools || hy4_tools) {
         agent_token_id_set_add(
             forbidden_ids, &forbidden_count, 10,
             agent_special_token_id(
-                w->engine, "<｜reasoning_mode:opensource｜>"));
+                w->engine, hy4_tools ? "<｜reasoning_mode:6124c78e｜>" : "<｜reasoning_mode:opensource｜>"));
     }
     double t0 = now_sec();
     for (int i = 0; i < summary_max; i++) {
@@ -12314,10 +12507,17 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
     agent_config *cfg = w->cfg;
     ds4_think_mode think_mode = effective_think_mode(cfg, w->engine);
     char compact_err[160] = {0};
+    pthread_mutex_lock(&w->mu);
+    w->interrupt = false;
+    pthread_mutex_unlock(&w->mu);
     if (!agent_worker_compact_if_needed(w, "soft limit before user turn",
                                         NULL, NULL,
                                         compact_err, sizeof(compact_err)))
     {
+        if (worker_should_interrupt(w)) {
+            agent_set_turn_completed(w);
+            return 0;
+        }
         agent_set_error(w, compact_err[0] ? compact_err : "context compaction failed");
         return 1;
     }
@@ -12328,7 +12528,6 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
     uint64_t rng = cfg->gen.seed ? cfg->gen.seed :
         ((uint64_t)time(NULL) ^ ((uint64_t)getpid() << 32) ^ (uint64_t)clock());
     pthread_mutex_lock(&w->mu);
-    w->interrupt = false;
     w->user_activity = true;
     w->session_dirty = true;
     w->status.error[0] = '\0';
@@ -12356,6 +12555,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                        (double)w->cfg->gen.temperature);
     }
     const bool hy3_native = ds4_engine_uses_hy3_tokenizer(w->engine);
+    const bool hy4_native = ds4_engine_uses_hy4_tokenizer(w->engine);
     const bool enforce_hy3_no_think =
         hy3_native && !ds4_think_mode_enabled(think_mode);
     int no_think_forbidden_ids[8] = {0};
@@ -12379,6 +12579,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                     &did_compact, &tail_kept,
                     compact_err, sizeof(compact_err)))
             {
+                if (worker_should_interrupt(w)) {
+                    agent_set_turn_completed(w);
+                    return 0;
+                }
                 agent_set_error(
                     w, compact_err[0] ? compact_err : "context compaction failed");
                 return 1;
@@ -12431,6 +12635,15 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
         if (ds4_session_sync(w->session, prompt_for_sync, err, sizeof(err)) != 0) {
             ds4_session_set_progress(w->session, NULL, NULL);
             ds4_session_set_display_progress(w->session, NULL, NULL);
+            if (worker_should_interrupt(w)) {
+                /* The runtime retains only complete evaluated tokens.  Keep the
+                 * user message, discard the ungenerated assistant prefix, and
+                 * let the next sync resume or rebuild from that stable prefix. */
+                agent_tokens_truncate(&w->transcript, assistant_turn_start);
+                agent_trace(w, "prefill interrupted at token=%d", ds4_session_pos(w->session));
+                agent_set_turn_completed(w);
+                return 0;
+            }
             agent_set_error(w, err);
             return 1;
         }
@@ -12450,7 +12663,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
 
         bool use_color = isatty(STDOUT_FILENO) != 0;
         bool glm_tools = ds4_engine_uses_glm_tokenizer(w->engine);
-        bool hy3_tools = hy3_native;
+        bool hy3_tools = hy3_native || hy4_native;
         agent_token_renderer renderer = {
             .engine = w->engine,
             .worker = w,
@@ -12468,6 +12681,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
             .parser = &dsml,
             .glm_tools = glm_tools,
             .hy3_tools = hy3_tools,
+            .hy4_tools = hy4_native,
             .forbid_think_open = enforce_hy3_no_think,
             .no_think_guard = enforce_hy3_no_think ? &no_think_guard : NULL,
             .payload_repeat_guard =
@@ -12570,6 +12784,7 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                 }
             } else {
                 if (ds4_session_eval(w->session, first_token, err, sizeof(err)) != 0) {
+                    if (worker_should_interrupt(w)) break;
                     agent_dsml_parser_free(&dsml);
                     agent_set_error(w, err);
                     return 1;
@@ -13005,7 +13220,15 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
                             dsml.error[0] ? dsml.error : "parse error");
                 agent_tokens_truncate(&w->transcript, assistant_turn_start);
                 agent_buf repair = {0};
-                if (hy3_tools) {
+                if (hy4_native) {
+                    agent_buf_puts(&repair,
+                        "The previous call was invalid. Retry with exactly one native HY4 call:\n"
+                        "<tool_calls:6124c78e><tool_call:6124c78e>bash"
+                        "<arg_key:6124c78e>command</arg_key:6124c78e>"
+                        "<arg_value:6124c78e>pwd</arg_value:6124c78e>"
+                        "</tool_call:6124c78e></tool_calls:6124c78e>\n"
+                        "Use these tokens exactly, with no DSML, tool_sep, or markdown fences.");
+                } else if (hy3_tools) {
                     agent_buf_puts(&repair,
                         "The previous assistant response was discarded because it mixed tool "
                         "protocols. Retry now with exactly one native HY3 tool call and no prose:\n"
@@ -13092,6 +13315,10 @@ static int worker_run_turn(agent_worker *w, const char *user_text) {
             {
                 free(tool_result);
                 agent_dsml_parser_free(&dsml);
+                if (worker_should_interrupt(w)) {
+                    agent_set_turn_completed(w);
+                    return 0;
+                }
                 agent_set_error(w, compact_err[0] ? compact_err : "context compaction failed");
                 return 1;
             }
@@ -14669,6 +14896,7 @@ static int agent_worker_init(agent_worker *w, ds4_engine *engine, agent_config *
         fprintf(stderr, "ds4-agent: session backend is required\n");
         return -1;
     }
+    ds4_session_set_cancel(w->session, agent_worker_cancel, w);
     w->cache_dir = agent_default_cache_dir();
     if (!agent_mkdir_p(w->cache_dir)) {
         fprintf(stderr, "ds4-agent: failed to create %s: %s\n",
@@ -14682,7 +14910,7 @@ static int agent_worker_init(agent_worker *w, ds4_engine *engine, agent_config *
         .confirm_privdata = w,
         .log = agent_web_log,
         .log_privdata = w,
-        .cancel = agent_web_cancel,
+        .cancel = agent_worker_cancel,
         .cancel_privdata = w,
     };
     w->web = ds4_web_create(&web_cfg);
@@ -15577,6 +15805,9 @@ int main(int argc, char **argv) {
     ds4_profile_set_sidecar_mode(cfg.engine.moe_mode == DS4_MOE_MODE_SLOT_BANK && cfg.engine.moe_sidecar_path);
     ds4_profile_load_and_apply();
     ds4_model_shape_select_for_path(cfg.engine.model_path);
+    if (!cfg.gen.ctx_explicit && ds4_model_shape_is_hy4()) {
+        cfg.gen.ctx_size = cfg.engine.ctx_size = 2048;
+    }
     log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
 
     ds4_engine *engine = NULL;
