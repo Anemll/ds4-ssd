@@ -13,13 +13,40 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("reference", type=Path, help="llama-cli oracle manifest.json")
 parser.add_argument("native", type=Path, help="test_hy4_session JSONL output")
 parser.add_argument("--atol", type=float, default=0.001)
+parser.add_argument("--native-reference", action="store_true",
+                    help="reference is another native JSONL capture (CPU/Metal A/B)")
 args = parser.parse_args()
-ref = json.loads(args.reference.read_text())
 rows = [json.loads(line) for line in args.native.read_text().splitlines() if line.strip()]
 prompt = next(row for row in rows if row.get("stage") == "raw_prompt")
+def evaluations(records):
+    return [row for row in records if "top16" in row and
+            (row.get("stage") == "prefill" or row.get("stage", "").startswith("decode_"))]
+
+native = evaluations(rows)
+if args.native_reference:
+    reference_rows = [json.loads(line) for line in args.reference.read_text().splitlines() if line.strip()]
+    expected_rows = evaluations(reference_rows)
+    assert len(native) == len(expected_rows) and native, "evaluation counts differ"
+    allocations = [next(row for row in records if row.get("stage") == "allocation")
+                   for records in (rows, reference_rows)]
+    assert allocations[0]["ctx"] == allocations[1]["ctx"], "native context sizes differ"
+    for records in (rows, reference_rows):
+        assert records[-1].get("result") == "PASS", "incomplete or failed native run"
+        allocation = next(row for row in records if row.get("stage") == "allocation")
+        assert allocation["slots"] == 8 and allocation["capacity"] == 8, "requires eight slots"
+    assert next(row for row in rows if row.get("stage") == "greedy_tokens")["token_ids"] == \
+           next(row for row in reference_rows if row.get("stage") == "greedy_tokens")["token_ids"], "generated tokens differ"
+    for actual, expected in zip(native, expected_rows):
+        assert (actual["stage"], actual["position"], actual["token_ids"], actual["argmax"]) == \
+               (expected["stage"], expected["position"], expected["token_ids"], expected["argmax"]), "native token history/prediction differs"
+    ref = {
+        "prompt_ids": next(row for row in reference_rows if row.get("stage") == "raw_prompt")["token_ids"],
+        "logits": [{"eval_index": i, "token_ids": [v["id"] for v in row["top16"]],
+                    "logits": [v["logit"] for v in row["top16"]]} for i, row in enumerate(expected_rows)],
+    }
+else:
+    ref = json.loads(args.reference.read_text())
 assert prompt["token_ids"] == ref["prompt_ids"], "prompt token IDs differ"
-native = [row for row in rows if row.get("stage") == "prefill" or
-          row.get("stage", "").startswith("decode_")]
 assert ref["logits"] and len(native) >= len(ref["logits"]), "missing evaluation records"
 maximum = 0.0
 values = 0

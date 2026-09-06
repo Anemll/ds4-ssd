@@ -48,6 +48,11 @@ uses Metal. This does not change slot count, routing, or the 2048-key limit.
 The two implementations are compared on deterministic buffers before native
 model validation.
 
+HY4 attention gating and the ordered post-down expert sum use Metal by
+default. `DS4_HY4_CPU_POINTWISE=1` restores those two CPU operations for numerical
+A/B checks; unset or 0 keeps Metal. iHC, slot reservations, I/O and completion
+boundaries are unchanged. Startup identifies the selected gate/reduction path.
+
 ## Slot ownership and interruption safety
 
 Decode and tiny-batch slot-bank prefill hard-reserve **all resident experts in

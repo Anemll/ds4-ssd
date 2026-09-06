@@ -39,3 +39,4 @@ tests/test_hy4_quants_sanitize
 tests/test_hy4_session
 tests/test_hy4_metadata
 tests/test_hy4_attention
+tests/test_hy4_pointwise

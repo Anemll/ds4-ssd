@@ -41,6 +41,14 @@ uses Metal. This does not change slot count, routing, or the 2048-key limit.
 The two implementations are compared on deterministic buffers before native
 model validation.
 
+Attention sigmoid gating and the ordered eight-expert sum after the down
+projection also run in Metal. This removes 78 gate and 77 expert-sum CPU
+synchronization points per token. The existing iHC and token completion
+boundaries still wait for GPU work before slot reuse or cancellation.
+`DS4_HY4_CPU_POINTWISE=1` restores both scalar operations for A/B debugging;
+unset or 0 uses Metal. This switch does not change iHC, attention, or I/O.
+Startup reports `gate/reduce=Metal` or `gate/reduce=CPU reference`.
+
 ## Boundaries
 
 The supplied source revision does not implement native DSA. Full MLA attention
@@ -65,7 +73,7 @@ Sinkhorn-HC paths are not substituted.
 
 ```sh
 make flash-moe-slot-test flash-moe-slot-test-sanitize flash-moe-io-test
-make hy4-math-test hy4-quant-test hy4-attention-test hy4-sanitize-test
+make hy4-math-test hy4-quant-test hy4-attention-test hy4-pointwise-test hy4-sanitize-test
 make hy4-metadata-test HY4_MODEL="$HY4_PACKAGE/model-dense-f16head.gguf"
 make tests/test_hy4_session
 ./tests/test_hy4_session \
@@ -109,7 +117,9 @@ process restored its cached 709-token system prompt, then two separately
 submitted prompts returned `OK` and `4` (for 2 + 2), with process exit 0.
 The first system-prompt prefill took about eight minutes; subsequent starts
 loaded the isolated cache. This validates a short two-turn conversation;
-model-generated tool use and long conversations have not been evaluated.
+long conversations have not been evaluated. A subsequent native tool check
+with eight slots and context 2048 restored that cache, generated a `read` call,
+consumed the local file result, and returned its exact code (exit 0).
 
 Quant tests also compare exact dequantization against the source GGML library
 and sample all four actual sidecar types; see [HY4_QUANT_VALIDATION.md](HY4_QUANT_VALIDATION.md).
@@ -117,3 +127,48 @@ and sample all four actual sidecar types; see [HY4_QUANT_VALIDATION.md](HY4_QUAN
 `DS4_HY4_TRACE_DIR=/existing/directory` optionally captures first-token F32
 intermediates for comparison with the source oracle. It is unset by default.
 Capture files are overwritten when another prefix is evaluated from position 0.
+
+## Compare GPU gating and expert reduction
+
+The focused pointwise test requires bit-identical ordered F32 expert sums,
+including a multiply/add contraction witness. CPU libm and Metal sigmoid are
+compared within four float epsilons for exp/divide/multiply. It covers guarded
+offset views, in-place gating, queued producer/consumer operations, and invalid
+sizes/overlaps. No model is opened by this test.
+
+For a conservative model A/B, the native harness also accepts `--greedy16`:
+
+```sh
+DS4_HY4_CPU_POINTWISE=1 ./tests/test_hy4_session \
+  "$HY4_PACKAGE/model-dense-f16head.gguf" "$HY4_PACKAGE/sidecar" \
+  --greedy16 > hy4-cpu-pointwise.jsonl
+DS4_HY4_CPU_POINTWISE=0 ./tests/test_hy4_session \
+  "$HY4_PACKAGE/model-dense-f16head.gguf" "$HY4_PACKAGE/sidecar" \
+  --greedy16 > hy4-metal-pointwise.jsonl
+python3 tests/compare_hy4_oracle.py --native-reference \
+  hy4-cpu-pointwise.jsonl hy4-metal-pointwise.jsonl
+```
+
+Both commands fix eight slots, native top-8 and context 128. Each JSONL records
+all 16 generated token IDs, top-16 logits at every step, and decode wall time
+including top-logit capture. Run serially and account for OS/SSD cache state
+before interpreting timing differences. The normal harness mode still runs
+four greedy tokens followed by cancellation, rewind and snapshot regressions.
+
+The M5 Max follow-up passed 115,801 focused checks (nine sizes up to the
+16384-element gate), with bit-identical expert sums and maximum sigmoid error
+`2.22e-7 * max(1, abs(reference))`. Serial CPU/Metal A/B runs matched all 16
+generated tokens and all top-16 IDs at 17 positions, maximum logit difference
+0.0000066. The complete cancellation/rewind/snapshot harness also passed;
+source F32/no-flash comparison remained within 0.000105 (tolerance 0.001).
+
+After an initial warmup sequence, matched warm runs with eight slots measured:
+
+| Run | CPU gate/reduction | Metal gate/reduction |
+| --- | ---: | ---: |
+| 1 (16 decode tokens) | 1.884 t/s | 1.989 t/s |
+| 2 (16 decode tokens) | 1.893 t/s | 1.992 t/s |
+
+Combined rates were 1.889 versus 1.991 t/s, about 5.4% higher in this short
+warm-cache sample. The initial CPU run was slower and is excluded from that
+comparison. This is not a cold-SSD measurement or a general throughput claim.

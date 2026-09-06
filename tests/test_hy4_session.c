@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define HY4_TEST_CTX 128
 #define HY4_TEST_SLOTS 8
@@ -163,11 +164,12 @@ static void conservative_environment(void) {
         check(setenv(pairs[i][0],pairs[i][1],1)==0,"set conservative environment",pairs[i][0]);
 }
 int main(int argc,char **argv) {
-    int first_only=0,greedy_only=0;
+    int first_only=0,greedy_only=0,greedy_count=4;
     if(argc==4 && !strcmp(argv[3],"--first-only")) first_only=1;
     else if(argc==4 && !strcmp(argv[3],"--greedy-only")) greedy_only=1;
+    else if(argc==4 && !strcmp(argv[3],"--greedy16")) { greedy_only=1;greedy_count=16; }
     else if(argc!=3) {
-        fprintf(stderr,"usage: %s /path/to/model-dense-f16head.gguf /path/to/sidecar [--first-only|--greedy-only]\n",argv[0]);
+        fprintf(stderr,"usage: %s /path/to/model-dense-f16head.gguf /path/to/sidecar [--first-only|--greedy-only|--greedy16]\n",argv[0]);
         return 2;
     }
     conservative_environment();
@@ -180,7 +182,7 @@ int main(int argc,char **argv) {
     ds4_tokens prompt={0},suffix={0},greedy_prefix={0},resumed={0};
     ds4_session_snapshot initial={0};
     ds4_token_score first[HY4_TOP],step1[HY4_TOP],before_last[HY4_TOP],last[HY4_TOP],actual[HY4_TOP];
-    int greedy[4]={0};
+    int greedy[16]={0};
     fprintf(stderr,"HY4 TEST: dense=%s sidecar=%s slots=8 ctx=128 no_int8=1 mode=%s\n",
             argv[1],argv[2],first_only ? "first-only" : greedy_only ? "greedy-only" : "lifecycle");
     check(ds4_engine_open(&engine,&opt)==0,"engine open",err);
@@ -200,7 +202,9 @@ int main(int argc,char **argv) {
     capture(session,"prefill",first);
     if(first_only) goto done;
     if(!greedy_only) check(ds4_session_save_snapshot(session,&initial,err,sizeof(err))==0,"save initial snapshot",err);
-    for(int i=0;i<4;++i) {
+    struct timespec decode_start,decode_end;
+    clock_gettime(CLOCK_MONOTONIC,&decode_start);
+    for(int i=0;i<greedy_count;++i) {
         greedy[i]=ds4_session_argmax(session);
         check(ds4_session_eval(session,greedy[i],err,sizeof(err))==0,"greedy decode",err);
         char stage[32];snprintf(stage,sizeof(stage),"decode_%d",i+1);
@@ -209,7 +213,13 @@ int main(int argc,char **argv) {
         if(i==2) memcpy(before_last,actual,sizeof(before_last));
     }
     memcpy(last,actual,sizeof(last));
-    printf("{\"stage\":\"greedy_tokens\",\"token_ids\":[%d,%d,%d,%d]}\n",greedy[0],greedy[1],greedy[2],greedy[3]);fflush(stdout);
+    clock_gettime(CLOCK_MONOTONIC,&decode_end);
+    double decode_seconds=(double)(decode_end.tv_sec-decode_start.tv_sec)+(decode_end.tv_nsec-decode_start.tv_nsec)*1e-9;
+    printf("{\"stage\":\"greedy_tokens\",\"token_ids\":[");
+    for(int i=0;i<greedy_count;i++) printf("%s%d",i ? "," : "",greedy[i]);
+    puts("]}");
+    printf("{\"stage\":\"decode_timing\",\"tokens\":%d,\"seconds\":%.6f,\"tokens_per_second\":%.6f}\n",greedy_count,decode_seconds,greedy_count/decode_seconds);
+    fflush(stdout);
     if(greedy_only) goto done;
     ds4_tokens_copy(&greedy_prefix,ds4_session_tokens(session));
     ds4_tokens_copy(&resumed,&greedy_prefix);
@@ -245,7 +255,7 @@ int main(int argc,char **argv) {
     check_full_context_snapshot(engine,&prompt,suffix.v[0]);
 done:
     printf("{\"result\":\"PASS\",\"test\":\"native_hy4_%s\",\"slots\":8,\"ctx\":128,\"prompt_tokens\":%d}\n",
-           first_only ? "first_token" : greedy_only ? "greedy4" : "lifecycle",prompt.len);fflush(stdout);
+           first_only ? "first_token" : greedy_only ? (greedy_count==16 ? "greedy16" : "greedy4") : "lifecycle",prompt.len);fflush(stdout);
     ds4_session_snapshot_free(&initial);ds4_tokens_free(&resumed);ds4_tokens_free(&greedy_prefix);
     ds4_tokens_free(&suffix);ds4_tokens_free(&prompt);ds4_session_free(session);ds4_engine_close(engine);
     return 0;

@@ -146,3 +146,36 @@ kernel void kernel_hy4_attention_decode(
         out[(uint64_t)head * 512u + d] = acc;
     }
 }
+
+
+// Keep the HY4 gate and post-down reduction on the existing command stream.
+// These pragmas are local to each kernel: other DS4 kernels keep their math mode.
+kernel void kernel_hy4_sigmoid_mul(
+        constant uint &n [[buffer(0)]],
+        device const float *x [[buffer(1)]],
+        device const float *gate [[buffer(2)]],
+        device float *out [[buffer(3)]],
+        uint j [[thread_position_in_grid]]) {
+#pragma clang fp reassociate(off) contract(off)
+    if (j >= n) return;
+    const float probability = precise::divide(1.0f, 1.0f + precise::exp(-gate[j]));
+    out[j] = x[j] * probability;
+}
+
+kernel void kernel_hy4_weighted_sum8(
+        constant uint &n [[buffer(0)]],
+        device const float *down [[buffer(1)]],
+        device const float *weights [[buffer(2)]],
+        device float *out [[buffer(3)]],
+        uint j [[thread_position_in_grid]]) {
+#pragma clang fp reassociate(off) contract(off)
+    if (j >= n) return;
+    // Same expert order and separately rounded F32 multiply/add as the CPU
+    // oracle. Volatile also prevents loop contraction in a fast-math library.
+    volatile float sum = down[j] * weights[0];
+    for (uint k = 1; k < 8; ++k) {
+        volatile float product = down[ulong(k) * n + j] * weights[k];
+        sum = sum + product;
+    }
+    out[j] = sum;
+}

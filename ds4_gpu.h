@@ -701,6 +701,16 @@ int ds4_gpu_hy4_quant_matvec_tensor(ds4_gpu_tensor *out,
                                      uint32_t type, uint32_t in_dim,
                                      uint32_t out_dim, uint64_t row_bytes);
 
+/* HY4 pointwise operations. Gate supports exact in-place x/out; partial
+ * overlap is rejected. Sum consumes down[8][n] and weights[8], with a disjoint
+ * output. Both join the caller's command batch and validate tensor views. */
+int ds4_gpu_hy4_sigmoid_mul_tensor(ds4_gpu_tensor *out,
+                                  const ds4_gpu_tensor *x,
+                                  const ds4_gpu_tensor *gate, uint32_t n);
+int ds4_gpu_hy4_weighted_sum8_tensor(ds4_gpu_tensor *out,
+                                    const ds4_gpu_tensor *down,
+                                    const ds4_gpu_tensor *weights, uint32_t n);
+
 int ds4_gpu_matmul_gguf_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,

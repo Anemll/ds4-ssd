@@ -101,7 +101,10 @@ static bool hy4_attention_gate(ds4_session *s, const ds4_layer_weights *layer) {
     glm52_runtime *r = &h->mla;
     const uint32_t n = DS4_N_HEAD * 256;
     if (!glm52_matmul(h->attention_gate,&s->engine->model,layer->attn_gate,
-                       DS4_N_EMBD,n,r->norm) || !hy4_host_begin()) return false;
+                       DS4_N_EMBD,n,r->norm)) return false;
+    if (!env_flag_enabled("DS4_HY4_CPU_POINTWISE"))
+        return ds4_gpu_hy4_sigmoid_mul_tensor(r->attn_heads,r->attn_heads,h->attention_gate,n)!=0;
+    if (!hy4_host_begin()) return false;
     float *out = ds4_gpu_tensor_contents(r->attn_heads);
     const float *gate = ds4_gpu_tensor_contents(h->attention_gate);
     hy4_sigmoid_mul(out,out,gate,n);
@@ -153,9 +156,19 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
                   routed_expert_row_bytes(layer->ffn_down_exps));
         ds4_gpu_tensor_free(down);
     }
-    if (!hy4_host_begin()) ok=false;
+    const bool cpu_pointwise=env_flag_enabled("DS4_HY4_CPU_POINTWISE");
+    if (cpu_pointwise && !hy4_host_begin()) ok=false;
+    // Encoded Metal commands retain the backing buffers. The bank cannot be
+    // overwritten until the existing residual/token completion boundary.
     for (uint32_t k=0;k<8;k++) for(uint32_t f=0;f<3;f++) ds4_gpu_tensor_free(views[k][f]);
     if (!ok) return false;
+    if (!cpu_pointwise) {
+        *stage = "moe.weighted_sum8";
+        return ds4_gpu_hy4_weighted_sum8_tensor(r->routed_out,r->routed_down,
+                   r->router_weights,DS4_N_EMBD) &&
+               hy4_trace_gpu("routed_out",il,r->routed_out,DS4_N_EMBD,pos) &&
+               hy4_trace_gpu("routed_down",il,r->routed_down,8*DS4_N_EMBD,pos);
+    }
     /* HY4 applies each selected probability AFTER the expert down projection.
      * Keep this separate from the DS4 fused weighted-SwiGLU path. */
     const float *down = ds4_gpu_tensor_contents(r->routed_down);
@@ -222,7 +235,8 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         s->graph.router_logits=h->mla.router_logits;
     }
     if(!ok) { hy4_session_free(s); free(s->logits); free(s); return 1; }
-    fprintf(stderr,"ds4: HY4 native reference runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d\n",s->graph.flash_slot_bank,ctx_size);
+    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s\n",
+            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal");
     *out=s; return 0;
 }
 static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
