@@ -43,8 +43,8 @@ model validation.
 
 Attention sigmoid gating and the ordered eight-expert sum after the down
 projection also run in Metal. This removes 78 gate and 77 expert-sum CPU
-synchronization points per token. The existing iHC and token completion
-boundaries still wait for GPU work before slot reuse or cancellation.
+synchronization points per token. Router joins complete prior GPU work before slot mutation; token completion
+waits cover cancellation and checkpoints.
 `DS4_HY4_CPU_POINTWISE=1` restores both scalar operations for A/B debugging;
 unset or 0 uses Metal. This switch does not change iHC, attention, or I/O.
 Startup reports `gate/reduce=Metal` or `gate/reduce=CPU reference`.
@@ -221,8 +221,12 @@ maximum pre/head error is 1.28e-5 times max(1, abs(reference)), below 4e-5.
 The actual-model eight-slot lifecycle and 16-token greedy run pass; all 272
 checked top-logit IDs match CPU iHC, maximum logit delta 0.0001049 (bound 0.001).
 The CPU opt-out's lifecycle matches the previous CPU iHC capture exactly.
-Residual completion joins are retained, cancellation/snapshot checks pass, and
-the system-cache payload format is unchanged: iHC streams are per-token scratch.
+GPU residual work remains queued until router/token joins. Cancellation and
+snapshot checks pass; the cache payload is unchanged because iHC streams are
+per-token scratch. `DS4_HY4_SYNC_RESIDUAL=1` restores residual waits; CPU iHC
+and trace modes also retain them. Removing 156 redundant joins improves the
+same workload further to **2.92 tokens/s** (64 / 21.949 s), with identical
+text and exact agreement on the 272 checked top-logit IDs and values.
 
 On the same 48-slot/ctx2048 agent workload, GPU iHC improves 2.14 to **2.72 tokens/s** (64 tokens in 23.503 s), with identical generated text. Initial
 unfused/scalar iHC throughput was 1.53 tokens/s. This remains below the requested

@@ -5,10 +5,14 @@ stderr. It adds clock/counter reads at existing boundaries, with no extra GPU
 submissions or waits. Unset or 0 disables it. GPU measurements use completed
 Metal command-buffer timestamps; CPU measurements use the worker thread's CPU
 clock. The phase buckets describe work completed at the existing joins, so
-CPU attention/pointwise/iHC fallbacks can move work between buckets. With GPU
-iHC, the attention bucket includes its iHC pre/post, the router bucket includes
-FFN iHC pre, and the FFN bucket includes its iHC post. These are completion
-phases rather than isolated shader timings.
+CPU attention/pointwise/iHC fallbacks can move work between buckets. Default
+GPU execution keeps residual work queued until the next router or token join.
+It reports `gpu_phase_scope=router_batches` and `gpu_router_batches_ms`;
+`attn_gpu_ms`, `ffn_gpu_ms`, and `router_gpu_ms` are null because those phases
+share a command batch. Null means unavailable, not zero GPU work.
+`DS4_HY4_SYNC_RESIDUAL=1` restores residual joins and the original buckets: the
+attention bucket includes iHC pre/post, router includes FFN iHC pre, and FFN
+includes its iHC post. These are completion phases, not isolated shader timings.
 
 `DS4_FLASH_MOE_PROFILE=1` adds per-layer router synchronization and
 remap/install wall time. The latter includes slot bookkeeping, synchronous
@@ -118,7 +122,7 @@ command timestamps; no new fused Instruments capture is claimed here.
 
 ## GPU iHC follow-up
 
-GPU independent HC keeps the existing residual completion joins, with exact
+The initial GPU independent HC measurement kept residual completion joins, with exact
 F32 post multiply/add and parallel mix dots. `DS4_HY4_CPU_IHC=1` selects the
 scalar oracle; unset/0 uses GPU. No session cache layout changes are needed.
 
@@ -142,6 +146,28 @@ Evidence: `hy4-hc-test.log`, `hy4-hc-lifecycle.{jsonl,log}`,
 `hy4-slots48-hc.{stdout,stderr}`, `hy4-slots48-hc-summary.json`. GPU phase clocks
 include iHC work at the joins described above; they cannot be treated as pure
 attention/router/FFN kernel timings. No new Instruments trace is claimed.
+
+## Queued residual follow-up
+
+Default GPU iHC now leaves residual updates queued. All prior bank readers
+complete at the next router join before slot mutation, and the token join
+covers the final FFN/head and early errors. CPU iHC and trace modes retain
+residual waits; `DS4_HY4_SYNC_RESIDUAL=1` restores them for diagnostics.
+
+The same fixed 48-slot workload produces **2.92 tokens/s** (64 / 21.949 s),
+with identical generated text, native top-8, 154 fused dispatches and zero
+residual joins per token (previously 156). Mean token wall is 342.9 ms,
+completed GPU time 105.0 ms, worker CPU 74.6 ms, remap/install 198.2 ms and
+hit rate 60.8%. This remains below 8 tokens/s. Combined router batches account
+for 101.7 ms of GPU time; isolated phase values are unavailable as described
+above. Profiling does not insert waits to recover them.
+
+The eight-slot lifecycle and 16-token greedy comparison match the prior GPU
+iHC capture exactly: all 272 top-logit IDs and values agree. The explicit
+sync diagnostic also matches the prior lifecycle exactly and reports all
+156 residual joins. Evidence: `hy4-queued-{lifecycle,greedy16}.{jsonl,log}`,
+`hy4-sync-residual-lifecycle.{jsonl,log}`, `hy4-slots48-queued.{stdout,stderr}`
+and `hy4-slots48-queued-summary.json` in the permanent validation directory.
 
 ## Metal trace and CPU stack evidence
 

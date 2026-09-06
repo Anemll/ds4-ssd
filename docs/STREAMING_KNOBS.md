@@ -60,8 +60,12 @@ switches changes routing, slot count, I/O drainage, or model precision.
 HY4 independent HC (pre, post and output head) now runs on Metal by default.
 `DS4_HY4_CPU_IHC=1` retains the scalar F32 oracle; unset/0 uses Metal. A trace
 capture also selects the scalar oracle. The post broadcast preserves separately
-rounded F32 multiply/add; mix dots use a parallel F32 reduction. Existing
-residual completion joins, slot lifetimes and session payload format are kept.
+rounded F32 multiply/add; mix dots use a parallel F32 reduction. GPU residual
+work stays queued until router/token joins; slot lifetimes and session payload
+format are preserved. `DS4_HY4_SYNC_RESIDUAL=1` restores residual waits for
+diagnostics. Unset/0 removes these redundant waits on GPU iHC; CPU iHC and
+trace mode always keep them. GPU phase profile values are null when combined
+command batches prevent separate timing; whole GPU time remains available.
 
 `DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
 adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`

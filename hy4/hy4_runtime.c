@@ -8,14 +8,14 @@
 typedef struct {
     double pre_cpu, post_cpu, head_cpu, attn_gpu, ffn_gpu, router_gpu;
     double router_install_wall;
-    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches, fused_dispatches;
+    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches, fused_dispatches, residual_joins;
 } hy4_profile;
 
 typedef struct {
     glm52_runtime mla; /* first member: shared MLA allocation/serialization */
     float *streams; // shared tensor contents, also used by the CPU oracle
     ds4_gpu_tensor *streams_gpu, *hc_post_gpu, *hc_mix_gpu;
-    bool cpu_ihc;
+    bool cpu_ihc, sync_residual;
     float post[4];
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
@@ -95,9 +95,16 @@ static bool hy4_post(ds4_session *s, ds4_gpu_tensor *x) {
     const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
     const double gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
     if (!h->cpu_ihc && !ds4_gpu_hy4_hc_post_tensor(h->streams_gpu,x,h->hc_post_gpu,DS4_N_EMBD)) return false;
-    // Preserve the residual completion boundary while moving arithmetic to
-    // Metal. Slot bank reuse and completed command timing retain their joins.
+    // GPU-only stream state stays on the command queue. prepare_decode joins
+    // all prior GPU work before the next slot mutation; the final token join
+    // handles the last FFN/head and every early-error path. CPU/trace oracles
+    // and the explicit sync diagnostic retain the original residual joins.
+    if (!h->sync_residual) {
+        if(h->profile_enabled) h->profile.post_cpu+=hy4_profile_cpu_seconds()-cpu0;
+        return true;
+    }
     if (!hy4_host_begin()) return false;
+    if(h->profile_enabled) h->profile.residual_joins++;
     if(h->profile_enabled) {
         double elapsed=ds4_gpu_busy_seconds()-gpu0;
         if(x==h->mla.attn_out) h->profile.attn_gpu+=elapsed;
@@ -198,8 +205,8 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
         hy4_trace_host("router_weights",il,ds4_gpu_tensor_contents(r->router_weights),8);
         if (!hy4_host_end()) return false;
     }
-    // Install has resolved all hits/misses and drained reads. The next residual
-    // join completes these bank readers before any subsequent layer/token reuse.
+    // Install has resolved all hits/misses and drained reads. The next router
+    // or final token join completes bank readers before subsequent reuse.
     if (!env_flag_enabled("DS4_HY4_UNFUSED") && !env_flag_enabled("DS4_HY4_CPU_POINTWISE") &&
         !getenv("DS4_HY4_TRACE_DIR") && !s->graph.flash_per_slot_buffers &&
         !s->graph.flash_chunked_mixed_bank &&
@@ -311,6 +318,7 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     s->engine=e; s->ctx_size=ctx_size; s->prefill_cap=1; s->variant_runtime=h;
     h->profile_enabled=env_flag_enabled("DS4_HY4_PROFILE");
     h->cpu_ihc=env_flag_enabled("DS4_HY4_CPU_IHC") || getenv("DS4_HY4_TRACE_DIR");
+    h->sync_residual=h->cpu_ihc || env_flag_enabled("DS4_HY4_SYNC_RESIDUAL");
     s->logits=xmalloc(DS4_N_VOCAB*sizeof(float));
     bool ok=glm52_alloc_decode_tensors(s);
     /* HY4's leading dense FFN is wider than GLM52's. */
@@ -336,8 +344,8 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         s->graph.router_logits=h->mla.router_logits;
     }
     if(!ok) { hy4_session_free(s); free(s->logits); free(s); return 1; }
-    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s\n",
-            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal");
+    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s, residual joins=%s\n",
+            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal",h->sync_residual ? "on" : "router/token only");
     *out=s; return 0;
 }
 static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
@@ -562,21 +570,29 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
 
     if(h->profile_enabled) {
         const hy4_profile *p=&h->profile;
+        char phases[256];
+        if(h->sync_residual) snprintf(phases,sizeof(phases),
+            "\"attn_gpu_ms\":%.6f,\"ffn_gpu_ms\":%.6f,\"router_gpu_ms\":%.6f,\"gpu_router_batches_ms\":null,",
+            p->attn_gpu*1000,p->ffn_gpu*1000,p->router_gpu*1000);
+        else snprintf(phases,sizeof(phases),
+            "\"attn_gpu_ms\":null,\"ffn_gpu_ms\":null,\"router_gpu_ms\":null,\"gpu_router_batches_ms\":%.6f,",
+            p->router_gpu*1000);
         fprintf(stderr,"HY4_PROFILE {\"pos\":%u,\"slots\":%u,\"topk\":%u,"
                 "\"wall_ms\":%.6f,\"worker_cpu_ms\":%.6f,\"gpu_ms\":%.6f,"
-                "\"attn_gpu_ms\":%.6f,\"ffn_gpu_ms\":%.6f,\"router_gpu_ms\":%.6f,"
+                "%s"
                 "\"ihc_pre_cpu_ms\":%.6f,\"ihc_post_cpu_ms\":%.6f,\"ihc_head_cpu_ms\":%.6f,"
                 "\"router_install_wall_ms\":%.6f,\"hits\":%llu,\"misses\":%llu,\"installed_bytes\":%llu,"
                 "\"routed_quant_dispatches\":%u,\"routed_swiglu_dispatches\":%u,"
-                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\",\"ihc_path\":\"%s\"}\n",
+                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\",\"ihc_path\":\"%s\",\"gpu_phase_scope\":\"%s\",\"residual_joins\":%u}\n",
                 pos,s->graph.flash_slot_bank,DS4_N_EXPERT_ACTIVE_USED,
                 (now_sec()-wall0)*1000,(hy4_profile_cpu_seconds()-cpu0)*1000,(ds4_gpu_busy_seconds()-gpu0)*1000,
-                p->attn_gpu*1000,p->ffn_gpu*1000,p->router_gpu*1000,
+                phases,
                 p->pre_cpu*1000,p->post_cpu*1000,p->head_cpu*1000,p->router_install_wall*1000,
                 (unsigned long long)(s->graph.flash_hits-hits0),(unsigned long long)(s->graph.flash_misses-misses0),
                 (unsigned long long)(s->graph.flash_installed_bytes-bytes0),
                 p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches,p->fused_dispatches,
-                p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert",h->cpu_ihc ? "cpu" : "metal");
+                p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert",h->cpu_ihc ? "cpu" : "metal",
+                h->sync_residual ? "residual_joins" : "router_batches",p->residual_joins);
     }
     rt->n_past++;
     token_vec_push(&s->checkpoint, token);
