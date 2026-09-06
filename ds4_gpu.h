@@ -810,6 +810,15 @@ int ds4_gpu_glm52_attention_decode_tensor(
 /* HY4 absorbed MLA: F32 KV512 + RoPE64, per-head zero-value softmax sink.
  * n_keys includes the current token; only that causal prefix is read.
  * scores is scratch [n_head][ctx], sinks is F32 [n_head]. */
+/* HY4 DSA: F32 LayerNorm(128, eps=1e-6); exact in-place input is allowed. */
+int ds4_gpu_hy4_index_norm_tensor(ds4_gpu_tensor *out, const ds4_gpu_tensor *x,
+        const ds4_gpu_tensor *weight, const ds4_gpu_tensor *bias);
+/* Gather unique causal top-k indices into compact MLA buffers. selected must
+ * contain count indices < live. The kernel bounds-checks before every read. */
+int ds4_gpu_hy4_gather_kv_tensor(ds4_gpu_tensor *kv_out, ds4_gpu_tensor *pe_out,
+        const ds4_gpu_tensor *kv, const ds4_gpu_tensor *pe,
+        const ds4_gpu_tensor *selected, uint32_t live, uint32_t count);
+
 int ds4_gpu_hy4_attention_decode_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *q_abs,

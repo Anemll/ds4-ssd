@@ -23651,6 +23651,14 @@ ds4_context_memory ds4_context_memory_estimate(ds4_backend backend, int ctx_size
         /* Current scalar/Metal bring-up has one-row scratch. Include a
          * conservative 8 MiB allowance plus per-head attention scores. */
         m.scratch_bytes=8u*1024u*1024u+(uint64_t)DS4_N_HEAD*ctx*sizeof(float);
+        if(ctx>2048) {
+            uint32_t full=0;
+            for(uint32_t il=0;il<DS4_N_LAYER;il++) full+=g_hy4_indexer_is_full[il];
+            // Before metadata binding use the conservative all-full bound.
+            if(!full) full=DS4_N_LAYER;
+            m.raw_bytes+=(uint64_t)full*ctx*128*4;
+            m.scratch_bytes+=(uint64_t)ctx*(32u+3u)*4+2048u*576u*4+32768u;
+        }
         m.total_bytes=m.raw_bytes+m.scratch_bytes;
         return m;
     }
@@ -32325,8 +32333,8 @@ int ds4_engine_open(ds4_engine **out, const ds4_engine_options *opt) {
         const char *unsupported = NULL;
         if (opt->backend != DS4_BACKEND_METAL) {
             unsupported = "requires the native Metal backend";
-        } else if (opt->ctx_size > 2048) {
-            unsupported = "requires context <= 2048 until native DSA is implemented";
+        } else if (opt->ctx_size > 1048576) {
+            unsupported = "requires context <= 1048576 (the model context limit)";
         } else if (opt->moe_mode != DS4_MOE_MODE_SLOT_BANK ||
                    !opt->moe_sidecar_path || !opt->moe_sidecar_path[0]) {
             unsupported = "requires an explicit routed sidecar in slot-bank mode";

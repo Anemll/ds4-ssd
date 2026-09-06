@@ -20,6 +20,12 @@ typedef struct {
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
     ds4_gpu_tensor *fused_mid;
+    /* Long contexts retain one 128-wide F32 index key per full-indexer layer
+     * and token. Shared layers reuse this token's most recent selection. */
+    ds4_gpu_tensor *index_keys[DS4_MAX_LAYER];
+    ds4_gpu_tensor *index_k, *index_q, *index_weights, *index_scores, *index_selected;
+    ds4_gpu_tensor *sparse_kv, *sparse_kpe;
+    bool dsa, selection_ready;
     bool profile_enabled;
     hy4_profile profile;
 } hy4_runtime;
@@ -139,16 +145,50 @@ static bool hy4_head(ds4_session *s) {
                                  DS4_N_EMBD * sizeof(float)) && hy4_host_end();
 }
 
+/* Reference: SGLang 55bf3380, HYV4 Indexer and MLA forward. Native GGUF
+ * indexer rows preserve HF order: RoPE is NeoX on the final 64 channels.
+ * Unlike the CUDA FP8 storage path, keys/queries remain F32. Its normalized
+ * Hadamard rotation is orthogonal and is also omitted by SGLang's fused path.
+ * score[p] = sum_h(gate[h] * ReLU(dot(q[h], key[p]))) / sqrt(32*128).
+ */
+static bool hy4_indexer(ds4_session *s, uint32_t il, uint32_t pos) {
+    hy4_runtime *h=hy4_rt(s);
+    if(!h->dsa) return true;
+    if(!g_hy4_indexer_is_full[il]) return pos<2048 || h->selection_ready;
+    const ds4_model *m=&s->engine->model;
+    const ds4_layer_weights *l=&s->engine->weights.layer[il];
+    ds4_gpu_tensor *nw=ds4_gpu_model_tensor_view(m->map,m->size,l->indexer_k_norm->abs_offset,l->indexer_k_norm->bytes);
+    ds4_gpu_tensor *nb=ds4_gpu_model_tensor_view(m->map,m->size,l->indexer_k_norm_b->abs_offset,l->indexer_k_norm_b->bytes);
+    bool ok=nw && nb && glm52_matmul(h->index_k,m,l->indexer_attn_k,DS4_N_EMBD,128,h->mla.norm) &&
+        ds4_gpu_hy4_index_norm_tensor(h->index_k,h->index_k,nw,nb) &&
+        ds4_gpu_rope_neox_tensor(h->index_k,1,1,128,64,pos,DS4_ROPE_ORIG_CTX,DS4_ROPE_FREQ_BASE,1.0f) &&
+        ds4_gpu_tensor_copy(h->index_keys[il],(uint64_t)pos*128*4,h->index_k,0,128*4);
+    ds4_gpu_tensor_free(nw);ds4_gpu_tensor_free(nb);
+    if(!ok || pos<2048) return ok; // Prefix keys must still be populated.
+    ok=glm52_matmul(h->index_q,m,l->indexer_attn_q_b,2048,32*128,h->mla.qr_norm) &&
+        glm52_matmul(h->index_weights,m,l->indexer_proj,DS4_N_EMBD,32,h->mla.norm) &&
+        ds4_gpu_rope_neox_tensor(h->index_q,1,32,128,64,pos,DS4_ROPE_ORIG_CTX,DS4_ROPE_FREQ_BASE,1.0f) &&
+        ds4_gpu_indexer_score_one_tensor(h->index_scores,h->index_q,h->index_weights,h->index_keys[il],pos+1,32,128,1.0f/64.0f) &&
+        ds4_gpu_indexer_topk_tensor(h->index_selected,h->index_scores,pos+1,1,2048);
+    h->selection_ready=ok;
+    return ok;
+}
+
 static bool hy4_attention(ds4_session *s, uint32_t il, uint32_t nkeys) {
     hy4_runtime *h = hy4_rt(s);
     glm52_runtime *r = &h->mla;
     const ds4_model *m = &s->engine->model;
+    const bool sparse=nkeys>2048;
+    if(sparse && (!h->dsa || !h->selection_ready)) return false;
     if (!env_flag_enabled("DS4_HY4_CPU_ATTENTION")) {
+        if(sparse && !ds4_gpu_hy4_gather_kv_tensor(h->sparse_kv,h->sparse_kpe,
+                r->layer_kv[il],r->layer_kpe[il],h->index_selected,nkeys,2048)) return false;
         const ds4_tensor *w=s->engine->weights.layer[il].attn_sinks;
         ds4_gpu_tensor *sinks=ds4_gpu_model_tensor_view(m->map,m->size,w->abs_offset,w->bytes);
         bool ok=sinks && ds4_gpu_hy4_attention_decode_tensor(r->attn_lora,
-            r->q_abs,r->q,r->layer_kv[il],r->layer_kpe[il],r->attn_scores,sinks,
-            nkeys,(uint32_t)s->ctx_size,DS4_N_HEAD,1.0f/16.0f);
+            r->q_abs,r->q,sparse ? h->sparse_kv : r->layer_kv[il],
+            sparse ? h->sparse_kpe : r->layer_kpe[il],r->attn_scores,sinks,
+            sparse ? 2048 : nkeys,sparse ? 2048 : (uint32_t)s->ctx_size,DS4_N_HEAD,1.0f/16.0f);
         ds4_gpu_tensor_free(sinks);
         return ok;
     }
@@ -159,7 +199,9 @@ static bool hy4_attention(ds4_session *s, uint32_t il, uint32_t nkeys) {
          ds4_gpu_tensor_contents(r->q_abs), ds4_gpu_tensor_contents(r->q), 256, 192,
          ds4_gpu_tensor_contents(r->layer_kv[il]), ds4_gpu_tensor_contents(r->layer_kpe[il]),
          tensor_data(m,s->engine->weights.layer[il].attn_sinks),
-         DS4_N_HEAD,nkeys,512,64,1.0f/16.0f,NULL,0,h->attention_scores);
+         DS4_N_HEAD,nkeys,512,64,1.0f/16.0f,
+         sparse ? ds4_gpu_tensor_contents(h->index_selected) : NULL,
+         sparse ? 2048 : 0,h->attention_scores);
     return ok && ds4_gpu_tensor_did_modify(r->attn_lora,0,DS4_N_HEAD*512*sizeof(float)) && hy4_host_end();
 }
 
@@ -346,14 +388,17 @@ static void hy4_session_free(ds4_session *s) {
     free(h->attention_scores);
     ds4_gpu_tensor_free(h->attention_gate);
     ds4_gpu_tensor_free(h->fused_mid);
+    for(unsigned il=0;il<DS4_MAX_LAYER;il++) ds4_gpu_tensor_free(h->index_keys[il]);
+    ds4_gpu_tensor_free(h->index_k);ds4_gpu_tensor_free(h->index_q);
+    ds4_gpu_tensor_free(h->index_weights);ds4_gpu_tensor_free(h->index_scores);
+    ds4_gpu_tensor_free(h->index_selected);ds4_gpu_tensor_free(h->sparse_kv);
+    ds4_gpu_tensor_free(h->sparse_kpe);
     glm52_session_free(s);
 }
 
 static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
-    /* This exact source revision has no DSA. Bound the native port to the
-     * range where its full MLA attention is equivalent to HY4 top-2048. */
-    if (!out || !e || ctx_size<=0 || ctx_size>2048) {
-        fprintf(stderr,"ds4: HY4 at source 34cccef requires --ctx 2048 or smaller; native DSA is not implemented\n");
+    if (!out || !e || ctx_size<=0 || ctx_size>1048576) {
+        fprintf(stderr,"ds4: HY4 requires a context in [1, 1048576]\n");
         return 1;
     }
     if (DS4_N_EXPERT_ACTIVE_USED != 8) {
@@ -387,6 +432,22 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     h->streams=ds4_gpu_tensor_contents(h->streams_gpu);
     h->attention_scores=xmalloc(ctx_size*sizeof(float));
     ok=ok && h->mla.ffn_gate && h->mla.ffn_up && h->mla.ffn_mid && h->attention_gate && h->fused_mid && h->streams && h->hc_post_gpu && h->hc_mix_gpu;
+    h->dsa=ctx_size>2048;
+    if(h->dsa) {
+        h->index_k=ds4_gpu_tensor_alloc(128*4);
+        h->index_q=ds4_gpu_tensor_alloc(32*128*4);
+        h->index_weights=ds4_gpu_tensor_alloc(32*4);
+        h->index_scores=ds4_gpu_tensor_alloc((uint64_t)ctx_size*4);
+        h->index_selected=ds4_gpu_tensor_alloc(2048*4);
+        h->sparse_kv=ds4_gpu_tensor_alloc(2048*512*4);
+        h->sparse_kpe=ds4_gpu_tensor_alloc(2048*64*4);
+        ok=ok && h->index_k && h->index_q && h->index_weights && h->index_scores &&
+            h->index_selected && h->sparse_kv && h->sparse_kpe;
+        for(unsigned il=0;ok && il<DS4_N_LAYER;il++) if(g_hy4_indexer_is_full[il]) {
+            h->index_keys[il]=ds4_gpu_tensor_alloc((uint64_t)ctx_size*128*4);
+            ok=h->index_keys[il]!=NULL;
+        }
+    }
     s->graph.prefill_cap=1; s->graph.quality=e->quality;
     s->graph.dense_mapped_bytes=e->model.size-e->model.tensor_data_pos;
     if(ok) ok=metal_graph_enable_flash_moe(&s->graph,e->flash_moe,&e->weights.layer[DS4_N_DENSE_LEAD]);
@@ -399,6 +460,7 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     if(!ok) { hy4_session_free(s); free(s->logits); free(s); return 1; }
     fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s, residual joins=%s, shared I/O overlap=%s\n",
             s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal",h->sync_residual ? "on" : "router/token only",h->shared_io_overlap ? "eligible banks" : "off");
+    if(h->dsa) fprintf(stderr,"ds4: HY4 DSA enabled: F32 index keys, top-2048, GGUF layer sharing, snapshot v2\n");
     *out=s; return 0;
 }
 static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
@@ -410,6 +472,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
     const uint32_t pos = rt->n_past;
     const char *stage = "begin";
     hy4_runtime *h=hy4_rt(s);
+    h->selection_ready=false; // Never reuse top-k from a previous token/rewind.
     const double wall0=h->profile_enabled ? now_sec() : 0.0;
     const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
     const double gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
@@ -509,6 +572,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                                                        GLM52_V_HEAD_DIM,
                                                        0,
                                                        rt->q) != 0);
+        HY4_STEP("attn.indexer",hy4_indexer(s,il,pos));
         HY4_STEP("attn.decode",
                    hy4_attention(s,il,pos+1u));
         HY4_STEP("attn.v_b",
@@ -638,6 +702,7 @@ static void hy4_session_reset(ds4_session *s) {
     if (!s || !hy4_rt(s)) return;
     (void)ds4_gpu_synchronize();
     metal_graph_flash_moe_drain_prefill_reads(&s->graph);
+    hy4_rt(s)->selection_ready=false;
     glm52_session_reset(s);
 }
 
@@ -693,6 +758,8 @@ static uint64_t hy4_session_payload_bytes(ds4_session *s) {
     bytes += (uint64_t)DS4_N_VOCAB * sizeof(float);
     bytes += (uint64_t)GLM52_N_EFFECTIVE_LAYER * live *
              (GLM52_KV_LORA_DIM + GLM52_K_PE_DIM) * sizeof(float);
+    if(hy4_rt(s)->dsa) for(unsigned il=0;il<DS4_N_LAYER;il++)
+        if(g_hy4_indexer_is_full[il]) bytes+=(uint64_t)live*128*4;
     return bytes;
 }
 
@@ -714,7 +781,7 @@ static int hy4_session_save_payload(ds4_session *s, FILE *fp,
 
     const uint32_t header[GLM52_SESSION_PAYLOAD_U32_FIELDS] = {
         UINT32_C(0x34565948),
-        GLM52_SESSION_PAYLOAD_VERSION,
+        hy4_rt(s)->dsa ? 2u : 1u,
         (uint32_t)s->ctx_size,
         (uint32_t)s->checkpoint.len,
         GLM52_N_EFFECTIVE_LAYER,
@@ -746,6 +813,9 @@ static int hy4_session_save_payload(ds4_session *s, FILE *fp,
             rc = glm52_payload_write_tensor(fp, rt->layer_kpe[il], kpe_bytes, buf, err, errlen);
         }
     }
+    if(hy4_rt(s)->dsa) for(unsigned il=0;rc==0 && il<DS4_N_LAYER;il++)
+        if(g_hy4_indexer_is_full[il]) rc=glm52_payload_write_tensor(fp,
+            hy4_rt(s)->index_keys[il],(uint64_t)rt->n_past*128*4,buf,err,errlen);
     free(buf);
     return rc;
 }
@@ -763,8 +833,8 @@ static int hy4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_b
     for (uint32_t i = 0; i < GLM52_SESSION_PAYLOAD_U32_FIELDS; i++) {
         if (glm52_payload_read_u32(fp, &h[i], &remaining, err, errlen) != 0) return 1;
     }
-    if (h[0] != UINT32_C(0x34565948) || h[1] != GLM52_SESSION_PAYLOAD_VERSION) {
-        glm52_payload_set_err(err, errlen, "unsupported HY4 session payload version");
+    if (h[0] != UINT32_C(0x34565948) || h[1] != (hy4_rt(s)->dsa ? 2u : 1u)) {
+        glm52_payload_set_err(err, errlen, "HY4 checkpoint lacks the required cache layout; rebuild the prefix (long contexts require v2 index keys)");
         return 1;
     }
     const uint32_t saved_ctx = h[2];
@@ -775,7 +845,7 @@ static int hy4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_b
     const uint32_t saved_vocab = h[7];
     const uint32_t saved_n_past = h[8];
     const uint32_t saved_embd = h[9];
-    if (saved_ctx > (uint32_t)s->ctx_size || saved_tokens > (uint32_t)s->ctx_size ||
+    if (!saved_ctx || saved_ctx > (uint32_t)s->ctx_size || saved_tokens > saved_ctx ||
         saved_n_past != saved_tokens) {
         glm52_payload_set_err(err, errlen, "HY4 KV checkpoint does not fit current context");
         return 1;
@@ -789,12 +859,23 @@ static int hy4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_b
         return 1;
     }
 
+    uint64_t expected=(uint64_t)saved_tokens*4+(uint64_t)DS4_N_VOCAB*4+
+        (uint64_t)DS4_N_LAYER*saved_n_past*576*4;
+    if(hy4_rt(s)->dsa) for(unsigned il=0;il<DS4_N_LAYER;il++)
+        if(g_hy4_indexer_is_full[il]) expected+=(uint64_t)saved_n_past*128*4;
+    if(remaining!=expected) {
+        glm52_payload_set_err(err,errlen,"HY4 checkpoint payload length mismatch");return 1;
+    }
     token_vec new_checkpoint = {0};
     for (uint32_t i = 0; i < saved_tokens; i++) {
         uint32_t tok = 0;
         if (glm52_payload_read_u32(fp, &tok, &remaining, err, errlen) != 0) {
             token_vec_free(&new_checkpoint);
             return 1;
+        }
+        if(tok>=DS4_N_VOCAB) {
+            token_vec_free(&new_checkpoint);
+            glm52_payload_set_err(err,errlen,"HY4 checkpoint contains an invalid token");return 1;
         }
         token_vec_push(&new_checkpoint, (int)tok);
     }
@@ -817,6 +898,9 @@ static int hy4_session_load_payload(ds4_session *s, FILE *fp, uint64_t payload_b
                                            &remaining, err, errlen);
         }
     }
+    if(hy4_rt(s)->dsa) for(unsigned il=0;rc==0 && il<DS4_N_LAYER;il++)
+        if(g_hy4_indexer_is_full[il]) rc=glm52_payload_read_tensor(fp,
+            hy4_rt(s)->index_keys[il],(uint64_t)saved_n_past*128*4,buf,&remaining,err,errlen);
     free(buf);
     if (rc != 0) {
         token_vec_free(&new_checkpoint);

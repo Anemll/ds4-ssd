@@ -14240,6 +14240,55 @@ int ds4_gpu_glm52_attention_decode_tensor(
 
 static bool ds4_hy4_pointwise_overlap(const ds4_gpu_tensor *a,uint64_t na,
                                       const ds4_gpu_tensor *b,uint64_t nb);
+int ds4_gpu_hy4_index_norm_tensor(ds4_gpu_tensor *out, const ds4_gpu_tensor *x,
+        const ds4_gpu_tensor *weight, const ds4_gpu_tensor *bias) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    const ds4_gpu_tensor *t[]={out,x,weight,bias};
+    for(unsigned i=0;i<4;i++) if(!t[i] || !ds4_gpu_tensor_buffer(t[i]) ||
+        ds4_gpu_tensor_bytes(t[i])<512 || ds4_gpu_tensor_offset(t[i])%4) return 0;
+    for(unsigned i=1;i<4;i++) if(ds4_hy4_pointwise_overlap(out,512,t[i],512) &&
+        !(i==1 && ds4_gpu_tensor_offset(out)==ds4_gpu_tensor_offset(x))) return 0;
+    @autoreleasepool {
+        id<MTLComputePipelineState> p=ds4_gpu_get_pipeline("kernel_hy4_index_norm");
+        if(!p) return 0;
+        int owned=0; id<MTLCommandBuffer> cb=ds4_gpu_command_buffer(&owned);
+        if(!cb) return 0;
+        id<MTLComputeCommandEncoder> enc=ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:p];
+        for(unsigned i=0;i<4;i++) [enc setBuffer:ds4_gpu_tensor_buffer(t[i]) offset:ds4_gpu_tensor_offset(t[i]) atIndex:i];
+        [enc dispatchThreadgroups:MTLSizeMake(1,1,1) threadsPerThreadgroup:MTLSizeMake(128,1,1)];
+        ds4_gpu_end_compute_encoder(cb,enc);
+        return ds4_gpu_finish_command_buffer(cb,owned,"HY4 index LayerNorm");
+    }
+}
+int ds4_gpu_hy4_gather_kv_tensor(ds4_gpu_tensor *kv_out, ds4_gpu_tensor *pe_out,
+        const ds4_gpu_tensor *kv, const ds4_gpu_tensor *pe,
+        const ds4_gpu_tensor *selected, uint32_t live, uint32_t count) {
+    if (!g_initialized && !ds4_gpu_init()) return 0;
+    if(!live || !count || count>live || count>2048) return 0;
+    const ds4_gpu_tensor *t[]={kv_out,pe_out,kv,pe,selected};
+    const uint64_t n[]={(uint64_t)count*512*4,(uint64_t)count*64*4,
+        (uint64_t)live*512*4,(uint64_t)live*64*4,(uint64_t)count*4};
+    for(unsigned i=0;i<5;i++) if(!t[i] || !ds4_gpu_tensor_buffer(t[i]) ||
+        ds4_gpu_tensor_bytes(t[i])<n[i] || ds4_gpu_tensor_offset(t[i])%4) return 0;
+    for(unsigned i=0;i<2;i++) for(unsigned j=i+1;j<5;j++)
+        if(ds4_hy4_pointwise_overlap(t[i],n[i],t[j],n[j])) return 0;
+    @autoreleasepool {
+        id<MTLComputePipelineState> p=ds4_gpu_get_pipeline("kernel_hy4_gather_kv");
+        if(!p) return 0;
+        const uint32_t args[]={live,count};
+        int owned=0; id<MTLCommandBuffer> cb=ds4_gpu_command_buffer(&owned);
+        if(!cb) return 0;
+        id<MTLComputeCommandEncoder> enc=ds4_gpu_compute_encoder(cb);
+        [enc setComputePipelineState:p];
+        [enc setBytes:args length:sizeof(args) atIndex:0];
+        for(unsigned i=0;i<5;i++) [enc setBuffer:ds4_gpu_tensor_buffer(t[i]) offset:ds4_gpu_tensor_offset(t[i]) atIndex:i+1];
+        [enc dispatchThreadgroups:MTLSizeMake(((NSUInteger)count*576+255)/256,1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
+        ds4_gpu_end_compute_encoder(cb,enc);
+        return ds4_gpu_finish_command_buffer(cb,owned,"HY4 sparse MLA gather");
+    }
+}
+
 int ds4_gpu_hy4_attention_decode_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *q_abs,
@@ -31369,6 +31418,44 @@ int ds4_gpu_glm_router_select_tensor(
             biasbuf = ds4_gpu_wrap_dense_weight_range(model_map, model_size, bias_offset, bias_bytes, &bias_inner);
             if (!biasbuf) return 0;
             bias_set_offset = (NSUInteger)bias_inner;
+        }
+
+        // Opt-in native HY4 shape only; other GLM/DS4 router paths stay generic.
+        if (n_expert==256 && n_expert_used==8 && n_tokens==1 &&
+            expert_weight_scale==2.827f && ds4_gpu_env_bool("DS4_HY4_FUSED_ROUTER")>0) {
+            const ds4_gpu_tensor *tensors[4]={selected,weights,probs,logits};
+            const uint64_t lengths[4]={32,32,1024,1024};
+            for (unsigned i=0;i<4;i++) {
+                const uint64_t off=ds4_gpu_tensor_offset(tensors[i]);
+                if (off%4) return 0;
+                for (unsigned j=i+1;j<4;j++) {
+                    const uint64_t other=ds4_gpu_tensor_offset(tensors[j]);
+                    if (ds4_gpu_tensor_buffer(tensors[i])==ds4_gpu_tensor_buffer(tensors[j]) &&
+                        (off<=other ? other-off<lengths[i] : off-other<lengths[j])) return 0;
+                }
+                if (i<3 && has_bias && ds4_gpu_tensor_buffer(tensors[i])==biasbuf &&
+                    (off<=bias_set_offset ? bias_set_offset-off<lengths[i] : off-bias_set_offset<1024)) return 0;
+            }
+            if (has_bias && bias_set_offset%4) return 0;
+            id<MTLComputePipelineState> pipeline=ds4_gpu_get_pipeline("kernel_hy4_router_one");
+            if (!pipeline || pipeline.maxTotalThreadsPerThreadgroup<256) return 0;
+            int owned=0;
+            id<MTLCommandBuffer> cb=ds4_gpu_command_buffer(&owned);
+            if (!cb) return 0;
+            id<MTLComputeCommandEncoder> enc=ds4_gpu_compute_encoder(cb);
+            if (!enc) return 0;
+            const uint32_t use_bias=has_bias;
+            [enc setComputePipelineState:pipeline];
+            [enc setBytes:&use_bias length:sizeof(use_bias) atIndex:0];
+            [enc setBuffer:logitsbuf offset:ds4_gpu_tensor_offset(logits) atIndex:1];
+            [enc setBuffer:has_bias ? biasbuf : logitsbuf
+                    offset:has_bias ? bias_set_offset : ds4_gpu_tensor_offset(logits) atIndex:2];
+            [enc setBuffer:probsbuf offset:ds4_gpu_tensor_offset(probs) atIndex:3];
+            [enc setBuffer:selectedbuf offset:ds4_gpu_tensor_offset(selected) atIndex:4];
+            [enc setBuffer:weightsbuf offset:ds4_gpu_tensor_offset(weights) atIndex:5];
+            [enc dispatchThreadgroups:MTLSizeMake(1,1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
+            ds4_gpu_end_compute_encoder(cb,enc);
+            return ds4_gpu_finish_command_buffer(cb,owned,"HY4 fused router");
         }
 
         const NSUInteger sum_bytes = (NSUInteger)n_tokens * sizeof(float);

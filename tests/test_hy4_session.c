@@ -120,7 +120,7 @@ static void check_full_context_snapshot(ds4_engine *engine, const ds4_tokens *pr
     ds4_session_snapshot full={0};
     ds4_token_score before[HY4_TOP],after[HY4_TOP];
     ds4_runtime_status status={0};
-    check(ds4_session_create(&session,engine,2049)!=0 && session==NULL,
+    check(ds4_session_create(&session,engine,1048577)!=0 && session==NULL,
           "reject context beyond HY4 supported range before allocation",err);
     check(ds4_session_create(&session,engine,4)==0,"create four-token context",err);
     check(ds4_session_runtime_status(session,&status)==1 && status.available &&

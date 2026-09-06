@@ -44,3 +44,11 @@ tests/test_hy4_pointwise
 /tests/test_hy4_fused
 
 /tests/test_hy4_hc
+
+/tests/test_hy4_router
+
+/tests/test_hy4_dsa
+
+/tests/test_hy4_dsa_payload
+
+/tests/test_hy4_long_context

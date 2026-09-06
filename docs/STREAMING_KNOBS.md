@@ -37,16 +37,31 @@ ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-load
 HY4 uses the same hard slot protection and existing sidecar format. Start with
 8 slots, explicit dense/sidecar paths, and `DS4_PROFILE=none`. Initial/resumed
 prefill is token-wise; optional DS4 DeDup/ANE prefill kernels are not HY4
-execution paths. The native runtime requires top-8 and limits context to 2048
-until DSA is implemented. `ds4-agent` defaults HY4 context to 2048 only when the
+execution paths. The native runtime requires top-8. Contexts above 2048 use
+native DSA with top-2048 causal selection and the GGUF layer-sharing schedule. `ds4-agent` defaults HY4 context to 2048 only when the
 user omitted `--ctx`; existing DS4 profile defaults do not change. See [HY4.md](HY4.md)
 for the actual HY4 package command and validation.
 
 HY4 sink-aware attention runs in Metal by default. For numerical debugging,
 `DS4_HY4_CPU_ATTENTION=1` selects the scalar F32 attention reference; unset or 0
-uses Metal. This does not change slot count, routing, or the 2048-key limit.
+uses Metal. Both paths consume at most 2048 selected attention keys per layer;
+the allocated context may be larger. Slot count and expert routing are unchanged.
 The two implementations are compared on deterministic buffers before native
 model validation.
+
+Long-context DSA is automatic when `--ctx > 2048`; there is no bypass knob.
+Full-indexer layers store 128 F32 values per token from the beginning of prefill,
+including the first 2048 tokens. Above that boundary, 32-head indexer scores
+select 2048 causal rows; shared layers reuse the last full layer's selection
+for the current token. At ctx50480, the supplied 21-full-layer schedule adds
+about 517.6 MiB of index keys to the MLA cache. Memory estimates include these
+keys and indexer scratch. The 2048 default remains conservative.
+
+HY4 sessions with context above 2048 use snapshot payload v2, which includes
+indexer history. An older v1 cache cannot initialize a long session and is
+rejected so the agent rebuilds its prefix. Short sessions retain v1. Sidecar
+files and expert cache sizing are unchanged. See [HY4_DSA.md](HY4_DSA.md) for
+source mapping, exact test coverage, and the long-context command.
 
 `DS4_HY4_SG_ATTENTION=1` selects the optional F32 SIMD-group attention path:
 QK tiles, sink-aware softmax, then value tiles. Unset/0 retains the original
@@ -55,6 +70,14 @@ conversion or attention approximation is used. It supports the same native
 2048-key bound and preserves causal masking and the sink denominator. The CPU
 attention override takes precedence. No slot, I/O or session-format changes
 are involved. See [HY4_PROFILING.md](HY4_PROFILING.md) for the measured gain.
+
+`DS4_HY4_FUSED_ROUTER=1` combines native HY4 one-token sigmoid, bias-based
+selection, top-8 sorting and weight normalization in one Metal dispatch.
+Unset/0 retains the generic router graph. The 256-expert bitonic sort keeps
+its existing tie order; the selected probabilities use the same eight-lane
+sum, denominator clamp, division and 2.827 scale. Probabilities, IDs and weights
+are tested bit-for-bit against the generic path. This does not alter routed
+experts, cache policy, slot reservations or I/O lifetimes.
 
 HY4 uses a native fused top-8 routed FFN by default for contiguous slot banks:
 two Metal dispatches per MoE layer, with gate/up clamp10 and ordered weighting

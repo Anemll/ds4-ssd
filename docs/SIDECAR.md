@@ -21,8 +21,10 @@ The supplied HY4 package has `model-dense-f16head.gguf` at its root and
 directory with `--moe-sidecar`; start with `--moe-mode slot-bank --moe-slot-bank 8`.
 No sidecar conversion or format change is needed. STQ1_0 (GGUF type 43) and
 per-layer IQ2_XXS/IQ3_XXS/IQ4_XS routing are supported by the HY4 native path.
-See [HY4.md](HY4.md) for the complete command, memory requirements, and 2048-context
-boundary inherited from the source revision's missing DSA implementation.
+See [HY4.md](HY4.md) for the complete command and memory requirements.
+Native DSA supports explicit contexts above 2048 without changing these sidecars.
+Long-context HY4 session payloads use v2 to retain indexer history; old v1
+session caches must be rebuilt for a long session. See [HY4_DSA.md](HY4_DSA.md).
 
 ## Required Files
 

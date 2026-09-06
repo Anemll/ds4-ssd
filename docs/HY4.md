@@ -37,7 +37,8 @@ count overrides below eight are rejected.
 
 HY4 sink-aware attention runs in Metal by default. For numerical debugging,
 `DS4_HY4_CPU_ATTENTION=1` selects the scalar F32 attention reference; unset or 0
-uses Metal. This does not change slot count, routing, or the 2048-key limit.
+uses Metal. Both paths use at most 2048 selected attention keys per layer,
+including in larger-context sessions. Slot count and expert routing are unchanged.
 The two implementations are compared on deterministic buffers before native
 model validation.
 
@@ -51,10 +52,13 @@ Startup reports `gate/reduce=Metal` or `gate/reduce=CPU reference`.
 
 ## Boundaries
 
-The supplied source revision does not implement native DSA. Full MLA attention
-matches top-2048 attention only while causal history fits 2048 keys. The native
-runtime therefore rejects `--ctx` above 2048, even though the model advertises
-1048576. When `ds4` or `ds4-agent` identifies HY4 and `--ctx` was omitted, it chooses 2048.
+The supplied llama.cpp revision does not implement native DSA. This runtime
+adds HY4 DSA using the maintained SGLang implementation and official model
+configuration: full causal attention through 2048 keys, then top-2048 selection
+from the complete history with cross-layer index reuse. Explicit larger
+contexts are accepted up to the model limit, subject to available memory.
+Omitted CLI/agent context still defaults to 2048. See [HY4_DSA.md](HY4_DSA.md)
+for the 50480-context command, cache-version transition and validation limits.
 HY4 MTP and CUDA execution are unsupported.
 
 Initial and resumed prefill run token by token through the same hard-protected

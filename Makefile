@@ -308,6 +308,18 @@ hy4-quant-test: tests/test_hy4_quants
 tests/test_hy4_session: tests/test_hy4_session.c $(CORE_OBJS) ds4.h
 	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
 
+tests/test_hy4_dsa_payload: tests/test_hy4_dsa_payload.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 $(NATIVE_CPU_FLAG) -std=c99 -ffunction-sections -fdata-sections -Wno-unused-function -Wno-unused-parameter -Wl,-dead_strip -o $@ $< ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+
+tests/test_hy4_long_context: tests/test_hy4_long_context.c tests/test_hy4_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+tests/test_hy4_dsa: tests/test_hy4_dsa.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-dsa-test
+hy4-dsa-test: tests/test_hy4_dsa
+	./tests/test_hy4_dsa
+
 tests/test_hy4_metadata: tests/test_hy4_metadata.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
 	$(CC) -O2 $(NATIVE_CPU_FLAG) -std=c99 -ffunction-sections -fdata-sections -Wno-unused-function -Wno-unused-parameter -Wl,-dead_strip -o $@ $< ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
 .PHONY: hy4-metadata-test
@@ -330,6 +342,12 @@ hy4-sanitize-test: tests/test_hy4_math_sanitize tests/test_hy4_quants_sanitize
 	./tests/test_hy4_math_sanitize
 	./tests/test_hy4_quants_sanitize
 
+
+tests/test_hy4_router: tests/test_hy4_router.c ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-router-test
+hy4-router-test: tests/test_hy4_router
+	./tests/test_hy4_router
 
 tests/test_hy4_pointwise: tests/test_hy4_pointwise.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
 	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
