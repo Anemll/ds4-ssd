@@ -39,7 +39,7 @@ for the unquantized dot products here. Bit parity with FP8 CUDA is not claimed.
 
 Build when no process is using this checkout. Start with eight slots for a
 new machine, then use an explicitly sized bank after verifying memory usage.
-For the 128 GiB M5 Max, the user's 48-slot test command is:
+For the 128 GiB M5 Max, a 48-slot command for the published bank path is:
 
 ```sh
 make -j4 ds4-agent
@@ -69,6 +69,42 @@ keys. Short sessions retain v1. A v1 cache is rejected by a long session,
 causing agent prefix reconstruction. Use a separate cache directory when
 comparing runs. Expert sidecar bytes and formats are unchanged.
 
+## Memory sizing
+
+`--moe-slot-bank N` controls cached experts **per MoE layer**, independently of
+`--ctx`. For this exact package, one additional slot across its 77 MoE layers
+is 0.7522 GiB of expert records, calculated from the sidecar manifest strides.
+The dense GGUF is 19.712 GiB. F32 MLA and index keys consume 186 KiB per context
+token: `78 * (512 + 64) * 4 + 21 * 128 * 4` bytes.
+
+At ctx50480, context buffers including index/attention scratch are about
+8.99 GiB. Capacity estimates for fully populated expert banks are:
+
+| Slots per layer | Expert records | Dense file + expert records + context buffers |
+| --- | ---: | ---: |
+| 48 | 36.11 GiB | 64.80 GiB |
+| 64 | 48.14 GiB | 76.84 GiB |
+| 80 | 60.18 GiB | 88.87 GiB |
+| 96 | 72.21 GiB | 100.91 GiB |
+
+These sums exclude other runtime/driver allocations and other applications;
+they are not measured process footprints or guarantees of residency. On the
+128 GiB M5 Max used here, Metal reported a 107.52 GiB recommended working-set
+budget. Try 64 slots before 80; 96 leaves little GPU budget for other work.
+Changing context changes that headroom: 131072 tokens need 23.25 GiB of keys,
+262144 need 46.5 GiB, and the metadata ceiling of 1048576 needs 186 GiB for keys
+alone. Those context lengths have not been validated with full model histories.
+
+The local experimental `DS4_HY4_MMAP_SLOTS=1` path references file-backed expert
+records instead of allocating the bank as private buffers. A logical slot hit
+does not guarantee that its pages remain in RAM: macOS can reclaim them and
+fault them back from storage. A sampled mapped agent reported about 9.4 GiB
+physical footprint, while a separate ordinary-bank test reported 45.2 GiB;
+these process readings do not account for file-backed pages in the same way.
+An 8-9 GiB reading therefore does not mean the full dense model and expert
+cache cost only that much RAM. Mapped-slot and resident-gate experiments remain
+local; the published command above uses the ordinary bank.
+
 ## Regression commands and coverage
 
 ```sh
@@ -89,11 +125,30 @@ make -j4 tests/test_hy4_dsa tests/test_hy4_dsa_payload \
   invalid token IDs and old-cache rejection.
 - Actual model: short eight-slot lifecycle passes; the checked 80 top-logit
   IDs and values match the earlier native reference exactly.
-- The long-context harness allocates ctx50480 and evaluates 2050 real tokens,
-  then tests cancellation at 2048, sparse decode, rewind, resumed prefill,
-  byte-identical MLA/indexer snapshots and malformed-load recovery. A completed
-  run prints `hy4_dsa_boundary_lifecycle: PASS` as JSON fields. Its result must
-  be checked separately; allocating ctx50480 is not 50k-token prefill validation.
+- Actual long-context model lifecycle: PASS with 48 slots and allocated
+  ctx50480. A fresh 2047-token prefill on the local mapped-slot build crossed
+  into sparse attention at history lengths 2049 and 2050. Cancellation at 2048,
+  rewind/replay, resumed prefill, v2 snapshot restore, malformed/v1 rejection,
+  recovery and reset passed. The checked logits were exact after each replay.
+- The public ordinary-bank build loaded that same-model 2047-token fixture,
+  independently crossed the DSA boundary and passed the same lifecycle checks.
+  Its complete 2050-token snapshot was byte-identical to the mapped build:
+  390,942,768 bytes, including every serialized MLA/index key and final logit.
+  All 112 checked top-logit ID/value pairs across seven stages also matched.
+  This public run is fixture replay, not a fresh full public prefill.
+- An earlier public fresh-prefill attempt was stopped after GPU submission
+  stalls before 64 tokens; it provides no correctness verdict. The known
+  ordinary-bank slowdown after mapped experiments remains unresolved.
+
+The long harness defaults to fresh prefill. To compare builds without repeating
+that prefix, set `HY4_LONG_PREFIX_OUT` to a permanent file path on the fresh run,
+then `HY4_LONG_PREFIX_IN` to that file on a run using the **same model and prompt**.
+The harness checks the restored position and exact token IDs. Optional
+`HY4_LONG_PAYLOAD_OUT` saves the final 2050-token payload for byte comparison.
+These are raw test fixtures, not agent cache files; do not mix model artifacts.
+The final JSON reports `result: PASS`, `history_tokens: 2050`, and an explicit
+`prefix_source: fresh` or `restored`. Allocating ctx50480 is not 50k-token
+prefill validation.
 
 Full 50k-token model prefill, million-token execution, long-document quality,
 and an 8 tokens/s long-context performance claim are not validated here.

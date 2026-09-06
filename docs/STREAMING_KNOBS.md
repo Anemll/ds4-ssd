@@ -61,7 +61,9 @@ HY4 sessions with context above 2048 use snapshot payload v2, which includes
 indexer history. An older v1 cache cannot initialize a long session and is
 rejected so the agent rebuilds its prefix. Short sessions retain v1. Sidecar
 files and expert cache sizing are unchanged. See [HY4_DSA.md](HY4_DSA.md) for
-source mapping, exact test coverage, and the long-context command.
+source mapping, exact test coverage, the long-context command and a
+[slot/context memory table](HY4_DSA.md#memory-sizing). Slot count is per MoE
+layer and is separate from the number of context tokens.
 
 `DS4_HY4_SG_ATTENTION=1` selects the optional F32 SIMD-group attention path:
 QK tiles, sink-aware softmax, then value tiles. Unset/0 retains the original

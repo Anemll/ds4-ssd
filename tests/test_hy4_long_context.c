@@ -1,7 +1,9 @@
 /* Actual-model DSA boundary/lifecycle test. Run the eight-slot short harness
  * first; this longer test accepts an explicit 8..48 slot bank, default 8.
- * It allocates ctx50480 and evaluates a real 2050-token prefix. This is not
- * a claim that 50,480 tokens of model prefill have been tested. */
+ * It allocates ctx50480 and, by default, evaluates a real 2050-token prefix.
+ * HY4_LONG_PREFIX_OUT saves the first 2047 tokens for a later same-model run;
+ * HY4_LONG_PREFIX_IN replays that fixture instead of fresh full prefill.
+ * This is not 50,480-token model prefill validation. */
 #define main hy4_short_harness_main
 #include "test_hy4_session.c"
 #undef main
@@ -25,11 +27,25 @@ int main(int argc,char **argv) {
     check(ds4_engine_open(&e,&opt)==0,"long engine",err);check(ds4_engine_uses_hy4_tokenizer(e),"actual HY4 tokenizer",NULL);
     check(ds4_session_create(&s,e,50480)==0,"ctx50480 session",err);
     ds4_runtime_status st={0};check(ds4_session_runtime_status(s,&st)==1&&st.moe_slot_bank==(unsigned)slots,"long bank size",NULL);
-    fprintf(stderr,"HY4 LONG allocated ctx=50480 slots=%d; real prefill to 2050 tokens\n",slots);
     ds4_tokenize_text(e,"This is a deterministic test of a long conversation. The attention indexer must retain the full causal history and choose the most relevant tokens.\n",&text);
     check(text.len>0,"test text tokenization",NULL);for(int i=0;i<2050;i++)ds4_tokens_push(&prompt,text.v[i%text.len]);
     ds4_tokens prefix=prompt;prefix.len=2047;ds4_session_set_progress(s,progress_long,NULL);
-    check(ds4_session_sync(s,&prefix,err,sizeof(err))==0,"real 2047-token prefill",err);
+    const char *prefix_in=getenv("HY4_LONG_PREFIX_IN");
+    bool restored=prefix_in && *prefix_in;
+    fprintf(stderr,"HY4 LONG allocated ctx=50480 slots=%d; %s then boundary/lifecycle checks\n",slots,restored?"restore 2047-token prefix":"fresh 2047-token prefill");
+    if(restored) {
+        FILE *f=fopen(prefix_in,"rb");check(f!=NULL,"open same-model prefix fixture",prefix_in);
+        check(fseek(f,0,SEEK_END)==0,"seek prefix fixture",prefix_in);long bytes=ftell(f);check(bytes>0,"prefix fixture length",prefix_in);rewind(f);
+        check(ds4_session_load_payload(s,f,(uint64_t)bytes,err,sizeof(err))==0,"load v2 prefix fixture",err);fclose(f);
+        const ds4_tokens *loaded=ds4_session_tokens(s);
+        check(ds4_session_pos(s)==2047 && loaded->len==2047 && !memcmp(loaded->v,prefix.v,2047*sizeof(int)),"fixture matches the exact 2047-token test prefix",prefix_in);
+        fprintf(stderr,"HY4 LONG restored 2047-token fixture; this run does not claim fresh full prefill\n");
+    } else check(ds4_session_sync(s,&prefix,err,sizeof(err))==0,"real 2047-token prefill",err);
+    const char *prefix_out=getenv("HY4_LONG_PREFIX_OUT");
+    if(prefix_out && *prefix_out) {
+        FILE *f=fopen(prefix_out,"wb");check(f!=NULL,"open prefix output",prefix_out);
+        check(ds4_session_save_payload(s,f,err,sizeof(err))==0,"save v2 prefix fixture",err);check(fclose(f)==0,"close prefix output",prefix_out);
+    }
     check(ds4_session_save_snapshot(s,&boundary,err,sizeof(err))==0,"v2 boundary snapshot",err);
     uint32_t version=0;memcpy(&version,(char*)boundary.ptr+4,4);check(version==2,"long snapshot v2",NULL);
     cancel_probe cancel={.completed=2047,.expected_total=2050,.cancel_after=2048};
@@ -57,7 +73,7 @@ int main(int argc,char **argv) {
     // agent cache. Caller supplies a permanent directory/path.
     const char *path=getenv("HY4_LONG_PAYLOAD_OUT");if(path&&*path) {FILE *f=fopen(path,"wb");check(f!=NULL,"open payload artifact",path);check(ds4_session_save_payload(s,f,err,sizeof(err))==0,"save payload artifact",err);check(fclose(f)==0,"close payload artifact",path);}
     ds4_session_invalidate(s);prefix.len=1;check(ds4_session_sync(s,&prefix,err,sizeof(err))==0,"reset long-context session",err);
-    printf("{\"result\":\"PASS\",\"test\":\"hy4_dsa_boundary_lifecycle\",\"slots\":%d,\"allocated_context\":50480,\"evaluated_tokens\":2050,\"snapshot_bytes\":%llu}\n",slots,(unsigned long long)end.len);
+    printf("{\"result\":\"PASS\",\"test\":\"hy4_dsa_boundary_lifecycle\",\"slots\":%d,\"allocated_context\":50480,\"history_tokens\":2050,\"prefix_source\":\"%s\",\"snapshot_bytes\":%llu}\n",slots,restored?"restored":"fresh",(unsigned long long)end.len);
     ds4_session_snapshot_free(&boundary);ds4_session_snapshot_free(&end);ds4_session_snapshot_free(&roundtrip);
     ds4_tokens_free(&text);ds4_tokens_free(&prompt);ds4_session_free(s);ds4_engine_close(e);return 0;
 }

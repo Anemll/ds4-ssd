@@ -89,3 +89,9 @@ This extends the source port at the user's request; it is not code present in
 | Index history survives session lifecycle | HY4 v2 payload save/load includes all full-layer index keys; v1 remains for short sessions and is rejected by long sessions. Rewind recomputes the retained final token; cancellation publishes only completed tokens. |
 
 No new DSA knob or sidecar format change. Default context remains 2048.
+
+The DSA boundary/lifecycle harness passed with 48 slots, ctx50480 allocation,
+and 2050 tokens of real HY4 history. A fresh mapped-slot prefix and public
+ordinary-bank replay produced byte-identical 390,942,768-byte v2 snapshots.
+See [HY4_DSA.md](docs/HY4_DSA.md) for the distinction between fresh and restored
+prefixes, test fixture commands, memory sizing and remaining validation limits.
