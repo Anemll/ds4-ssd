@@ -32,6 +32,110 @@ ds4: prefill I/O: io-split=... async-pread=... pread-threads=... readahead=... b
 ds4: decode  I/O: io-split=... router-prefetch=... scratch-prefetch=... max-loads=... miss-direct-slot-pread=... reset-after-prefill=... slots=N
 ```
 
+## HY4 native SSD path
+
+HY4 uses the same hard slot protection and existing sidecar format. Start with
+8 slots, explicit dense/sidecar paths, and `DS4_PROFILE=none`. Initial/resumed
+prefill is token-wise; optional DS4 DeDup/ANE prefill kernels are not HY4
+execution paths. The native runtime requires top-8. Contexts above 2048 use
+native DSA with top-2048 causal selection and the GGUF layer-sharing schedule. `ds4-agent` defaults HY4 context to 2048 only when the
+user omitted `--ctx`; existing DS4 profile defaults do not change. See [HY4.md](HY4.md)
+for the actual HY4 package command and validation.
+
+HY4 sink-aware attention runs in Metal by default. For numerical debugging,
+`DS4_HY4_CPU_ATTENTION=1` selects the scalar F32 attention reference; unset or 0
+uses Metal. Both paths consume at most 2048 selected attention keys per layer;
+the allocated context may be larger. Slot count and expert routing are unchanged.
+The two implementations are compared on deterministic buffers before native
+model validation.
+
+Long-context DSA is automatic when `--ctx > 2048`; there is no bypass knob.
+Full-indexer layers store 128 F32 values per token from the beginning of prefill,
+including the first 2048 tokens. Above that boundary, 32-head indexer scores
+select 2048 causal rows; shared layers reuse the last full layer's selection
+for the current token. At ctx50480, the supplied 21-full-layer schedule adds
+about 517.6 MiB of index keys to the MLA cache. Memory estimates include these
+keys and indexer scratch. The 2048 default remains conservative.
+
+HY4 sessions with context above 2048 use snapshot payload v2, which includes
+indexer history. An older v1 cache cannot initialize a long session and is
+rejected so the agent rebuilds its prefix. Short sessions retain v1. Sidecar
+files and expert cache sizing are unchanged. See [HY4_DSA.md](HY4_DSA.md) for
+source mapping, exact test coverage, the long-context command and a
+[slot/context memory table](HY4_DSA.md#memory-sizing). Slot count is per MoE
+layer and is separate from the number of context tokens.
+
+`DS4_HY4_SG_ATTENTION=1` selects the optional F32 SIMD-group attention path:
+QK tiles, sink-aware softmax, then value tiles. Unset/0 retains the original
+Metal attention. Inputs, scores and accumulators remain F32; no half-precision
+conversion or attention approximation is used. It supports the same native
+2048-key bound and preserves causal masking and the sink denominator. The CPU
+attention override takes precedence. No slot, I/O or session-format changes
+are involved. See [HY4_PROFILING.md](HY4_PROFILING.md) for the measured gain.
+
+`DS4_HY4_FUSED_ROUTER=1` combines native HY4 one-token sigmoid, bias-based
+selection, top-8 sorting and weight normalization in one Metal dispatch.
+Unset/0 retains the generic router graph. The 256-expert bitonic sort keeps
+its existing tie order; the selected probabilities use the same eight-lane
+sum, denominator clamp, division and 2.827 scale. Probabilities, IDs and weights
+are tested bit-for-bit against the generic path. This does not alter routed
+experts, cache policy, slot reservations or I/O lifetimes.
+
+HY4 uses a native fused top-8 routed FFN by default for contiguous slot banks:
+two Metal dispatches per MoE layer, with gate/up clamp10 and ordered weighting
+after each down projection. `DS4_HY4_UNFUSED=1` selects the separate-operation
+reference; unset/0 enables fusion. Per-slot/chunked banks retain that reference.
+`DS4_HY4_CPU_POINTWISE=1` also selects the separate FFN and restores CPU
+attention gating/expert reduction. A `DS4_HY4_TRACE_DIR` capture uses the
+separate path to materialize all diagnostic intermediates. None of these
+switches changes routing, slot count, I/O drainage, or model precision.
+
+HY4 independent HC (pre, post and output head) now runs on Metal by default.
+`DS4_HY4_CPU_IHC=1` retains the scalar F32 oracle; unset/0 uses Metal. A trace
+capture also selects the scalar oracle. The post broadcast preserves separately
+rounded F32 multiply/add; mix dots use a parallel F32 reduction. GPU residual
+work stays queued until router/token joins; slot lifetimes and session payload
+format are preserved. `DS4_HY4_SYNC_RESIDUAL=1` restores residual waits for
+diagnostics. Unset/0 removes these redundant waits on GPU iHC; CPU iHC and
+trace mode always keep them. GPU phase profile values are null when combined
+command batches prevent separate timing; whole GPU time remains available.
+
+`DS4_HY4_SHARED_IO_OVERLAP` defaults on for HY4 contiguous mixed banks with
+expert-major sidecars. Set `=0` to restore synchronous installation and shared
+FFN ordering. Each fully reserved request issues at most eight unique expert
+reads while its independent shared FFN runs; every reader is joined on success
+or failure before returning. The existing `DS4_FLASH_MOE_CACHE_IO_SPLIT` applies
+per expert (default 4); `DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0` uses scratch uploads.
+Direct mmap, per-expert/per-slot/chunked banks, L2 modes, six-slot diagnostics
+and trace captures retain the prior path. No DS4/HY3/GLM defaults change.
+
+`DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
+adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`
+for per-layer remap/install wall time. See [HY4_PROFILING.md](HY4_PROFILING.md).
+
+## Slot ownership and interruption safety
+
+Decode and tiny-batch slot-bank prefill hard-reserve **all resident experts in
+the current request before choosing slots for misses**. Miss installs start
+only after the whole request has been resolved; duplicate expert IDs share a
+slot. The picker cannot evict a requested hit or a slot promised to another
+miss, including when the bank is full.
+
+This protection is always enabled and is independent of
+`DS4_FLASH_MOE_PREPROTECT_TOPK`. That existing opt-in setting supplies only soft
+cache hints. Larger expert-major prefill still stages one expert at a time and
+may evict soft-protected cache entries after synchronizing their GPU use; a
+prompt may reference more unique experts than the bank holds.
+
+Outstanding SSD jobs are drained before failed decode/prefill work can reuse
+their buffers or reset the graph. Failed or discarded direct-to-slot reads
+invalidate destination ownership and replay state, so partially overwritten
+weights cannot be reported as cache hits. Cancellation can therefore wait for
+in-flight reads to finish and can require cache refills on retry.
+
+These correctness changes introduce no knobs or default/profile changes. See
+[PORT.md](../PORT.md) for the source-commit mapping.
+
 ## Decode-bank shrink (page-cache cliff fix)
 
 On a RAM-limited machine (sidecar larger than physical RAM) a big wired slot

@@ -7,6 +7,25 @@ The dense model remains a GGUF. Routed experts are stored outside the GGUF in a
 sidecar directory with a manifest and expert records. At runtime, DS4 keeps a
 configurable slot-bank of expert weights resident and streams the rest from SSD.
 
+Slot-bank requests protect every required resident expert before reserving
+misses and install only after resolving the full request. Failed/interrupted
+reads are drained before buffer reuse; partially written destinations are
+invalidated. This is automatic and does not require a tuning flag. See
+[streaming safety](STREAMING_KNOBS.md#slot-ownership-and-interruption-safety)
+for decode versus expert-major prefill semantics.
+
+## HY4 preview package
+
+The supplied HY4 package has `model-dense-f16head.gguf` at its root and
+`sidecar/manifest.json` beneath it. Pass the dense file with `-m` and the sidecar
+directory with `--moe-sidecar`; start with `--moe-mode slot-bank --moe-slot-bank 8`.
+No sidecar conversion or format change is needed. STQ1_0 (GGUF type 43) and
+per-layer IQ2_XXS/IQ3_XXS/IQ4_XS routing are supported by the HY4 native path.
+See [HY4.md](HY4.md) for the complete command and memory requirements.
+Native DSA supports explicit contexts above 2048 without changing these sidecars.
+Long-context HY4 session payloads use v2 to retain indexer history; old v1
+session caches must be rebuilt for a long session. See [HY4_DSA.md](HY4_DSA.md).
+
 ## Required Files
 
 ```text

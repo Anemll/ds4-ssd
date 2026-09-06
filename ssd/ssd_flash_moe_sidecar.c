@@ -159,6 +159,7 @@ static int flash_moe_family_id(const char *family) {
 
 static uint32_t flash_moe_quant_type_id(const char *quant, bool *mxfp4_plane_split) {
     if (mxfp4_plane_split) *mxfp4_plane_split = false;
+    if (!strcmp(quant, "STQ1_0")) return DS4_TENSOR_STQ1_0;
     if (!strcmp(quant, "IQ1_M")) return DS4_TENSOR_IQ1_M;
     if (!strcmp(quant, "IQ2_XXS")) return DS4_TENSOR_IQ2_XXS;
     if (!strcmp(quant, "IQ3_XXS")) return DS4_TENSOR_IQ3_XXS;

@@ -29,6 +29,7 @@ typedef struct {
     const char *system;
     int n_predict;
     int ctx_size;
+    bool ctx_explicit;
     float temperature;
     float top_p;
     float min_p;
@@ -2067,6 +2068,7 @@ static cli_config parse_options(int argc, char **argv) {
             c.gen.n_predict = parse_int(need_arg(&i, argc, argv, arg), arg);
         } else if (!strcmp(arg, "-c") || !strcmp(arg, "--ctx")) {
             c.gen.ctx_size = parse_int(need_arg(&i, argc, argv, arg), arg);
+            c.gen.ctx_explicit = true;
         } else if (!strcmp(arg, "--temp")) {
             c.gen.temperature = parse_float_range(need_arg(&i, argc, argv, arg), arg, 0.0f, 100.0f);
         } else if (!strcmp(arg, "--top-p")) {
@@ -2225,6 +2227,9 @@ int main(int argc, char **argv) {
     }
     if (!cfg.inspect) {
         ds4_model_shape_select_for_path(cfg.engine.model_path);
+        if (!cfg.gen.ctx_explicit && ds4_model_shape_is_hy4()) {
+            cfg.gen.ctx_size = cfg.engine.ctx_size = 2048;
+        }
         log_context_memory(cfg.engine.backend, cfg.gen.ctx_size);
         cli_warn_think_max_downgraded(&cfg.gen, "--think-max");
     }

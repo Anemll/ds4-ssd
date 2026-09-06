@@ -32,7 +32,7 @@ CPU_CORE_OBJS = ds4_cpu.o ds4_profile.o
 METAL_LDLIBS := $(LDLIBS)
 endif
 
-.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression ane-smoke sidecar-smoke
+.PHONY: all help clean test cpu cuda cuda-spark cuda-generic cuda-regression ane-smoke sidecar-smoke flash-moe-slot-test flash-moe-slot-test-sanitize flash-moe-io-test
 
 ifeq ($(UNAME_S),Darwin)
 all: ds4 ds4-server ds4-bench ds4-eval ds4-agent
@@ -44,6 +44,8 @@ help:
 	@echo "  make ane-smoke    Build and run the ANE int8 MLP precision smoke"
 	@echo "  make sidecar-smoke Run the 4K SSD sidecar smoke (requires DS4_SIDECAR_DIR)"
 	@echo "  make test         Build and run tests"
+	@echo "  make flash-moe-slot-test Run model-free Flash-MoE slot regressions"
+	@echo "  make flash-moe-io-test Run model-free Flash-MoE I/O lifecycle regressions"
 	@echo "  make clean        Remove build outputs"
 
 ds4: ds4_cli.o linenoise.o $(CORE_OBJS)
@@ -100,6 +102,7 @@ help:
 	@echo "  make ane-smoke           Requires macOS private ANE framework"
 	@echo "  make sidecar-smoke       Requires macOS Metal"
 	@echo "  make test                Build and run tests"
+	@echo "  make flash-moe-slot-test Run model-free Flash-MoE slot regressions"
 	@echo "  make clean               Remove build outputs"
 
 ane-smoke:
@@ -159,12 +162,16 @@ DS4_INCLUDED_SRCS = \
 	glm52/glm52_runtime.c \
 	hy3/hy3_model.c \
 	hy3/hy3_runtime.c \
+	hy4/hy4_model.c \
+	hy4/hy4_runtime.c \
+	hy4/hy4_math.h \
 	ssd/ssd_flash_moe_sidecar.c \
 	ssd/ssd_flash_moe_streaming.c \
 	ssd/ssd_flash_moe_allocation.c \
 	ssd/ssd_flash_moe_runtime.c \
 	ssd/ssd_flash_moe_resident_prefill.c \
 	ssd/ssd_flash_moe_slot_cache.c \
+	ssd/ssd_flash_moe_slots.h \
 	ssd/ssd_flash_moe_decode.c \
 	ssd/ssd_flash_moe_prefill.c \
 	ssd/ssd_flash_moe_diagnostics.c \
@@ -243,8 +250,121 @@ else
 	$(NVCC) $(NVCCFLAGS) -o $@ ds4_test.o rax.o $(CORE_OBJS) $(CUDA_LDLIBS)
 endif
 
-test: ds4_test
+tests/test_flash_moe_slots: tests/test_flash_moe_slots.c ssd/ssd_flash_moe_slots.h
+	$(CC) $(CFLAGS) -o $@ $<
+
+tests/test_flash_moe_slots_sanitize: tests/test_flash_moe_slots.c ssd/ssd_flash_moe_slots.h
+	$(CC) -std=c99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ $<
+
+flash-moe-slot-test: tests/test_flash_moe_slots
+	./tests/test_flash_moe_slots
+
+flash-moe-slot-test-sanitize: tests/test_flash_moe_slots_sanitize
+	./tests/test_flash_moe_slots_sanitize
+
+ifeq ($(UNAME_S),Darwin)
+tests/test_flash_moe_io.o: tests/test_flash_moe_io.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h ds4_profile.h
+	$(CC) $(CFLAGS) -O1 -UNDEBUG -Wno-unused-function -Wno-unused-parameter -c -o $@ $<
+
+tests/test_flash_moe_io: tests/test_flash_moe_io.o ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -o $@ $^ $(METAL_LDLIBS)
+
+flash-moe-io-test: tests/test_flash_moe_io
+	./tests/test_flash_moe_io
+
+# Explicit opt-in: callers choose a local DS4 sidecar and I/O settings.
+tests/test_flash_moe_session: tests/test_flash_moe_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+.PHONY: flash-moe-session-test
+flash-moe-session-test: tests/test_flash_moe_session
+	@test -n "$(DS4_SIDECAR_DIR)" || (echo "set DS4_SIDECAR_DIR to a local DS4 package"; exit 2)
+	./tests/test_flash_moe_session "$(DS4_SIDECAR_DIR)"
+
+test: flash-moe-io-test
+else
+flash-moe-io-test:
+	@echo "flash-moe-io-test requires macOS Metal support objects"
+	@exit 2
+endif
+
+test: ds4_test flash-moe-slot-test
 	./ds4_test
 
 clean:
-	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/ane_ds4_mlp_i8i8_precision_smoke
+	rm -f ds4 ds4-server ds4-bench ds4-eval ds4-agent ds4_cpu ds4_native ds4_server_test ds4_test *.o tests/cuda_long_context_smoke tests/cuda_long_context_smoke.o tests/ane_ds4_mlp_i8i8_precision_smoke tests/test_flash_moe_slots tests/test_flash_moe_slots_sanitize tests/test_flash_moe_io tests/test_flash_moe_io.o tests/test_flash_moe_session
+
+.PHONY: hy4-math-test hy4-quant-test
+tests/test_hy4_math: tests/test_hy4_math.c hy4/hy4_math.h
+	$(CC) $(CFLAGS) -o $@ $< -lm
+hy4-math-test: tests/test_hy4_math
+	./tests/test_hy4_math
+
+tests/test_hy4_quants: tests/test_hy4_quants.c hy4/hy4_quants.c hy4/hy4_quants.h hy4/hy4_quant_tables.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_quants.c hy4/hy4_quants.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+hy4-quant-test: tests/test_hy4_quants
+	./tests/test_hy4_quants --metal
+
+tests/test_hy4_session: tests/test_hy4_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+tests/test_hy4_dsa_payload: tests/test_hy4_dsa_payload.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_gpu.h ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 $(NATIVE_CPU_FLAG) -std=c99 -ffunction-sections -fdata-sections -Wno-unused-function -Wno-unused-parameter -Wl,-dead_strip -o $@ $< ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+
+tests/test_hy4_long_context: tests/test_hy4_long_context.c tests/test_hy4_session.c $(CORE_OBJS) ds4.h
+	$(CC) $(CFLAGS) -o $@ $< $(CORE_OBJS) $(METAL_LDLIBS)
+
+tests/test_hy4_dsa: tests/test_hy4_dsa.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-dsa-test
+hy4-dsa-test: tests/test_hy4_dsa
+	./tests/test_hy4_dsa
+
+tests/test_hy4_metadata: tests/test_hy4_metadata.c ds4.c $(DS4_INCLUDED_SRCS) ds4.h ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 $(NATIVE_CPU_FLAG) -std=c99 -ffunction-sections -fdata-sections -Wno-unused-function -Wno-unused-parameter -Wl,-dead_strip -o $@ $< ds4_profile.o ds4_metal.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-metadata-test
+hy4-metadata-test: tests/test_hy4_metadata
+	@test -n "$(HY4_MODEL)" || (echo "set HY4_MODEL to the HY4 dense GGUF"; exit 2)
+	./tests/test_hy4_metadata "$(HY4_MODEL)"
+
+tests/test_hy4_attention: tests/test_hy4_attention.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-attention-test
+hy4-attention-test: tests/test_hy4_attention
+	./tests/test_hy4_attention
+
+tests/test_hy4_math_sanitize: tests/test_hy4_math.c hy4/hy4_math.h
+	$(CC) -O1 -g -std=c99 -Wall -Wextra -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ $< -lm
+tests/test_hy4_quants_sanitize: tests/test_hy4_quants.c hy4/hy4_quants.c hy4/hy4_quants.h hy4/hy4_quant_tables.h
+	$(CC) -O1 -g -std=c99 -Wall -Wextra -DHY4_TEST_CPU_ONLY -fsanitize=address,undefined -fno-omit-frame-pointer -o $@ tests/test_hy4_quants.c hy4/hy4_quants.c -lm
+.PHONY: hy4-sanitize-test
+hy4-sanitize-test: tests/test_hy4_math_sanitize tests/test_hy4_quants_sanitize
+	./tests/test_hy4_math_sanitize
+	./tests/test_hy4_quants_sanitize
+
+
+tests/test_hy4_router: tests/test_hy4_router.c ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-router-test
+hy4-router-test: tests/test_hy4_router
+	./tests/test_hy4_router
+
+tests/test_hy4_pointwise: tests/test_hy4_pointwise.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ $< ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-pointwise-test
+hy4-pointwise-test: tests/test_hy4_pointwise
+	./tests/test_hy4_pointwise
+
+# Native HY4 two-dispatch top-8 FFN; bounded synthetic banks, no model loading.
+tests/test_hy4_fused: tests/test_hy4_fused.c hy4/hy4_quants.c hy4/hy4_quants.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_fused.c hy4/hy4_quants.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-fused-test
+hy4-fused-test: tests/test_hy4_fused
+	./tests/test_hy4_fused
+
+# Independent HY4 HC GPU math, no model loading.
+tests/test_hy4_hc: tests/test_hy4_hc.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_hc.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-hc-test
+hy4-hc-test: tests/test_hy4_hc
+	./tests/test_hy4_hc

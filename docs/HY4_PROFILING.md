@@ -1,0 +1,302 @@
+# Profiling the native HY4 path
+
+`DS4_HY4_PROFILE=1` emits one `HY4_PROFILE` JSON line per completed token on
+stderr. It adds clock/counter reads at existing boundaries, with no extra GPU
+submissions or waits. Unset or 0 disables it. GPU measurements use completed
+Metal command-buffer timestamps; CPU measurements use the worker thread's CPU
+clock. The phase buckets describe work completed at the existing joins, so
+CPU attention/pointwise/iHC fallbacks can move work between buckets. Default
+GPU execution keeps residual work queued until the next router or token join.
+It reports `gpu_phase_scope=router_batches` and `gpu_router_batches_ms`;
+`attn_gpu_ms`, `ffn_gpu_ms`, and `router_gpu_ms` are null because those phases
+share a command batch. Null means unavailable, not zero GPU work.
+`DS4_HY4_SYNC_RESIDUAL=1` restores residual joins and the original buckets: the
+attention bucket includes iHC pre/post, router includes FFN iHC pre, and FFN
+includes its iHC post. These are completion phases, not isolated shader timings.
+
+`DS4_FLASH_MOE_PROFILE=1` adds per-layer router synchronization and
+remap/install wall time. The latter includes slot bookkeeping, synchronous
+SSD/file-cache reads, and installation; with overlap it also includes shared
+FFN encoding/submission while reads run. It is not pure SSD device latency.
+
+## Reproduce the 48-slot agent measurement
+
+Run from the permanent worktree. Keep the dense/sidecar package explicit and
+leave the native top-8 unchanged. This uses the existing isolated system cache.
+
+```sh
+HY4_PACKAGE="$HOME/Models/HY4/Hy4-preview-Flash-STQ1_0"
+HY4_LOG_DIR="$PWD/profile_runs/slot-protect-validation"
+DS4_PROFILE=none DS4_FLASH_MOE_DIRECT_MMAP_AUTO=0 \
+DS4_HY4_PROFILE=1 DS4_FLASH_MOE_PROFILE=1 \
+DS4_AGENT_CACHE_DIR="$HY4_LOG_DIR/agent-cache" \
+./ds4-agent \
+  -m "$HY4_PACKAGE/model-dense-f16head.gguf" \
+  --moe-sidecar "$HY4_PACKAGE/sidecar" \
+  --moe-mode slot-bank --moe-slot-bank 48 --ctx 2048 \
+  --tokens 64 --temp 0 --seed 1 --nothink --no-int8 \
+  --trace "$HY4_LOG_DIR/hy4-profile-agent.trace" \
+  --non-interactive \
+  -p 'Explain how binary search works, then show a small Python example. Respond in text only; no tools.' \
+  > "$HY4_LOG_DIR/hy4-profile.stdout" 2> "$HY4_LOG_DIR/hy4-profile.stderr"
+```
+
+Read the agent trace's `prefill ... transcript=N` and use N as `--decode-start`.
+The measured run restored 709 system tokens and added 31 prompt tokens, so N
+was 740. This avoids mixing prefill with decode:
+
+```sh
+python3 tools/summarize_hy4_profile.py \
+  "$HY4_LOG_DIR/hy4-profile.stderr" --decode-start 740 --slots 48
+```
+
+## Recorded result on M5 Max
+
+On the `db1cf53` compute path with profiling enabled, the complete run produced
+64 tokens at 1.53 t/s. Its 64 decode evaluations covered positions 740-803:
+
+| Measurement | Mean per decode token |
+| --- | ---: |
+| Whole token wall time | 653.7 ms |
+| Completed GPU command-buffer time | 285.1 ms |
+| FFN GPU work (routed plus shared) | 221.7 ms |
+| Attention GPU work | 55.6 ms |
+| Router GPU work | 5.0 ms |
+| Worker CPU time | 180.2 ms |
+| iHC pre-processing CPU time | 97.1 ms |
+| iHC post-processing CPU time | 7.2 ms |
+| Remap/install wall time | 194.2 ms |
+| Router synchronization wall time | 18.9 ms |
+| Expert cache hit rate | 60.8% |
+| Expert bytes installed | 2.35 GiB |
+
+GPU phase rows are included in GPU total; iHC CPU rows are included in worker
+CPU time. Install wall time includes host work. These different clocks overlap
+and must not be added as independent wall-time components. File-cache residency
+was not flushed; this is not a cold-SSD measurement.
+
+Every token logged eight selected experts and 48 cache slots, with 616 expert
+references across the 77 routed layers. The executed routed path was
+**per-expert**, with 1,848 quant matvec, 616 SwiGLU and 77 reduction dispatches:
+**2,541 routed dispatches per token**. HY4 does not enter the DS4 six-expert fused
+kernel. This is the pre-fusion baseline; cache capacity and expert count remain fixed.
+
+## Fused top-8 follow-up
+
+The native fused path now adapts source `slot8` to DS4 bank views and resolved
+host slot IDs: gate/up/SwiGLU followed by down/ordered weighting. Unlike the
+source fused shaders at `34cccef`, it preserves the generic HY4 graph's routed
+clamp10. Synthetic cases explicitly activate both gate and up clamps.
+`DS4_HY4_UNFUSED=1` retains the reference; unset/0 enables the two-dispatch path
+for contiguous banks. CPU pointwise, trace, per-slot and chunked-bank modes
+retain separate operations.
+
+The identical command above, actual model, 709-token system cache and 31-token
+user suffix produced **2.14 tokens/s** (64 tokens in 29.972 s), versus baseline
+1.53 tokens/s. The generated 64-token text was identical. Every decode profile
+reports `routed_path=fused_top8`, 154 fused dispatches, zero separate routed
+dispatches, top-8 and 48 slots. Native 16-token testing also matched all 272
+top-logit IDs with maximum logit delta 0.0000095; lifecycle regressions pass.
+
+| Measurement | Unfused | Fused |
+| --- | ---: | ---: |
+| Token wall | 653.7 ms | 468.2 ms |
+| Completed GPU time | 285.1 ms | 100.5 ms |
+| FFN GPU time | 221.7 ms | 33.5 ms |
+| Attention GPU time | 55.6 ms | 58.3 ms |
+| Worker CPU time | 180.2 ms | 175.8 ms |
+| iHC pre CPU time | 97.1 ms | 97.2 ms |
+| Remap/install wall | 194.2 ms | 195.9 ms |
+| Expert hit rate | 60.8% | 60.8% |
+
+These are bounded serial warm-file-cache runs, not cold-SSD throughput or an
+8 tokens/s result. Small routing differences from F32 reduction order can
+change cache counters even with identical generated text. The next section
+measures the GPU iHC follow-up. Clock overlap definitions above still apply.
+
+Evidence: `hy4-slots48-fused.{stdout,stderr}`, `hy4-slots48-fused-summary.json`,
+`hy4-fused-test.log`, `hy4-fused-lifecycle.{jsonl,log}` and
+`hy4-fused-greedy16.{jsonl,log}` in the same permanent validation directory.
+The following Metal System Trace describes the earlier unfused baseline.
+Fused execution is verified by counters on the actual encode path and GPU
+command timestamps; no new fused Instruments capture is claimed here.
+
+## GPU iHC follow-up
+
+The initial GPU independent HC measurement kept residual completion joins, with exact
+F32 post multiply/add and parallel mix dots. `DS4_HY4_CPU_IHC=1` selects the
+scalar oracle; unset/0 uses GPU. No session cache layout changes are needed.
+
+The identical fixed workload produces **2.72 tokens/s** (64 tokens / 23.503 s),
+with the same generated text. All 64 decode rows confirm `ihc_path=metal`,
+`routed_path=fused_top8`, top-8 and 48 slots. Mean token wall is 367.1 ms;
+worker CPU is 74.9 ms, GPU command time 105.1 ms, iHC pre CPU 2.21 ms, post CPU
+1.87 ms and head CPU 0.015 ms. CPU iHC's corresponding total was about 104 ms.
+Remap/install remains 194.8 ms and hit rate 60.8%; SSD installation is now the
+largest measured remaining phase. Device traffic is not inferred solely from
+installed-byte counters because reads can be serviced by the OS file cache.
+
+The focused HC suite passes 129,820 checks; post is bit exact and pre/head
+maximum scaled error is 1.28e-5 (bound 4e-5). The eight-slot native lifecycle and
+16-token model comparison pass, all 272 top IDs agree, maximum logit delta
+0.0001049 (bound 0.001). The CPU opt-out matches the earlier lifecycle exactly.
+This remains a bounded warm-cache result, below the 8 tokens/s objective.
+
+Evidence: `hy4-hc-test.log`, `hy4-hc-lifecycle.{jsonl,log}`,
+`hy4-hc-greedy16.{jsonl,log}`, `hy4-hc-cpu-lifecycle.{jsonl,log}`,
+`hy4-slots48-hc.{stdout,stderr}`, `hy4-slots48-hc-summary.json`. GPU phase clocks
+include iHC work at the joins described above; they cannot be treated as pure
+attention/router/FFN kernel timings. No new Instruments trace is claimed.
+
+## Queued residual follow-up
+
+Default GPU iHC now leaves residual updates queued. All prior bank readers
+complete at the next router join before slot mutation, and the token join
+covers the final FFN/head and early errors. CPU iHC and trace modes retain
+residual waits; `DS4_HY4_SYNC_RESIDUAL=1` restores them for diagnostics.
+
+The same fixed 48-slot workload produces **2.92 tokens/s** (64 / 21.949 s),
+with identical generated text, native top-8, 154 fused dispatches and zero
+residual joins per token (previously 156). Mean token wall is 342.9 ms,
+completed GPU time 105.0 ms, worker CPU 74.6 ms, remap/install 198.2 ms and
+hit rate 60.8%. This remains below 8 tokens/s. Combined router batches account
+for 101.7 ms of GPU time; isolated phase values are unavailable as described
+above. Profiling does not insert waits to recover them.
+
+The eight-slot lifecycle and 16-token greedy comparison match the prior GPU
+iHC capture exactly: all 272 top-logit IDs and values agree. The explicit
+sync diagnostic also matches the prior lifecycle exactly and reports all
+156 residual joins. Evidence: `hy4-queued-{lifecycle,greedy16}.{jsonl,log}`,
+`hy4-sync-residual-lifecycle.{jsonl,log}`, `hy4-slots48-queued.{stdout,stderr}`
+and `hy4-slots48-queued-summary.json` in the permanent validation directory.
+
+## Shared FFN and concurrent request reads
+
+`DS4_HY4_SHARED_IO_OVERLAP` defaults on for eligible HY4 banks; explicit `=0`
+retains the prior ordering. `shared_io_layers` counts layers actually entering
+that path and `async_expert_reads` counts unique misses started. Reads remain
+bounded to the current top-8 request. Commit/touch ordering, slot capacity,
+expert count, routing and math are unchanged.
+
+The fixed workload now produces **3.35 tokens/s** (64 / 19.114 s), versus
+2.92 tokens/s queued-only. All generated text and cache counters match. Mean
+token wall is 298.6 ms, GPU command time 104.8 ms and remap/install wall
+165.5 ms. The inference worker's CPU time is 13.6 ms, but this excludes CPU
+consumed by the new reader threads; it is not total process CPU usage.
+Every decode row records 77 overlap layers, 154 fused dispatches and an async
+read count equal to misses (mean 241.3 / token). Hit rate stays 60.8%.
+
+The native eight-slot lifecycle, scratch fallback and default-on 16-token
+comparison pass with zero logit delta. Model-free tests hold multiple readers
+at a deterministic boundary and verify cleanup cannot return until all are
+released, including an early I/O error and subsequent request reuse.
+Evidence: `hy4-overlap-{lifecycle,greedy16,scratch-lifecycle}.{jsonl,log}`,
+`hy4-overlap-default-build.log`, `hy4-slots48-overlap.{stdout,stderr}` and
+`hy4-slots48-overlap-summary.json`. This is bounded warm-file-cache evidence;
+8 tokens/s and cold SSD performance remain unverified.
+
+## Metal trace and CPU stack evidence
+
+A native `Metal System Trace` was recorded for 70 seconds from the same
+48-slot agent configuration, plus a 10-second `sample` of the launched process.
+The trace includes prefill and partial decode; its recording deadline stopped
+the launched process, so the complete timing above comes from the separate
+profiling run. Instruments materially affects timing and is not the throughput
+baseline.
+
+The permanent local artifacts under `profile_runs/slot-protect-validation/` are:
+
+- `hy4-slots48-metal.trace`: open with Instruments; about 10 GiB.
+- `hy4-slots48-metal-toc.xml`, `hy4-slots48-gpu-intervals.xml`, and
+  `hy4-slots48-metal-encoders.xml`: exported GPU/encoder evidence.
+- `hy4-slots48-metal-summary.json`: merged GPU-active intervals, avoiding
+  double-counting nested events.
+- `hy4-slots48-cpu-sample.txt`: CPU stacks show waits in `hy4_post`,
+  reads under `metal_graph_flash_moe_prepare_decode`, and CPU `hy4_pre` work.
+- `hy4-slots48-profile.stderr` and `hy4-slots48-profile-summary.json`:
+  complete per-token and per-layer accounting.
+
+The exported Metal intervals are command/encoder-level GPU timings, not
+hardware timings for individual kernels. Actual HY4 dispatch counts come from
+the native runtime counters. No fused execution is claimed from generic startup
+messages or from the `gate/reduce=Metal` line.
+
+Enabling profiling passed the eight-slot native lifecycle regression with
+bit-identical top-16 logits versus the previous run, including cancellation,
+rewind and full-capacity snapshot restore. Profiling does not change math,
+cache capacity, expert count, model bytes or compute defaults.
+
+## Optimized-path Metal trace
+
+A separate 10-second Metal System Trace attached after the first completed
+decode token of the optimized 48-slot agent run. Both recorder and agent exited
+0; the recording deadline did not stop the agent. A five-second CPU sample was
+collected alongside it. The exported 4,300 compute intervals merge to 3.805 s
+of GPU activity, spanning trace timestamps 0.396 to 10.795 s. These are
+command/encoder intervals, not isolated shader hardware timings. Runtime
+counters still supply the native top-8 and 154 fused-dispatch evidence.
+
+The inference worker sample contains waits in `ds4_gpu_end_commands` and
+`metal_graph_flash_moe_async_load_join_upload`; reader threads contain `pread`
+and split-read joins. This supports continuing to optimize GPU work and I/O
+latency. Instrumented timing is not used for the 3.35 tokens/s benchmark.
+
+Artifacts in the permanent validation directory: `hy4-slots48-overlap-metal.trace`,
+`hy4-slots48-overlap-metal-{toc.xml,encoders.xml,summary.json,cpu-sample.txt}`,
+`hy4-slots48-overlap-gpu-intervals.xml`, and
+`hy4-slots48-overlap-metal-capture.json`. The local capture script
+`capture_hy4_overlap_trace.py` records the exact launch/attach procedure.
+
+## Optional F32 SIMD-group attention
+
+Set `DS4_HY4_SG_ATTENTION=1` on the reproduction command above. Unset/0
+retains the original Metal kernel. This DS4-specific follow-up computes QK in
+8-head/32-key tiles and values in 8-head/32-dimension tiles, with F32 inputs,
+scores and SIMD-group matrix accumulation throughout. The middle softmax
+retains the sink exactly once in the denominator. Buffer barriers preserve
+ordering on the existing command stream; no CPU completion waits are added.
+
+The matched ordinary-bank runs below use 48 slots, native top-8, ctx2048,
+no INT8, the same 709-token system cache and 31-token suffix, and 64 generated
+tokens. Both outputs exactly match the prior shared-overlap reference.
+
+| Per decode token | Original attention | F32 SIMD-group attention |
+| --- | ---: | ---: |
+| Generation | 3.38 tokens/s | 3.48 tokens/s |
+| 64-token elapsed time | 18.916 s | 18.383 s |
+| Token wall | 295.49 ms | 287.16 ms |
+| Completed GPU command time | 104.68 ms | 94.47 ms |
+| Inference worker CPU | 12.78 ms | 12.67 ms |
+| Expert misses | 241.328 | 241.328 |
+| Routed fused dispatches | 154 | 154 |
+
+These are bounded warm-file-cache results, below the 8 tokens/s goal. SSD
+waiting still dominates elapsed time. GPU time and wall time are overlapping
+clocks, not additive components. An earlier ordinary-bank control experienced
+an intermittent severe read slowdown and was stopped by SIGINT; it is excluded
+from this comparison and is not evidence of cooperative cancellation.
+
+The focused attention test passes 109 cases / 1,082,794 checks through 2048
+keys, including tile tails, partial head groups, poisoned future KV rows,
+nonzero offsets, guards, bounds and rejected output overlaps. Maximum absolute
+CPU-oracle error is 1.79e-7. Eight-slot native greedy16 and lifecycle tests match
+all 272 and 80 top-logit IDs and values respectively against the prior capture.
+The original attention and scalar CPU override remain available for diagnosis.
+
+Paired fresh-cache runs each evaluate the complete 709-token system prompt at
+48 slots / ctx2048, followed by the 31-token suffix and four output tokens.
+All 31,853,952 saved KV/KPE values and 120,832 final vocabulary logits are
+bit-identical with attention on and off. All 744 evaluation rows have identical
+cache counters; generated text also matches. This compares fresh runs of the
+same binary: the older cached benchmark prefix predates other compute changes
+and is not used as an exact fresh-prefill oracle. Cache format is unchanged.
+Evidence: `hy4-public-{sg,original}-cold` logs and isolated caches,
+`hy4-public-sg-cold-matched-comparison.json`, and
+`hy4-public-cold-provenance.json`. Fresh KV cache does not imply cold SSD pages.
+
+Evidence in the permanent `ds4-ssd-hy4-f32-attention-public` worktree under
+`profile_runs/slot-protect-validation/`: `hy4-public-sg-{off,on}-final` stdout,
+stderr, summaries and physical-device reports; `hy4-public-attention-test.log`;
+and `hy4-public-{greedy16,lifecycle}` JSONL/stderr. Physical-device counters
+include background traffic and snapshot boundary skew; they are not a cold-SSD
+claim. No new Instruments trace of the attention candidate is claimed.

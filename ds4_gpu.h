@@ -692,6 +692,48 @@ int ds4_gpu_matmul_fp8_e4m3_strided_rows5_tensor(
         uint64_t                out_stride,
         uint64_t                group_rows);
 
+/* HY4 routed sidecar matvec for IQ2_XXS/IQ3_XXS/IQ4_XS/STQ1_0.
+ * weights may be a view of one resident expert. Input/output are F32;
+ * row_bytes can include padding. This joins the normal GPU command lifetime. */
+int ds4_gpu_hy4_quant_matvec_tensor(ds4_gpu_tensor *out,
+                                     const ds4_gpu_tensor *weights,
+                                     const ds4_gpu_tensor *x,
+                                     uint32_t type, uint32_t in_dim,
+                                     uint32_t out_dim, uint64_t row_bytes);
+
+/* Two-dispatch native top-8 FFN. Gate/up types must match (43 or 16),
+ * down is 18 or 23. F32 h[8][n_ff] and out[n_embd] must be disjoint
+ * from all inputs. Host slots are copied at encode time after installation.
+ * Each bank view begins at family slot zero; strides may include other
+ * families/padding. Preserves clamp10 and post-down ordered weighting. */
+int ds4_gpu_hy4_fused_ffn_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *h,
+        const ds4_gpu_tensor *x, const ds4_gpu_tensor *gate,
+        const ds4_gpu_tensor *up, const ds4_gpu_tensor *down,
+        const ds4_gpu_tensor *weights, const int32_t slots[8], uint32_t slot_count,
+        uint32_t gate_type, uint32_t down_type, uint32_t n_embd, uint32_t n_ff,
+        const uint64_t row_bytes[3], const uint64_t slot_strides[3]);
+
+/* Four-stream HY4 iHC. fn is [head ? 4 : 8][4*emb], scale[1 or 2],
+ * base[4 or 8]. Pre uses mix scratch[4 or 8] and writes out[emb], post[4]
+ * (post is unused for head). Inputs and outputs must be disjoint F32 views.
+ * Post updates streams[4][emb] in place, rounding multiply before add. */
+int ds4_gpu_hy4_hc_pre_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *post,
+        ds4_gpu_tensor *mix, const ds4_gpu_tensor *streams,
+        const ds4_gpu_tensor *fn, const ds4_gpu_tensor *scale,
+        const ds4_gpu_tensor *base, uint32_t emb, int head);
+int ds4_gpu_hy4_hc_post_tensor(ds4_gpu_tensor *streams,
+        const ds4_gpu_tensor *x, const ds4_gpu_tensor *post, uint32_t emb);
+
+/* HY4 pointwise operations. Gate supports exact in-place x/out; partial
+ * overlap is rejected. Sum consumes down[8][n] and weights[8], with a disjoint
+ * output. Both join the caller's command batch and validate tensor views. */
+int ds4_gpu_hy4_sigmoid_mul_tensor(ds4_gpu_tensor *out,
+                                  const ds4_gpu_tensor *x,
+                                  const ds4_gpu_tensor *gate, uint32_t n);
+int ds4_gpu_hy4_weighted_sum8_tensor(ds4_gpu_tensor *out,
+                                    const ds4_gpu_tensor *down,
+                                    const ds4_gpu_tensor *weights, uint32_t n);
+
 int ds4_gpu_matmul_gguf_tensor(
         ds4_gpu_tensor       *out,
         const void             *model_map,
@@ -761,6 +803,31 @@ int ds4_gpu_glm52_attention_decode_tensor(
         const ds4_gpu_tensor *kpe_cache,
         ds4_gpu_tensor       *scores,
         uint32_t                n_past,
+        uint32_t                ctx,
+        uint32_t                n_head,
+        float                   scale);
+
+/* HY4 absorbed MLA: F32 KV512 + RoPE64, per-head zero-value softmax sink.
+ * n_keys includes the current token; only that causal prefix is read.
+ * scores is scratch [n_head][ctx], sinks is F32 [n_head]. */
+/* HY4 DSA: F32 LayerNorm(128, eps=1e-6); exact in-place input is allowed. */
+int ds4_gpu_hy4_index_norm_tensor(ds4_gpu_tensor *out, const ds4_gpu_tensor *x,
+        const ds4_gpu_tensor *weight, const ds4_gpu_tensor *bias);
+/* Gather unique causal top-k indices into compact MLA buffers. selected must
+ * contain count indices < live. The kernel bounds-checks before every read. */
+int ds4_gpu_hy4_gather_kv_tensor(ds4_gpu_tensor *kv_out, ds4_gpu_tensor *pe_out,
+        const ds4_gpu_tensor *kv, const ds4_gpu_tensor *pe,
+        const ds4_gpu_tensor *selected, uint32_t live, uint32_t count);
+
+int ds4_gpu_hy4_attention_decode_tensor(
+        ds4_gpu_tensor       *out,
+        const ds4_gpu_tensor *q_abs,
+        const ds4_gpu_tensor *q_raw,
+        const ds4_gpu_tensor *kv_cache,
+        const ds4_gpu_tensor *kpe_cache,
+        ds4_gpu_tensor       *scores,
+        const ds4_gpu_tensor *sinks,
+        uint32_t                n_keys,
         uint32_t                ctx,
         uint32_t                n_head,
         float                   scale);
