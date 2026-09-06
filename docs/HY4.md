@@ -231,3 +231,30 @@ text and exact agreement on the 272 checked top-logit IDs and values.
 On the same 48-slot/ctx2048 agent workload, GPU iHC improves 2.14 to **2.72 tokens/s** (64 tokens in 23.503 s), with identical generated text. Initial
 unfused/scalar iHC throughput was 1.53 tokens/s. This remains below the requested
 8 tokens/s; detailed clocks and remaining SSD cost are in HY4_PROFILING.md.
+
+## Shared FFN and request I/O overlap
+
+Eligible HY4 banks now start the fully reserved request's unique miss reads
+concurrently, then submit the independent shared FFN while the reads run.
+The router join completes every prior bank reader before slots are invalidated.
+All hit slots are hard protected before any miss is selected. Commit/touch stays
+in route order, preserving the synchronous LRU policy; duplicates share one
+load. Any read/encode/upload failure drains every worker before returning.
+
+`DS4_HY4_SHARED_IO_OVERLAP=0` restores synchronous installation and shared FFN
+ordering. Unset/empty/nonzero enables overlap for contiguous mixed banks with
+expert-major sidecars. Direct mmap, per-expert/per-slot/chunked banks, L2 cache
+modes, six-slot diagnostics and intermediate traces keep the existing path.
+`DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0` uses joined scratch reads instead of direct
+slot reads. `DS4_FLASH_MOE_CACHE_IO_SPLIT` still controls each read (default 4),
+with at most eight expert workers per layer; no readers survive the layer call.
+
+The fixed 48-slot agent workload improved **2.92 to 3.35 tokens/s** (64 tokens
+in 19.114 seconds) with identical output text and cache hit/miss counts.
+All 64 profile rows show native top-8, 154 fused dispatches and 77 overlap
+layers. Default-on 16-token testing exactly matches all 272 checked top-logit
+IDs and values; direct and scratch eight-slot lifecycle tests pass. Explicit overlap-off and
+CPU iHC lifecycle runs also match their respective prior captures exactly. A blocked
+reader regression covers hard hit protection, duplicate loads, abort/reuse and
+an I/O failure while another reader remains active. The 8 tokens/s target is
+still unmet. See HY4_PROFILING.md for timing definitions and evidence.

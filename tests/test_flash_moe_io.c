@@ -5,11 +5,15 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 static pthread_mutex_t io_mu = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t io_cv = PTHREAD_COND_INITIALIZER;
 static int io_entered;
 static int io_release;
+static int io_fail_first;
+static int join_watch, join_entered;
+static pthread_t join_watch_thread;
 #define TEST_IO_FD (-42)
 
 static ssize_t test_pread(int fd, void *buf, size_t count, off_t offset) {
@@ -17,14 +21,28 @@ static ssize_t test_pread(int fd, void *buf, size_t count, off_t offset) {
     pthread_mutex_lock(&io_mu);
     io_entered++;
     pthread_cond_broadcast(&io_cv);
+    if(io_fail_first && offset==640) {
+        pthread_mutex_unlock(&io_mu); errno=EIO; return -1;
+    }
     while (!io_release) pthread_cond_wait(&io_cv, &io_mu);
     pthread_mutex_unlock(&io_mu);
     memset(buf, 0xa5, count);
     return (ssize_t)count;
 }
 
+static int test_pthread_join(pthread_t thread, void **value) {
+    pthread_mutex_lock(&io_mu);
+    if(join_watch && pthread_equal(thread,join_watch_thread)) {
+        join_entered=1; pthread_cond_broadcast(&io_cv);
+    }
+    pthread_mutex_unlock(&io_mu);
+    return pthread_join(thread,value);
+}
+
 #define pread test_pread
+#define pthread_join test_pthread_join
 #include "../ds4.c"
+#undef pthread_join
 #undef pread
 
 static void wait_for_io(void) {
@@ -267,6 +285,85 @@ static void test_hy4_native_decode_slot_ids(void) {
     g_ds4_shape = saved_shape;
 }
 
+typedef struct {
+    ds4_gpu_graph *g;
+    ds4_flash_moe_request_loads *request;
+    int returned;
+    bool install;
+} request_abort_job;
+
+static void *abort_request_loads(void *arg) {
+    request_abort_job *job=arg;
+    assert(!metal_graph_flash_moe_request_loads_finish(job->g,0,job->request,job->install));
+    __atomic_store_n(&job->returned,1,__ATOMIC_RELEASE);
+    return NULL;
+}
+
+static void test_complete_request_async_abort(void) {
+    const ds4_shape saved_shape=g_ds4_shape;
+    g_ds4_shape=DS4_SHAPE_HY4;
+    ds4_gpu_graph *g=calloc(1,sizeof(*g));
+    ds4_flash_moe_sidecar *sidecar=calloc(1,sizeof(*sidecar));
+    int32_t s2e[4],e2s[DS4_MAX_EXPERT]; uint64_t age[4];
+    assert(g && sidecar);
+    init_bank(g,sidecar,s2e,e2s,age);
+    g->flash_slot_bank=4; g->flash_mixed_slot_bank=true;
+    s2e[2]=7; s2e[3]=8; e2s[7]=2; e2s[8]=3; age[2]=3; age[3]=4;
+    sidecar->layer[0].fd=TEST_IO_FD;
+    sidecar->layer[0].expert_stride=64;
+    setenv("DS4_FLASH_MOE_DIRECT_SLOT_PREAD","0",1);
+    setenv("DS4_FLASH_MOE_CACHE_IO_SPLIT","1",1);
+    const int32_t ids[]={10,5,11,10};
+    for(unsigned pass=0;pass<4;pass++) {
+        pthread_mutex_lock(&io_mu); io_entered=io_release=0; io_fail_first=pass==2; pthread_mutex_unlock(&io_mu);
+        ds4_flash_moe_request_loads request;
+        assert(metal_graph_flash_moe_request_loads_begin(g,0,ids,4,&request));
+        pthread_mutex_lock(&io_mu);
+        while(io_entered<2) pthread_cond_wait(&io_cv,&io_mu);
+        pthread_mutex_unlock(&io_mu);
+        assert(request.n_loads==2 && request.slots[0]==request.slots[3]);
+        assert(request.slots[1]==0 && e2s[5]==0 && s2e[0]==5); // later oldest hit is hard protected
+        assert(e2s[10]==-1 && e2s[11]==-1 && s2e[1]==-1 && s2e[2]==-1);
+        assert(s2e[3]==8 && e2s[8]==3); // unrelated resident remains valid
+        // Observe production cleanup reaching the join for an actually blocked
+        // reader, not merely the cleanup thread starting to run.
+        pthread_mutex_lock(&io_mu);
+        join_watch=1; join_entered=0;
+        join_watch_thread=request.loads[pass==2 ? 1 : 0].thread;
+        pthread_mutex_unlock(&io_mu);
+        request_abort_job job={.g=g,.request=&request,.install=pass==2}; pthread_t thread;
+        assert(!pthread_create(&thread,NULL,abort_request_loads,&job));
+        pthread_mutex_lock(&io_mu);
+        while(!join_entered) pthread_cond_wait(&io_cv,&io_mu);
+        pthread_mutex_unlock(&io_mu);
+        assert(!__atomic_load_n(&job.returned,__ATOMIC_ACQUIRE));
+        release_io(); assert(!pthread_join(thread,NULL));
+        pthread_mutex_lock(&io_mu); join_watch=0; pthread_mutex_unlock(&io_mu);
+        assert(job.returned && !g->flash_decode_ids_valid[0]);
+        for(unsigned li=0;li<request.n_loads;li++) {
+            assert(request.loads[li].joined && !request.loads[li].uploaded);
+            assert(request.loads[li].job.buf==NULL);
+        }
+    }
+    // All-hit requests and duplicate IDs need no readers and preserve route-order ages.
+    ds4_flash_moe_request_loads request;
+    const int32_t hits[]={5,8,5};
+    assert(metal_graph_flash_moe_request_loads_begin(g,0,hits,3,&request));
+    assert(request.n_loads==0);
+    assert(metal_graph_flash_moe_request_loads_finish(g,0,&request,true));
+    assert(g->flash_hits==2 && g->flash_misses==1 && age[0]<age[3]);
+    const int32_t invalid[]={5,256};
+    assert(!metal_graph_flash_moe_request_loads_begin(g,0,invalid,2,&request));
+    assert(e2s[5]==0 && e2s[8]==3);
+    sidecar->layer[0].family_major=true;
+    assert(!metal_graph_flash_moe_request_loads_supported(g,0));
+    sidecar->layer[0].family_major=false; g->flash_gpu_l2_slot_bank=1;
+    assert(!metal_graph_flash_moe_request_loads_supported(g,0));
+    free(g->flash_async_handout_scratch); free(sidecar); free(g);
+    unsetenv("DS4_FLASH_MOE_DIRECT_SLOT_PREAD"); unsetenv("DS4_FLASH_MOE_CACHE_IO_SPLIT");
+    g_ds4_shape=saved_shape;
+}
+
 int main(void) {
     alarm(20); /* A lifecycle regression should fail instead of hanging CI. */
     setenv("DS4_FLASH_MOE_BAKED_SLOT_DECODE", "0", 1);
@@ -279,6 +376,7 @@ int main(void) {
     test_prefill_drain();
     test_scratch_stop();
     test_direct_read_failures();
-    puts("PASS Flash-MoE I/O: blocked reader drain, scratch stop, paused split, reuse, direct-read invalidation, HY4 native eight-slot IDs");
+    test_complete_request_async_abort();
+    puts("PASS Flash-MoE I/O: blocked reader drain, scratch stop, paused split, reuse, direct-read invalidation, HY4 native eight-slot IDs, complete-request async abort/reuse");
     return 0;
 }

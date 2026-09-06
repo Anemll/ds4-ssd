@@ -1411,7 +1411,8 @@ static bool metal_graph_flash_moe_async_start_loads(
         const ds4_flash_moe_layer_sidecar  *sidecar_layer,
         ds4_flash_decode_async_load        *loads,
         uint32_t                            n_loads,
-        bool                                direct_slot_reads) {
+        bool                                direct_slot_reads,
+        int                                 io_split) {
     if (!g || !sidecar_layer || !loads) return false;
     if (n_loads == 0) return true;
     const bool allow_direct =
@@ -1453,7 +1454,7 @@ static bool metal_graph_flash_moe_async_start_loads(
                        (uint64_t)li * g->flash_async_handout_scratch_stride;
             job->buf_owned = false;
         }
-        job->io_split = flash_moe_async_handout_io_split();
+        job->io_split = io_split;
         g->flash_decode_prefetch_loads++;
         g->flash_decode_prefetch_bytes += sidecar_layer->expert_stride;
         if (pthread_create(&load->thread,
@@ -1523,6 +1524,97 @@ static bool metal_graph_flash_moe_async_load_join_upload(
     }
     load->uploaded = true;
     return true;
+}
+
+/* Complete-request asynchronous installation, used by native HY4 while the
+ * independent shared FFN runs. The caller must join prior bank users before
+ * begin, and finish (including on encode failure) before reusing this state.
+ * L2/identity/diagnostic modes retain their existing installation path. */
+typedef struct {
+    uint32_t n_ids, n_loads;
+    int32_t ids[DS4_MAX_EXPERT_USED], slots[DS4_MAX_EXPERT_USED];
+    int32_t load_index[DS4_MAX_EXPERT_USED];
+    ds4_flash_decode_async_load loads[DS4_MAX_EXPERT_USED];
+} ds4_flash_moe_request_loads;
+
+static bool metal_graph_flash_moe_request_loads_supported(const ds4_gpu_graph *g, uint32_t il) {
+    return g && g->flash_moe && il < DS4_N_LAYER &&
+        g->flash_moe->layer[il].expert_stride > 0 &&
+        !g->flash_moe->layer[il].family_major && g->flash_mixed_slot_bank &&
+        !g->flash_direct_mmap_bank && !g->flash_per_expert_buffers &&
+        !g->flash_per_slot_buffers && !g->flash_chunked_mixed_bank &&
+        !g->flash_gpu_l2_slot_bank && !g->flash_shared_l2_slot_bank &&
+        !g->flash_l2_slot_bank && !flash_moe_six_slot_baseline_enabled();
+}
+
+static bool metal_graph_flash_moe_request_loads_begin(ds4_gpu_graph *g,
+        uint32_t il, const int32_t *ids, uint32_t n_ids,
+        ds4_flash_moe_request_loads *request) {
+    if (!request) return false;
+    memset(request, 0, sizeof(*request));
+    if (!metal_graph_flash_moe_request_loads_supported(g,il) || il >= DS4_N_LAYER ||
+        !ids || !n_ids || n_ids > DS4_N_EXPERT_ACTIVE_USED ||
+        n_ids > DS4_MAX_EXPERT_USED) return false;
+    int32_t evicted[DS4_MAX_EXPERT_USED];
+    bool misses[DS4_MAX_EXPERT_USED], protected_experts[DS4_MAX_EXPERT] = {false};
+    if (flash_moe_preprotect_topk_enabled())
+        metal_graph_flash_moe_protect_routed_experts(ids,n_ids,protected_experts);
+    if (!metal_graph_flash_moe_resolve_request(g,il,ids,n_ids,protected_experts,
+            request->slots,evicted,misses)) return false;
+    request->n_ids=n_ids;
+    memcpy(request->ids,ids,n_ids*sizeof(*ids));
+    const ds4_flash_moe_layer_sidecar *layer=&g->flash_moe->layer[il];
+    for (uint32_t k=0;k<n_ids;k++) {
+        request->load_index[k]=-1;
+        bool duplicate=false;
+        for(uint32_t prev=0;prev<k;prev++) {
+            if(ids[prev]==ids[k]) { duplicate=true; break; }
+        }
+        if(duplicate || !misses[k]) continue;
+        uint32_t li=request->n_loads++;
+        request->load_index[k]=(int32_t)li;
+        ds4_flash_decode_async_load *load=&request->loads[li];
+        load->expert=ids[k]; load->slot=request->slots[k]; load->evicted=evicted[k];
+        if(!ds4_flash_decode_read_job_set_sidecar(&load->job,layer,ids[k],
+                flash_moe_cache_io_split())) return false;
+    }
+    /* Resolve ALL hits and misses before the first destination is invalidated
+     * or written. No mapping may describe an in-flight direct write. */
+    for(uint32_t li=0;li<request->n_loads;li++)
+        metal_graph_flash_moe_invalidate_decode_slot(g,il,request->loads[li].slot);
+    if(!metal_graph_flash_moe_async_start_loads(g,il,layer,request->loads,
+            request->n_loads,true,flash_moe_cache_io_split())) {
+        metal_graph_flash_moe_async_load_cleanup(g,il,request->loads,request->n_loads);
+        return false;
+    }
+    return true;
+}
+
+static bool metal_graph_flash_moe_request_loads_finish(ds4_gpu_graph *g,
+        uint32_t il, ds4_flash_moe_request_loads *request, bool install) {
+    if(!g || !request) return false;
+    bool ok=install;
+    /* Commit and touch in original route order, regardless of read completion
+     * order. This preserves the synchronous path's LRU ages and hit counts. */
+    for(uint32_t k=0;ok && k<request->n_ids;k++) {
+        bool duplicate=false;
+        for(uint32_t prev=0;prev<k;prev++)
+            if(request->ids[prev]==request->ids[k]) { duplicate=true; break; }
+        if(duplicate) continue;
+        int32_t li=request->load_index[k];
+        metal_graph_flash_moe_note_request_slot(g,il,request->ids[k],request->slots[k],li>=0);
+        if(li>=0) {
+            ds4_flash_decode_async_load *load=&request->loads[li];
+            ok=metal_graph_flash_moe_async_load_join_upload(g,il,load);
+            // Scratch upload already accounts bytes; direct upload does not.
+            if(ok && (load->job.direct_record || load->job.direct_slot))
+                g->flash_installed_bytes+=g->flash_moe->layer[il].expert_stride;
+        }
+    }
+    // Always join every reader, even after an earlier I/O/encode/upload error.
+    metal_graph_flash_moe_async_load_cleanup(g,il,request->loads,request->n_loads);
+    if(!ok) g->flash_decode_ids_valid[il]=0;
+    return ok;
 }
 
 static bool metal_graph_flash_moe_async_loads_complete(
@@ -2389,7 +2481,8 @@ static bool metal_graph_flash_moe_decode_async_handout(
                                                      sidecar_layer,
                                                      loads,
                                                      n_loads,
-                                                     !split_requested);
+                                                     !split_requested,
+                                                     flash_moe_async_handout_io_split());
     }
 
     const bool wait_grouped_ready =

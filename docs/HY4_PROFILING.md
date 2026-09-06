@@ -16,7 +16,8 @@ includes its iHC post. These are completion phases, not isolated shader timings.
 
 `DS4_FLASH_MOE_PROFILE=1` adds per-layer router synchronization and
 remap/install wall time. The latter includes slot bookkeeping, synchronous
-SSD/file-cache reads, and installation; it is not pure SSD device latency.
+SSD/file-cache reads, and installation; with overlap it also includes shared
+FFN encoding/submission while reads run. It is not pure SSD device latency.
 
 ## Reproduce the 48-slot agent measurement
 
@@ -169,6 +170,31 @@ sync diagnostic also matches the prior lifecycle exactly and reports all
 `hy4-sync-residual-lifecycle.{jsonl,log}`, `hy4-slots48-queued.{stdout,stderr}`
 and `hy4-slots48-queued-summary.json` in the permanent validation directory.
 
+## Shared FFN and concurrent request reads
+
+`DS4_HY4_SHARED_IO_OVERLAP` defaults on for eligible HY4 banks; explicit `=0`
+retains the prior ordering. `shared_io_layers` counts layers actually entering
+that path and `async_expert_reads` counts unique misses started. Reads remain
+bounded to the current top-8 request. Commit/touch ordering, slot capacity,
+expert count, routing and math are unchanged.
+
+The fixed workload now produces **3.35 tokens/s** (64 / 19.114 s), versus
+2.92 tokens/s queued-only. All generated text and cache counters match. Mean
+token wall is 298.6 ms, GPU command time 104.8 ms and remap/install wall
+165.5 ms. The inference worker's CPU time is 13.6 ms, but this excludes CPU
+consumed by the new reader threads; it is not total process CPU usage.
+Every decode row records 77 overlap layers, 154 fused dispatches and an async
+read count equal to misses (mean 241.3 / token). Hit rate stays 60.8%.
+
+The native eight-slot lifecycle, scratch fallback and default-on 16-token
+comparison pass with zero logit delta. Model-free tests hold multiple readers
+at a deterministic boundary and verify cleanup cannot return until all are
+released, including an early I/O error and subsequent request reuse.
+Evidence: `hy4-overlap-{lifecycle,greedy16,scratch-lifecycle}.{jsonl,log}`,
+`hy4-overlap-default-build.log`, `hy4-slots48-overlap.{stdout,stderr}` and
+`hy4-slots48-overlap-summary.json`. This is bounded warm-file-cache evidence;
+8 tokens/s and cold SSD performance remain unverified.
+
 ## Metal trace and CPU stack evidence
 
 A native `Metal System Trace` was recorded for 70 seconds from the same
@@ -199,3 +225,24 @@ Enabling profiling passed the eight-slot native lifecycle regression with
 bit-identical top-16 logits versus the previous run, including cancellation,
 rewind and full-capacity snapshot restore. Profiling does not change math,
 cache capacity, expert count, model bytes or compute defaults.
+
+## Optimized-path Metal trace
+
+A separate 10-second Metal System Trace attached after the first completed
+decode token of the optimized 48-slot agent run. Both recorder and agent exited
+0; the recording deadline did not stop the agent. A five-second CPU sample was
+collected alongside it. The exported 4,300 compute intervals merge to 3.805 s
+of GPU activity, spanning trace timestamps 0.396 to 10.795 s. These are
+command/encoder intervals, not isolated shader hardware timings. Runtime
+counters still supply the native top-8 and 154 fused-dispatch evidence.
+
+The inference worker sample contains waits in `ds4_gpu_end_commands` and
+`metal_graph_flash_moe_async_load_join_upload`; reader threads contain `pread`
+and split-read joins. This supports continuing to optimize GPU work and I/O
+latency. Instrumented timing is not used for the 3.35 tokens/s benchmark.
+
+Artifacts in the permanent validation directory: `hy4-slots48-overlap-metal.trace`,
+`hy4-slots48-overlap-metal-{toc.xml,encoders.xml,summary.json,cpu-sample.txt}`,
+`hy4-slots48-overlap-gpu-intervals.xml`, and
+`hy4-slots48-overlap-metal-capture.json`. The local capture script
+`capture_hy4_overlap_trace.py` records the exact launch/attach procedure.

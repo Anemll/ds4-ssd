@@ -44,14 +44,15 @@ These are native DS4 session operations; no llama.cpp subprocess backend is used
 | HY4 fused slot8 Phase A/B | `metal/hy4_fused.metal`, `ds4_gpu_hy4_fused_ffn_tensor()` and `hy4_eval_moe()`: four-row source dot kernels adapted to validated DS4 bank views/host slots; two dispatches/layer. Adds the generic graph's clamp10 missing from source fusion; preserves ordered separately rounded post-down weighting. `DS4_HY4_UNFUSED=1` keeps the numerical oracle. |
 | Attention sigmoid and ordered post-down expert sum | `ds4_gpu_hy4_sigmoid_mul_tensor()` and `ds4_gpu_hy4_weighted_sum8_tensor()` keep both operations in the native command batch; the sum preserves separate F32 multiply/add in expert order. `DS4_HY4_CPU_POINTWISE=1` retains the initial scalar reference. |
 | HYV4 chat template and tokenizer | HY4 framing and thinking/tool tokens in `ds4.c` and `ds4_agent.c`; vocabulary-only source/Jinja parity fixtures and streamed tool-parser regressions. |
-| Runtime lifecycle | Native session create/sync/eval/reset/rewind/payload save/load; synchronous complete-request SSD installation for both initial/resumed prefill and decode; cancellation at completed-token boundaries. |
+| Shared-FFN/SSD overlap and `finish_shared_io()` | `hy4_prepare_moe_overlap()` submits the independent shared FFN while `metal_graph_flash_moe_request_loads_begin/finish()` issues the fully reserved request. Existing async reader cleanup joins every worker on success or error; miss destinations are invalidated before writes and committed in route order. Explicit `DS4_HY4_SHARED_IO_OVERLAP=0` retains synchronous behavior. |
+| Runtime lifecycle | Native session create/sync/eval/reset/rewind/payload save/load; complete-request SSD installation with bounded shared-FFN overlap for both initial/resumed prefill and decode; cancellation at completed-token boundaries. |
 
 ## Exclusions and boundaries
 
 - Source `34cccef` has no native HY4 DSA or MTP. This port rejects contexts above
   2048 rather than presenting full attention as million-token HY4 support.
-- Shared-FFN/SSD overlap remains pending. Native fused top-8 and GPU iHC are
-  ported with clamp correctness and independent CPU/Metal/model validation.
+- Shared-FFN/SSD overlap, native fused top-8 and GPU iHC are ported with
+  explicit opt-outs, clamp correctness and CPU/Metal/model validation.
 - No ANE-INT8, M5 ALU/fusion tree, antirez catch-up, or other branch merge.
 - Existing DS4/HY3/GLM kernels and profiles retain their behavior. HY4 uses the
   current sidecar format and explicit dense/sidecar paths.

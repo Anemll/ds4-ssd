@@ -67,6 +67,15 @@ diagnostics. Unset/0 removes these redundant waits on GPU iHC; CPU iHC and
 trace mode always keep them. GPU phase profile values are null when combined
 command batches prevent separate timing; whole GPU time remains available.
 
+`DS4_HY4_SHARED_IO_OVERLAP` defaults on for HY4 contiguous mixed banks with
+expert-major sidecars. Set `=0` to restore synchronous installation and shared
+FFN ordering. Each fully reserved request issues at most eight unique expert
+reads while its independent shared FFN runs; every reader is joined on success
+or failure before returning. The existing `DS4_FLASH_MOE_CACHE_IO_SPLIT` applies
+per expert (default 4); `DS4_FLASH_MOE_DIRECT_SLOT_PREAD=0` uses scratch uploads.
+Direct mmap, per-expert/per-slot/chunked banks, L2 modes, six-slot diagnostics
+and trace captures retain the prior path. No DS4/HY3/GLM defaults change.
+
 `DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
 adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`
 for per-layer remap/install wall time. See [HY4_PROFILING.md](HY4_PROFILING.md).

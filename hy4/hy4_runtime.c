@@ -8,14 +8,14 @@
 typedef struct {
     double pre_cpu, post_cpu, head_cpu, attn_gpu, ffn_gpu, router_gpu;
     double router_install_wall;
-    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches, fused_dispatches, residual_joins;
+    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches, fused_dispatches, residual_joins, shared_io_layers, async_expert_reads;
 } hy4_profile;
 
 typedef struct {
     glm52_runtime mla; /* first member: shared MLA allocation/serialization */
     float *streams; // shared tensor contents, also used by the CPU oracle
     ds4_gpu_tensor *streams_gpu, *hc_post_gpu, *hc_mix_gpu;
-    bool cpu_ihc, sync_residual;
+    bool cpu_ihc, sync_residual, shared_io_overlap;
     float post[4];
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
@@ -178,9 +178,58 @@ static bool hy4_attention_gate(ds4_session *s, const ds4_layer_weights *layer) {
     return ds4_gpu_tensor_did_modify(r->attn_heads,0,n*sizeof(float)) && hy4_host_end();
 }
 
+static bool hy4_eval_shared(ds4_session *s, const ds4_model *m,
+                            const ds4_layer_weights *layer) {
+    glm52_runtime *r=glm52_rt(s);
+    const uint32_t mid=DS4_N_FF_EXP*DS4_N_EXPERT_SHARED;
+    return glm52_matmul(r->shared_gate,m,layer->ffn_gate_shexp,DS4_N_EMBD,mid,r->norm) &&
+        glm52_matmul(r->shared_up,m,layer->ffn_up_shexp,DS4_N_EMBD,mid,r->norm) &&
+        ds4_gpu_swiglu_tensor(r->shared_mid,r->shared_gate,r->shared_up,mid,0.0f,1.0f) &&
+        glm52_matmul(r->shared_out,m,layer->ffn_down_shexp,mid,DS4_N_EMBD,r->shared_mid);
+}
+
+static bool hy4_prepare_moe_overlap(ds4_session *s, const ds4_model *m,
+        const ds4_layer_weights *layer, uint32_t il, uint32_t pos) {
+    ds4_gpu_graph *g=&s->graph;
+    const bool profile=env_flag_enabled("DS4_FLASH_MOE_PROFILE") &&
+        !backend_diagnostic_logs_suppressed();
+    const double t0=profile ? now_sec() : 0.0;
+    // Complete the router and every prior bank reader before reservation/write.
+    if(!ds4_gpu_end_commands()) return false;
+    const double t_sync=profile ? now_sec() : 0.0;
+    int32_t ids[8]; float weights[8];
+    if(!ds4_gpu_tensor_read(g->router_selected,0,ids,sizeof(ids)) ||
+       !ds4_gpu_tensor_read(g->router_weights,0,weights,sizeof(weights))) return false;
+    flash_moe_decode_trace_record(pos,il,ids);
+    ds4_flash_moe_request_loads request;
+    if(!metal_graph_flash_moe_request_loads_begin(g,il,ids,8,&request)) return false;
+    const uint64_t miss_before=g->flash_misses;
+    // Shared FFN reads norm/dense weights only; its buffers do not alias the
+    // routed bank. Submit it while the bounded set of expert readers runs.
+    bool ok=ds4_gpu_begin_commands() && hy4_eval_shared(s,m,layer);
+    bool submitted=false;
+    if(ok && request.n_loads) { ok=ds4_gpu_submit_commands()!=0; submitted=ok; }
+    ok=metal_graph_flash_moe_request_loads_finish(g,il,&request,ok);
+    if(ok) ok=ds4_gpu_tensor_write(g->router_slot_selected,0,request.slots,sizeof(ids))!=0;
+    if(ok) {
+        metal_graph_flash_moe_record_decode_slots(g,il,ids,request.slots,8);
+        memcpy(g->flash_decode_weights[il],weights,sizeof(weights));
+        if(hy4_rt(s)->profile_enabled) {
+            hy4_rt(s)->profile.shared_io_layers++;
+            hy4_rt(s)->profile.async_expert_reads+=request.n_loads;
+        }
+    }
+    if(profile) fprintf(stderr,
+        "ds4: Flash-MoE layer=%u sync=%.3f ms remap/install=%.3f ms misses=%u\n",
+        il,(t_sync-t0)*1000.0,(now_sec()-t_sync)*1000.0,(uint32_t)(g->flash_misses-miss_before));
+    // On error the token's final synchronize drains any submitted shared work;
+    // all SSD workers have already been joined above on every path.
+    return ok && (!submitted || ds4_gpu_begin_commands());
+}
+
 static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
                          const ds4_layer_weights *layer, uint32_t il,
-                         uint32_t pos, const char **stage) {
+                         uint32_t pos, const char **stage, bool *shared_done) {
     glm52_runtime *r = glm52_rt(s);
     *stage = "moe.router";
     if (!glm52_matmul(r->router_logits,m,layer->ffn_gate_inp,DS4_N_EMBD,256,r->norm) ||
@@ -191,8 +240,10 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
     hy4_runtime *h=hy4_rt(s);
     const double install0=h->profile_enabled ? now_sec() : 0.0;
     const double router_gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
-    if (!metal_graph_flash_moe_prepare_decode(&s->graph,il,pos) ||
-        !s->graph.flash_decode_ids_valid[il]) return false;
+    *shared_done=h->shared_io_overlap && metal_graph_flash_moe_request_loads_supported(&s->graph,il);
+    bool prepared=*shared_done ? hy4_prepare_moe_overlap(s,m,layer,il,pos) :
+        metal_graph_flash_moe_prepare_decode(&s->graph,il,pos);
+    if(!prepared || !s->graph.flash_decode_ids_valid[il]) return false;
     if(h->profile_enabled) {
         h->profile.router_install_wall+=now_sec()-install0;
         h->profile.router_gpu+=ds4_gpu_busy_seconds()-router_gpu0;
@@ -319,6 +370,8 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     h->profile_enabled=env_flag_enabled("DS4_HY4_PROFILE");
     h->cpu_ihc=env_flag_enabled("DS4_HY4_CPU_IHC") || getenv("DS4_HY4_TRACE_DIR");
     h->sync_residual=h->cpu_ihc || env_flag_enabled("DS4_HY4_SYNC_RESIDUAL");
+    const char *overlap=getenv("DS4_HY4_SHARED_IO_OVERLAP");
+    h->shared_io_overlap=(!overlap || !*overlap || atoi(overlap)!=0) && !getenv("DS4_HY4_TRACE_DIR");
     s->logits=xmalloc(DS4_N_VOCAB*sizeof(float));
     bool ok=glm52_alloc_decode_tensors(s);
     /* HY4's leading dense FFN is wider than GLM52's. */
@@ -344,8 +397,8 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         s->graph.router_logits=h->mla.router_logits;
     }
     if(!ok) { hy4_session_free(s); free(s->logits); free(s); return 1; }
-    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s, residual joins=%s\n",
-            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal",h->sync_residual ? "on" : "router/token only");
+    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s, residual joins=%s, shared I/O overlap=%s\n",
+            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal",h->sync_residual ? "on" : "router/token only",h->shared_io_overlap ? "eligible banks" : "off");
     *out=s; return 0;
 }
 static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
@@ -508,29 +561,9 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
             HY4_STEP("ffn.dense_residual",
                        hy4_post(s,rt->ffn_down));
         } else {
-            if (ok) ok = hy4_eval_moe(s, m, layer, il, pos, &stage);
-            HY4_STEP("ffn.shared_gate",
-                       glm52_matmul(rt->shared_gate, m, layer->ffn_gate_shexp,
-                                    DS4_N_EMBD,
-                                    (uint64_t)DS4_N_FF_EXP * DS4_N_EXPERT_SHARED,
-                                    rt->norm));
-            HY4_STEP("ffn.shared_up",
-                       glm52_matmul(rt->shared_up, m, layer->ffn_up_shexp,
-                                    DS4_N_EMBD,
-                                    (uint64_t)DS4_N_FF_EXP * DS4_N_EXPERT_SHARED,
-                                    rt->norm));
-            HY4_STEP("ffn.shared_swiglu",
-                       ds4_gpu_swiglu_tensor(rt->shared_mid,
-                                             rt->shared_gate,
-                                             rt->shared_up,
-                                             (uint32_t)(DS4_N_FF_EXP * DS4_N_EXPERT_SHARED),
-                                             0.0f,
-                                             1.0f) != 0);
-            HY4_STEP("ffn.shared_down",
-                       glm52_matmul(rt->shared_out, m, layer->ffn_down_shexp,
-                                    (uint64_t)DS4_N_FF_EXP * DS4_N_EXPERT_SHARED,
-                                    DS4_N_EMBD,
-                                    rt->shared_mid));
+            bool shared_done=false;
+            if (ok) ok = hy4_eval_moe(s, m, layer, il, pos, &stage, &shared_done);
+            if(!shared_done) HY4_STEP("ffn.shared",hy4_eval_shared(s,m,layer));
             HY4_STEP("ffn.combine",
                        ds4_gpu_add_tensor(rt->ffn_out, rt->shared_out,
                                           rt->routed_out, DS4_N_EMBD) != 0);
@@ -583,7 +616,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                 "\"ihc_pre_cpu_ms\":%.6f,\"ihc_post_cpu_ms\":%.6f,\"ihc_head_cpu_ms\":%.6f,"
                 "\"router_install_wall_ms\":%.6f,\"hits\":%llu,\"misses\":%llu,\"installed_bytes\":%llu,"
                 "\"routed_quant_dispatches\":%u,\"routed_swiglu_dispatches\":%u,"
-                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\",\"ihc_path\":\"%s\",\"gpu_phase_scope\":\"%s\",\"residual_joins\":%u}\n",
+                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\",\"ihc_path\":\"%s\",\"gpu_phase_scope\":\"%s\",\"residual_joins\":%u,\"shared_io_layers\":%u,\"async_expert_reads\":%u}\n",
                 pos,s->graph.flash_slot_bank,DS4_N_EXPERT_ACTIVE_USED,
                 (now_sec()-wall0)*1000,(hy4_profile_cpu_seconds()-cpu0)*1000,(ds4_gpu_busy_seconds()-gpu0)*1000,
                 phases,
@@ -592,7 +625,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                 (unsigned long long)(s->graph.flash_installed_bytes-bytes0),
                 p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches,p->fused_dispatches,
                 p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert",h->cpu_ihc ? "cpu" : "metal",
-                h->sync_residual ? "residual_joins" : "router_batches",p->residual_joins);
+                h->sync_residual ? "residual_joins" : "router_batches",p->residual_joins,p->shared_io_layers,p->async_expert_reads);
     }
     rt->n_past++;
     token_vec_push(&s->checkpoint, token);

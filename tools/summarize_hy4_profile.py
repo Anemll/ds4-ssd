@@ -44,7 +44,7 @@ for row in rows:
         parser.error("incomplete routed layer accounting")
     row["routed_fused_dispatches"]=fused
 metrics = ("wall_ms", "worker_cpu_ms", "gpu_ms", "attn_gpu_ms", "ffn_gpu_ms",
-           "router_gpu_ms", "gpu_router_batches_ms", "residual_joins", "ihc_pre_cpu_ms", "ihc_post_cpu_ms", "ihc_head_cpu_ms",
+           "router_gpu_ms", "gpu_router_batches_ms", "residual_joins", "shared_io_layers", "async_expert_reads", "ihc_pre_cpu_ms", "ihc_post_cpu_ms", "ihc_head_cpu_ms",
            "router_install_wall_ms", "hits", "misses", "installed_bytes",
            "routed_quant_dispatches", "routed_swiglu_dispatches", "routed_reduce_dispatches", "routed_fused_dispatches")
 # A missing phase timestamp is unavailable, never zero GPU work. Do not
