@@ -246,3 +246,57 @@ Artifacts in the permanent validation directory: `hy4-slots48-overlap-metal.trac
 `hy4-slots48-overlap-gpu-intervals.xml`, and
 `hy4-slots48-overlap-metal-capture.json`. The local capture script
 `capture_hy4_overlap_trace.py` records the exact launch/attach procedure.
+
+## Optional F32 SIMD-group attention
+
+Set `DS4_HY4_SG_ATTENTION=1` on the reproduction command above. Unset/0
+retains the original Metal kernel. This DS4-specific follow-up computes QK in
+8-head/32-key tiles and values in 8-head/32-dimension tiles, with F32 inputs,
+scores and SIMD-group matrix accumulation throughout. The middle softmax
+retains the sink exactly once in the denominator. Buffer barriers preserve
+ordering on the existing command stream; no CPU completion waits are added.
+
+The matched ordinary-bank runs below use 48 slots, native top-8, ctx2048,
+no INT8, the same 709-token system cache and 31-token suffix, and 64 generated
+tokens. Both outputs exactly match the prior shared-overlap reference.
+
+| Per decode token | Original attention | F32 SIMD-group attention |
+| --- | ---: | ---: |
+| Generation | 3.38 tokens/s | 3.48 tokens/s |
+| 64-token elapsed time | 18.916 s | 18.383 s |
+| Token wall | 295.49 ms | 287.16 ms |
+| Completed GPU command time | 104.68 ms | 94.47 ms |
+| Inference worker CPU | 12.78 ms | 12.67 ms |
+| Expert misses | 241.328 | 241.328 |
+| Routed fused dispatches | 154 | 154 |
+
+These are bounded warm-file-cache results, below the 8 tokens/s goal. SSD
+waiting still dominates elapsed time. GPU time and wall time are overlapping
+clocks, not additive components. An earlier ordinary-bank control experienced
+an intermittent severe read slowdown and was stopped by SIGINT; it is excluded
+from this comparison and is not evidence of cooperative cancellation.
+
+The focused attention test passes 109 cases / 1,082,794 checks through 2048
+keys, including tile tails, partial head groups, poisoned future KV rows,
+nonzero offsets, guards, bounds and rejected output overlaps. Maximum absolute
+CPU-oracle error is 1.79e-7. Eight-slot native greedy16 and lifecycle tests match
+all 272 and 80 top-logit IDs and values respectively against the prior capture.
+The original attention and scalar CPU override remain available for diagnosis.
+
+Paired fresh-cache runs each evaluate the complete 709-token system prompt at
+48 slots / ctx2048, followed by the 31-token suffix and four output tokens.
+All 31,853,952 saved KV/KPE values and 120,832 final vocabulary logits are
+bit-identical with attention on and off. All 744 evaluation rows have identical
+cache counters; generated text also matches. This compares fresh runs of the
+same binary: the older cached benchmark prefix predates other compute changes
+and is not used as an exact fresh-prefill oracle. Cache format is unchanged.
+Evidence: `hy4-public-{sg,original}-cold` logs and isolated caches,
+`hy4-public-sg-cold-matched-comparison.json`, and
+`hy4-public-cold-provenance.json`. Fresh KV cache does not imply cold SSD pages.
+
+Evidence in the permanent `ds4-ssd-hy4-f32-attention-public` worktree under
+`profile_runs/slot-protect-validation/`: `hy4-public-sg-{off,on}-final` stdout,
+stderr, summaries and physical-device reports; `hy4-public-attention-test.log`;
+and `hy4-public-{greedy16,lifecycle}` JSONL/stderr. Physical-device counters
+include background traffic and snapshot boundary skew; they are not a cold-SSD
+claim. No new Instruments trace of the attention candidate is claimed.

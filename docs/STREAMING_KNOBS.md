@@ -48,6 +48,14 @@ uses Metal. This does not change slot count, routing, or the 2048-key limit.
 The two implementations are compared on deterministic buffers before native
 model validation.
 
+`DS4_HY4_SG_ATTENTION=1` selects the optional F32 SIMD-group attention path:
+QK tiles, sink-aware softmax, then value tiles. Unset/0 retains the original
+Metal attention. Inputs, scores and accumulators remain F32; no half-precision
+conversion or attention approximation is used. It supports the same native
+2048-key bound and preserves causal masking and the sink denominator. The CPU
+attention override takes precedence. No slot, I/O or session-format changes
+are involved. See [HY4_PROFILING.md](HY4_PROFILING.md) for the measured gain.
+
 HY4 uses a native fused top-8 routed FFN by default for contiguous slot banks:
 two Metal dispatches per MoE layer, with gate/up clamp10 and ordered weighting
 after each down projection. `DS4_HY4_UNFUSED=1` selects the separate-operation

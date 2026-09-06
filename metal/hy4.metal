@@ -179,3 +179,103 @@ kernel void kernel_hy4_weighted_sum8(
     }
     out[j] = sum;
 }
+
+// F32 absorbed attention via 8x8 SIMD-group matrix operations. The independent
+// head/key tiles share the latent KV row; no half activation conversion occurs.
+kernel void kernel_hy4_attention_qk_sg_f32(
+        constant ds4_metal_args_glm52_attention_decode &a [[buffer(0)]],
+        device const float *qa [[buffer(1)]], device const float *qr [[buffer(2)]],
+        device const float *kv [[buffer(3)]], device const float *pe [[buffer(4)]],
+        device float *scores [[buffer(5)]],
+        uint2 group [[threadgroup_position_in_grid]], uint tid [[thread_index_in_threadgroup]],
+        ushort sg [[simdgroup_index_in_threadgroup]]) {
+    const uint h0=group.x*8u,p0=group.y*32u;
+    threadgroup float qs[8*64],ks[32*64],dot[8*32];
+    simdgroup_float8x8 acc=make_filled_simdgroup_matrix<float,8>(0.0f);
+    for(uint base=0;base<576u;base+=64u) {
+        for(uint i=tid;i<8u*64u;i+=128u) {
+            uint h=h0+i/64u,d=base+i%64u;
+            qs[i]=h<a.n_head ? (d<512u ? qa[ulong(h)*512u+d] : qr[ulong(h)*256u+192u+d-512u]) : 0.0f;
+        }
+        for(uint i=tid;i<32u*64u;i+=128u) {
+            uint p=p0+i/64u,d=base+i%64u;
+            ks[i]=p<a.n_past ? (d<512u ? kv[ulong(p)*512u+d] : pe[ulong(p)*64u+d-512u]) : 0.0f;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for(uint db=0;db<8u;db++) {
+            simdgroup_float8x8 q,k;
+            simdgroup_load(q,qs+db*8u,64,0,false);
+            simdgroup_load(k,ks+uint(sg)*8u*64u+db*8u,64,0,true);
+            simdgroup_multiply_accumulate(acc,q,k,acc);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    simdgroup_store(acc,dot+uint(sg)*8u,32,0,false);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for(uint i=tid;i<8u*32u;i+=128u) {
+        uint h=h0+i/32u,p=p0+i%32u;
+        if(h<a.n_head && p<a.n_past) scores[ulong(h)*a.ctx+p]=dot[i]*a.scale;
+    }
+}
+
+kernel void kernel_hy4_attention_softmax_f32(
+        constant ds4_metal_args_glm52_attention_decode &a [[buffer(0)]],
+        device float *scores [[buffer(5)]],device const float *sinks [[buffer(7)]],
+        uint head [[threadgroup_position_in_grid]],uint tid [[thread_index_in_threadgroup]]) {
+    threadgroup float reduce[256];
+    device float *row=scores+ulong(head)*a.ctx;
+    float mx=sinks[head];
+    for(uint p=tid;p<a.n_past;p+=256u) mx=max(mx,row[p]);
+    reduce[tid]=mx;threadgroup_barrier(mem_flags::mem_threadgroup);
+    for(uint stride=128;stride;stride>>=1) {
+        if(tid<stride) reduce[tid]=max(reduce[tid],reduce[tid+stride]);
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    mx=reduce[0];threadgroup_barrier(mem_flags::mem_threadgroup);
+    float sum=tid==0 ? exp(sinks[head]-mx) : 0.0f;
+    for(uint p=tid;p<a.n_past;p+=256u) {float w=exp(row[p]-mx);row[p]=w;sum+=w;}
+    reduce[tid]=sum;threadgroup_barrier(mem_flags::mem_threadgroup | mem_flags::mem_device);
+    for(uint stride=128;stride;stride>>=1) {
+        if(tid<stride) reduce[tid]+=reduce[tid+stride];
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    const float inv=reduce[0]>0.0f ? 1.0f/reduce[0] : 0.0f;
+    for(uint p=tid;p<a.n_past;p+=256u) row[p]*=inv;
+}
+
+kernel void kernel_hy4_attention_av_sg_f32(
+        constant ds4_metal_args_glm52_attention_decode &a [[buffer(0)]],
+        device const float *kv [[buffer(3)]],device const float *scores [[buffer(5)]],
+        device float *out [[buffer(6)]],
+        uint2 group [[threadgroup_position_in_grid]],uint tid [[thread_index_in_threadgroup]],
+        ushort sg [[simdgroup_index_in_threadgroup]]) {
+    constexpr uint HC=8,KC=32,DV=32;
+    const uint h0=group.x*HC,d0=group.y*DV;
+    const uint sh=uint(sg)/(DV/8u),sd=uint(sg)%(DV/8u);
+    threadgroup float ws[HC*KC],vs[KC*DV],dot[HC*DV];
+    simdgroup_float8x8 acc=make_filled_simdgroup_matrix<float,8>(0.0f);
+    for(uint base=0;base<a.n_past;base+=KC) {
+        for(uint i=tid;i<HC*KC;i+=128u) {
+            uint h=h0+i/KC,p=base+i%KC;
+            ws[i]=h<a.n_head && p<a.n_past ? scores[ulong(h)*a.ctx+p] : 0.0f;
+        }
+        for(uint i=tid;i<KC*DV;i+=128u) {
+            uint p=base+i/DV,d=d0+i%DV;
+            vs[i]=p<a.n_past ? kv[ulong(p)*512u+d] : 0.0f;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for(uint db=0;db<KC/8u;db++) {
+            simdgroup_float8x8 w,v;
+            simdgroup_load(w,ws+sh*8u*KC+db*8u,KC,0,false);
+            simdgroup_load(v,vs+db*8u*DV+sd*8u,DV,0,false);
+            simdgroup_multiply_accumulate(acc,w,v,acc);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    simdgroup_store(acc,dot+sh*8u*DV+sd*8u,DV,0,false);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    for(uint i=tid;i<HC*DV;i+=128u) {
+        uint h=h0+i/DV,d=d0+i%DV;
+        if(h<a.n_head) out[ulong(h)*512u+d]=dot[i];
+    }
+}

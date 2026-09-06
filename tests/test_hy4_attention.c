@@ -12,6 +12,7 @@
 bool ds4_log_is_tty(FILE *fp) { (void)fp; return false; }
 
 static unsigned checks, cases;
+static bool sg_mode;
 static uint32_t random_state = UINT32_C(0x48593441);
 static double worst_error;
 static const float guard = -98765.25f;
@@ -144,6 +145,17 @@ static void run_case(uint32_t keys, uint32_t heads, bool zero_query) {
         ds4_gpu_tensor_free(tiny);
     }
 
+    if(sg_mode) {
+        CHECK(!ds4_gpu_hy4_attention_decode_tensor(out.view,qa.view,qr.view,kv.view,pe.view,out.view,sink.view,keys,ctx,heads,0.0625f));
+        CHECK(!ds4_gpu_hy4_attention_decode_tensor(out.view,qa.view,qr.view,kv.view,pe.view,kv.view,sink.view,keys,ctx,heads,0.0625f));
+    }
+    if(keys==741 && heads==64) {
+        const double before=ds4_gpu_busy_seconds();
+        CHECK(ds4_gpu_begin_commands());
+        for(unsigned repeat=0;repeat<32;repeat++) CHECK(ds4_gpu_hy4_attention_decode_tensor(out.view,qa.view,qr.view,kv.view,pe.view,scores.view,sink.view,keys,ctx,heads,0.0625f));
+        CHECK(ds4_gpu_end_commands());
+        printf("HY4 attention %s keys741 heads64 GPU_us=%.3f (warm32)\n",sg_mode?"F32_SG":"original",(ds4_gpu_busy_seconds()-before)*1e6/32);
+    }
     free(scratch); free(first); free(reference);
     tensor_free(&out); tensor_free(&scores); tensor_free(&sink);
     tensor_free(&pe); tensor_free(&kv); tensor_free(&qr); tensor_free(&qa);
@@ -152,12 +164,15 @@ static void run_case(uint32_t keys, uint32_t heads, bool zero_query) {
 
 int main(void) {
     CHECK(ds4_gpu_init());
-    const uint32_t keys[] = {1, 3, 129, 2048};
-    const uint32_t heads[] = {1, 3, 8, 64};
-    for (unsigned k = 0; k < 4; ++k) for (unsigned h = 0; h < 4; ++h)
-        run_case(keys[k], heads[h], false);
-    run_case(3, 3, true);
-    run_case(129, 8, true);
+    const uint32_t keys[] = {1,3,31,32,33,63,64,65,127,128,129,741,2048};
+    const uint32_t heads[] = {1,3,8,64};
+    for(unsigned mode=0;mode<2;mode++) {
+        sg_mode=mode!=0;
+        setenv("DS4_HY4_SG_ATTENTION",sg_mode?"1":"0",1);
+        for(unsigned k=0;k<sizeof(keys)/sizeof(keys[0]);k++) for(unsigned h=0;h<4;h++) run_case(keys[k],heads[h],false);
+        run_case(3,3,true);run_case(129,8,true);
+    }
+    sg_mode=false;setenv("DS4_HY4_SG_ATTENTION","0",1);run_case(741,64,false);
     ds4_gpu_cleanup();
     printf("PASS HY4 Metal sink attention: %u cases, %u checks, maxabs %.3g; causal prefix, offset views, bounds, CPU and analytic oracles\n",
            cases, checks, worst_error);

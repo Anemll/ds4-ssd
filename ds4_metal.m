@@ -14238,6 +14238,8 @@ int ds4_gpu_glm52_attention_decode_tensor(
     return 1;
 }
 
+static bool ds4_hy4_pointwise_overlap(const ds4_gpu_tensor *a,uint64_t na,
+                                      const ds4_gpu_tensor *b,uint64_t nb);
 int ds4_gpu_hy4_attention_decode_tensor(
         ds4_gpu_tensor       *out,
         const ds4_gpu_tensor *q_abs,
@@ -14277,9 +14279,24 @@ int ds4_gpu_hy4_attention_decode_tensor(
             return 0;
         }
 
-        id<MTLComputePipelineState> pipeline =
-            ds4_gpu_get_pipeline("kernel_hy4_attention_decode");
-        if (!pipeline) return 0;
+        const bool sg=ds4_gpu_env_flag_enabled("DS4_HY4_SG_ATTENTION");
+        if(sg) {
+            if(n_keys>2048) return 0;
+            const ds4_gpu_tensor *input[]={q_abs,q_raw,kv_cache,kpe_cache,sinks};
+            const uint64_t ib[]={(uint64_t)n_head*512*4,(uint64_t)n_head*256*4,
+                (uint64_t)ctx*512*4,(uint64_t)ctx*64*4,(uint64_t)n_head*4};
+            const uint64_t ob=(uint64_t)n_head*512*4,sb=(uint64_t)n_head*ctx*4;
+            if(ds4_gpu_tensor_offset(out)%4 || ds4_gpu_tensor_offset(scores)%4 ||
+                ds4_hy4_pointwise_overlap(out,ob,scores,sb)) return 0;
+            for(unsigned i=0;i<5;i++) if(ds4_gpu_tensor_offset(input[i])%4 ||
+                ds4_hy4_pointwise_overlap(out,ob,input[i],ib[i]) ||
+                ds4_hy4_pointwise_overlap(scores,sb,input[i],ib[i])) return 0;
+        }
+        id<MTLComputePipelineState> pipeline=ds4_gpu_get_pipeline(sg ?
+            "kernel_hy4_attention_qk_sg_f32" : "kernel_hy4_attention_decode");
+        id<MTLComputePipelineState> softmax=sg ? ds4_gpu_get_pipeline("kernel_hy4_attention_softmax_f32") : nil;
+        id<MTLComputePipelineState> av=sg ? ds4_gpu_get_pipeline("kernel_hy4_attention_av_sg_f32") : nil;
+        if(!pipeline || (sg && (!softmax || !av))) return 0;
 
         ds4_gpu_glm52_attention_decode_args args = {
             .n_past = n_keys,
@@ -14301,8 +14318,16 @@ int ds4_gpu_hy4_attention_decode_tensor(
         [enc setBuffer:scorebuf offset:ds4_gpu_tensor_offset(scores) atIndex:5];
         [enc setBuffer:outbuf offset:ds4_gpu_tensor_offset(out) atIndex:6];
         [enc setBuffer:sinkbuf offset:ds4_gpu_tensor_offset(sinks) atIndex:7];
-        [enc dispatchThreadgroups:MTLSizeMake((NSUInteger)n_head, 1, 1)
-             threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        if(sg) {
+            [enc dispatchThreadgroups:MTLSizeMake((n_head-1u)/8u+1u,(n_keys-1u)/32u+1u,1)
+                 threadsPerThreadgroup:MTLSizeMake(128,1,1)];
+            [enc memoryBarrierWithScope:MTLBarrierScopeBuffers];
+            [enc setComputePipelineState:softmax];
+            [enc dispatchThreadgroups:MTLSizeMake(n_head,1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
+            [enc memoryBarrierWithScope:MTLBarrierScopeBuffers];
+            [enc setComputePipelineState:av];
+            [enc dispatchThreadgroups:MTLSizeMake((n_head-1u)/8u+1u,16,1) threadsPerThreadgroup:MTLSizeMake(128,1,1)];
+        } else [enc dispatchThreadgroups:MTLSizeMake(n_head,1,1) threadsPerThreadgroup:MTLSizeMake(256,1,1)];
         ds4_gpu_end_compute_encoder(cb, enc);
 
         if (!ds4_gpu_finish_command_buffer(cb, owned, "HY4 sink attention")) return 0;
