@@ -5,7 +5,10 @@ stderr. It adds clock/counter reads at existing boundaries, with no extra GPU
 submissions or waits. Unset or 0 disables it. GPU measurements use completed
 Metal command-buffer timestamps; CPU measurements use the worker thread's CPU
 clock. The phase buckets describe work completed at the existing joins, so
-CPU attention/pointwise fallbacks can move work between buckets.
+CPU attention/pointwise/iHC fallbacks can move work between buckets. With GPU
+iHC, the attention bucket includes its iHC pre/post, the router bucket includes
+FFN iHC pre, and the FFN bucket includes its iHC post. These are completion
+phases rather than isolated shader timings.
 
 `DS4_FLASH_MOE_PROFILE=1` adds per-layer router synchronization and
 remap/install wall time. The latter includes slot bookkeeping, synchronous
@@ -103,9 +106,8 @@ top-logit IDs with maximum logit delta 0.0000095; lifecycle regressions pass.
 
 These are bounded serial warm-file-cache runs, not cold-SSD throughput or an
 8 tokens/s result. Small routing differences from F32 reduction order can
-change cache counters even with identical generated text. CPU iHC, SSD install
-and attention are the next measured costs; GPU iHC/shared-FFN overlap remain
-pending. Clock overlap definitions above still apply.
+change cache counters even with identical generated text. The next section
+measures the GPU iHC follow-up. Clock overlap definitions above still apply.
 
 Evidence: `hy4-slots48-fused.{stdout,stderr}`, `hy4-slots48-fused-summary.json`,
 `hy4-fused-test.log`, `hy4-fused-lifecycle.{jsonl,log}` and
@@ -113,6 +115,33 @@ Evidence: `hy4-slots48-fused.{stdout,stderr}`, `hy4-slots48-fused-summary.json`,
 The following Metal System Trace describes the earlier unfused baseline.
 Fused execution is verified by counters on the actual encode path and GPU
 command timestamps; no new fused Instruments capture is claimed here.
+
+## GPU iHC follow-up
+
+GPU independent HC keeps the existing residual completion joins, with exact
+F32 post multiply/add and parallel mix dots. `DS4_HY4_CPU_IHC=1` selects the
+scalar oracle; unset/0 uses GPU. No session cache layout changes are needed.
+
+The identical fixed workload produces **2.72 tokens/s** (64 tokens / 23.503 s),
+with the same generated text. All 64 decode rows confirm `ihc_path=metal`,
+`routed_path=fused_top8`, top-8 and 48 slots. Mean token wall is 367.1 ms;
+worker CPU is 74.9 ms, GPU command time 105.1 ms, iHC pre CPU 2.21 ms, post CPU
+1.87 ms and head CPU 0.015 ms. CPU iHC's corresponding total was about 104 ms.
+Remap/install remains 194.8 ms and hit rate 60.8%; SSD installation is now the
+largest measured remaining phase. Device traffic is not inferred solely from
+installed-byte counters because reads can be serviced by the OS file cache.
+
+The focused HC suite passes 129,820 checks; post is bit exact and pre/head
+maximum scaled error is 1.28e-5 (bound 4e-5). The eight-slot native lifecycle and
+16-token model comparison pass, all 272 top IDs agree, maximum logit delta
+0.0001049 (bound 0.001). The CPU opt-out matches the earlier lifecycle exactly.
+This remains a bounded warm-cache result, below the 8 tokens/s objective.
+
+Evidence: `hy4-hc-test.log`, `hy4-hc-lifecycle.{jsonl,log}`,
+`hy4-hc-greedy16.{jsonl,log}`, `hy4-hc-cpu-lifecycle.{jsonl,log}`,
+`hy4-slots48-hc.{stdout,stderr}`, `hy4-slots48-hc-summary.json`. GPU phase clocks
+include iHC work at the joins described above; they cannot be treated as pure
+attention/router/FFN kernel timings. No new Instruments trace is claimed.
 
 ## Metal trace and CPU stack evidence
 

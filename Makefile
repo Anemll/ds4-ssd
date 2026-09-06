@@ -343,3 +343,10 @@ tests/test_hy4_fused: tests/test_hy4_fused.c hy4/hy4_quants.c hy4/hy4_quants.h d
 .PHONY: hy4-fused-test
 hy4-fused-test: tests/test_hy4_fused
 	./tests/test_hy4_fused
+
+# Independent HY4 HC GPU math, no model loading.
+tests/test_hy4_hc: tests/test_hy4_hc.c hy4/hy4_math.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_hc.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-hc-test
+hy4-hc-test: tests/test_hy4_hc
+	./tests/test_hy4_hc

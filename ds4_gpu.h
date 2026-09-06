@@ -713,6 +713,17 @@ int ds4_gpu_hy4_fused_ffn_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *h,
         uint32_t gate_type, uint32_t down_type, uint32_t n_embd, uint32_t n_ff,
         const uint64_t row_bytes[3], const uint64_t slot_strides[3]);
 
+/* Four-stream HY4 iHC. fn is [head ? 4 : 8][4*emb], scale[1 or 2],
+ * base[4 or 8]. Pre uses mix scratch[4 or 8] and writes out[emb], post[4]
+ * (post is unused for head). Inputs and outputs must be disjoint F32 views.
+ * Post updates streams[4][emb] in place, rounding multiply before add. */
+int ds4_gpu_hy4_hc_pre_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *post,
+        ds4_gpu_tensor *mix, const ds4_gpu_tensor *streams,
+        const ds4_gpu_tensor *fn, const ds4_gpu_tensor *scale,
+        const ds4_gpu_tensor *base, uint32_t emb, int head);
+int ds4_gpu_hy4_hc_post_tensor(ds4_gpu_tensor *streams,
+        const ds4_gpu_tensor *x, const ds4_gpu_tensor *post, uint32_t emb);
+
 /* HY4 pointwise operations. Gate supports exact in-place x/out; partial
  * overlap is rejected. Sum consumes down[8][n] and weights[8], with a disjoint
  * output. Both join the caller's command batch and validate tensor views. */

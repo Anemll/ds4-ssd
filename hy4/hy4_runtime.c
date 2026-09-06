@@ -1,7 +1,7 @@
 /* Native HY4 bring-up: source math from anemll-flash-llama.cpp 34cccef.
- * Dense/quantized projections and sink-aware attention use Metal. Small
- * iHC operations retain explicit F32 reference arithmetic; CPU attention is
- * available as a numerical oracle. GLM MLA storage has the same latent shape.
+ * Dense/quantized projections, iHC and sink-aware attention use Metal.
+ * iHC and attention retain scalar numerical oracles. GLM MLA storage has
+ * the same latent shape.
  * Included after glm52_runtime.c and the public session structure. */
 #include "hy4_math.h"
 
@@ -13,7 +13,9 @@ typedef struct {
 
 typedef struct {
     glm52_runtime mla; /* first member: shared MLA allocation/serialization */
-    float *streams;
+    float *streams; // shared tensor contents, also used by the CPU oracle
+    ds4_gpu_tensor *streams_gpu, *hc_post_gpu, *hc_mix_gpu;
+    bool cpu_ihc;
     float post[4];
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
@@ -56,11 +58,29 @@ static bool hy4_trace_gpu(const char *name,int il,ds4_gpu_tensor *x,size_t n,uin
 static bool hy4_host_begin(void) { return ds4_gpu_synchronize() != 0; }
 static bool hy4_host_end(void) { return ds4_gpu_begin_commands() != 0; }
 
+static bool hy4_gpu_pre(ds4_session *s, const ds4_tensor *fn,
+                         const ds4_tensor *scale, const ds4_tensor *base, bool head) {
+    hy4_runtime *h=hy4_rt(s);
+    const ds4_model *m=&s->engine->model;
+    ds4_gpu_tensor *f=ds4_gpu_model_tensor_view(m->map,m->size,fn->abs_offset,fn->bytes);
+    ds4_gpu_tensor *sc=ds4_gpu_model_tensor_view(m->map,m->size,scale->abs_offset,scale->bytes);
+    ds4_gpu_tensor *b=ds4_gpu_model_tensor_view(m->map,m->size,base->abs_offset,base->bytes);
+    bool ok=f && sc && b && ds4_gpu_hy4_hc_pre_tensor(h->mla.cur,h->hc_post_gpu,
+        h->hc_mix_gpu,h->streams_gpu,f,sc,b,DS4_N_EMBD,head);
+    ds4_gpu_tensor_free(f);ds4_gpu_tensor_free(sc);ds4_gpu_tensor_free(b);
+    return ok;
+}
+
 static bool hy4_pre(ds4_session *s, const ds4_tensor *fn,
                      const ds4_tensor *scale, const ds4_tensor *base) {
     hy4_runtime *h = hy4_rt(s);
     const ds4_model *m = &s->engine->model;
     const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
+    if (!h->cpu_ihc) {
+        bool ok=hy4_gpu_pre(s,fn,scale,base,false);
+        if(h->profile_enabled) h->profile.pre_cpu+=hy4_profile_cpu_seconds()-cpu0;
+        return ok;
+    }
     if (!hy4_host_begin()) return false;
     if (!hy4_hc_pre(h->mla.embed_host, h->post, h->streams,
                 tensor_data(m, fn), tensor_data(m, scale), tensor_data(m, base),
@@ -74,11 +94,18 @@ static bool hy4_post(ds4_session *s, ds4_gpu_tensor *x) {
     hy4_runtime *h = hy4_rt(s);
     const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
     const double gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
+    if (!h->cpu_ihc && !ds4_gpu_hy4_hc_post_tensor(h->streams_gpu,x,h->hc_post_gpu,DS4_N_EMBD)) return false;
+    // Preserve the residual completion boundary while moving arithmetic to
+    // Metal. Slot bank reuse and completed command timing retain their joins.
     if (!hy4_host_begin()) return false;
     if(h->profile_enabled) {
         double elapsed=ds4_gpu_busy_seconds()-gpu0;
         if(x==h->mla.attn_out) h->profile.attn_gpu+=elapsed;
         else h->profile.ffn_gpu+=elapsed;
+    }
+    if (!h->cpu_ihc) {
+        if(h->profile_enabled) h->profile.post_cpu+=hy4_profile_cpu_seconds()-cpu0;
+        return hy4_host_end();
     }
     if (!ds4_gpu_tensor_read(x, 0, h->mla.embed_host, DS4_N_EMBD * sizeof(float))) return false;
     if (!hy4_hc_post(h->streams, h->mla.embed_host, h->streams, h->post, DS4_N_EMBD, 4)) return false;
@@ -91,6 +118,11 @@ static bool hy4_head(ds4_session *s) {
     const ds4_model *m = &s->engine->model;
     const ds4_weights *w = &s->engine->weights;
     const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
+    if (!h->cpu_ihc) {
+        bool ok=hy4_gpu_pre(s,w->output_hc_fn,w->output_hc_scale,w->output_hc_base,true);
+        if(h->profile_enabled) h->profile.head_cpu+=hy4_profile_cpu_seconds()-cpu0;
+        return ok;
+    }
     if (!hy4_host_begin()) return false;
     if (!hy4_hc_head(h->mla.embed_host, h->streams, tensor_data(m,w->output_hc_fn),
                  tensor_data(m,w->output_hc_scale), tensor_data(m,w->output_hc_base),
@@ -250,7 +282,9 @@ static void hy4_session_free(ds4_session *s) {
     hy4_runtime *h=hy4_rt(s);
     if (!h) return;
     (void)ds4_gpu_synchronize();
-    free(h->streams);
+    ds4_gpu_tensor_free(h->streams_gpu);
+    ds4_gpu_tensor_free(h->hc_post_gpu);
+    ds4_gpu_tensor_free(h->hc_mix_gpu);
     free(h->attention_scores);
     ds4_gpu_tensor_free(h->attention_gate);
     ds4_gpu_tensor_free(h->fused_mid);
@@ -276,6 +310,7 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     hy4_runtime *h=xcalloc(1,sizeof(*h));
     s->engine=e; s->ctx_size=ctx_size; s->prefill_cap=1; s->variant_runtime=h;
     h->profile_enabled=env_flag_enabled("DS4_HY4_PROFILE");
+    h->cpu_ihc=env_flag_enabled("DS4_HY4_CPU_IHC") || getenv("DS4_HY4_TRACE_DIR");
     s->logits=xmalloc(DS4_N_VOCAB*sizeof(float));
     bool ok=glm52_alloc_decode_tensors(s);
     /* HY4's leading dense FFN is wider than GLM52's. */
@@ -285,9 +320,12 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     h->mla.ffn_mid=ds4_gpu_tensor_alloc(18432*sizeof(float));
     h->attention_gate=ds4_gpu_tensor_alloc(DS4_N_HEAD*256*sizeof(float));
     h->fused_mid=ds4_gpu_tensor_alloc(8*DS4_N_FF_EXP*sizeof(float));
-    h->streams=xmalloc(4*DS4_N_EMBD*sizeof(float));
+    h->streams_gpu=ds4_gpu_tensor_alloc(4*DS4_N_EMBD*sizeof(float));
+    h->hc_post_gpu=ds4_gpu_tensor_alloc(4*sizeof(float));
+    h->hc_mix_gpu=ds4_gpu_tensor_alloc(8*sizeof(float));
+    h->streams=ds4_gpu_tensor_contents(h->streams_gpu);
     h->attention_scores=xmalloc(ctx_size*sizeof(float));
-    ok=ok && h->mla.ffn_gate && h->mla.ffn_up && h->mla.ffn_mid && h->attention_gate && h->fused_mid;
+    ok=ok && h->mla.ffn_gate && h->mla.ffn_up && h->mla.ffn_mid && h->attention_gate && h->fused_mid && h->streams && h->hc_post_gpu && h->hc_mix_gpu;
     s->graph.prefill_cap=1; s->graph.quality=e->quality;
     s->graph.dense_mapped_bytes=e->model.size-e->model.tensor_data_pos;
     if(ok) ok=metal_graph_enable_flash_moe(&s->graph,e->flash_moe,&e->weights.layer[DS4_N_DENSE_LEAD]);
@@ -298,8 +336,8 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
         s->graph.router_logits=h->mla.router_logits;
     }
     if(!ok) { hy4_session_free(s); free(s->logits); free(s); return 1; }
-    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s\n",
-            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal");
+    fprintf(stderr,"ds4: HY4 native runtime: top-8, %u slots/layer, token-wise prefill, ctx=%d, gate/reduce=%s, iHC=%s\n",
+            s->graph.flash_slot_bank,ctx_size,env_flag_enabled("DS4_HY4_CPU_POINTWISE") ? "CPU reference" : "Metal",h->cpu_ihc ? "CPU reference" : "Metal");
     *out=s; return 0;
 }
 static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
@@ -332,6 +370,9 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
     }
 
     for (uint32_t h=0;h<4;h++) memcpy(hy4_rt(s)->streams+h*DS4_N_EMBD,rt->embed_host,DS4_N_EMBD*sizeof(float));
+    if (!ds4_gpu_tensor_did_modify(h->streams_gpu,0,4*DS4_N_EMBD*sizeof(float))) {
+        snprintf(err,errlen,"HY4 failed to publish embedding streams"); return 1;
+    }
     (void)ds4_gpu_begin_commands();
     bool ok = true;
 
@@ -527,7 +568,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                 "\"ihc_pre_cpu_ms\":%.6f,\"ihc_post_cpu_ms\":%.6f,\"ihc_head_cpu_ms\":%.6f,"
                 "\"router_install_wall_ms\":%.6f,\"hits\":%llu,\"misses\":%llu,\"installed_bytes\":%llu,"
                 "\"routed_quant_dispatches\":%u,\"routed_swiglu_dispatches\":%u,"
-                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\"}\n",
+                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\",\"ihc_path\":\"%s\"}\n",
                 pos,s->graph.flash_slot_bank,DS4_N_EXPERT_ACTIVE_USED,
                 (now_sec()-wall0)*1000,(hy4_profile_cpu_seconds()-cpu0)*1000,(ds4_gpu_busy_seconds()-gpu0)*1000,
                 p->attn_gpu*1000,p->ffn_gpu*1000,p->router_gpu*1000,
@@ -535,7 +576,7 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                 (unsigned long long)(s->graph.flash_hits-hits0),(unsigned long long)(s->graph.flash_misses-misses0),
                 (unsigned long long)(s->graph.flash_installed_bytes-bytes0),
                 p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches,p->fused_dispatches,
-                p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert");
+                p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert",h->cpu_ihc ? "cpu" : "metal");
     }
     rt->n_past++;
     token_vec_push(&s->checkpoint, token);

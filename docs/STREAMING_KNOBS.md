@@ -57,6 +57,12 @@ attention gating/expert reduction. A `DS4_HY4_TRACE_DIR` capture uses the
 separate path to materialize all diagnostic intermediates. None of these
 switches changes routing, slot count, I/O drainage, or model precision.
 
+HY4 independent HC (pre, post and output head) now runs on Metal by default.
+`DS4_HY4_CPU_IHC=1` retains the scalar F32 oracle; unset/0 uses Metal. A trace
+capture also selects the scalar oracle. The post broadcast preserves separately
+rounded F32 multiply/add; mix dots use a parallel F32 reduction. Existing
+residual completion joins, slot lifetimes and session payload format are kept.
+
 `DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
 adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`
 for per-layer remap/install wall time. See [HY4_PROFILING.md](HY4_PROFILING.md).

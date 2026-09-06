@@ -50,11 +50,11 @@ metrics = ("wall_ms", "worker_cpu_ms", "gpu_ms", "attn_gpu_ms", "ffn_gpu_ms",
 summary = {key: statistics.mean(row[key] for row in rows) for key in metrics}
 summary.update(completed_decode_tokens=len(rows), first_position=rows[0]["pos"],
                last_position=rows[-1]["pos"], slots=sorted({row["slots"] for row in rows}),
-               topk=8, routed_paths=sorted({row["routed_path"] for row in rows}), hit_rate=sum(row["hits"] for row in rows) / (len(rows) * 77 * 8))
+               topk=8, ihc_paths=sorted({row.get("ihc_path", "cpu") for row in rows}), routed_paths=sorted({row["routed_path"] for row in rows}), hit_rate=sum(row["hits"] for row in rows) / (len(rows) * 77 * 8))
 if all(len(row["layer_logs"]) == 77 for row in rows):
     summary["install_wall_ms"] = statistics.mean(
         sum(layer["install_ms"] for layer in row["layer_logs"]) for row in rows)
     summary["router_sync_wall_ms"] = statistics.mean(
         sum(layer["sync_ms"] for layer in row["layer_logs"]) for row in rows)
-summary["timing_note"] = "Per-token means. GPU phase rows are included in gpu_ms; iHC CPU rows are included in worker_cpu_ms. Install wall includes host work. Do not add overlapping clocks."
+summary["timing_note"] = "Per-token means. GPU phase rows are included in gpu_ms and include iHC work before that join; iHC CPU rows are included in worker_cpu_ms. Install wall includes host work. Do not add overlapping clocks."
 print(json.dumps(summary, indent=2))

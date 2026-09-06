@@ -202,3 +202,28 @@ unfused capture (tolerance 0.001). Cancellation, rewind and snapshot checks pass
 The fixed 48-slot agent run produced identical 64-token output text and improved
 from 1.53 to 2.14 tokens/s; see [HY4_PROFILING.md](HY4_PROFILING.md) for conditions
 and remaining costs. This remains below the requested 8 tokens/s target.
+
+
+## GPU independent HC
+
+Pre-mixing, ordered stream reduction, post broadcast and the output HC head use
+Metal by default. `DS4_HY4_CPU_IHC=1` restores the scalar reference; unset/0 uses
+Metal, and intermediate trace mode retains the scalar path. This remains HY4's
+independent HC, with flattened RMS, separate sigmoid gates and no Sinkhorn.
+Post updates preserve separate F32 multiplication and addition exactly. The
+parallel mix-dot reduction has bounded rounding differences from scalar order.
+
+`make hy4-hc-test` passes 20 cases / 129,820 checks, including small/odd widths,
+the full 6144 embedding, tensor view guards, invalid aliases/bounds, owned and
+batched dispatch, and a multiply/add contraction witness. Post is bit exact;
+maximum pre/head error is 1.28e-5 times max(1, abs(reference)), below 4e-5.
+
+The actual-model eight-slot lifecycle and 16-token greedy run pass; all 272
+checked top-logit IDs match CPU iHC, maximum logit delta 0.0001049 (bound 0.001).
+The CPU opt-out's lifecycle matches the previous CPU iHC capture exactly.
+Residual completion joins are retained, cancellation/snapshot checks pass, and
+the system-cache payload format is unchanged: iHC streams are per-token scratch.
+
+On the same 48-slot/ctx2048 agent workload, GPU iHC improves 2.14 to **2.72 tokens/s** (64 tokens in 23.503 s), with identical generated text. Initial
+unfused/scalar iHC throughput was 1.53 tokens/s. This remains below the requested
+8 tokens/s; detailed clocks and remaining SSD cost are in HY4_PROFILING.md.
