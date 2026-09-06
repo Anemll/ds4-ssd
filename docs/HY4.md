@@ -139,10 +139,10 @@ sizes/overlaps. No model is opened by this test.
 For a conservative model A/B, the native harness also accepts `--greedy16`:
 
 ```sh
-DS4_HY4_CPU_POINTWISE=1 ./tests/test_hy4_session \
+DS4_HY4_UNFUSED=1 DS4_HY4_CPU_POINTWISE=1 ./tests/test_hy4_session \
   "$HY4_PACKAGE/model-dense-f16head.gguf" "$HY4_PACKAGE/sidecar" \
   --greedy16 > hy4-cpu-pointwise.jsonl
-DS4_HY4_CPU_POINTWISE=0 ./tests/test_hy4_session \
+DS4_HY4_UNFUSED=1 DS4_HY4_CPU_POINTWISE=0 ./tests/test_hy4_session \
   "$HY4_PACKAGE/model-dense-f16head.gguf" "$HY4_PACKAGE/sidecar" \
   --greedy16 > hy4-metal-pointwise.jsonl
 python3 tests/compare_hy4_oracle.py --native-reference \
@@ -175,3 +175,30 @@ comparison. This is not a cold-SSD measurement or a general throughput claim.
 
 For a 48-slot agent CPU/GPU/I/O breakdown and actual dispatch counts, see
 [HY4_PROFILING.md](HY4_PROFILING.md).
+
+
+## Native fused top-8 FFN
+
+Contiguous HY4 slot banks use two routed Metal dispatches per layer by default
+(154 per token). This adapts source `34cccef`'s four-row gate/up and down kernels
+to DS4 tensor views and resolved host slot IDs. Gate/up remains clamped to the
+model's limit 10; weights are applied after down in router order with separately
+rounded multiply/add. Slots are protected and installed before either phase.
+
+Set `DS4_HY4_UNFUSED=1` for the separate-operation oracle (unset/0 enables
+fusion). CPU pointwise and intermediate-trace modes also select that oracle;
+per-slot and chunked banks retain it. No DS4 six-expert kernel is used.
+
+`make hy4-fused-test` covers all four quant triplets, real 6144/2048 widths,
+permuted and repeated IDs in padded interleaved banks, bounds and alias
+rejections, plus more than 94,000 gate/up clamp activations. Every result is
+compared with separate Metal operations and independently dequantized CPU dots
+accumulated in double precision: 198,656 comparisons, maximum vector-normalized
+error 1.17e-5 (CPU bound 5e-5). Different dot reduction orders are not bit exact.
+
+The actual-model eight-slot lifecycle and 16-token greedy runs passed, matching
+all 272 top-logit IDs with maximum logit difference 0.0000095 against the
+unfused capture (tolerance 0.001). Cancellation, rewind and snapshot checks pass.
+The fixed 48-slot agent run produced identical 64-token output text and improved
+from 1.53 to 2.14 tokens/s; see [HY4_PROFILING.md](HY4_PROFILING.md) for conditions
+and remaining costs. This remains below the requested 8 tokens/s target.

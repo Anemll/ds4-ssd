@@ -336,3 +336,10 @@ tests/test_hy4_pointwise: tests/test_hy4_pointwise.c hy4/hy4_math.h ds4_gpu.h ds
 .PHONY: hy4-pointwise-test
 hy4-pointwise-test: tests/test_hy4_pointwise
 	./tests/test_hy4_pointwise
+
+# Native HY4 two-dispatch top-8 FFN; bounded synthetic banks, no model loading.
+tests/test_hy4_fused: tests/test_hy4_fused.c hy4/hy4_quants.c hy4/hy4_quants.h ds4_gpu.h ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o
+	$(CC) -O2 -Wall -Wextra -std=c99 -o $@ tests/test_hy4_fused.c hy4/hy4_quants.c ds4_metal.o ds4_profile.o ds4_ane_mlp_int8w.o $(METAL_LDLIBS)
+.PHONY: hy4-fused-test
+hy4-fused-test: tests/test_hy4_fused
+	./tests/test_hy4_fused

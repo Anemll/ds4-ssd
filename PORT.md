@@ -41,6 +41,7 @@ These are native DS4 session operations; no llama.cpp subprocess backend is used
 | `src/models/hyv4.cpp` independent HC and output head | `hy4/hy4_math.h` and `hy4/hy4_runtime.c`: flattened RMS mixing, separate pre/post gates, ordered F32 residual multiply/add, head reduction. No DS4 Sinkhorn matrix. |
 | Gated MLA and attention sinks | Reuse the matching GLM absorbed-MLA projections/cache storage and source-compatible Q4 embedding decoder; HY4 supplies sink-aware attention and sigmoid gating before output projection. |
 | HYV4 router/shared and routed FFN | Native sigmoid/bias selection; selected unbiased weights normalized and scaled by 2.827; routed SwiGLU clamp10; weight experts after down projection; dense/shared FFN unclamped. |
+| HY4 fused slot8 Phase A/B | `metal/hy4_fused.metal`, `ds4_gpu_hy4_fused_ffn_tensor()` and `hy4_eval_moe()`: four-row source dot kernels adapted to validated DS4 bank views/host slots; two dispatches/layer. Adds the generic graph's clamp10 missing from source fusion; preserves ordered separately rounded post-down weighting. `DS4_HY4_UNFUSED=1` keeps the numerical oracle. |
 | Attention sigmoid and ordered post-down expert sum | `ds4_gpu_hy4_sigmoid_mul_tensor()` and `ds4_gpu_hy4_weighted_sum8_tensor()` keep both operations in the native command batch; the sum preserves separate F32 multiply/add in expert order. `DS4_HY4_CPU_POINTWISE=1` retains the initial scalar reference. |
 | HYV4 chat template and tokenizer | HY4 framing and thinking/tool tokens in `ds4.c` and `ds4_agent.c`; vocabulary-only source/Jinja parity fixtures and streamed tool-parser regressions. |
 | Runtime lifecycle | Native session create/sync/eval/reset/rewind/payload save/load; synchronous complete-request SSD installation for both initial/resumed prefill and decode; cancellation at completed-token boundaries. |
@@ -49,8 +50,8 @@ These are native DS4 session operations; no llama.cpp subprocess backend is used
 
 - Source `34cccef` has no native HY4 DSA or MTP. This port rejects contexts above
   2048 rather than presenting full attention as million-token HY4 support.
-- Shared-FFN/SSD overlap defaults and fused slot8/iHC broadcast performance paths
-  are not copied wholesale. Correctness is checked before kernel optimization.
+- Shared-FFN/SSD overlap and GPU iHC remain pending. Native fused top-8 is
+  ported with clamp correctness and independent CPU/Metal/model validation.
 - No ANE-INT8, M5 ALU/fusion tree, antirez catch-up, or other branch merge.
 - Existing DS4/HY3/GLM kernels and profiles retain their behavior. HY4 uses the
   current sidecar format and explicit dense/sidecar paths.
@@ -63,7 +64,7 @@ port only; it is not HY4 model evidence.
 
 Slot protection can change eviction choices. Failed/interrupted direct reads
 may discard destinations and require an SSD reread. HY4 prefill is initially
-token-wise; only bounded warm-cache gate/reduction timing is reported in
-`docs/HY4.md`. No cold-SSD or long-context result is claimed.
+token-wise; bounded warm-cache fused and unfused timings are reported in
+`docs/HY4_PROFILING.md`. No cold-SSD or long-context result is claimed.
 Native Metal validation targets the actual STQ1_0 package on Apple M5 Max.
 Other HY4 artifacts, CUDA execution, and HY4 MTP are not supported by this path.

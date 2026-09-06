@@ -71,20 +71,48 @@ Every token logged eight selected experts and 48 cache slots, with 616 expert
 references across the 77 routed layers. The executed routed path was
 **per-expert**, with 1,848 quant matvec, 616 SwiGLU and 77 reduction dispatches:
 **2,541 routed dispatches per token**. HY4 does not enter the DS4 six-expert fused
-kernel. Increasing cache capacity does not enable fused HY4 kernels.
+kernel. This is the pre-fusion baseline; cache capacity and expert count remain fixed.
 
-The source branch's fused `slot8` implementation dispatches two phases per MoE
-layer (154 per token): gate/up/SwiGLU followed by down/weighted reduction. It
-also has GPU iHC and optional shared-FFN/SSD-read overlap. Those major paths
-have not yet been ported. The earlier gate/reduction optimization removes CPU
-round trips but keeps the separate expert matvec loop.
+## Fused top-8 follow-up
 
-Before reusing the fused source shaders, preserve the model's clamp-10
-semantics: the source generic HY4 graph clamps routed gate/up, while the source
-`kernel_hyv4_fused_phaseA_*` code at `34cccef` computes unclamped SwiGLU and its
-fused eligibility check does not exclude clamped layers. This is a source-code
-finding, not a claim about its effect on the reported 5 t/s workload. A port
-must test clamp activation explicitly instead of copying that omission.
+The native fused path now adapts source `slot8` to DS4 bank views and resolved
+host slot IDs: gate/up/SwiGLU followed by down/ordered weighting. Unlike the
+source fused shaders at `34cccef`, it preserves the generic HY4 graph's routed
+clamp10. Synthetic cases explicitly activate both gate and up clamps.
+`DS4_HY4_UNFUSED=1` retains the reference; unset/0 enables the two-dispatch path
+for contiguous banks. CPU pointwise, trace, per-slot and chunked-bank modes
+retain separate operations.
+
+The identical command above, actual model, 709-token system cache and 31-token
+user suffix produced **2.14 tokens/s** (64 tokens in 29.972 s), versus baseline
+1.53 tokens/s. The generated 64-token text was identical. Every decode profile
+reports `routed_path=fused_top8`, 154 fused dispatches, zero separate routed
+dispatches, top-8 and 48 slots. Native 16-token testing also matched all 272
+top-logit IDs with maximum logit delta 0.0000095; lifecycle regressions pass.
+
+| Measurement | Unfused | Fused |
+| --- | ---: | ---: |
+| Token wall | 653.7 ms | 468.2 ms |
+| Completed GPU time | 285.1 ms | 100.5 ms |
+| FFN GPU time | 221.7 ms | 33.5 ms |
+| Attention GPU time | 55.6 ms | 58.3 ms |
+| Worker CPU time | 180.2 ms | 175.8 ms |
+| iHC pre CPU time | 97.1 ms | 97.2 ms |
+| Remap/install wall | 194.2 ms | 195.9 ms |
+| Expert hit rate | 60.8% | 60.8% |
+
+These are bounded serial warm-file-cache runs, not cold-SSD throughput or an
+8 tokens/s result. Small routing differences from F32 reduction order can
+change cache counters even with identical generated text. CPU iHC, SSD install
+and attention are the next measured costs; GPU iHC/shared-FFN overlap remain
+pending. Clock overlap definitions above still apply.
+
+Evidence: `hy4-slots48-fused.{stdout,stderr}`, `hy4-slots48-fused-summary.json`,
+`hy4-fused-test.log`, `hy4-fused-lifecycle.{jsonl,log}` and
+`hy4-fused-greedy16.{jsonl,log}` in the same permanent validation directory.
+The following Metal System Trace describes the earlier unfused baseline.
+Fused execution is verified by counters on the actual encode path and GPU
+command timestamps; no new fused Instruments capture is claimed here.
 
 ## Metal trace and CPU stack evidence
 

@@ -48,10 +48,14 @@ uses Metal. This does not change slot count, routing, or the 2048-key limit.
 The two implementations are compared on deterministic buffers before native
 model validation.
 
-HY4 attention gating and the ordered post-down expert sum use Metal by
-default. `DS4_HY4_CPU_POINTWISE=1` restores those two CPU operations for numerical
-A/B checks; unset or 0 keeps Metal. iHC, slot reservations, I/O and completion
-boundaries are unchanged. Startup identifies the selected gate/reduction path.
+HY4 uses a native fused top-8 routed FFN by default for contiguous slot banks:
+two Metal dispatches per MoE layer, with gate/up clamp10 and ordered weighting
+after each down projection. `DS4_HY4_UNFUSED=1` selects the separate-operation
+reference; unset/0 enables fusion. Per-slot/chunked banks retain that reference.
+`DS4_HY4_CPU_POINTWISE=1` also selects the separate FFN and restores CPU
+attention gating/expert reduction. A `DS4_HY4_TRACE_DIR` capture uses the
+separate path to materialize all diagnostic intermediates. None of these
+switches changes routing, slot count, I/O drainage, or model precision.
 
 `DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
 adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`

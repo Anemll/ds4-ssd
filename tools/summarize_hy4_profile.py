@@ -36,14 +36,21 @@ for row in rows:
             row["routed_quant_dispatches"] != 77 * 8 * 3 or
             row["routed_swiglu_dispatches"] != 77 * 8):
         parser.error("incomplete per-expert dispatch accounting")
+    fused=row.get("routed_fused_dispatches",0)
+    if row["routed_path"] == "fused_top8" and (fused != 77*2 or
+            any(row[key] for key in ("routed_quant_dispatches", "routed_swiglu_dispatches", "routed_reduce_dispatches"))):
+        parser.error("incomplete fused top-8 dispatch accounting")
+    if fused%2 or row["routed_quant_dispatches"]//24+fused//2 != 77:
+        parser.error("incomplete routed layer accounting")
+    row["routed_fused_dispatches"]=fused
 metrics = ("wall_ms", "worker_cpu_ms", "gpu_ms", "attn_gpu_ms", "ffn_gpu_ms",
            "router_gpu_ms", "ihc_pre_cpu_ms", "ihc_post_cpu_ms", "ihc_head_cpu_ms",
            "router_install_wall_ms", "hits", "misses", "installed_bytes",
-           "routed_quant_dispatches", "routed_swiglu_dispatches", "routed_reduce_dispatches")
+           "routed_quant_dispatches", "routed_swiglu_dispatches", "routed_reduce_dispatches", "routed_fused_dispatches")
 summary = {key: statistics.mean(row[key] for row in rows) for key in metrics}
 summary.update(completed_decode_tokens=len(rows), first_position=rows[0]["pos"],
                last_position=rows[-1]["pos"], slots=sorted({row["slots"] for row in rows}),
-               topk=8, hit_rate=sum(row["hits"] for row in rows) / (len(rows) * 77 * 8))
+               topk=8, routed_paths=sorted({row["routed_path"] for row in rows}), hit_rate=sum(row["hits"] for row in rows) / (len(rows) * 77 * 8))
 if all(len(row["layer_logs"]) == 77 for row in rows):
     summary["install_wall_ms"] = statistics.mean(
         sum(layer["install_ms"] for layer in row["layer_logs"]) for row in rows)

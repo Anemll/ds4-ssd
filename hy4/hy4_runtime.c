@@ -8,7 +8,7 @@
 typedef struct {
     double pre_cpu, post_cpu, head_cpu, attn_gpu, ffn_gpu, router_gpu;
     double router_install_wall;
-    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches;
+    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches, fused_dispatches;
 } hy4_profile;
 
 typedef struct {
@@ -17,6 +17,7 @@ typedef struct {
     float post[4];
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
+    ds4_gpu_tensor *fused_mid;
     bool profile_enabled;
     hy4_profile profile;
 } hy4_runtime;
@@ -165,6 +166,26 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
         hy4_trace_host("router_weights",il,ds4_gpu_tensor_contents(r->router_weights),8);
         if (!hy4_host_end()) return false;
     }
+    // Install has resolved all hits/misses and drained reads. The next residual
+    // join completes these bank readers before any subsequent layer/token reuse.
+    if (!env_flag_enabled("DS4_HY4_UNFUSED") && !env_flag_enabled("DS4_HY4_CPU_POINTWISE") &&
+        !getenv("DS4_HY4_TRACE_DIR") && !s->graph.flash_per_slot_buffers &&
+        !s->graph.flash_chunked_mixed_bank &&
+        layer->ffn_gate_exps->type==layer->ffn_up_exps->type) {
+        const ds4_flash_moe_layer_sidecar *bank=&s->graph.flash_moe->layer[il];
+        const uint64_t rows[]={routed_expert_row_bytes(layer->ffn_gate_exps),
+            routed_expert_row_bytes(layer->ffn_up_exps),routed_expert_row_bytes(layer->ffn_down_exps)};
+        uint64_t strides[3];
+        for(unsigned f=0;f<3;f++) strides[f]=s->graph.flash_mixed_slot_bank ?
+            bank->expert_stride : bank->family_bytes[f];
+        *stage="moe.fused_top8";
+        if (!ds4_gpu_hy4_fused_ffn_tensor(r->routed_out,h->fused_mid,r->norm,
+                s->graph.flash_gate_bank[il],s->graph.flash_up_bank[il],s->graph.flash_down_bank[il],
+                r->router_weights,s->graph.flash_decode_slot_ids[il],s->graph.flash_slot_bank,
+                layer->ffn_gate_exps->type,layer->ffn_down_exps->type,DS4_N_EMBD,DS4_N_FF_EXP,rows,strides)) return false;
+        if(h->profile_enabled) h->profile.fused_dispatches+=2;
+        return true;
+    }
     ds4_gpu_tensor *views[8][3] = {{0}};
     bool ok = true;
     for (uint32_t k=0;ok && k<8;k++) {
@@ -232,6 +253,7 @@ static void hy4_session_free(ds4_session *s) {
     free(h->streams);
     free(h->attention_scores);
     ds4_gpu_tensor_free(h->attention_gate);
+    ds4_gpu_tensor_free(h->fused_mid);
     glm52_session_free(s);
 }
 
@@ -262,9 +284,10 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     h->mla.ffn_up=ds4_gpu_tensor_alloc(18432*sizeof(float));
     h->mla.ffn_mid=ds4_gpu_tensor_alloc(18432*sizeof(float));
     h->attention_gate=ds4_gpu_tensor_alloc(DS4_N_HEAD*256*sizeof(float));
+    h->fused_mid=ds4_gpu_tensor_alloc(8*DS4_N_FF_EXP*sizeof(float));
     h->streams=xmalloc(4*DS4_N_EMBD*sizeof(float));
     h->attention_scores=xmalloc(ctx_size*sizeof(float));
-    ok=ok && h->mla.ffn_gate && h->mla.ffn_up && h->mla.ffn_mid && h->attention_gate;
+    ok=ok && h->mla.ffn_gate && h->mla.ffn_up && h->mla.ffn_mid && h->attention_gate && h->fused_mid;
     s->graph.prefill_cap=1; s->graph.quality=e->quality;
     s->graph.dense_mapped_bytes=e->model.size-e->model.tensor_data_pos;
     if(ok) ok=metal_graph_enable_flash_moe(&s->graph,e->flash_moe,&e->weights.layer[DS4_N_DENSE_LEAD]);
@@ -504,14 +527,15 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
                 "\"ihc_pre_cpu_ms\":%.6f,\"ihc_post_cpu_ms\":%.6f,\"ihc_head_cpu_ms\":%.6f,"
                 "\"router_install_wall_ms\":%.6f,\"hits\":%llu,\"misses\":%llu,\"installed_bytes\":%llu,"
                 "\"routed_quant_dispatches\":%u,\"routed_swiglu_dispatches\":%u,"
-                "\"routed_reduce_dispatches\":%u,\"routed_path\":\"per_expert\"}\n",
+                "\"routed_reduce_dispatches\":%u,\"routed_fused_dispatches\":%u,\"routed_path\":\"%s\"}\n",
                 pos,s->graph.flash_slot_bank,DS4_N_EXPERT_ACTIVE_USED,
                 (now_sec()-wall0)*1000,(hy4_profile_cpu_seconds()-cpu0)*1000,(ds4_gpu_busy_seconds()-gpu0)*1000,
                 p->attn_gpu*1000,p->ffn_gpu*1000,p->router_gpu*1000,
                 p->pre_cpu*1000,p->post_cpu*1000,p->head_cpu*1000,p->router_install_wall*1000,
                 (unsigned long long)(s->graph.flash_hits-hits0),(unsigned long long)(s->graph.flash_misses-misses0),
                 (unsigned long long)(s->graph.flash_installed_bytes-bytes0),
-                p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches);
+                p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches,p->fused_dispatches,
+                p->fused_dispatches ? (p->quant_dispatches ? "mixed" : "fused_top8") : "per_expert");
     }
     rt->n_past++;
     token_vec_push(&s->checkpoint, token);

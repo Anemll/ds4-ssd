@@ -701,6 +701,18 @@ int ds4_gpu_hy4_quant_matvec_tensor(ds4_gpu_tensor *out,
                                      uint32_t type, uint32_t in_dim,
                                      uint32_t out_dim, uint64_t row_bytes);
 
+/* Two-dispatch native top-8 FFN. Gate/up types must match (43 or 16),
+ * down is 18 or 23. F32 h[8][n_ff] and out[n_embd] must be disjoint
+ * from all inputs. Host slots are copied at encode time after installation.
+ * Each bank view begins at family slot zero; strides may include other
+ * families/padding. Preserves clamp10 and post-down ordered weighting. */
+int ds4_gpu_hy4_fused_ffn_tensor(ds4_gpu_tensor *out, ds4_gpu_tensor *h,
+        const ds4_gpu_tensor *x, const ds4_gpu_tensor *gate,
+        const ds4_gpu_tensor *up, const ds4_gpu_tensor *down,
+        const ds4_gpu_tensor *weights, const int32_t slots[8], uint32_t slot_count,
+        uint32_t gate_type, uint32_t down_type, uint32_t n_embd, uint32_t n_ff,
+        const uint64_t row_bytes[3], const uint64_t slot_strides[3]);
+
 /* HY4 pointwise operations. Gate supports exact in-place x/out; partial
  * overlap is rejected. Sum consumes down[8][n] and weights[8], with a disjoint
  * output. Both join the caller's command batch and validate tensor views. */
