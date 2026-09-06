@@ -172,3 +172,6 @@ After an initial warmup sequence, matched warm runs with eight slots measured:
 Combined rates were 1.889 versus 1.991 t/s, about 5.4% higher in this short
 warm-cache sample. The initial CPU run was slower and is excluded from that
 comparison. This is not a cold-SSD measurement or a general throughput claim.
+
+For a 48-slot agent CPU/GPU/I/O breakdown and actual dispatch counts, see
+[HY4_PROFILING.md](HY4_PROFILING.md).

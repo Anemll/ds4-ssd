@@ -6,11 +6,19 @@
 #include "hy4_math.h"
 
 typedef struct {
+    double pre_cpu, post_cpu, head_cpu, attn_gpu, ffn_gpu, router_gpu;
+    double router_install_wall;
+    uint32_t quant_dispatches, swiglu_dispatches, reduce_dispatches;
+} hy4_profile;
+
+typedef struct {
     glm52_runtime mla; /* first member: shared MLA allocation/serialization */
     float *streams;
     float post[4];
     float *attention_scores;
     ds4_gpu_tensor *attention_gate;
+    bool profile_enabled;
+    hy4_profile profile;
 } hy4_runtime;
 
 static bool hy4_session_active(const ds4_session *s) {
@@ -21,6 +29,13 @@ static hy4_runtime *hy4_rt(ds4_session *s) {
 }
 
 #if !defined(DS4_NO_GPU) && defined(__APPLE__)
+/* Opt-in accounting only: no extra submissions or GPU waits. GPU times
+ * come from completed command-buffer timestamps, not enqueue wall times. */
+static double hy4_profile_cpu_seconds(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID,&ts)!=0) return 0.0;
+    return (double)ts.tv_sec+(double)ts.tv_nsec*1e-9;
+}
 /* Opt-in parity capture; one token only, in a caller-created directory. */
 static void hy4_trace_host(const char *name, int il, const float *x, size_t n) {
     const char *dir=getenv("DS4_HY4_TRACE_DIR");
@@ -44,19 +59,29 @@ static bool hy4_pre(ds4_session *s, const ds4_tensor *fn,
                      const ds4_tensor *scale, const ds4_tensor *base) {
     hy4_runtime *h = hy4_rt(s);
     const ds4_model *m = &s->engine->model;
+    const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
     if (!hy4_host_begin()) return false;
     if (!hy4_hc_pre(h->mla.embed_host, h->post, h->streams,
                 tensor_data(m, fn), tensor_data(m, scale), tensor_data(m, base),
                 DS4_N_EMBD, 4, 1e-5f, 1e-6f, 2.0f)) return false;
+    if(h->profile_enabled) h->profile.pre_cpu+=hy4_profile_cpu_seconds()-cpu0;
     return ds4_gpu_tensor_write(h->mla.cur, 0, h->mla.embed_host,
                                  DS4_N_EMBD * sizeof(float)) && hy4_host_end();
 }
 
 static bool hy4_post(ds4_session *s, ds4_gpu_tensor *x) {
     hy4_runtime *h = hy4_rt(s);
+    const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
+    const double gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
     if (!hy4_host_begin()) return false;
+    if(h->profile_enabled) {
+        double elapsed=ds4_gpu_busy_seconds()-gpu0;
+        if(x==h->mla.attn_out) h->profile.attn_gpu+=elapsed;
+        else h->profile.ffn_gpu+=elapsed;
+    }
     if (!ds4_gpu_tensor_read(x, 0, h->mla.embed_host, DS4_N_EMBD * sizeof(float))) return false;
     if (!hy4_hc_post(h->streams, h->mla.embed_host, h->streams, h->post, DS4_N_EMBD, 4)) return false;
+    if(h->profile_enabled) h->profile.post_cpu+=hy4_profile_cpu_seconds()-cpu0;
     return hy4_host_end();
 }
 
@@ -64,10 +89,12 @@ static bool hy4_head(ds4_session *s) {
     hy4_runtime *h = hy4_rt(s);
     const ds4_model *m = &s->engine->model;
     const ds4_weights *w = &s->engine->weights;
+    const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
     if (!hy4_host_begin()) return false;
     if (!hy4_hc_head(h->mla.embed_host, h->streams, tensor_data(m,w->output_hc_fn),
                  tensor_data(m,w->output_hc_scale), tensor_data(m,w->output_hc_base),
                  DS4_N_EMBD, 4, 1e-5f, 1e-6f)) return false;
+    if(h->profile_enabled) h->profile.head_cpu+=hy4_profile_cpu_seconds()-cpu0;
     return ds4_gpu_tensor_write(h->mla.cur, 0, h->mla.embed_host,
                                  DS4_N_EMBD * sizeof(float)) && hy4_host_end();
 }
@@ -121,8 +148,15 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
             m->map,m->size,layer->ffn_exp_probs_b ? layer->ffn_exp_probs_b->abs_offset : 0,
             256,8,2.827f,layer->ffn_exp_probs_b != NULL,r->router_logits,1)) return false;
     *stage = "moe.protect_and_install";
+    hy4_runtime *h=hy4_rt(s);
+    const double install0=h->profile_enabled ? now_sec() : 0.0;
+    const double router_gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
     if (!metal_graph_flash_moe_prepare_decode(&s->graph,il,pos) ||
         !s->graph.flash_decode_ids_valid[il]) return false;
+    if(h->profile_enabled) {
+        h->profile.router_install_wall+=now_sec()-install0;
+        h->profile.router_gpu+=ds4_gpu_busy_seconds()-router_gpu0;
+    }
     if (!pos && getenv("DS4_HY4_TRACE_DIR")) {
         if (!hy4_host_begin()) return false;
         float ids[8];
@@ -154,6 +188,10 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
              ds4_gpu_hy4_quant_matvec_tensor(down,views[k][2],r->routed_mid,
                   layer->ffn_down_exps->type,DS4_N_FF_EXP,DS4_N_EMBD,
                   routed_expert_row_bytes(layer->ffn_down_exps));
+        if(ok && h->profile_enabled) {
+            h->profile.quant_dispatches+=3;
+            h->profile.swiglu_dispatches++;
+        }
         ds4_gpu_tensor_free(down);
     }
     const bool cpu_pointwise=env_flag_enabled("DS4_HY4_CPU_POINTWISE");
@@ -164,6 +202,7 @@ static bool hy4_eval_moe(ds4_session *s, const ds4_model *m,
     if (!ok) return false;
     if (!cpu_pointwise) {
         *stage = "moe.weighted_sum8";
+        if(h->profile_enabled) h->profile.reduce_dispatches++;
         return ds4_gpu_hy4_weighted_sum8_tensor(r->routed_out,r->routed_down,
                    r->router_weights,DS4_N_EMBD) &&
                hy4_trace_gpu("routed_out",il,r->routed_out,DS4_N_EMBD,pos) &&
@@ -214,6 +253,7 @@ static int hy4_session_create(ds4_session **out, ds4_engine *e, int ctx_size) {
     ds4_session *s=xcalloc(1,sizeof(*s));
     hy4_runtime *h=xcalloc(1,sizeof(*h));
     s->engine=e; s->ctx_size=ctx_size; s->prefill_cap=1; s->variant_runtime=h;
+    h->profile_enabled=env_flag_enabled("DS4_HY4_PROFILE");
     s->logits=xmalloc(DS4_N_VOCAB*sizeof(float));
     bool ok=glm52_alloc_decode_tensors(s);
     /* HY4's leading dense FFN is wider than GLM52's. */
@@ -247,6 +287,13 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
     const ds4_weights *w = &e->weights;
     const uint32_t pos = rt->n_past;
     const char *stage = "begin";
+    hy4_runtime *h=hy4_rt(s);
+    const double wall0=h->profile_enabled ? now_sec() : 0.0;
+    const double cpu0=h->profile_enabled ? hy4_profile_cpu_seconds() : 0.0;
+    const double gpu0=h->profile_enabled ? ds4_gpu_busy_seconds() : 0.0;
+    const uint64_t hits0=s->graph.flash_hits, misses0=s->graph.flash_misses;
+    const uint64_t bytes0=s->graph.flash_installed_bytes;
+    if(h->profile_enabled) memset(&h->profile,0,sizeof(h->profile));
 
     if (pos >= (uint32_t)s->ctx_size) {
         snprintf(err, errlen, "HY4 context is full");
@@ -449,6 +496,23 @@ static int hy4_eval_token(ds4_session *s, int token, char *err, size_t errlen) {
         return 1;
     }
 
+    if(h->profile_enabled) {
+        const hy4_profile *p=&h->profile;
+        fprintf(stderr,"HY4_PROFILE {\"pos\":%u,\"slots\":%u,\"topk\":%u,"
+                "\"wall_ms\":%.6f,\"worker_cpu_ms\":%.6f,\"gpu_ms\":%.6f,"
+                "\"attn_gpu_ms\":%.6f,\"ffn_gpu_ms\":%.6f,\"router_gpu_ms\":%.6f,"
+                "\"ihc_pre_cpu_ms\":%.6f,\"ihc_post_cpu_ms\":%.6f,\"ihc_head_cpu_ms\":%.6f,"
+                "\"router_install_wall_ms\":%.6f,\"hits\":%llu,\"misses\":%llu,\"installed_bytes\":%llu,"
+                "\"routed_quant_dispatches\":%u,\"routed_swiglu_dispatches\":%u,"
+                "\"routed_reduce_dispatches\":%u,\"routed_path\":\"per_expert\"}\n",
+                pos,s->graph.flash_slot_bank,DS4_N_EXPERT_ACTIVE_USED,
+                (now_sec()-wall0)*1000,(hy4_profile_cpu_seconds()-cpu0)*1000,(ds4_gpu_busy_seconds()-gpu0)*1000,
+                p->attn_gpu*1000,p->ffn_gpu*1000,p->router_gpu*1000,
+                p->pre_cpu*1000,p->post_cpu*1000,p->head_cpu*1000,p->router_install_wall*1000,
+                (unsigned long long)(s->graph.flash_hits-hits0),(unsigned long long)(s->graph.flash_misses-misses0),
+                (unsigned long long)(s->graph.flash_installed_bytes-bytes0),
+                p->quant_dispatches,p->swiglu_dispatches,p->reduce_dispatches);
+    }
     rt->n_past++;
     token_vec_push(&s->checkpoint, token);
     s->checkpoint_valid = true;

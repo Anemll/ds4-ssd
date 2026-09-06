@@ -53,6 +53,10 @@ default. `DS4_HY4_CPU_POINTWISE=1` restores those two CPU operations for numeric
 A/B checks; unset or 0 keeps Metal. iHC, slot reservations, I/O and completion
 boundaries are unchanged. Startup identifies the selected gate/reduction path.
 
+`DS4_HY4_PROFILE=1` emits per-token CPU/GPU/cache/dispatch accounting without
+adding GPU waits; unset/0 disables it. Combine with `DS4_FLASH_MOE_PROFILE=1`
+for per-layer remap/install wall time. See [HY4_PROFILING.md](HY4_PROFILING.md).
+
 ## Slot ownership and interruption safety
 
 Decode and tiny-batch slot-bank prefill hard-reserve **all resident experts in
